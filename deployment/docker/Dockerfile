@@ -175,6 +175,12 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 RUN --mount=from=frontend-builder,source=/app/public/build,target=/tmp/check-build ls -la /tmp/check-build/ || echo "WARNING: No files in frontend-builder public/build"
 COPY --from=frontend-builder --chown=sail:sail /app/public/build /var/www/html/public/build
 
+# IMPORTANT: Backup built assets for restoration when volume mounts overwrite them
+# When entire project is mounted, the build directory gets overwritten by the empty local version
+# This backup allows startup.sh to restore the built assets into the mounted volume
+RUN mkdir -p /opt/vite-build-backup && \
+    cp -r /var/www/html/public/build/* /opt/vite-build-backup/ 2>/dev/null || true
+
 # Ensure all files are owned by sail (including auto-generated from composer)
 RUN chown -R sail:sail /var/www/html && \
     chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache

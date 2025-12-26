@@ -1,59 +1,48 @@
 services:
     app:
-        image: ${DOCKER_IMAGE_NAME}
-        container_name: ${DOCKER_CONTAINER_NAME}
+        image: ghcr.io/anohou/billeterie:production
+        container_name: dc_billeterie_production
         restart: unless-stopped
         networks:
             - traefik_swarm_network
         environment:
-            - APP_ENV=${ENVIRONMENT}
+            - APP_ENV=production
             - CONTAINER_ROLE=app
             - APP_TYPE=fullstack
         volumes:
-            # Use bind mounts to ensure the code is available in the container
+            # Bind mount entire project
             - type: bind
               source: ../../
               target: /var/www/html
-            - type: bind
-              source: ../../storage
-              target: /var/www/html/storage
-            - type: bind
-              source: ../../public
-              target: /var/www/html/public
-            - type: bind
-              source: ${SECRETS_MOUNT_FILE}
-              target: /home/sail/config/laravel/common-values.env
-              read_only: true
         labels:
             - "traefik.enable=true"
-            - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+            - "traefik.docker.network=traefik_swarm_network"
+
 
             # HTTP Service
-            - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.server.port=8000"
+            - "traefik.http.services.billeterie-production-http-service.loadbalancer.server.port=9000"
 
-            # HTTP to HTTPS Redirect Router
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.entrypoints=web"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.rule=Host(`${APP_URL_DOMAIN}`) && PathPrefix(`/${APP_URL_PATH}`)"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.middlewares=${COMPOSE_PROJECT_NAME}-https-redirect"
+            # Dynamic routing configuration (path-based or domain-based)
+            - "traefik.http.routers.billeterie-production.rule=Host(`billeterie.anohou.dev`)"
+
+            # HTTP to HTTPS Redirect Router (if path-based, includes path)
+            - "traefik.http.routers.billeterie-production-http-insecure.entrypoints=web"
+            - "traefik.http.routers.billeterie-production-http-insecure.middlewares=billeterie-production-https-redirect"
 
             # Service-specific middleware for X-Forwarded-Host
-            - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-forwarded-host.headers.customrequestheaders.X-Forwarded-Host=${APP_URL_DOMAIN}"
+            - "traefik.http.middlewares.billeterie-production-forwarded-host.headers.customrequestheaders.X-Forwarded-Host=billeterie.anohou.dev"
 
-            # Main HTTPS Router
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.entrypoints=websecure"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.rule=Host(`${APP_URL_DOMAIN}`) && PathPrefix(`/${APP_URL_PATH}`)"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.tls=true"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.tls.certresolver=letsencrypt"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.service=${COMPOSE_PROJECT_NAME}_http_service"
-            - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.middlewares=secure-headers,${COMPOSE_PROJECT_NAME}-forwarded-host,${COMPOSE_PROJECT_NAME}-stripprefix"
-
-            # Strip prefix middleware to remove URL path prefix from requests
-            - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-stripprefix.stripprefix.prefixes=/${APP_URL_PATH}"
+            # Main HTTPS Router configuration
+            - "traefik.http.routers.billeterie-production-http.entrypoints=websecure"
+            - "traefik.http.routers.billeterie-production-http.tls=true"
+            - "traefik.http.routers.billeterie-production-http.tls.certresolver=letsencrypt"
+            - "traefik.http.routers.billeterie-production-http.service=billeterie-production-http-service"
+            - "traefik.http.routers.billeterie-production-http.middlewares=secure-headers,billeterie-production-forwarded-host"
 
             # HTTPS Redirect Middleware
-            - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-https-redirect.redirectscheme.scheme=https"
+            - "traefik.http.middlewares.billeterie-production-https-redirect.redirectscheme.scheme=https"
 
 networks:
     traefik_swarm_network:
         external: true
-        name: ${TRAEFIK_SWARM_NETWORK}
+        name: traefik_swarm_network

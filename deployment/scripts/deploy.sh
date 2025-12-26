@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOYMENT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-source "${SCRIPT_DIR}/utils.sh"
+source "${SCRIPT_DIR}/lib/utils.sh"
 
 # Load feature system
 source "${DEPLOYMENT_ROOT}/features/loader.sh"
@@ -182,6 +182,10 @@ deploy() {
             log "ERROR" "Failed to build image"
             exit 1
         }
+
+        # Tag with registry path so docker-compose can find it
+        log "INFO" "Tagging image for docker-compose: ${FULL_REGISTRY_PATH}:${environment}"
+        docker tag "${DOCKER_IMAGE_NAME}" "${FULL_REGISTRY_PATH}:${environment}"
     else
         log "ERROR" "Neither remote image pull nor local build is enabled"
         exit 1

@@ -28,7 +28,7 @@ infrastructure:
 
 project:
   name: billeterie
-  display_name: "Billeterie - Vente de tickets en temps réel"
+  display_name: "Billeterie - Vente de tickets"
 
 # =============================================================================
 # 🎯 PROJECT CUSTOMIZATION - Edit these values for your deployment
@@ -56,28 +56,30 @@ common_vars:
 
 # Staging environment variables
 staging_vars:
-  app_name: &stg_app_name "Billeterie - Vente de tickets en temps réel (Staging)"
+  app_name: &stg_app_name "Billeterie - Vente de tickets (Staging)"
   domain: &stg_domain "billeterie.anohou.dev"
   # Database name (DB_DATABASE) must be set in project secrets file:
   # /srv/apps/.config/staging/laravel/billeterie.env
   session_domain: &stg_session_domain "billeterie.anohou.dev"
   origin: &stg_origin "https://billeterie.anohou.dev"
-  url_path: &stg_url_path "/billeterie-stg-Md8ZhkqdaUdqLmmvryWllX5AfuKk1oGj3FsD9GRt"
-  url: &stg_url "https://billeterie.anohou.dev/billeterie-stg-Md8ZhkqdaUdqLmmvryWllX5AfuKk1oGj3FsD9GRt"
+  routing_type: &stg_routing_type "path-based"
+  url_path: &stg_url_path "/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
+  url: &stg_url "https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
 
 # Production environment variables
 production_vars:
-  app_name: &prod_app_name "Billeterie - Vente de tickets en temps réel"
+  app_name: &prod_app_name "Billeterie - Vente de tickets"
   domain: &prod_domain "billeterie.anohou.dev"
   # Database name (DB_DATABASE) must be set in project secrets file:
   # /srv/apps/.config/production/laravel/billeterie.env
   origin: &prod_origin "https://billeterie.anohou.dev"
   # Security: Explicit subdomain list (no wildcards)
-  cors_origins: &prod_cors_origins "{{{PRODUCTION_CORS_ORIGINS}}}"
-  sanctum_domains: &prod_sanctum_domains "{{{PRODUCTION_SANCTUM_DOMAINS}}}"
+  cors_origins: &prod_cors_origins "https://billeterie.anohou.dev"
+  sanctum_domains: &prod_sanctum_domains "billeterie.anohou.dev"
   session_domain: &prod_session_domain "billeterie.anohou.dev"
-  url_path: &prod_url_path "/billeterie-prod-S1AG7XRAXgU0vEqgFWxEEmCovkJfCxqf5WmxlENR"
-  url: &prod_url "https://billeterie.anohou.dev/billeterie-prod-S1AG7XRAXgU0vEqgFWxEEmCovkJfCxqf5WmxlENR"
+  routing_type: &prod_routing_type "domain-based"
+  url_path: &prod_url_path ""
+  url: &prod_url "https://billeterie.anohou.dev"
 
 # =============================================================================
 # 🐳 DOCKER & RUNTIME CONFIGURATION
@@ -126,7 +128,7 @@ deployment:
 # Only values actively used in .env generation are included
 laravel:
   core:
-    name: "Billeterie - Vente de tickets en temps réel"
+    name: "Billeterie - Vente de tickets"
     debug: false
     timezone: UTC
     locale: en
@@ -182,7 +184,7 @@ environments:
 
     laravel:
       core:
-        name: "Billeterie - Vente de tickets en temps réel Local"
+        name: "Billeterie - Vente de tickets Local"
         env: local
         debug: true
         url: http://billeterie.localhost

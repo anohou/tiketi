@@ -5,7 +5,7 @@
 
 set -e
 
-source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/utils.sh"
 
 verify_deployment() {
     local environment="$1"

@@ -9,8 +9,11 @@ VERSION="1.0.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load utility libraries
+source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/validators.sh"
 source "${SCRIPT_DIR}/lib/template-processor.sh"
+source "${SCRIPT_DIR}/lib/url-utils.sh"
+source "${SCRIPT_DIR}/lib/traefik-utils.sh"
 
 # Color codes for output
 COLOR_RESET='\033[0m'
@@ -151,6 +154,23 @@ parse_args() {
                 if [[ "$2" =~ ^([A-Z_]+)=(.*)$ ]]; then
                     local key="${BASH_REMATCH[1]}"
                     local val="${BASH_REMATCH[2]}"
+
+                    # Support old variable names with deprecation warnings
+                    case "$key" in
+                        STAGING_URL)
+                            print_warning "STAGING_URL is deprecated, use STAGING_FULL_URL"
+                            key="STAGING_FULL_URL"
+                            ;;
+                        PRODUCTION_URL)
+                            print_warning "PRODUCTION_URL is deprecated, use PRODUCTION_FULL_URL"
+                            key="PRODUCTION_FULL_URL"
+                            ;;
+                        USE_URL_PATHS)
+                            print_warning "USE_URL_PATHS is deprecated, use ENABLE_PATH_ROUTING"
+                            key="ENABLE_PATH_ROUTING"
+                            ;;
+                    esac
+
                     eval "CONF_$key=\"\$val\""
                     CONF_KEYS="$CONF_KEYS $key"
                 fi
@@ -352,16 +372,42 @@ collect_configuration() {
         "${CONF_PRODUCTION_DOMAIN}" \
         ""
 
-    # Generate secure URL tokens
-    print_header "Generating Security Tokens"
+    # Determine URL paths for each environment
+    print_header "Configuring URL Routing"
 
-    print_info "Generating cryptographically secure URL path tokens..."
-    CONF_STAGING_URL_TOKEN=$(generate_secure_token 40)
-    CONF_PRODUCTION_URL_TOKEN=$(generate_secure_token 40)
-    CONF_KEYS="$CONF_KEYS STAGING_URL_TOKEN PRODUCTION_URL_TOKEN"
+    print_info "Determining URL paths for staging and production..."
+    echo ""
 
-    print_success "Staging token:    ${CONF_STAGING_URL_TOKEN}"
-    print_success "Production token: ${CONF_PRODUCTION_URL_TOKEN}"
+    # Determine staging URL path
+    determine_url_path "STAGING"
+
+    # Determine production URL path
+    determine_url_path "PRODUCTION"
+
+    # Add URL path and domain variables to CONF_KEYS
+    CONF_KEYS="$CONF_KEYS STAGING_DOMAIN PRODUCTION_DOMAIN STAGING_URL_PATH PRODUCTION_URL_PATH"
+
+    # Determine routing types
+    CONF_STAGING_ROUTING_TYPE=$(get_routing_type "$CONF_STAGING_URL_PATH" 6)
+    CONF_PRODUCTION_ROUTING_TYPE=$(get_routing_type "$CONF_PRODUCTION_URL_PATH" 12)
+    CONF_KEYS="$CONF_KEYS STAGING_ROUTING_TYPE PRODUCTION_ROUTING_TYPE"
+
+    # Set computed Docker variables for docker-compose files
+    # Convert project name to Docker-safe format (hyphens to underscores)
+    local docker_project_name=$(echo "$CONF_PROJECT_NAME" | tr '-' '_')
+
+    CONF_DOCKER_IMAGE_NAME="${docker_project_name}_staging"  # Will be overridden per env
+    CONF_DOCKER_CONTAINER_NAME="dc_${docker_project_name}_staging"  # Will be overridden per env
+    CONF_COMPOSE_PROJECT_NAME="${docker_project_name}_staging"  # Will be overridden per env
+    CONF_TRAEFIK_SWARM_NETWORK="traefik_swarm_network"
+    CONF_ENVIRONMENT="staging"  # Will be overridden per env
+    CONF_SECRETS_MOUNT_FILE="../config/staging-secrets.env"  # Will be overridden per env
+
+    CONF_KEYS="$CONF_KEYS DOCKER_IMAGE_NAME DOCKER_CONTAINER_NAME COMPOSE_PROJECT_NAME TRAEFIK_SWARM_NETWORK ENVIRONMENT SECRETS_MOUNT_FILE"
+
+     echo ""
+    print_success "Staging routing:    ${CONF_STAGING_ROUTING_TYPE}"
+    print_success "Production routing: ${CONF_PRODUCTION_ROUTING_TYPE}"
 }
 
 #######################################
@@ -391,12 +437,16 @@ $(print_color "$COLOR_BOLD" "Cookies:")
   Production: ${CONF_PRODUCTION_SESSION_DOMAIN:-${CONF_PRODUCTION_DOMAIN:-example.com}}
 
 $(print_color "$COLOR_BOLD" "Staging:")
-  URL Path:     /${CONF_PROJECT_NAME:-test}-stg-${CONF_STAGING_URL_TOKEN:-token}
-  Full URL:     https://${CONF_STAGING_DOMAIN:-staging.example.com}/${CONF_PROJECT_NAME:-test}-stg-${CONF_STAGING_URL_TOKEN:-token}
+  Routing Type: ${CONF_STAGING_ROUTING_TYPE:-path-based}
+  Domain:       ${CONF_STAGING_DOMAIN:-staging.example.com}
+  URL Path:     ${CONF_STAGING_URL_PATH:-(auto-generated)}
+  Full URL:     https://${CONF_STAGING_DOMAIN:-staging.example.com}${CONF_STAGING_URL_PATH}
 
 $(print_color "$COLOR_BOLD" "Production:")
-  URL Path:     /${CONF_PROJECT_NAME:-test}-prod-${CONF_PRODUCTION_URL_TOKEN:-token}
-  Full URL:     https://${CONF_PRODUCTION_DOMAIN:-example.com}/${CONF_PROJECT_NAME:-test}-prod-${CONF_PRODUCTION_URL_TOKEN:-token}
+  Routing Type: ${CONF_PRODUCTION_ROUTING_TYPE:-domain-based}
+  Domain:       ${CONF_PRODUCTION_DOMAIN:-example.com}
+  URL Path:     ${CONF_PRODUCTION_URL_PATH:-(none - domain-based)}
+  Full URL:     https://${CONF_PRODUCTION_DOMAIN:-example.com}${CONF_PRODUCTION_URL_PATH}
   CORS:         ${CONF_PRODUCTION_CORS_ORIGINS:-*}
   Sanctum:      ${CONF_PRODUCTION_SANCTUM_DOMAINS:-localhost}
 
@@ -409,10 +459,30 @@ EOF
 #######################################
 # Generate deployment files
 #######################################
-generate_files() {
+generate_deployment_files() {
     print_header "Generating Deployment Files"
 
     local template_dir="${SCRIPT_DIR}/templates"
+
+    # Generate Traefik labels BEFORE building vars_args (so they're included)
+    print_info "Generating Traefik routing configuration..."
+
+    CONF_STAGING_TRAEFIK_LABELS=$(generate_traefik_router_labels \
+        "staging" \
+        "$CONF_PROJECT_NAME" \
+        "$CONF_STAGING_DOMAIN" \
+        "$CONF_STAGING_URL_PATH" 6)
+
+    CONF_PRODUCTION_TRAEFIK_LABELS=$(generate_traefik_router_labels \
+        "production" \
+        "$CONF_PROJECT_NAME" \
+        "$CONF_PRODUCTION_DOMAIN" \
+        "$CONF_PRODUCTION_URL_PATH" 12)
+
+    CONF_KEYS="$CONF_KEYS STAGING_TRAEFIK_LABELS PRODUCTION_TRAEFIK_LABELS"
+
+    print_success "Generated Traefik labels for ${CONF_STAGING_ROUTING_TYPE} (staging)"
+    print_success "Generated Traefik labels for ${CONF_PRODUCTION_ROUTING_TYPE} (production)"
 
     # Prepare variable arguments for template processor
     local vars_args=()
@@ -465,6 +535,26 @@ generate_files() {
         print_warning "[DRY RUN] Would create deployment/config/local-secrets.env"
     fi
 
+    # Generate Traefik labels for docker-compose files
+    print_info "Generating Traefik routing configuration..."
+
+    CONF_STAGING_TRAEFIK_LABELS=$(generate_traefik_router_labels \
+        "staging" \
+        "$CONF_PROJECT_NAME" \
+        "$CONF_STAGING_DOMAIN" \
+        "$CONF_STAGING_URL_PATH" 6)
+
+    CONF_PRODUCTION_TRAEFIK_LABELS=$(generate_traefik_router_labels \
+        "production" \
+        "$CONF_PROJECT_NAME" \
+        "$CONF_PRODUCTION_DOMAIN" \
+        "$CONF_PRODUCTION_URL_PATH" 12)
+
+    CONF_KEYS="$CONF_KEYS STAGING_TRAEFIK_LABELS PRODUCTION_TRAEFIK_LABELS"
+
+    print_success "Generated Traefik labels for ${CONF_STAGING_ROUTING_TYPE} (staging)"
+    print_success "Generated Traefik labels for ${CONF_PRODUCTION_ROUTING_TYPE} (production)"
+
     # Process Docker Compose files
     for env in local staging production; do
         print_info "Generating docker-compose.${env}.yml..."
@@ -475,6 +565,8 @@ generate_files() {
                     "${deploy_dir}/docker/docker-compose.${env}.yml" \
                     "${vars_args[@]}"
                 print_success "Created deployment/docker/docker-compose.${env}.yml"
+            else
+                print_warning "docker-compose.${env}.yml template not found - skipping"
             fi
         else
             print_warning "[DRY RUN] Would create deployment/docker/docker-compose.${env}.yml"
@@ -539,6 +631,60 @@ generate_files() {
             fi
         else
             print_warning "[DRY RUN] Would create deployment/docker/nginx/default.conf"
+        fi
+
+        # Configure Laravel for proxy support (fullstack apps behind Traefik)
+        print_info "Configuring Laravel proxy support..."
+        if [[ "$DRY_RUN" == false ]]; then
+            # Copy TrustProxies middleware if it doesn't exist
+            if [[ ! -f "${TARGET_PROJECT_DIR}/app/Http/Middleware/TrustProxies.php" ]]; then
+                mkdir -p "${TARGET_PROJECT_DIR}/app/Http/Middleware"
+                if [[ -f "${template_dir}/laravel-stubs/TrustProxies.php.stub" ]]; then
+                    cp "${template_dir}/laravel-stubs/TrustProxies.php.stub" \
+                       "${TARGET_PROJECT_DIR}/app/Http/Middleware/TrustProxies.php"
+                    print_success "Created app/Http/Middleware/TrustProxies.php"
+                fi
+            else
+                print_info "TrustProxies middleware already exists - skipping"
+            fi
+
+            # Check if AppServiceProvider needs update
+            needs_update=false
+            if [[ -f "${TARGET_PROJECT_DIR}/app/Providers/AppServiceProvider.php" ]]; then
+                if ! grep -q "forceRootUrl" "${TARGET_PROJECT_DIR}/app/Providers/AppServiceProvider.php" 2>/dev/null; then
+                    needs_update=true
+                fi
+            fi
+
+            # Check if bootstrap/app.php needs update
+            needs_bootstrap_update=false
+            if [[ -f "${TARGET_PROJECT_DIR}/bootstrap/app.php" ]]; then
+                if ! grep -q "trustProxies" "${TARGET_PROJECT_DIR}/bootstrap/app.php" 2>/dev/null; then
+                    needs_bootstrap_update=true
+                fi
+            fi
+
+            # Show warnings if manual updates needed
+            if [[ "$needs_update" == true ]] || [[ "$needs_bootstrap_update" == true ]]; then
+                echo ""
+                print_warning "⚠️  MANUAL LARAVEL CONFIGURATION REQUIRED"
+                print_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                print_info "Your fullstack Laravel app needs proxy configuration to"
+                print_info "work correctly behind Traefik. See detailed instructions:"
+                print_info ""
+                print_info "  📄 ${deploy_dir}/templates/laravel-stubs/README.md"
+                print_info ""
+                if [[ "$needs_update" == true ]]; then
+                    print_info "  → Update app/Providers/AppServiceProvider.php"
+                fi
+                if [[ "$needs_bootstrap_update" == true ]]; then
+                    print_info "  → Update bootstrap/app.php"
+                fi
+                print_info ""
+                print_info "Full docs: ${deploy_dir}/docs/LARAVEL_PROXY_SETUP.md"
+                print_info "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                echo ""
+            fi
         fi
     fi
 
@@ -705,8 +851,8 @@ main() {
     if [[ "$NON_INTERACTIVE" == false ]]; then
         collect_configuration
     else
-        # Validate required variables for non-interactive mode
-        local required_vars="PROJECT_NAME PROJECT_DISPLAY_NAME REGISTRY_HOST REGISTRY_NAMESPACE STAGING_DOMAIN PRODUCTION_DOMAIN"
+        # Check required variables (allow FULL_URL as alternative to DOMAIN)
+        local required_vars="PROJECT_NAME PROJECT_DISPLAY_NAME REGISTRY_HOST REGISTRY_NAMESPACE"
 
         for var in $required_vars; do
             local val
@@ -717,15 +863,43 @@ main() {
             fi
         done
 
-        # Generate tokens if not provided
-        if [[ -z "${CONF_STAGING_URL_TOKEN:-}" ]]; then
-            CONF_STAGING_URL_TOKEN=$(generate_secure_token 40)
-            CONF_KEYS="$CONF_KEYS STAGING_URL_TOKEN"
+        # Check STAGING: either DOMAIN or FULL_URL must be provided
+        if [[ -z "${CONF_STAGING_DOMAIN:-}" ]] && [[ -z "${CONF_STAGING_FULL_URL:-}" ]]; then
+            print_error "Missing required variable in non-interactive mode: STAGING_DOMAIN or STAGING_FULL_URL"
+            exit 1
         fi
-        if [[ -z "${CONF_PRODUCTION_URL_TOKEN:-}" ]]; then
-            CONF_PRODUCTION_URL_TOKEN=$(generate_secure_token 40)
-            CONF_KEYS="$CONF_KEYS PRODUCTION_URL_TOKEN"
+
+        # Check PRODUCTION: either DOMAIN or FULL_URL must be provided
+        if [[ -z "${CONF_PRODUCTION_DOMAIN:-}" ]] && [[ -z "${CONF_PRODUCTION_FULL_URL:-}" ]]; then
+            print_error "Missing required variable in non-interactive mode: PRODUCTION_DOMAIN or PRODUCTION_FULL_URL"
+            exit 1
         fi
+
+
+
+        #  Determine URL paths if not already set
+        if [[ -z "${CONF_STAGING_URL_PATH:-}" ]] && [[ -z "${CONF_STAGING_FULL_URL:-}" ]]; then
+            determine_url_path "STAGING"
+        fi
+        if [[ -z "${CONF_PRODUCTION_URL_PATH:-}" ]] && [[ -z "${CONF_PRODUCTION_FULL_URL:-}" ]]; then
+            determine_url_path "PRODUCTION"
+        fi
+
+        # Parse FULL_URLs if provided
+        if [[ -n "${CONF_STAGING_FULL_URL:-}" ]]; then
+            parse_full_url "${CONF_STAGING_FULL_URL}" "STAGING"
+        fi
+        if [[ -n "${CONF_PRODUCTION_FULL_URL:-}" ]]; then
+            parse_full_url "${CONF_PRODUCTION_FULL_URL}" "PRODUCTION"
+        fi
+
+        # Add URL path and domain variables to CONF_KEYS
+        CONF_KEYS="$CONF_KEYS STAGING_DOMAIN PRODUCTION_DOMAIN STAGING_URL_PATH PRODUCTION_URL_PATH"
+
+        # Determine routing types
+        CONF_STAGING_ROUTING_TYPE=$(get_routing_type "${CONF_STAGING_URL_PATH:-}")
+        CONF_PRODUCTION_ROUTING_TYPE=$(get_routing_type "${CONF_PRODUCTION_URL_PATH:-}")
+        CONF_KEYS="$CONF_KEYS STAGING_ROUTING_TYPE PRODUCTION_ROUTING_TYPE"
 
         # Set derived values based on PROJECT_TYPE (for non-interactive mode)
         if [[ "${CONF_PROJECT_TYPE:-laravel-api-only}" == "laravel-fullstack" ]]; then
@@ -767,7 +941,7 @@ main() {
     fi
 
     # Generate files
-    generate_files
+    generate_deployment_files
 
     # Show next steps
     if [[ "$DRY_RUN" == false ]]; then

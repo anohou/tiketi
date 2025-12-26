@@ -41,12 +41,54 @@ process_template() {
             local value="${BASH_REMATCH[2]}"
             local placeholder="{{{${key}}}}"
 
-            # Escape special characters for sed
-            local escaped_value
-            escaped_value=$(echo "$value" | sed 's/[\/&]/\\&/g')
+            # Check if value contains newlines (multi-line)
+            if [[ "$value" == *$'\n'* ]]; then
+                # Multi-line value - use awk for proper handling
+                # Save multi-line value to temp file to avoid shell escaping issues
+                local temp_value_file="/tmp/template_value_$$_${RANDOM}"
+                echo -n "$value" > "$temp_value_file"
 
-            # Replace all occurrences
-            content=$(echo "$content" | sed "s|${placeholder}|${escaped_value}|g")
+                # Use awk to replace placeholder with file contents, preserving newlines
+                local temp_output="/tmp/template_output_$$_${RANDOM}"
+                echo "$content" > /tmp/template_content_$$
+
+                awk -v placeholder="$placeholder" -v value_file="$temp_value_file" '
+                    BEGIN {
+                        # Read the entire replacement value from file
+                        replacement = ""
+                        while ((getline line < value_file) > 0) {
+                            if (replacement != "") replacement = replacement "\n"
+                            replacement = replacement line
+                        }
+                        close(value_file)
+                    }
+                    {
+                        # Find and replace placeholder with multi-line content
+                        line_out = $0
+                        idx = index(line_out, placeholder)
+                        if (idx > 0) {
+                            # Extract leading whitespace before placeholder
+                            before = substr(line_out, 1, idx - 1)
+                            after = substr(line_out, idx + length(placeholder))
+                            line_out = before replacement after
+                        }
+                        print line_out
+                    }
+                ' /tmp/template_content_$$ > "$temp_output"
+
+                content=$(cat "$temp_output")
+
+                # Clean up temp files
+                rm -f "$temp_value_file" "$temp_output" /tmp/template_content_$$
+            else
+                # Single-line value - use sed (faster)
+                # Escape special characters for sed
+                local escaped_value
+                escaped_value=$(echo "$value" | sed 's/[\/&]/\\&/g')
+
+                # Replace all occurrences
+                content=$(echo "$content" | sed "s|${placeholder}|${escaped_value}|g")
+            fi
         fi
     done
 

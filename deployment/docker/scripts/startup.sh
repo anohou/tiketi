@@ -29,11 +29,26 @@ if [ "${APP_TYPE:-api-only}" = "fullstack" ]; then
     echo "[Startup] Full-stack application detected - verifying frontend assets..."
 
     if [ ! -d "public/build" ] || [ ! -f "public/build/manifest.json" ]; then
-        echo "[WARNING] Frontend assets not found in public/build/"
-        echo "[WARNING] Expected manifest.json and compiled assets"
-        echo "[WARNING] Container will start but frontend may not work correctly"
+        echo "[Startup] Frontend assets missing (likely overwritten by volume mount)"
+
+        # Restore from backup if available
+        if [ -d "/opt/vite-build-backup" ] && [ "$(ls -A /opt/vite-build-backup 2>/dev/null)" ]; then
+            echo "[Startup] Restoring frontend assets from image backup..."
+            mkdir -p public/build
+            cp -r /opt/vite-build-backup/* public/build/
+
+            if [ -f "public/build/manifest.json" ]; then
+                echo "[Startup] ✓ Frontend assets restored successfully"
+            else
+                echo "[WARNING] Failed to restore frontend assets"
+            fi
+        else
+            echo "[WARNING] No backup found - frontend assets not available"
+            echo "[WARNING] Container will start but frontend may not work correctly"
+        fi
+
         ls -la public/ || echo "public/ directory not found"
-        ls -la public/build/ 2>/dev/null || echo "public/build/ directory not found"        # Don't exit - allow container to start for debugging
+        ls -la public/build/ 2>/dev/null || echo "public/build/ directory not found"
     else
         echo "[Startup] ✓ Frontend assets verified (manifest.json found)"
     fi

@@ -2,46 +2,39 @@ version: '3.8'
 
 services:
   app:
-    image: ${DOCKER_IMAGE_NAME}
-    container_name: ${DOCKER_CONTAINER_NAME}
+    image: ghcr.io/anohou/billeterie:staging
+    container_name: dc_billeterie_staging
 
     volumes:
-      # Mount storage for persistent files (uploads, logs, cache)
+      # Bind mount entire project for code updates without rebuild
       - type: bind
-        source: ../../storage
-        target: /var/www/html/storage
-
-      # Mount merged secrets file (read-only)
-      - type: bind
-        source: ${SECRETS_MOUNT_FILE}
-        target: /home/sail/config/laravel/common-values.env
-        read_only: true
+        source: ../../
+        target: /var/www/html
 
     environment:
-      - APP_ENV=${ENVIRONMENT}
+      - APP_ENV=staging
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
 
     networks:
-      - ${TRAEFIK_SWARM_NETWORK}
+      - traefik_swarm_network
 
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+      - "traefik.docker.network=traefik_swarm_network"
 
-      # HTTP router - path-based routing
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.rule=Host(`${APP_URL_DOMAIN}`) && PathPrefix(`${APP_URL_PATH}`)"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.entrypoints=websecure"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls=true"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.tls.certresolver=letsencrypt"
+      # Dynamic routing configuration (path-based or domain-based)
+      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy`)"
+      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
+      - "traefik.http.routers.billeterie-staging.middlewares=billeterie-staging-strip"
 
-      # Strip prefix middleware to remove URL path prefix from requests
-      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}.stripprefix.prefixes=${APP_URL_PATH}"
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.middlewares=${COMPOSE_PROJECT_NAME}"
+      - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-staging.tls=true"
+      - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
 
       # Service configuration
-      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}.service=${COMPOSE_PROJECT_NAME}-service"
-      - "traefik.http.services.${COMPOSE_PROJECT_NAME}-service.loadbalancer.server.port=9000"
+      - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
+      - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
 
     restart: unless-stopped
 
