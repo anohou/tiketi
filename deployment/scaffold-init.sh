@@ -77,6 +77,7 @@ print_info() {
 
 # Configuration variables
 TARGET_PROJECT_DIR=""
+ENV_FILE=""
 DRY_RUN=false
 FORCE=false
 NON_INTERACTIVE=false
@@ -128,6 +129,57 @@ EOF
 }
 
 #######################################
+# Load configuration from .env file
+# Arguments:
+#   $1 - Path to .env file
+#######################################
+load_env_file() {
+    local env_file="$1"
+
+    if [[ ! -f "$env_file" ]]; then
+        print_error "Environment file not found: $env_file"
+        exit 1
+    fi
+
+    print_info "Loading configuration from: $env_file"
+
+    local line_num=0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        ((line_num++))
+
+        # Skip empty lines
+        [[ -z "${line// }" ]] && continue
+
+        # Skip comments (lines starting with #)
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+        # Parse KEY=VALUE
+        if [[ "$line" =~ ^[[:space:]]*([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+
+            # Remove surrounding quotes (both single and double)
+            value="${value#\"}"
+            value="${value%\"}"
+            value="${value#\'}"
+            value="${value%\'}"
+
+            # Set CONF_ variable
+            eval "CONF_$key=\"\$value\""
+            CONF_KEYS="$CONF_KEYS $key"
+
+            if [[ "${VERBOSE:-false}" == "true" ]]; then
+                print_info "  Loaded: $key=${value:0:50}..."
+            fi
+        elif [[ -n "${line// }" ]]; then
+            print_warning "Skipping invalid line $line_num: $line"
+        fi
+    done < "$env_file"
+
+    print_success "✓ Loaded configuration from $env_file"
+}
+
+#######################################
 # Parse command line arguments
 #######################################
 parse_args() {
@@ -144,6 +196,14 @@ parse_args() {
             -f|--force)
                 FORCE=true
                 shift
+                ;;
+            --env)
+                ENV_FILE="$2"
+                if [[ -z "$ENV_FILE" ]]; then
+                    print_error "Missing .env file path after --env"
+                    exit 1
+                fi
+                shift 2
                 ;;
             -n|--non-interactive)
                 NON_INTERACTIVE=true
@@ -826,6 +886,11 @@ EOF
 main() {
     # Parse arguments
     parse_args "$@"
+
+    # Load environment file if specified (before setting defaults so -v can override)
+    if [[ -n "$ENV_FILE" ]]; then
+        load_env_file "$ENV_FILE"
+    fi
 
     # Set default target directory
     if [[ -z "$TARGET_PROJECT_DIR" ]]; then

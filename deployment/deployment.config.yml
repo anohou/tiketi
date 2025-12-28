@@ -63,8 +63,8 @@ staging_vars:
   session_domain: &stg_session_domain "billeterie.anohou.dev"
   origin: &stg_origin "https://billeterie.anohou.dev"
   routing_type: &stg_routing_type "path-based"
-  url_path: &stg_url_path "/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
-  url: &stg_url "https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
+  url_path: &stg_url_path "/billeterie-stg-qhxQH0oZswr"
+  url: &stg_url "https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr"
 
 # Production environment variables
 production_vars:

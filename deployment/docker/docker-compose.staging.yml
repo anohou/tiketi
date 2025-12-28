@@ -24,8 +24,8 @@ services:
       - "traefik.docker.network=traefik_swarm_network"
 
       # Dynamic routing configuration (path-based or domain-based)
-      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy`)"
-      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswrpUvQLBb8qbsnrPPSOkqUEY0rhachy"
+      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswr`)"
+      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswr"
       - "traefik.http.routers.billeterie-staging.middlewares=billeterie-staging-strip"
 
       - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
