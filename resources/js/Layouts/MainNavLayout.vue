@@ -62,7 +62,7 @@
             <div class="flex items-center justify-center relative">
               <button @click="showMenu = !showMenu" class="flex items-center gap-2 bg-gray-50 p-1.5 pr-3 rounded-full border border-orange-200 hover:border-orange-300 hover:bg-orange-50 transition-all">
                 <img class="rounded-full w-8 h-8 cursor-pointer border-2 border-orange-300 shadow-sm"
-                   src="/images/blank.png" :alt="user.name">
+                   src="images/blank.png" :alt="user.name">
                 <span class="text-xs font-bold text-green-800 hidden lg:block">{{ user.name }}</span>
                 <ChevronDown :size="16" class="text-gray-400 group-hover:rotate-180 transition-transform" />
               </button>
@@ -203,21 +203,17 @@
 import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-import Receipt from 'vue-material-design-icons/Receipt.vue';
-import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
-import Logout from 'vue-material-design-icons/Logout.vue';
-import MenuIcon from 'vue-material-design-icons/Menu.vue';
-import Close from 'vue-material-design-icons/Close.vue';
+import TripSidebar from '@/Components/TripSidebar.vue';
+import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
-import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
+import Close from 'vue-material-design-icons/Close.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
-import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
+import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
+import Logout from 'vue-material-design-icons/Logout.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
-import FileDocument from 'vue-material-design-icons/FileDocument.vue';
-import ChartLine from 'vue-material-design-icons/ChartLine.vue';
-import Domain from 'vue-material-design-icons/Domain.vue';
-import TripSidebar from '@/Components/TripSidebar.vue';
+import MenuIcon from 'vue-material-design-icons/Menu.vue';
+import Receipt from 'vue-material-design-icons/Receipt.vue';
 
 const props = defineProps({
   showNav: {
