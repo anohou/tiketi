@@ -105,7 +105,7 @@ const filteredTrips = computed(() => {
   if (!searchQuery.value) return props.trips;
   const query = searchQuery.value.toLowerCase();
   return props.trips.filter(trip => 
-    trip.route?.name?.toLowerCase().includes(query) ||
+    trip.display_name?.toLowerCase().includes(query) ||
     trip.vehicle?.identifier?.toLowerCase().includes(query)
   );
 });
@@ -492,7 +492,7 @@ onMounted(async () => {
               >
                 <option :value="null">Sélectionner un voyage...</option>
                 <option v-for="trip in trips" :key="trip.id" :value="trip.id">
-                  {{ trip.route?.name }} - {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }} - {{ trip.vehicle?.identifier }}
+                  {{ trip.display_name }} - {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }} - {{ trip.vehicle?.identifier }}
                 </option>
               </select>
             </div>
@@ -773,7 +773,7 @@ onMounted(async () => {
               >
                 <option value="">Sélectionner une route</option>
                 <option v-for="route in routes" :key="route.id" :value="route.id">
-                  {{ route.name }}
+                  {{ route.display_name || route.name }}
                 </option>
               </select>
               <InputError class="mt-2" :message="createTripErrors.route_id" />
@@ -836,7 +836,7 @@ onMounted(async () => {
           <div>
             <h3 class="text-xl font-bold text-gray-900">Plan des Places</h3>
             <p class="text-sm text-gray-600 mt-1">
-              {{ currentTrip?.route?.name }} - {{ currentTrip?.vehicle?.identifier }}
+              {{ currentTrip?.display_name }} - {{ currentTrip?.vehicle?.identifier }}
             </p>
           </div>
           <button @click="showZoomModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">

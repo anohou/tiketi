@@ -49,10 +49,16 @@
                 <button @click="isSidebarOpen = !isSidebarOpen" class="xl:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg active:scale-95 transition-all">
                     <Bus :size="24" />
                 </button>
+                <!-- Optional Header Actions Slot -->
+                <slot name="header-actions" />
+                
+                <!-- Desktop Help Button -->
+                <button class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all hidden lg:flex items-center justify-center cursor-help" title="Aide">
+                   <HelpCircleOutline :size="20" />
+                </button>
             </div>
 
-            <!-- Optional Header Actions Slot -->
-            <slot name="header-actions" />
+
             <div class="flex items-center justify-center relative">
               <button @click="showMenu = !showMenu" class="flex items-center gap-2 bg-gray-50 p-1.5 pr-3 rounded-full border border-orange-200 hover:border-orange-300 hover:bg-orange-50 transition-all">
                 <img class="rounded-full w-8 h-8 cursor-pointer border-2 border-orange-300 shadow-sm"
@@ -63,7 +69,35 @@
               
               <!-- User Menu Dropdown -->
               <div v-if="showMenu"
-                class="absolute bg-white shadow-2xl top-12 right-0 w-[220px] rounded-2xl p-1.5 border border-orange-200 mt-2 z-[60] animate-in fade-in zoom-in duration-200">
+                class="absolute bg-white shadow-2xl top-12 right-0 w-[260px] rounded-2xl p-1.5 border border-orange-200 mt-2 z-[60] animate-in fade-in zoom-in duration-200">
+                
+                <!-- User Info Header -->
+                <div class="px-4 py-3 border-b border-orange-100 mb-1">
+                  <div class="font-bold text-gray-900 text-sm">{{ user.name }}</div>
+                  <div class="text-xs text-gray-500">{{ user.email }}</div>
+                  <div class="mt-2 flex items-center gap-2">
+                    <span class="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">
+                      {{ user.role }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Assigned Stations (for sellers) -->
+                <div v-if="user.role === 'seller' && assignedStations.length > 0" class="px-2 py-2 border-b border-orange-100 mb-1">
+                  <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2 px-2">Stations assignées</div>
+                  <div v-for="station in assignedStations" :key="station.id" 
+                       class="flex items-center gap-2 px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 mb-1">
+                    <MapMarker :size="14" class="text-green-600" />
+                    <span class="text-xs font-bold text-green-700">{{ station.name }}</span>
+                  </div>
+                </div>
+                <div v-else-if="user.role === 'seller'" class="px-2 py-2 border-b border-orange-100 mb-1">
+                  <div class="flex items-center gap-2 px-2 py-1.5 bg-orange-50 rounded-lg border border-orange-100">
+                    <MapMarker :size="14" class="text-orange-500" />
+                    <span class="text-xs font-medium text-orange-600">Aucune station assignée</span>
+                  </div>
+                </div>
+
                 <Link :href="route('profile.edit')" @click="showMenu = !showMenu">
                 <div class="flex items-center gap-3 hover:bg-green-50 p-3 rounded-xl transition-colors">
                   <AccountCircle :size="22" class="text-green-600" />
@@ -126,10 +160,7 @@
 
                       <div class="pt-6 mt-6 border-t border-orange-50 space-y-4">
                           <div class="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Utilitaires</div>
-                          <button class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-gray-600 hover:bg-orange-50/50">
-                              <Bluetooth :size="24" fillColor="#9CA3AF" />
-                              <span class="text-sm font-bold uppercase tracking-wider">Imprimante</span>
-                          </button>
+
                           <button class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-gray-600 hover:bg-orange-50/50">
                               <HelpCircleOutline :size="24" fillColor="#9CA3AF" />
                               <span class="text-sm font-bold uppercase tracking-wider">Aide</span>
@@ -184,6 +215,7 @@ import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
+import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import TripSidebar from '@/Components/TripSidebar.vue';
 
 const props = defineProps({
@@ -201,18 +233,47 @@ const isNavOpen = ref(false);
 const page = usePage();
 const user = page.props.auth.user || {};
 
+// Get assigned stations from page props (populated by HandleInertiaRequests middleware)
+const assignedStations = computed(() => page.props.assignedStations || []);
+
 // Navigation items based on user role
 const navItems = computed(() => {
-  const baseItems = [
-    {
-      route: 'home',
-      label: 'Accueil',
-      icon: HomeOutline
-    }
-  ];
+  const baseItems = [];
+  
+  // Customize for Seller AND Supervisor
+  // Both roles want "Selling" as their Home screen
+  if (['seller', 'supervisor'].includes(user.role)) {
+      baseItems.push({
+          route: 'seller.ticketing',
+          label: 'Accueil',
+          icon: HomeOutline
+      });
+      
+      // Secondary Menu
+      if (user.role === 'seller') {
+          baseItems.push({
+              route: 'seller.dashboard',
+              label: 'Voyages',
+              icon: Bus
+          });
+      } else if (user.role === 'supervisor') {
+          baseItems.push({
+              route: 'supervisor.dashboard',
+              label: 'Supervision',
+              icon: Bus // Or Monitor icon if available, but Bus works for now
+          });
+      }
+  } else {
+      // Admin / Others default
+      baseItems.push({
+        route: 'home',
+        label: 'Accueil',
+        icon: HomeOutline
+      });
+  }
 
-  // Add statistics menu for admin and supervisor
-  if (['admin', 'supervisor'].includes(user.role)) {
+  // Add statistics menu for admin only (Supervisor has it in Supervision dashboard)
+  if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'admin.dashboard',
       label: 'Statistiques',
@@ -220,8 +281,8 @@ const navItems = computed(() => {
     });
   }
 
-  // Add ticketing for all roles
-  if (['admin', 'supervisor', 'seller'].includes(user.role)) {
+  // Add ticketing for Admin only (Supervisor/Seller has it as Home)
+  if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'seller.ticketing',
       label: 'Billetterie',

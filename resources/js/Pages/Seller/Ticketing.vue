@@ -20,9 +20,12 @@ import Routes from 'vue-material-design-icons/Routes.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
+import Account from 'vue-material-design-icons/Account.vue'; // Added for passenger modal
+import Refresh from 'vue-material-design-icons/Refresh.vue'; // Added for processing spinner
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { watchEffect } from 'vue';
+import TicketInspectionModal from '@/Components/Supervisor/TicketInspectionModal.vue'; // Added
 
 const props = defineProps({
   trips: Array,
@@ -63,6 +66,10 @@ const showZoomModal = ref(false);
 const autoSelectOptimal = ref(true); // Auto-select optimal seat by default
 const showPassengerFields = ref(false); // Hide passenger fields by default
 const isMobile = ref(window.innerWidth < 768);
+
+// Supervisor Inspection
+const showInspectionModal = ref(false);
+const selectedTicketForInspection = ref(null);
 
 // Update isMobile on resize
 onMounted(() => {
@@ -134,7 +141,7 @@ const filteredTrips = computed(() => {
   if (!searchQuery.value) return trips.value;
   const query = searchQuery.value.toLowerCase();
   return trips.value.filter(trip => 
-    trip.route?.name?.toLowerCase().includes(query) ||
+    trip.display_name?.toLowerCase().includes(query) ||
     trip.vehicle?.identifier?.toLowerCase().includes(query)
   );
 });
@@ -161,6 +168,11 @@ const availableFares = computed(() => {
     
     const totalStops = stops.length;
 
+    // Check for reversed trip (Trip Origin == Route Destination)
+    const isReversedTrip = currentTrip.value.origin_station_id && 
+                           route.destination_station_id && 
+                           currentTrip.value.origin_station_id === route.destination_station_id;
+
     const filtered = props.routeFares.filter(fare => {
         // Handle potential naming differences (snake_case vs camelCase)
         const fromStop = fare.from_stop || fare.fromStop;
@@ -171,7 +183,10 @@ const availableFares = computed(() => {
         const toIdx = stopIndexMap[fare.to_stop_id];
         
         if (fromIdx !== undefined && toIdx !== undefined) {
-            return fromIdx < toIdx;
+            // If reversed trip, we move from High Index -> Low Index
+            // Backend already swaps from/to in the fare object for display
+            // So 'from' is High Index (Source), 'to' is Low Index (Dest)
+            return isReversedTrip ? fromIdx > toIdx : fromIdx < toIdx;
         }
         
         // Priority 2: Match by Station IDs
@@ -183,40 +198,35 @@ const availableFares = computed(() => {
             const toStationIdx = stationIndexMap[toStationId];
             
             if (fromStationIdx !== undefined && toStationIdx !== undefined) {
-                return fromStationIdx < toStationIdx;
+                 return isReversedTrip ? fromStationIdx > toStationIdx : fromStationIdx < toStationIdx;
             }
         }
         
-        // Priority 3: If we are at the intermediate station, and the destination is on the route
-        // This is a broad fallback for sellers assigned to a station
-        const currentStationId = props.assignedStationId; // We should probably have this
+        // Priority 3: Filter by Trip Origin
+        // Even if we fail index check, ensure the fare STARTS at our current location
         const fareFromStationId = fromStop?.station_id || fromStop?.station?.id;
-        
-        if (fareFromStationId && toStationId) {
-            // Check if toStation is on the route
-            const toStationIdx = stationIndexMap[toStationId];
-            if (toStationIdx !== undefined) {
-                // Approximate: if we don't know our own index, just show if it's on the route
-                return true; 
-            }
+        if (fareFromStationId && currentTrip.value.origin_station_id) {
+             if (fareFromStationId !== currentTrip.value.origin_station_id) {
+                 return false; 
+             }
+             return true;
         }
-
+        
         return false;
     });
 
-    // Final Fallback: If filtering resulted in 0 fares, but we have fares starting at this station,
-    // it's better to show them all than to show nothing.
-    const results = filtered.length > 0 ? filtered : props.routeFares;
+    // Final Fallback: If filtering resulted in 0 fares, show nothing to avoid confusion
+    const results = filtered;
 
-    return results.map(fare => {
-        const toStop = fare.to_stop || fare.toStop;
-        const toStationId = toStop?.station_id || toStop?.station?.id;
-        const targetIndex = stationIndexMap[toStationId] || 0;
-        
-        const ratio = totalStops > 1 ? targetIndex / (totalStops - 1) : 0;
+    // Sort by amount (cheapest/closest first)
+    const sortedResults = [...results].sort((a, b) => a.amount - b.amount);
+
+    return sortedResults.map((fare, index) => {
+        // Color based on position in sorted list (closer = lighter blue, further = darker blue/purple)
+        const ratio = sortedResults.length > 1 ? index / (sortedResults.length - 1) : 0;
         const hue = 210 + (ratio * 30);
-        const lightness = 80 - (ratio * 45);
-        const saturation = 70 + (ratio * 30);
+        const lightness = 75 - (ratio * 40);
+        const saturation = 65 + (ratio * 35);
         
         return {
             ...fare,
@@ -314,18 +324,58 @@ const fetchSeatSuggestions = async () => {
     }
 };
 
-const bookSeat = (seatNumber) => {
+// New function for the actual booking flow
+const initiateBookingFlow = (seatNumber) => {
+  console.log('[Ticketing] initiateBookingFlow called with:', seatNumber);
   if (!selectedFare.value) {
     alert("Veuillez d'abord sélectionner une destination.");
     return;
   }
 
-  // Open passenger form modal
   selectedSeatNumber.value = seatNumber;
   passengerForm.value = { name: '', phone: '' };
   passengerFormErrors.value = {};
-  showPassengerFields.value = false; // Reset to hidden by default
+  showPassengerFields.value = false;
   showPassengerModal.value = true;
+};
+
+const handleSeatClick = (seatNumber) => {
+  if (!seatMap.value) return;
+
+  let seatObj = null;
+  for (const row of seatMap.value.seat_map) {
+      const found = row.find(s => s.number === seatNumber);
+      if (found) {
+          seatObj = found;
+          break;
+      }
+  }
+
+  const isOccupied = seatObj?.isOccupied;
+
+  if (isOccupied) {
+      if (['admin', 'supervisor'].includes(page.props.auth.user.role)) {
+          selectedTicketForInspection.value = {
+              id: 'req-' + seatObj.ticket_id,
+              ticket_number: seatObj.ticket_number || 'UNKNOWN',
+              seller_name: 'Guichetier (Auto)', // This might need to be fetched or passed from backend
+              reason: 'Inspection Directe',
+              time_ago: 'À l\'instant',
+              seat_number: seatNumber,
+              trip_id: selectedTripId.value,
+              original_ticket_id: seatObj.ticket_id
+          };
+          showInspectionModal.value = true;
+      }
+      return;
+  }
+
+  // Normal Booking Flow
+  if (selectedSeatNumber.value === seatNumber) {
+    selectedSeatNumber.value = null; // Deselect
+  } else {
+    initiateBookingFlow(seatNumber);
+  }
 };
 
 const autoSelectOptimalSeat = () => {
@@ -339,7 +389,7 @@ const autoSelectOptimalSeat = () => {
   
   // Auto-select the first (best) suggested seat and open modal
   const optimalSeat = suggestedSeats.value[0];
-  bookSeat(optimalSeat.seat_number); // Pass seat_number, not the whole object
+  initiateBookingFlow(optimalSeat.seat_number); // Pass seat_number, not the whole object
 };
 
 const confirmBooking = () => {
@@ -494,6 +544,7 @@ const cancelBooking = () => {
   showPassengerModal.value = false;
   selectedFare.value = null;
   selectedSeatNumber.value = null;
+  ticketingStore.selectSeat(null); // Clear store selection
   suggestedSeats.value = [];
 };
 
@@ -610,7 +661,7 @@ watch(selectedFare, (newVal) => {
 // Watch for seat selection from the Sidebar
 watch(() => ticketingStore.selectedSeat, (newSeat) => {
     if (newSeat && newSeat !== selectedSeatNumber.value) {
-        bookSeat(newSeat);
+        initiateBookingFlow(newSeat);
     }
 });
 
@@ -682,6 +733,33 @@ onMounted(async () => {
 
     <div class="flex-1 flex flex-col gap-4 min-h-0">
           
+          <!-- Full-page blocking message if no station assigned (for sellers only) -->
+          <div v-if="$page.props.auth.user.role === 'seller' && !hasActiveAssignment" 
+               class="flex-1 flex items-center justify-center">
+            <div class="bg-white border border-orange-200 p-12 rounded-3xl flex flex-col items-center text-center shadow-lg max-w-lg">
+              <div class="p-5 bg-orange-50 rounded-full shadow-sm mb-6">
+                <MapMarker class="w-16 h-16 text-orange-500" />
+              </div>
+              <h2 class="text-2xl font-black text-gray-900 mb-3">Aucune station assignée</h2>
+              <p class="text-gray-600 mb-6 leading-relaxed">
+                Vous n'avez pas encore de station assignée. Vous ne pouvez pas vendre de billets tant qu'un superviseur ne vous a pas assigné à une station.
+              </p>
+              <div class="space-y-3 w-full">
+                <p class="text-sm text-gray-500">
+                  Contactez votre superviseur pour être assigné à une station.
+                </p>
+                <Link 
+                  :href="route('profile.edit')" 
+                  class="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors"
+                >
+                  Voir mon profil
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main content (only shown if seller has assigned station or user is admin/supervisor) -->
+          <template v-else>
           <!-- Workplace Header (Synced with Dashboard) -->
           <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 shrink-0">
             <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -704,17 +782,6 @@ onMounted(async () => {
                 </button>
             </div>
           </div>
-          <!-- Warning if no station assigned (for sellers) -->
-          <div v-if="$page.props.auth.user.role === 'seller' && !hasActiveAssignment" 
-               class="bg-orange-50 border border-orange-200 p-6 rounded-2xl flex flex-col items-center text-center shadow-sm">
-            <div class="p-3 bg-white rounded-full shadow-sm mb-4">
-              <MapMarker class="w-8 h-8 text-orange-600" />
-            </div>
-            <h3 class="text-xl font-black text-gray-900 mb-2">Aucune station assignée</h3>
-            <p class="text-gray-600 max-w-md">
-              Vous n'avez pas encore de station assignée. Veuillez contacter votre administrateur pour pouvoir vendre des tickets.
-            </p>
-          </div>
 
           <!-- Content Area: Voyages + Tronçons (Full width grid) -->
           <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 min-h-0">
@@ -727,15 +794,6 @@ onMounted(async () => {
                       <Bus class="mr-2 w-5 h-5" />
                       Voyage
                     </h2>
-                    <!-- Auto toggle moved here -->
-                    <label class="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-orange-100 shadow-sm hover:border-green-200 transition-colors">
-                      <input 
-                        type="checkbox" 
-                        v-model="autoSelectOptimal"
-                        class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-                      />
-                      <span class="text-xs text-gray-700 font-medium">⚡ Auto</span>
-                    </label>
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="px-2.5 py-1 bg-green-600 text-white rounded-full text-sm font-black shadow-sm">
@@ -758,7 +816,7 @@ onMounted(async () => {
                           <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0"></div>
                           <div class="text-[10px] uppercase font-bold text-green-600 tracking-wider">En cours</div>
                         </div>
-                        <div class="text-base font-black text-gray-900 leading-tight truncate">{{ currentTrip.route?.name }}</div>
+                        <div class="text-base font-black text-gray-900 leading-tight truncate">{{ currentTrip.display_name }}</div>
                       </div>
                       <div class="text-right shrink-0 ml-3">
                         <div class="text-xl font-black text-gray-900">
@@ -804,7 +862,7 @@ onMounted(async () => {
                           <div class="min-w-0">
                             <div class="flex items-center gap-2">
                               <div v-if="selectedTripId === trip.id" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                              <div class="font-bold text-gray-900 truncate tracking-tight">{{ trip.route?.name }}</div>
+                              <div class="font-bold text-gray-900 truncate tracking-tight">{{ trip.display_name }}</div>
                               <span 
                                 :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
                                 class="text-xs shrink-0"
@@ -871,11 +929,21 @@ onMounted(async () => {
               isMobile && !autoSelectOptimal && selectedFare ? 'order-3' : 'order-2'
             ]">
               <div class="bg-white rounded-2xl border border-orange-100 shadow-sm flex flex-col h-full overflow-hidden">
-                <div class="px-5 py-4 border-b border-orange-50 bg-orange-50/50">
+                <div class="px-5 py-4 border-b border-orange-50 bg-orange-50/50 flex items-center justify-between">
                   <h2 class="text-base font-bold text-orange-700 flex items-center">
                     <Routes class="mr-2 w-5 h-5" />
                     Destinations
                   </h2>
+                  
+                  <!-- Auto toggle moved here -->
+                  <label class="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-orange-100 shadow-sm hover:border-green-200 transition-colors">
+                    <input 
+                      type="checkbox" 
+                      v-model="autoSelectOptimal"
+                      class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    <span class="text-xs text-gray-700 font-medium">⚡ Auto</span>
+                  </label>
                 </div>
                 <div class="flex-1 overflow-y-auto p-2">
                   <div v-if="currentTrip" class="space-y-2">
@@ -927,6 +995,7 @@ onMounted(async () => {
               </div>
             </div>
         </div>
+          </template>
     </div>
 
     <!-- Passenger Information Modal -->
@@ -959,7 +1028,7 @@ onMounted(async () => {
                 <div class="space-y-1">
                     <div class="text-sm font-bold text-gray-700 flex items-center justify-center gap-2">
                         <Bus :size="14" class="text-green-600" />
-                        {{ currentTrip?.route?.name || '---' }}
+                        {{ currentTrip?.display_name || '---' }}
                     </div>
                     <div class="text-xs text-gray-500 font-medium">
                         {{ selectedFare?.from_stop?.name }} → {{ selectedFare?.to_stop?.name }}
@@ -1074,7 +1143,7 @@ onMounted(async () => {
               >
                 <option value="">Sélectionner une route</option>
                 <option v-for="route in routes" :key="route.id" :value="route.id">
-                  {{ route.name }}
+                  {{ route.display_name || route.name }}
                 </option>
               </select>
               <InputError class="mt-2" :message="createTripErrors.route_id" />
@@ -1168,7 +1237,7 @@ onMounted(async () => {
           <div>
             <h3 class="text-xl font-bold text-gray-900">Plan des Places</h3>
             <p class="text-sm text-gray-600 mt-1">
-              {{ currentTrip?.route?.name }} - {{ currentTrip?.vehicle?.identifier }}
+              {{ currentTrip?.display_name }} - {{ currentTrip?.vehicle?.identifier }}
             </p>
           </div>
           <button @click="showZoomModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">
@@ -1186,7 +1255,11 @@ onMounted(async () => {
               :vehicle-type="currentTrip.vehicle.vehicle_type"
               :seat-map="seatMap"
               :suggested-seats="suggestedSeats"
-              @seat-click="bookSeat"
+              :show-suggestions="!!selectedFare && suggestedSeats.length > 0"
+              :selected-seat="selectedSeatNumber"
+              :selected-color="selectedFare?.color"
+              :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
+              @seat-click="handleSeatClick"
               class="scale-125"
             />
           </div>
@@ -1249,7 +1322,7 @@ onMounted(async () => {
               </div>
               
               <div class="font-bold text-gray-900 text-base mb-2 leading-tight">
-                {{ trip.route?.name }}
+                {{ trip.display_name }}
               </div>
               
               <div class="space-y-2">
@@ -1284,6 +1357,15 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <!-- Supervisor Inspection Modal -->
+    <TicketInspectionModal
+        :show="showInspectionModal"
+        :validation="selectedTicketForInspection"
+        @close="showInspectionModal = false"
+        @approve="() => { /* No-op for inspection */ }"
+        @decline="() => { console.log('Cancel Ticket', selectedTicketForInspection); showInspectionModal = false; }" 
+    />
   </MainNavLayout>
 </template>
 

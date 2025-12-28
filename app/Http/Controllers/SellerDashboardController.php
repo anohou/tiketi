@@ -26,14 +26,32 @@ class SellerDashboardController extends Controller
                 ->pluck('station_id')
                 ->toArray();
 
-            $routes = BusRoute::where(function($query) use ($assignedStationIds) {
+            $routes = BusRoute::with(['originStation', 'destinationStation'])
+            ->where(function($query) use ($assignedStationIds) {
                 $query->whereIn('origin_station_id', $assignedStationIds)
+                      ->orWhereIn('destination_station_id', $assignedStationIds)
                       ->orWhereHas('stops', function($q) use ($assignedStationIds) {
                           $q->whereIn('station_id', $assignedStationIds);
                       });
             })
             ->where('active', true)
-            ->get();
+            ->get()
+            ->map(function($route) use ($assignedStationIds) {
+                // Determine if route should be displayed in reverse direction
+                // If seller's station is the destination, show reversed route name
+                $isReversed = in_array($route->destination_station_id, $assignedStationIds) 
+                    && !in_array($route->origin_station_id, $assignedStationIds);
+                
+                if ($isReversed && $route->originStation && $route->destinationStation) {
+                    $route->display_name = $route->destinationStation->name . ' -> ' . $route->originStation->name;
+                    $route->is_reversed = true;
+                } else {
+                    $route->display_name = $route->name;
+                    $route->is_reversed = false;
+                }
+                
+                return $route;
+            });
             
             $routeIds = $routes->pluck('id');
 

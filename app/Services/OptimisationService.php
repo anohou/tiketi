@@ -27,6 +27,12 @@ class OptimisationService
             return [];
         }
 
+        // DETECT IF TRIP IS REVERSED compared to route's default direction
+        // If trip's origin_station_id != route's origin_station_id, the trip is reversed
+        $isReversedTrip = $trip->origin_station_id && 
+                          $trip->route && 
+                          $trip->origin_station_id !== $trip->route->origin_station_id;
+
         // Récupérer les sièges déjà occupés avec leurs destinations et origines
         $occupiedSeatsData = Ticket::where('trip_id', $tripId)
             ->where('status', '!=', 'cancelled')
@@ -42,11 +48,11 @@ class OptimisationService
         // Parse the seat map to get accurate seat types and neighbors
         $seatMapInfo = $this->parseSeatMap($vehicleType->seat_map ?? []);
 
-        // Calculer l'index de l'arrêt de destination
-        $destinationIndex = $this->getStopIndex($trip->route_id, $destinationStopId);
+        // Calculer l'index de l'arrêt de destination (considering trip direction)
+        $destinationIndex = $this->getStopIndex($trip->route_id, $destinationStopId, $isReversedTrip);
         
         // Get boarding stop index (for semi-intelligent mode)
-        $boardingIndex = $boardingStopId ? $this->getStopIndex($trip->route_id, $boardingStopId) : 0;
+        $boardingIndex = $boardingStopId ? $this->getStopIndex($trip->route_id, $boardingStopId, $isReversedTrip) : 0;
         
         // Get total stops on route
         $totalStops = RouteStopOrder::where('route_id', $trip->route_id)->count();
@@ -77,7 +83,7 @@ class OptimisationService
                     $availableSeats[] = $seatNumber;
                 } else {
                     $currentOccupant = $occupiedSeatsData[$seatNumber];
-                    $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_stop_id);
+                    $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_stop_id, $isReversedTrip);
                     if ($occupantDestIndex < $boardingIndex) {
                         $availableSeats[] = $seatNumber;
                     }
@@ -108,7 +114,8 @@ class OptimisationService
                 $doorPositions,
                 $seatMapInfo,
                 $occupiedSeatsData,
-                $trip->route_id
+                $trip->route_id,
+                $isReversedTrip
             );
 
             $seatScores[] = [
@@ -308,7 +315,8 @@ class OptimisationService
         array $doorPositions,
         array $seatMapInfo,
         Collection $occupiedSeatsData,
-        string $routeId
+        string $routeId,
+        bool $isReversed = false
     ): array {
         $score = 100;
         $reason = '';
@@ -378,7 +386,7 @@ class OptimisationService
             $aisleSeats = $seatInfo['adjacent_aisle_seats'];
             foreach ($aisleSeats as $aisleSeat) {
                 if ($occupiedSeatsData->has($aisleSeat)) {
-                    $occupantDestIndex = $this->getStopIndex($routeId, $occupiedSeatsData[$aisleSeat]->to_stop_id);
+                    $occupantDestIndex = $this->getStopIndex($routeId, $occupiedSeatsData[$aisleSeat]->to_stop_id, $isReversed);
                     if ($occupantDestIndex < $destinationIndex) {
                         $wouldBlockPassengers = true;
                         break;
@@ -403,15 +411,32 @@ class OptimisationService
      * 
      * @param string $routeId ID du trajet
      * @param string $stopId ID de l'arrêt
-     * @return int Index de l'arrêt (0 pour le premier arrêt)
+     * @param bool $isReversed Whether the trip is in reverse direction
+     * @return int Index de l'arrêt (1 for first destination, higher for further destinations)
      */
-    private function getStopIndex(string $routeId, string $stopId): int
+    private function getStopIndex(string $routeId, string $stopId, bool $isReversed = false): int
     {
         $stopOrder = RouteStopOrder::where('route_id', $routeId)
             ->where('stop_id', $stopId)
             ->first();
 
-        return $stopOrder ? $stopOrder->stop_index : 0;
+        if (!$stopOrder) {
+            return 0;
+        }
+
+        $originalIndex = $stopOrder->stop_index;
+
+        if ($isReversed) {
+            // For reversed trips, invert the index
+            // Example: Route has 5 stops (indices 0-4)
+            // Bondoukou is index 4 (last), Agnibilékrou is index 3
+            // For reversed trip, Bondoukou becomes 0 (start), Agnibilékrou becomes 1 (first dest)
+            $totalStops = RouteStopOrder::where('route_id', $routeId)->count();
+            // Invert: originalIndex 4 -> 0, 3 -> 1, 2 -> 2, 1 -> 3, 0 -> 4
+            return ($totalStops - 1) - $originalIndex;
+        }
+
+        return $originalIndex;
     }
 
     /**

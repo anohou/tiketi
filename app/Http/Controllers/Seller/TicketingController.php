@@ -64,19 +64,63 @@ class TicketingController extends Controller
 
             // Récupérer TOUS les voyages passant par les stations assignées (pas de filtre sales_control ici)
             // Le contrôle sales_control s'applique uniquement au moment de la vente
-            $trips = Trip::with(['route.originStation', 'route.stops', 'route.routeStopOrders', 'vehicle.vehicleType'])
+            $trips = Trip::with(['route.originStation', 'route.stops', 'route.routeStopOrders', 'vehicle.vehicleType', 'originStation', 'destinationStation'])
                 ->withCount('tripSeatOccupancies as occupied_seats')
                 ->whereIn('route_id', $assignedRouteIds)
                 ->where('departure_at', '>=', now())
                 ->orderBy('departure_at')
                 ->get();
 
-            // Get fares where the from_stop is in one of the assigned stations
+            // Get fares: 
+            // 1. where from_stop is in assigned stations (normal direction), OR
+            // 2. where to_stop is in assigned stations AND fare is bidirectional (reverse direction)
             $routeFares = RouteFare::with(['fromStop.station', 'toStop.station'])
-                ->whereHas('fromStop', function($query) use ($assignedStationIds) {
-                    $query->whereIn('station_id', $assignedStationIds);
+                ->where(function($query) use ($assignedStationIds) {
+                    // Normal direction: from_stop is in assigned stations
+                    $query->whereHas('fromStop', function($q) use ($assignedStationIds) {
+                        $q->whereIn('station_id', $assignedStationIds);
+                    })
+                    // Reverse direction: to_stop is in assigned stations AND is_bidirectional
+                    ->orWhere(function($q) use ($assignedStationIds) {
+                        $q->where('is_bidirectional', true)
+                          ->whereHas('toStop', function($sq) use ($assignedStationIds) {
+                              $sq->whereIn('station_id', $assignedStationIds);
+                          });
+                    });
                 })
                 ->get();
+            
+            // Transform bidirectional fares: if to_stop is in seller's station, swap from and to
+            $routeFares = $routeFares->map(function($fare) use ($assignedStationIds) {
+                $fromStationId = $fare->fromStop->station_id ?? null;
+                $toStationId = $fare->toStop->station_id ?? null;
+                
+                // Check if this is a reverse fare (to_stop is in our station, from_stop is not)
+                $isReversed = $fare->is_bidirectional 
+                    && $toStationId 
+                    && in_array($toStationId, $assignedStationIds)
+                    && !in_array($fromStationId, $assignedStationIds);
+                
+                // Convert to array for proper JSON serialization
+                $fareArray = $fare->toArray();
+                $fareArray['is_reversed'] = $isReversed;
+                
+                if ($isReversed) {
+                    // Swap from_stop and to_stop for display
+                    $originalFromStop = $fareArray['from_stop'];
+                    $originalToStop = $fareArray['to_stop'];
+                    $fareArray['from_stop'] = $originalToStop;
+                    $fareArray['to_stop'] = $originalFromStop;
+                    
+                    // Also swap the IDs
+                    $originalFromId = $fareArray['from_stop_id'];
+                    $originalToId = $fareArray['to_stop_id'];
+                    $fareArray['from_stop_id'] = $originalToId;
+                    $fareArray['to_stop_id'] = $originalFromId;
+                }
+                
+                return $fareArray;
+            })->values();
             
             $hasActiveAssignment = count($assignedStationIds) > 0;
         }
@@ -86,15 +130,33 @@ class TicketingController extends Controller
             $routes = \App\Models\Route::orderBy('name')->get(['id', 'name']);
         } else {
             // Un vendeur ne peut créer des voyages que pour ses routes assignées (par station)
-            $routes = \App\Models\Route::where(function($query) use ($assignedStationIds) {
+            $routes = \App\Models\Route::with(['originStation', 'destinationStation'])
+            ->where(function($query) use ($assignedStationIds) {
                 $query->whereIn('origin_station_id', $assignedStationIds)
+                      ->orWhereIn('destination_station_id', $assignedStationIds)
                       ->orWhereHas('stops', function($q) use ($assignedStationIds) {
                           $q->whereIn('station_id', $assignedStationIds);
                       });
             })
             ->where('active', true)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get()
+            ->map(function($route) use ($assignedStationIds) {
+                // Determine if route should be displayed in reverse direction
+                // If seller's station is the destination, show reversed route name
+                $isReversed = in_array($route->destination_station_id, $assignedStationIds) 
+                    && !in_array($route->origin_station_id, $assignedStationIds);
+                
+                if ($isReversed && $route->originStation && $route->destinationStation) {
+                    $route->display_name = $route->destinationStation->name . ' -> ' . $route->originStation->name;
+                    $route->is_reversed = true;
+                } else {
+                    $route->display_name = $route->name;
+                    $route->is_reversed = false;
+                }
+                
+                return $route;
+            });
         }
 
         $vehicles = \App\Models\Vehicle::with('vehicleType')->orderBy('identifier')->get(['id', 'identifier', 'seat_count', 'vehicle_type_id']);
@@ -150,6 +212,10 @@ class TicketingController extends Controller
                     $stopIndex = $stopOrders[$stopId] ?? 0;
                     $seat['color'] = $this->getStopColor($stopIndex, $totalStops);
                     $seat['destination_name'] = $occupancy->ticket->toStop->name;
+                    // Add Ticket Info for Supervisor Inspector
+                    $seat['ticket_id'] = $occupancy->ticket->id;
+                    $seat['ticket_uuid'] = $occupancy->ticket->uuid;
+                    $seat['ticket_number'] = $occupancy->ticket->ticket_number;
                 } else {
                     $seat['color'] = '#94A3B8';
                     $seat['destination_name'] = null;

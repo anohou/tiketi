@@ -9,6 +9,9 @@ import Seat from 'vue-material-design-icons/Seat.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
+import Plus from 'vue-material-design-icons/Plus.vue';
+import Minus from 'vue-material-design-icons/Minus.vue';
+import Magnify from 'vue-material-design-icons/Magnify.vue';
 import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 
@@ -24,6 +27,28 @@ const loading = ref(false);
 const selectedTripId = ref(props.initialSelectedTripId);
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
+
+// Zoom controls
+const zoomLevel = ref(1);
+const minZoom = 0.5;
+const maxZoom = 2;
+const zoomStep = 0.25;
+
+const zoomIn = () => {
+    if (zoomLevel.value < maxZoom) {
+        zoomLevel.value = Math.min(maxZoom, zoomLevel.value + zoomStep);
+    }
+};
+
+const zoomOut = () => {
+    if (zoomLevel.value > minZoom) {
+        zoomLevel.value = Math.max(minZoom, zoomLevel.value - zoomStep);
+    }
+};
+
+const resetZoom = () => {
+    zoomLevel.value = 1;
+};
 
 const page = usePage();
 const isTicketingPage = computed(() => route().current('seller.ticketing'));
@@ -87,10 +112,11 @@ const selectTrip = (trip) => {
     }
 };
 
-const handleSeatClick = (seat) => {
+const handleSeatClick = (seatNumber) => {
     if (isTicketingPage.value) {
-        ticketingStore.selectSeat(seat.number);
-        emit('seat-click', seat);
+        console.log('[Sidebar] Selecting seat:', seatNumber);
+        ticketingStore.selectSeat(seatNumber);
+        emit('seat-click', seatNumber);
     }
 };
 
@@ -173,39 +199,37 @@ const seatStats = computed(() => {
 
             <div v-else v-for="trip in trips" :key="trip.id" 
                 class="border-2 rounded-2xl overflow-hidden transition-all duration-300"
-                :class="selectedTripId === trip.id ? 'border-green-500 shadow-lg scale-[1.02]' : 'border-transparent bg-gray-50 hover:border-orange-200 hover:bg-white hover:shadow-md'"
+                :class="selectedTripId === trip.id ? 'border-green-500 shadow-lg' : 'border-transparent bg-gray-50 hover:border-orange-200 hover:bg-white hover:shadow-md'"
             >
                 <!-- Trip Summary Header -->
                 <div @click="selectTrip(trip)" 
-                    class="p-4 cursor-pointer flex items-center justify-between gap-3"
+                    class="p-3 cursor-pointer"
                     :class="selectedTripId === trip.id ? 'bg-green-50/50' : ''"
                 >
-                    <div class="p-2 bg-white rounded-xl shadow-sm flex-shrink-0">
-                        <Bus :size="20" :class="selectedTripId === trip.id ? 'text-green-600' : 'text-gray-400'" />
+                    <!-- Full trip name (not truncated) -->
+                    <div class="flex items-center gap-2 mb-1">
+                        <Bus :size="16" :class="selectedTripId === trip.id ? 'text-green-600' : 'text-gray-400'" />
+                        <div class="text-sm font-bold text-gray-900 tracking-tight leading-snug">{{ trip.display_name || trip.route?.name }}</div>
+                        <span 
+                            :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
+                            class="text-xs shrink-0"
+                        >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
+                        <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <div class="text-sm font-bold text-gray-900 truncate tracking-tight">{{ trip.route?.name }}</div>
-                            <span 
-                                :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
-                                class="text-xs shrink-0"
-                            >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
-                            <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                        </div>
-                        <div class="flex items-center gap-3 mt-0.5">
-                            <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">
-                                {{ trip.vehicle?.identifier }}
-                            </span>
-                            <span class="text-[10px] font-bold text-gray-400">
-                                {{ formatTime(trip.departure_at) }}
-                            </span>
-                        </div>
+                    <div class="flex items-center gap-3 pl-6">
+                        <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                            {{ trip.vehicle?.identifier }}
+                        </span>
+                        <span class="text-[10px] font-bold text-gray-400">
+                            {{ formatTime(trip.departure_at) }}
+                        </span>
+                        <!-- Only show chevron when NOT selected -->
+                        <ChevronRight v-if="selectedTripId !== trip.id" :size="14" class="text-gray-400 ml-auto" />
                     </div>
-                    <component :is="selectedTripId === trip.id ? ChevronDown : ChevronRight" :size="18" class="text-gray-400" />
                 </div>
 
                 <!-- Expanded Content (Seat Map) -->
-                <div v-if="selectedTripId === trip.id" class="p-3 border-t border-green-100 bg-white">
+                <div v-if="selectedTripId === trip.id" class="border-t border-green-100 bg-white">
                     <!-- Loading State for Seat Map -->
                     <div v-if="seatMapLoading" class="flex flex-col items-center justify-center py-8">
                         <div class="animate-spin mb-2"><Refresh :size="24" class="text-green-600" /></div>
@@ -214,25 +238,42 @@ const seatStats = computed(() => {
 
                     <!-- Seat Map and Stats -->
                     <div v-else-if="seatMap">
-                        <!-- Stats Mini Grid -->
-                        <div class="grid grid-cols-3 gap-2 mb-4">
-                            <div class="bg-white p-2 rounded-xl text-center border border-orange-100 shadow-sm">
-                                <div class="text-[9px] uppercase font-bold text-gray-400 tracking-tighter">Cap</div>
-                                <div class="text-base font-black text-gray-900 leading-tight">{{ seatStats.total }}</div>
+                        <!-- Compact Stats Row -->
+                        <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100">
+                            <div class="flex items-center gap-1 text-xs">
+                                <span class="font-bold text-gray-500">Cap</span>
+                                <span class="font-black text-gray-800">{{ seatStats.total }}</span>
+                                <span class="mx-1 text-gray-300">|</span>
+                                <span class="font-bold text-red-500">Occ</span>
+                                <span class="font-black text-red-600">{{ seatStats.occupied }}</span>
+                                <span class="mx-1 text-gray-300">|</span>
+                                <span class="font-bold text-green-500">Lib</span>
+                                <span class="font-black text-green-600">{{ seatStats.available }}</span>
                             </div>
-                            <div class="bg-white p-2 rounded-xl text-center border border-orange-100 shadow-sm">
-                                <div class="text-[9px] uppercase font-bold text-red-600 tracking-tighter">Occ</div>
-                                <div class="text-base font-black text-red-700 leading-tight">{{ seatStats.occupied }}</div>
-                            </div>
-                            <div class="bg-white p-2 rounded-xl text-center border border-orange-100 shadow-sm">
-                                <div class="text-[9px] uppercase font-bold text-green-600 tracking-tighter">Lib</div>
-                                <div class="text-base font-black text-green-700 leading-tight">{{ seatStats.available }}</div>
+                            <!-- Zoom Controls -->
+                            <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
+                                <button @click="zoomOut" 
+                                    :disabled="zoomLevel <= minZoom"
+                                    class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all"
+                                    title="Zoom -"
+                                >
+                                    <Minus :size="12" class="text-gray-600" />
+                                </button>
+                                <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center">{{ Math.round(zoomLevel * 100) }}%</span>
+                                <button @click="zoomIn" 
+                                    :disabled="zoomLevel >= maxZoom"
+                                    class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all"
+                                    title="Zoom +"
+                                >
+                                    <Plus :size="12" class="text-gray-600" />
+                                </button>
                             </div>
                         </div>
 
-                        <!-- Interactive Seat Map -->
-                        <div class="bg-gray-50 rounded-xl p-2 border border-gray-100 relative overflow-hidden flex items-center justify-center h-[350px]">
-                            <div class="w-full h-full flex items-center justify-center p-2">
+                        <!-- Interactive Seat Map - MAXIMIZED Height -->
+                        <div class="bg-white relative overflow-auto" style="height: calc(100vh - 220px); min-height: 400px;">
+                            <div class="w-full h-full flex items-center justify-center"
+                                 :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }">
                                 <VehicleSeatMapSVG 
                                     :seat-map="seatMap"
                                     :vehicle-type="trip.vehicle?.vehicle_type"
@@ -241,12 +282,13 @@ const seatStats = computed(() => {
                                     :selected-color="ticketingStore.selectedFareColor"
                                     :show-suggestions="ticketingStore.showSuggestions"
                                     @seat-click="handleSeatClick"
-                                    class="max-w-full max-h-full"
+                                    class="w-full h-full"
                                 />
                             </div>
                         </div>
                         
-                        <div class="mt-3">
+                        <!-- Only show "Vendre" button if NOT on ticketing page -->
+                        <div v-if="!isTicketingPage" class="p-3 border-t border-gray-100">
                             <button 
                                 @click="router.visit(route('seller.ticketing', { trip_id: trip.id }))"
                                 class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
@@ -258,11 +300,6 @@ const seatStats = computed(() => {
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Footer Info -->
-        <div class="p-3 bg-gray-50 border-t border-orange-100 text-[10px] text-gray-400 text-center">
-            Vue actualisée automatiquement
         </div>
     </div>
 </template>

@@ -19,7 +19,7 @@ class SeatAllocator
     public function suggestSeats(Trip $trip, Stop $destinationStop, int $quantity = 1): array
     {
         // 1. Load vehicle with vehicle type to get door positions
-        $trip->load(['vehicle.vehicleType', 'route.stops']);
+        $trip->load(['vehicle.vehicleType', 'route.stops', 'route']);
         $vehicle = $trip->vehicle;
         $vehicleType = $vehicle->vehicleType;
         $route = $trip->route;
@@ -32,8 +32,20 @@ class SeatAllocator
         // Get seats that are already occupied for any segment of this trip
         $occupiedSeats = $trip->tripSeatOccupancies()->pluck('seat_number')->toArray();
 
-        // 2. Determine the destination rank
+        // 2. DETECT IF TRIP IS REVERSED
+        // If trip's origin_station_id != route's origin_station_id, the trip is reversed
+        $isReversedTrip = $trip->origin_station_id && 
+                          $route && 
+                          $trip->origin_station_id !== $route->origin_station_id;
+
+        // 3. Determine the destination rank (considering trip direction)
         $stopsOrder = $route->stops->pluck('id')->toArray();
+        
+        // If reversed, flip the stops order
+        if ($isReversedTrip) {
+            $stopsOrder = array_reverse($stopsOrder);
+        }
+        
         $destinationIndex = array_search($destinationStop->id, $stopsOrder);
         $totalStops = count($stopsOrder);
         

@@ -63,38 +63,53 @@ const createTrip = () => {
   <MainNavLayout>
     <div class="max-w-6xl mx-auto space-y-6">
       
-      <!-- Warning if no station assigned -->
+      <!-- Full-page blocking message if no station assigned (for sellers only) -->
       <div v-if="$page.props.auth.user.role === 'seller' && !hasActiveAssignment" 
-           class="bg-orange-50 border border-orange-200 p-6 rounded-2xl flex flex-col items-center text-center shadow-sm">
-        <div class="p-3 bg-white rounded-full shadow-sm mb-4">
-          <MapMarker class="w-8 h-8 text-orange-600" />
+           class="min-h-[70vh] flex items-center justify-center">
+        <div class="bg-white border border-orange-200 p-12 rounded-3xl flex flex-col items-center text-center shadow-lg max-w-lg">
+          <div class="p-5 bg-orange-50 rounded-full shadow-sm mb-6">
+            <MapMarker class="w-16 h-16 text-orange-500" />
+          </div>
+          <h2 class="text-2xl font-black text-gray-900 mb-3">Aucune station assignée</h2>
+          <p class="text-gray-600 mb-6 leading-relaxed">
+            Vous n'avez pas encore de station assignée. Vous ne pouvez pas vendre de billets tant qu'un superviseur ne vous a pas assigné à une station.
+          </p>
+          <div class="space-y-3 w-full">
+            <p class="text-sm text-gray-500">
+              Contactez votre superviseur pour être assigné à une station.
+            </p>
+            <Link 
+              :href="route('profile.edit')" 
+              class="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors"
+            >
+              Voir mon profil
+            </Link>
+          </div>
         </div>
-        <h3 class="text-xl font-black text-gray-900 mb-2">Aucune station assignée</h3>
-        <p class="text-gray-600 max-w-md">
-          Vous n'avez pas encore de station assignée. Veuillez contacter votre administrateur pour pouvoir vendre des tickets.
-        </p>
       </div>
 
-      <!-- Workplace Header -->
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
-        <div>
-          <div class="flex items-center gap-3">
-            <h1 class="text-3xl font-black text-gray-900 tracking-tight">Tableau de Bord</h1>
-            <div v-if="assignedStation" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
-                <MapMarker :size="14" />
-                {{ assignedStation }}
+      <!-- Main content (only shown if seller has assigned station or user is admin/supervisor) -->
+      <template v-else>
+        <!-- Workplace Header -->
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-orange-100">
+          <div>
+            <div class="flex items-center gap-3">
+              <h1 class="text-3xl font-black text-gray-900 tracking-tight">Tableau de Bord</h1>
+              <div v-if="assignedStation" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
+                  <MapMarker :size="14" />
+                  {{ assignedStation }}
+              </div>
             </div>
+            <p class="text-gray-500 font-medium">Gestion quotidienne de la billetterie et des départs</p>
           </div>
-          <p class="text-gray-500 font-medium">Gestion quotidienne de la billetterie et des départs</p>
+          <button 
+             @click="showCreateTripModal = true"
+             class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all active:scale-95"
+          >
+            <Plus :size="20" />
+            Nouveau Voyage
+          </button>
         </div>
-        <button 
-           @click="showCreateTripModal = true"
-           class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all active:scale-95"
-        >
-          <Plus :size="20" />
-          Nouveau Voyage
-        </button>
-      </div>
 
       <!-- Main Section: Voyages Disponibles -->
       <section class="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
@@ -127,7 +142,7 @@ const createTrip = () => {
               <div class="space-y-3 mb-6">
                 <div class="flex items-center gap-2">
                     <MapMarker :size="16" class="text-gray-400" />
-                    <span class="font-bold text-gray-700 truncate">{{ trip.route?.name }}</span>
+                    <span class="font-bold text-gray-700 truncate">{{ trip.display_name || trip.route?.name }}</span>
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="flex-1 bg-white rounded-lg p-2 border border-orange-100">
@@ -228,6 +243,7 @@ const createTrip = () => {
             </div>
         </section>
       </div>
+      </template>
 
     </div>
 
@@ -255,7 +271,7 @@ const createTrip = () => {
             >
                 <option value="" disabled>Sélectionnez un trajet</option>
                 <option v-for="busRoute in routes" :key="busRoute.id" :value="busRoute.id">
-                    {{ busRoute.name }}
+                    {{ busRoute.display_name || busRoute.name }}
                 </option>
             </select>
             <InputError :message="createTripForm.errors.route_id" class="mt-2" />

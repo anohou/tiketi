@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 
 const props = defineProps({
   vehicleType: {
@@ -25,8 +25,21 @@ const props = defineProps({
   showSuggestions: {
     type: Boolean,
     default: false
+  },
+  allowOccupiedClick: {
+    type: Boolean,
+    default: false
   }
 });
+
+// Debug: Log when suggestions change
+watch(() => props.suggestedSeats, (newVal) => {
+  console.log('[SVG] suggestedSeats changed:', newVal);
+}, { immediate: true });
+
+watch(() => props.showSuggestions, (newVal) => {
+  console.log('[SVG] showSuggestions changed:', newVal);
+}, { immediate: true });
 
 const emit = defineEmits(['seat-click']);
 
@@ -270,12 +283,26 @@ const getSeatColor = (seat) => {
   return '#94A3B8';
 };
 
-// Vérifier si un siège est suggéré
+// Vérifier si un siège est suggéré (only during active sales)
 const isSuggested = (seatNumber) => {
+  // Only show suggestions when showSuggestions is true (during active destination selection)
   if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) {
     return false;
   }
-  return props.suggestedSeats.some(s => s.seat_number === seatNumber || s === seatNumber);
+  return props.suggestedSeats.some(s => {
+    const sNum = s.seat_number !== undefined ? s.seat_number : s;
+    return Number(sNum) === Number(seatNumber);
+  });
+};
+
+// Get the suggestion rank (1 = best, 2 = second best, etc.)
+const getSuggestionRank = (seatNumber) => {
+  if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) return 0;
+  const index = props.suggestedSeats.findIndex(s => {
+    const sNum = s.seat_number !== undefined ? s.seat_number : s;
+    return Number(sNum) === Number(seatNumber);
+  });
+  return index >= 0 ? index + 1 : 0;
 };
 
 // Vérifier si un siège est sélectionné
@@ -285,8 +312,11 @@ const isSelected = (seatNumber) => {
 
 // Gérer le clic sur un siège
 const handleSeatClick = (seat) => {
-  if (!seat.isOccupied) {
+  if (!seat.isOccupied || props.allowOccupiedClick) {
+    console.log('[SVG] handleSeatClick:', seat.number);
     emit('seat-click', seat.number);
+  } else {
+    console.log('[SVG] handleSeatClick (Occupied - Blocked):', seat.number);
   }
 };
 </script>
@@ -353,59 +383,110 @@ const handleSeatClick = (seat) => {
       
       <!-- Sièges -->
       <g v-for="seat in visibleSeats" :key="`seat-${seat.number}`">
-        <!-- Fond du siège -->
+        <!-- 1. VISUAL LAYER -->
+        
+        <!-- Suggestion Glow (Behind seat) -->
+        <rect 
+          v-if="isSuggested(seat.number) && !seat.isOccupied"
+          :x="seat.x - 4" 
+          :y="seat.y - 4" 
+          :width="SEAT_WIDTH + 8" 
+          :height="SEAT_HEIGHT + 8"
+          fill="none"
+          stroke="#22C55E"
+          stroke-width="3"
+          rx="10"
+          class="suggestion-pulse pointer-events-none"
+          :style="{ animationDelay: `${getSuggestionRank(seat.number) * 0.1}s` }"
+        />
+
+        <!-- Seat Base (Color) -->
         <rect 
           :x="seat.x" 
           :y="seat.y" 
           :width="SEAT_WIDTH" 
           :height="SEAT_HEIGHT"
-          :fill="getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) ? '#3B82F6' : '#475569')"
+          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#475569')"
           :stroke-width="isSelected(seat.number) ? 3 : (isSuggested(seat.number) ? 3 : 2)"
           rx="6"
-          :class="[
-            seat.isOccupied ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'
-          ]"
-          @click="handleSeatClick(seat)"
-        >
-          <title>{{ seat.isOccupied ? `Occupé - ${seat.destination_name}` : `Place ${seat.number} - Disponible` }}</title>
-        </rect>
+          class="pointer-events-none"
+        />
         
-        <!-- Dossier du siège (partie haute) -->
+        <!-- Seat Back -->
         <rect 
           :x="seat.x + 3" 
           :y="seat.y + 3" 
           :width="SEAT_WIDTH - 6" 
           :height="SEAT_HEIGHT * 0.4"
-          :fill="getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) ? '#3B82F6' : '#334155')"
+          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#334155')"
           stroke-width="1"
           rx="4"
           class="pointer-events-none"
         />
         
-        <!-- Assise du siège (partie basse) -->
+        <!-- Seat Cushion -->
         <rect 
           :x="seat.x + 3" 
           :y="seat.y + SEAT_HEIGHT * 0.45" 
           :width="SEAT_WIDTH - 6" 
           :height="SEAT_HEIGHT * 0.5"
-          :fill="getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) ? '#3B82F6' : '#334155')"
+          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#334155')"
           stroke-width="1"
           rx="3"
           class="pointer-events-none"
         />
+
+        <!-- Suggestion Badge (On Top of Seat Visuals) -->
+        <g v-if="isSuggested(seat.number) && !seat.isOccupied" class="pointer-events-none">
+          <circle
+            :cx="seat.x + SEAT_WIDTH - 2"
+            :cy="seat.y + 2"
+            r="10"
+            fill="#22C55E"
+            stroke="white"
+            stroke-width="2"
+          />
+          <text
+            :x="seat.x + SEAT_WIDTH - 2"
+            :y="seat.y + 6"
+            text-anchor="middle"
+            class="text-[10px] font-black fill-white select-none"
+          >
+            {{ getSuggestionRank(seat.number) }}
+          </text>
+        </g>
         
-        <!-- Numéro du siège -->
+        <!-- Seat Number -->
         <text 
           :x="seat.x + SEAT_WIDTH / 2" 
-          :y="seat.y + SEAT_HEIGHT / 2 + 5" 
+          :y="seat.y + SEAT_HEIGHT / 2 + 6" 
           text-anchor="middle" 
-          class="text-sm font-bold fill-white pointer-events-none select-none"
+          class="text-lg font-black fill-white pointer-events-none select-none"
         >
           {{ seat.number }}
         </text>
+
+        <!-- 2. INTERACTION LAYER (Transparent Click Catcher on TOP) -->
+        <rect 
+          :x="seat.x" 
+          :y="seat.y" 
+          :width="SEAT_WIDTH" 
+          :height="SEAT_HEIGHT"
+          fill="white"
+          fill-opacity="0"
+          style="pointer-events: all !important;"
+          class="cursor-pointer hover:bg-black hover:bg-opacity-10"
+          :class="[
+            seat.isOccupied ? 'cursor-not-allowed' : 'cursor-pointer',
+            isSelected(seat.number) ? 'border-2 border-white' : ''
+          ]"
+          @click.stop="handleSeatClick(seat)"
+        >
+          <title>{{ seat.isOccupied ? `Occupé - ${seat.destination_name}` : (isSuggested(seat.number) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`) }}</title>
+        </rect>
       </g>
       
       <!-- Doors (rendered after seats so they appear on top) -->
@@ -461,5 +542,27 @@ const handleSeatClick = (seat) => {
 <style scoped>
 .vehicle-svg-container {
   @apply w-full h-full flex items-start justify-center bg-white rounded-lg p-0;
+}
+
+/* Pulsing animation for suggested seats */
+@keyframes suggestion-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.05);
+  }
+}
+
+.suggestion-pulse {
+  animation: suggestion-pulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+.suggested-seat {
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.6));
 }
 </style>

@@ -13,13 +13,34 @@ class Trip extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
-    protected $fillable = ['route_id','vehicle_id','departure_at','status','booking_type','sales_control'];
+    protected $fillable = [
+        'route_id',
+        'vehicle_id',
+        'departure_at',
+        'status',
+        'booking_type',
+        'sales_control',
+        'origin_station_id',
+        'destination_station_id'
+    ];
 
     protected $casts = [
         'departure_at' => 'datetime',
     ];
 
-    protected $appends = ['total_seats', 'available_seats'];
+    protected $appends = ['total_seats', 'available_seats', 'display_name'];
+
+    /**
+     * Get the display name for this trip (origin -> destination)
+     */
+    public function getDisplayNameAttribute()
+    {
+        if ($this->originStation && $this->destinationStation) {
+            return $this->originStation->name . ' -> ' . $this->destinationStation->name;
+        }
+        // Fallback to route name if stations not set
+        return $this->route?->name ?? 'Unknown';
+    }
 
     public function getTotalSeatsAttribute()
     {
@@ -87,6 +108,16 @@ class Trip extends Model
     public function route()
     {
         return $this->belongsTo(Route::class);
+    }
+
+    public function originStation()
+    {
+        return $this->belongsTo(Station::class, 'origin_station_id');
+    }
+
+    public function destinationStation()
+    {
+        return $this->belongsTo(Station::class, 'destination_station_id');
     }
 
     public function vehicle()

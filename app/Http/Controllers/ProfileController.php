@@ -18,9 +18,25 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): Response
     {
+        $user = $request->user();
+        
+        // Get assigned stations for the current user
+        $assignedStations = \App\Models\UserStationAssignment::where('user_id', $user->id)
+            ->where('active', true)
+            ->with('station')
+            ->get()
+            ->map(function($assignment) {
+                return [
+                    'id' => $assignment->station->id,
+                    'name' => $assignment->station->name,
+                    'assigned_at' => $assignment->created_at->format('d/m/Y'),
+                ];
+            });
+
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+            'assignedStations' => $assignedStations,
         ]);
     }
 

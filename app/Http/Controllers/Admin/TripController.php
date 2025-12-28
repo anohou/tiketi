@@ -13,6 +13,8 @@ class TripController extends Controller
 {
     /**
      * Get routes accessible to the current user.
+     * For bidirectional routes, a seller can access routes where their assigned station
+     * is either the origin OR the destination.
      */
     private function getAccessibleRoutesQuery()
     {
@@ -24,7 +26,11 @@ class TripController extends Controller
 
         $stationIds = $user->stationAssignments()->pluck('station_id');
 
-        return Route::whereIn('origin_station_id', $stationIds);
+        // Allow access to routes where the user's station is origin OR destination
+        return Route::where(function($query) use ($stationIds) {
+            $query->whereIn('origin_station_id', $stationIds)
+                  ->orWhereIn('destination_station_id', $stationIds);
+        });
     }
 
     /**
@@ -70,6 +76,8 @@ class TripController extends Controller
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+        
         $data = $request->validate([
             'route_id' => [
                 'required', 
@@ -79,23 +87,60 @@ class TripController extends Controller
                     // Check if user has access to this route
                     $exists = $this->getAccessibleRoutesQuery()->where('id', $value)->exists();
                     if (!$exists) {
-                        $fail('Vous n\'avez pas accès à cet itinéraire (station de départ non assignée).');
+                        $fail('Vous n\'avez pas accès à cet itinéraire (station non assignée).');
                     }
                 }
             ],
             'vehicle_id' => 'required|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'nullable|in:scheduled,boarding,departed,arrived,cancelled',
+            'sales_control' => 'nullable|in:open,closed',
         ]);
         
         // Set default status if not provided
         $data['status'] = $data['status'] ?? 'scheduled';
+        $data['sales_control'] = $data['sales_control'] ?? 'closed';
+        
+        // Determine trip origin and destination based on seller's station
+        $route = Route::find($data['route_id']);
+        
+        if ($user->role === 'admin') {
+            // Admins create trips in the route's default direction
+            $data['origin_station_id'] = $route->origin_station_id;
+            $data['destination_station_id'] = $route->destination_station_id;
+        } else {
+            // For sellers/supervisors, check their assigned stations
+            $assignedStationIds = \App\Models\UserStationAssignment::where('user_id', $user->id)
+                ->where('active', true)
+                ->pluck('station_id')
+                ->toArray();
+            
+            // If seller's station is the route's destination (but not origin), reverse the direction
+            $isReversed = in_array($route->destination_station_id, $assignedStationIds) 
+                && !in_array($route->origin_station_id, $assignedStationIds);
+            
+            if ($isReversed) {
+                // Seller is at destination, so trip goes: destination -> origin
+                $data['origin_station_id'] = $route->destination_station_id;
+                $data['destination_station_id'] = $route->origin_station_id;
+            } else {
+                // Normal direction
+                $data['origin_station_id'] = $route->origin_station_id;
+                $data['destination_station_id'] = $route->destination_station_id;
+            }
+        }
         
         $trip = Trip::create($data);
 
         \App\Events\TripCreated::dispatch($trip);
 
-        return redirect()->route('admin.trips.index')->with('success', 'Voyage créé avec succès!');
+        // Redirect based on user role
+        if ($user->role === 'admin') {
+            return redirect()->route('admin.trips.index')->with('success', 'Voyage créé avec succès!');
+        }
+        
+        // Sellers and supervisors go back to ticketing with the new trip selected
+        return redirect()->route('seller.ticketing', ['trip_id' => $trip->id])->with('success', 'Voyage créé avec succès!');
     }
 
     /**
