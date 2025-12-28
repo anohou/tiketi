@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: ghcr.io/anohou/billeterie:staging
+    image: ${DOCKER_IMAGE_NAME:-ghcr.io/anohou/billeterie:staging}
     container_name: dc_billeterie_staging
 
     volumes:

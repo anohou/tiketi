@@ -173,6 +173,9 @@ deploy() {
             log "ERROR" "Failed to pull image"
             exit 1
         }
+
+        # Export image name for docker-compose
+        export DOCKER_IMAGE_NAME="${FULL_REGISTRY_PATH}:${environment}"
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
 
@@ -191,7 +194,9 @@ deploy() {
             log "INFO" "Building with --no-cache (fresh build, no layer caching)"
         fi
 
-        docker build -t "${DOCKER_IMAGE_NAME}" \
+        # Build with local tag only
+        local local_image="billeterie_staging:latest"
+        docker build -t "${local_image}" \
             -f "${DEPLOYMENT_ROOT}/docker/Dockerfile" \
             --build-arg APP_ENV="$environment" \
             --build-arg APP_BASE_PATH="${base_path}" \
@@ -201,9 +206,9 @@ deploy() {
             exit 1
         }
 
-        # Tag with registry path so docker-compose can find it
-        log "INFO" "Tagging image for docker-compose: ${FULL_REGISTRY_PATH}:${environment}"
-        docker tag "${DOCKER_IMAGE_NAME}" "${FULL_REGISTRY_PATH}:${environment}"
+        # Export image name for docker-compose
+        export DOCKER_IMAGE_NAME="${local_image}"
+        log "SUCCESS" "Local build complete: ${DOCKER_IMAGE_NAME}"
     else
         log "ERROR" "Neither remote image pull nor local build is enabled"
         exit 1
@@ -233,6 +238,17 @@ deploy() {
     chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
     log "SUCCESS" "Storage directories configured with correct ownership"
+
+    # Clean up stale frontend build directory to force restoration from image backup
+    # This prevents volume-mounted old builds from overriding fresh builds in the Docker image
+    if [ "$environment" != "local" ]; then
+        local build_dir="${DEPLOYMENT_ROOT}/../public/build"
+        if [ -d "$build_dir" ]; then
+            log "INFO" "Removing stale build directory to ensure fresh assets..."
+            rm -rf "$build_dir"
+            log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
+        fi
+    fi
 
     # === HOOK: post-validation ===
     exec_hook "post-validation"
@@ -383,6 +399,15 @@ deploy() {
     echo ""
     log "INFO" "🌐 Application URLs:"
     log "INFO" "  → API:    ${app_url}"
+    echo ""
+
+    # Docker Image Info
+    log "INFO" "🐳 Docker Image:"
+    log "INFO" "  → Image:  ${DOCKER_IMAGE_NAME}"
+    local image_id=$(docker images -q "${DOCKER_IMAGE_NAME}" 2>/dev/null | head -1)
+    if [ -n "$image_id" ]; then
+        log "INFO" "  → ID:     ${image_id:0:12}"
+    fi
     echo ""
 
     # Quick commands
