@@ -175,9 +175,27 @@ deploy() {
         }
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
+
+        # TEMPORARY: Hard-code staging path until dynamic extraction works
+        local base_path="/"
+        if [[ "$environment" == "staging" ]]; then
+            # Laravel Vite plugin outputs to public/build/, so base path must include /build
+            base_path="/billeterie-stg-qhxQH0oZswr/build"
+        fi
+        log "INFO" "Using base path for assets: ${base_path}"
+
+        # Check if no-cache flag is requested
+        local build_flags=""
+        if [[ "${DOCKER_BUILD_NO_CACHE:-false}" == "true" ]]; then
+            build_flags="--no-cache"
+            log "INFO" "Building with --no-cache (fresh build, no layer caching)"
+        fi
+
         docker build -t "${DOCKER_IMAGE_NAME}" \
             -f "${DEPLOYMENT_ROOT}/docker/Dockerfile" \
             --build-arg APP_ENV="$environment" \
+            --build-arg APP_BASE_PATH="${base_path}" \
+            ${build_flags} \
             "${DEPLOYMENT_ROOT}/.." || {
             log "ERROR" "Failed to build image"
             exit 1

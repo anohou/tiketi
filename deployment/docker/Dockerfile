@@ -9,6 +9,9 @@
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS frontend-builder
 
+# Build argument for Vite base path (e.g., /billeterie-stg-xxx or /)
+ARG APP_BASE_PATH=/
+
 WORKDIR /app
 
 # Install minimal PHP and Composer for vendor dependencies
@@ -32,8 +35,11 @@ COPY vite.config.js ./
 COPY tailwind.config.js* postcss.config.js* jsconfig.json* ./
 COPY public/ public/
 
-# Build frontend assets with Vite
-RUN ls -la public/ && npm run build && ls -la public/ && ls -la public/build/
+# Build frontend assets with Vite and base path
+# Pass APP_BASE_PATH as VITE_BASE_PATH environment variable for the build
+RUN VITE_BASE_PATH="${APP_BASE_PATH}" npm run build && \
+    echo "Built with base path: ${APP_BASE_PATH}" && \
+    ls -la public/build/
 
 # Verify build output exists
 RUN if [ ! -d "public/build" ]; then \

@@ -15,6 +15,7 @@ services:
       - APP_ENV=staging
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
+      - ASSET_URL=https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr
 
     networks:
       - traefik_swarm_network
