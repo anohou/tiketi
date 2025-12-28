@@ -1,0 +1,247 @@
+name: Deploy to Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+      action:
+        description: 'Deployment action'
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - stop
+          - logs
+          - ps
+          - test-db
+          - clean
+          - url
+      build_mode:
+        description: 'Image build mode'
+        required: true
+        default: remote
+        type: choice
+        options:
+          - remote   # Pull pre-built image from GitHub Container Registry
+          - local    # Build image on server (emergency/development)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ github.event.inputs.action }} to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+
+    env:
+      DEPLOY_ENV: ${{ github.event.inputs.environment }}
+      DEPLOY_ACTION: ${{ github.event.inputs.action }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+
+          missing=()
+
+          if [[ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]]; then
+            missing+=("SSH_PRIVATE_KEY")
+          fi
+
+          if [[ -z "${{ secrets.SERVER_USER }}" ]]; then
+            missing+=("SERVER_USER")
+          fi
+
+          if [[ -z "${{ secrets.SERVER_HOST }}" ]]; then
+            missing+=("SERVER_HOST")
+          fi
+
+          if [[ "${{ env.DEPLOY_ENV }}" == "staging" ]]; then
+            if [[ -z "${{ secrets.STAGING_DEPLOY_PATH }}" ]]; then
+              missing+=("STAGING_DEPLOY_PATH")
+            fi
+          elif [[ "${{ env.DEPLOY_ENV }}" == "production" ]]; then
+            if [[ -z "${{ secrets.PRODUCTION_DEPLOY_PATH }}" ]]; then
+              missing+=("PRODUCTION_DEPLOY_PATH")
+            fi
+          fi
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "❌ Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+
+          echo "✅ All required secrets are configured"
+
+      - name: Configure SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add deployment host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          set -euo pipefail
+          echo "Testing SSH connection to ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}..."
+          if ssh -o ConnectTimeout=10 "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "echo 'SSH connection successful'"; then
+            echo "✅ SSH connection test passed"
+          else
+            echo "❌ SSH connection failed"
+            exit 1
+          fi
+
+      - name: Resolve deployment path
+        run: |
+          if [[ "${{ env.DEPLOY_ENV }}" == "staging" ]]; then
+            echo "DEPLOY_PATH=${{ secrets.STAGING_DEPLOY_PATH }}" >> "$GITHUB_ENV"
+          elif [[ "${{ env.DEPLOY_ENV }}" == "production" ]]; then
+            echo "DEPLOY_PATH=${{ secrets.PRODUCTION_DEPLOY_PATH }}" >> "$GITHUB_ENV"
+          else
+            echo "❌ Unsupported environment: ${{ env.DEPLOY_ENV }}"
+            exit 1
+          fi
+          echo "Using deployment directory: $DEPLOY_PATH"
+
+      - name: Clone or sync repository
+        run: |
+          set -euo pipefail
+
+          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          deploy_path="${{ env.DEPLOY_PATH }}"
+          target_branch="${{ github.ref_name }}"
+
+          # Check if repo exists
+          if ssh "$server" "test -d '$deploy_path/.git'"; then
+            echo "Repository exists, syncing deployment files..."
+            ssh "$server" "cd '$deploy_path' && \
+              git fetch origin && \
+              git reset --hard origin/$target_branch && \
+              git checkout $target_branch"
+          else
+            echo "Repository doesn't exist, cloning..."
+            ssh "$server" "git clone git@github.com:${{ github.repository }}.git $deploy_path && \
+              cd '$deploy_path' && \
+              git checkout $target_branch"
+          fi
+
+          current_sha=$(ssh "$server" "cd '$deploy_path' && git rev-parse HEAD")
+          echo "Repository at commit: $current_sha"
+          echo "✅ Repository synchronized"
+
+      - name: Validate secrets file
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          set -euo pipefail
+
+          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          deploy_path="${{ env.DEPLOY_PATH }}"
+          env="${{ env.DEPLOY_ENV }}"
+
+          echo "Validating secrets files for $env..."
+
+          # Check for common secrets
+          common_secrets="/srv/apps/.config/${env}/laravel/common-values.${env}.new.env"
+          if ssh "$server" "test -f '$common_secrets'"; then
+            echo "✅ Common secrets found: $common_secrets"
+          else
+            echo "⚠️  Common secrets not found: $common_secrets"
+          fi
+
+          # Check for app-specific secrets
+          app_secrets="/srv/apps/.config/${env}/laravel/billeterie.env"
+          if ssh "$server" "test -f '$app_secrets'"; then
+            echo "✅ App secrets found: $app_secrets"
+          else
+            echo "❌ App secrets not found: $app_secrets"
+            echo "Please create this file on the server before deploying"
+            exit 1
+          fi
+
+      - name: Configure image build mode
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          set -euo pipefail
+
+          build_mode="${{ github.event.inputs.build_mode }}"
+
+          echo "🔧 Configuring image build mode: $build_mode"
+
+          if [[ "$build_mode" == "remote" ]]; then
+            echo "📦 Mode: Pull pre-built image from GHCR"
+            echo "USE_REMOTE_IMAGE=true" >> "$GITHUB_ENV"
+            echo "ALLOW_LOCAL_BUILD=false" >> "$GITHUB_ENV"
+          elif [[ "$build_mode" == "local" ]]; then
+            echo "🔨 Mode: Build image on server (emergency/development)"
+            echo "USE_REMOTE_IMAGE=false" >> "$GITHUB_ENV"
+            echo "ALLOW_LOCAL_BUILD=true" >> "$GITHUB_ENV"
+          else
+            echo "❌ Invalid build mode: $build_mode"
+            exit 1
+          fi
+
+      - name: Execute deployment action
+        run: |
+          set -euo pipefail
+
+          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          deploy_path="${{ env.DEPLOY_PATH }}"
+          env="${{ env.DEPLOY_ENV }}"
+          action="${{ env.DEPLOY_ACTION }}"
+
+          # Build mode environment variables (if set)
+          use_remote="${{ env.USE_REMOTE_IMAGE }}"
+          allow_local="${{ env.ALLOW_LOCAL_BUILD }}"
+
+          echo "Executing action: $action for environment: $env"
+
+          # Construct SSH command with environment variables
+          ssh_cmd="cd '$deploy_path'"
+
+          if [[ -n "$use_remote" ]]; then
+            ssh_cmd="$ssh_cmd && USE_REMOTE_IMAGE=$use_remote ALLOW_LOCAL_BUILD=$allow_local ./deployment/deploy.sh $env $action"
+          else
+            ssh_cmd="$ssh_cmd && ./deployment/deploy.sh $env $action"
+          fi
+
+          ssh "$server" "$ssh_cmd"
+
+      - name: Verify deployment health
+        if: github.event.inputs.action == 'deploy'
+        run: |
+          set -euo pipefail
+
+          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
+          deploy_path="${{ env.DEPLOY_PATH }}"
+          env="${{ env.DEPLOY_ENV }}"
+
+          echo "Verifying deployment health..."
+
+          # Give containers a moment to stabilize
+          sleep 5
+
+          # Check container status
+          echo "Checking container status..."
+          if ssh "$server" "cd '$deploy_path' && ./deployment/deploy.sh $env ps"; then
+            echo "✅ Containers are running"
+          else
+            echo "❌ Container status check failed"
+            exit 1
+          fi
+
+          echo "✅ Deployment health verification completed"

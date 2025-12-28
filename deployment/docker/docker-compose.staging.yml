@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  app:
+    image: ${DOCKER_IMAGE_NAME:-ghcr.io/anohou/billeterie:staging}
+    container_name: dc_billeterie_staging
+
+    volumes:
+      # Bind mount entire project for code updates without rebuild
+      - type: bind
+        source: ../../
+        target: /var/www/html
+
+    environment:
+      - APP_ENV=staging
+      - CONTAINER_ROLE=app
+      - APP_TYPE=fullstack
+      - ASSET_URL=https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr
+
+    networks:
+      - traefik_swarm_network
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_swarm_network"
+
+      # Dynamic routing configuration (path-based or domain-based)
+      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswr`)"
+      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswr"
+      - "traefik.http.routers.billeterie-staging.middlewares=billeterie-staging-strip"
+
+      - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-staging.tls=true"
+      - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
+
+      # Service configuration
+      - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
+      - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
+
+    restart: unless-stopped
+
+networks:
+  traefik_swarm_network:
+    external: true

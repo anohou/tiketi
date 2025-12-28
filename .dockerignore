@@ -1,0 +1,21 @@
+# Ignore bootstrap cache - prevents dev dependency errors (e.g., Pail)
+bootstrap/cache/
+# Ignore local storage - will be bind mounted
+storage/
+# Ignore node modules - use multi-stage build
+node_modules/
+# Ignore built frontend assets - copied separately from frontend-builder stage
+public/build/
+# Ignore local .env - generated from template in container
+.env
+.env.local
+.env.*.local
+# Ignore dev files
+.phpunit.result.cache
+.php-cs-fixer.cache
+# Ignore IDE files
+.idea/
+.vscode/
+# Ignore OS files
+.DS_Store
+Thumbs.db

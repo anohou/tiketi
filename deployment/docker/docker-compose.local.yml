@@ -1,0 +1,65 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deployment/docker/Dockerfile
+      args:
+        APP_ENV: local
+    container_name: ${DOCKER_CONTAINER_NAME}
+    image: ${DOCKER_IMAGE_NAME}
+    ports:
+      - "8000:9000"
+    volumes:
+      - ../..:/var/www/html
+      - vendor_data:/var/www/html/vendor
+      - ../.env.secrets.local:/var/www/html/deployment/.env.secrets.local:ro
+    environment:
+      - APP_ENV=${ENVIRONMENT}
+      - CONTAINER_ROLE=app
+      - APP_TYPE=fullstack
+    networks:
+      - app_local
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=128M --performance-schema=OFF --innodb-log-buffer-size=8M
+    container_name: ${DOCKER_PROJECT}_mysql_local
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: ${DOCKER_PROJECT}_dev
+      MYSQL_USER: ${DOCKER_PROJECT}_user
+      MYSQL_PASSWORD: ${DOCKER_PROJECT}_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app_local
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${DOCKER_PROJECT}_redis_local
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_local
+
+networks:
+  app_local:
+    driver: bridge
+
+volumes:
+  db_data:
+  redis_data:
+  vendor_data:

@@ -1,0 +1,48 @@
+services:
+    app:
+        image: ghcr.io/anohou/billeterie:production
+        container_name: dc_billeterie_production
+        restart: unless-stopped
+        networks:
+            - traefik_swarm_network
+        environment:
+            - APP_ENV=production
+            - CONTAINER_ROLE=app
+            - APP_TYPE=fullstack
+        volumes:
+            # Bind mount entire project
+            - type: bind
+              source: ../../
+              target: /var/www/html
+        labels:
+            - "traefik.enable=true"
+            - "traefik.docker.network=traefik_swarm_network"
+
+
+            # HTTP Service
+            - "traefik.http.services.billeterie-production-http-service.loadbalancer.server.port=9000"
+
+            # Dynamic routing configuration (path-based or domain-based)
+            - "traefik.http.routers.billeterie-production.rule=Host(`billeterie.anohou.dev`)"
+
+            # HTTP to HTTPS Redirect Router (if path-based, includes path)
+            - "traefik.http.routers.billeterie-production-http-insecure.entrypoints=web"
+            - "traefik.http.routers.billeterie-production-http-insecure.middlewares=billeterie-production-https-redirect"
+
+            # Service-specific middleware for X-Forwarded-Host
+            - "traefik.http.middlewares.billeterie-production-forwarded-host.headers.customrequestheaders.X-Forwarded-Host=billeterie.anohou.dev"
+
+            # Main HTTPS Router configuration
+            - "traefik.http.routers.billeterie-production-http.entrypoints=websecure"
+            - "traefik.http.routers.billeterie-production-http.tls=true"
+            - "traefik.http.routers.billeterie-production-http.tls.certresolver=letsencrypt"
+            - "traefik.http.routers.billeterie-production-http.service=billeterie-production-http-service"
+            - "traefik.http.routers.billeterie-production-http.middlewares=secure-headers,billeterie-production-forwarded-host"
+
+            # HTTPS Redirect Middleware
+            - "traefik.http.middlewares.billeterie-production-https-redirect.redirectscheme.scheme=https"
+
+networks:
+    traefik_swarm_network:
+        external: true
+        name: traefik_swarm_network

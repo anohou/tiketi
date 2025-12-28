@@ -6,7 +6,7 @@
         <!-- Top Header -->
         <header id="MainNav"
           class="h-[70px] bg-white shadow-sm border-b border-orange-200 flex items-center justify-between px-4 shrink-0 transition-all">
-          
+
           <!-- Left: Logo & Context Title -->
           <div id="NavLeft" class="flex items-center gap-4 h-full">
             <Link :href="route('dashboard')" class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full">
@@ -16,7 +16,7 @@
                 <span class="font-black text-xl text-orange-500 uppercase tracking-tighter">Ticket</span>
               </div>
             </Link>
-            
+
             <!-- Mobile Hamburger Menu (Main Nav) -->
             <button @click="isNavOpen = !isNavOpen" class="lg:hidden w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 transition-all">
                 <MenuIcon :size="28" />
@@ -51,7 +51,7 @@
                 </button>
                 <!-- Optional Header Actions Slot -->
                 <slot name="header-actions" />
-                
+
                 <!-- Desktop Help Button -->
                 <button class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all hidden lg:flex items-center justify-center cursor-help" title="Aide">
                    <HelpCircleOutline :size="20" />
@@ -66,11 +66,11 @@
                 <span class="text-xs font-bold text-green-800 hidden lg:block">{{ user.name }}</span>
                 <ChevronDown :size="16" class="text-gray-400 group-hover:rotate-180 transition-transform" />
               </button>
-              
+
               <!-- User Menu Dropdown -->
               <div v-if="showMenu"
                 class="absolute bg-white shadow-2xl top-12 right-0 w-[260px] rounded-2xl p-1.5 border border-orange-200 mt-2 z-[60] animate-in fade-in zoom-in duration-200">
-                
+
                 <!-- User Info Header -->
                 <div class="px-4 py-3 border-b border-orange-100 mb-1">
                   <div class="font-bold text-gray-900 text-sm">{{ user.name }}</div>
@@ -85,7 +85,7 @@
                 <!-- Assigned Stations (for sellers) -->
                 <div v-if="user.role === 'seller' && assignedStations.length > 0" class="px-2 py-2 border-b border-orange-100 mb-1">
                   <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2 px-2">Stations assignées</div>
-                  <div v-for="station in assignedStations" :key="station.id" 
+                  <div v-for="station in assignedStations" :key="station.id"
                        class="flex items-center gap-2 px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 mb-1">
                     <MapMarker :size="14" class="text-green-600" />
                     <span class="text-xs font-bold text-green-700">{{ station.name }}</span>
@@ -142,9 +142,9 @@
                             <Close :size="24" class="text-gray-400" />
                         </button>
                   </div>
-                  
+
                   <div class="flex-1 overflow-y-auto p-4 space-y-2">
-                      <Link v-for="item in navItems" :key="item.route" :href="route(item.route)" 
+                      <Link v-for="item in navItems" :key="item.route" :href="route(item.route)"
                           @click="isNavOpen = false"
                           :class="[
                               'flex items-center gap-4 p-3.5 rounded-2xl transition-all',
@@ -175,11 +175,11 @@
       <aside v-if="showTripSidebar" class="hidden xl:block w-[320px] h-screen shrink-0 border-l border-orange-200 bg-white shadow-xl z-50">
         <TripSidebar />
       </aside>
-      
-      <!-- Mobile Trip Sidebar Overlay - Hidden for accountant/executive -->
-      <div v-if="showTripSidebar && isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
+
+      <!-- Mobile Trip Sidebar Overlay -->
+      <div v-if="isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
           <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-          <div class="absolute inset-y-0 right-0 w-[300px] bg-white shadow-2xl transform transition-transform duration-300" 
+          <div class="absolute inset-y-0 right-0 w-[300px] bg-white shadow-2xl transform transition-transform duration-300"
             :class="isSidebarOpen ? 'translate-x-0' : 'translate-x-full'"
             @click.stop>
               <div class="h-full flex flex-col">
@@ -200,13 +200,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
 import Receipt from 'vue-material-design-icons/Receipt.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
-import Settings from 'vue-material-design-icons/Cog.vue';
-import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Logout from 'vue-material-design-icons/Logout.vue';
 import MenuIcon from 'vue-material-design-icons/Menu.vue';
 import Close from 'vue-material-design-icons/Close.vue';
@@ -259,20 +257,16 @@ const showTripSidebar = computed(() => {
 const navItems = computed(() => {
   const baseItems = [];
 
-  // Superadmin (Landlord) - Special Navigation
-  if (user.role === 'superadmin') {
-      baseItems.push({
-          route: 'landlord.tenants.index',
-          label: 'Tenants',
-          icon: Domain
-      });
-      return baseItems;
-  }
-  
   // Customize for Seller AND Supervisor
   // Both roles want their Dashboard as Home screen
   if (['seller', 'supervisor'].includes(user.role)) {
-      // Seller: Dashboard as home, Ticketing as secondary
+      baseItems.push({
+          route: 'seller.ticketing',
+          label: 'Accueil',
+          icon: HomeOutline
+      });
+
+      // Secondary Menu
       if (user.role === 'seller') {
           baseItems.push({
               route: 'seller.dashboard',

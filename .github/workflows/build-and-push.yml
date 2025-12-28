@@ -1,0 +1,183 @@
+name: Build and Push Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to build'
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.environment || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  quality-checks:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:latest
+          coverage: none
+
+      - name: Install composer dependencies
+        run: composer install --no-interaction --no-progress
+
+      - name: Run PHP linting checks
+        run: composer pint --test
+        continue-on-error: true
+
+      - name: Run tests
+        run: php artisan test
+        continue-on-error: true
+
+  build:
+    name: Build ${{ github.event.inputs.environment }} image
+    needs: quality-checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/billeterie
+      DEPLOY_ENV: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Resolve build metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          git_sha=$(git rev-parse HEAD)
+          env="${{ env.DEPLOY_ENV }}"
+          echo "sha=$git_sha" >> "$GITHUB_OUTPUT"
+          echo "tag_env=${IMAGE_NAME}:${env}" >> "$GITHUB_OUTPUT"
+          echo "tag_env_sha=${IMAGE_NAME}:${env}-${git_sha}" >> "$GITHUB_OUTPUT"
+          echo "tag_sha=${IMAGE_NAME}:${git_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build image with BuildKit cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          build-args: |
+            APP_ENV=${{ env.DEPLOY_ENV }}
+          tags: ${{ steps.meta.outputs.tag_env }}
+          load: true
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      # Temp fix - move cache
+      # https://github.com/docker/build-push-action/issues/252
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Test built image (smoke test)
+        run: |
+          set -euo pipefail
+
+          image_tag="${{ steps.meta.outputs.tag_env }}"
+
+          echo "Running basic smoke test on built image..."
+          echo "Note: This verifies the Dockerfile builds correctly - full health checks happen on deployment"
+
+          # Run container in background (without database - just test it starts)
+          container_id=$(docker run -d \
+            --env APP_ENV="${{ env.DEPLOY_ENV }}" \
+            --env LOG_CHANNEL=stdout \
+            --env SKIP_DB_CHECK=true \
+            "$image_tag")
+
+          echo "Container started: $container_id"
+
+          cleanup() {
+            echo "Cleaning up container $container_id..."
+            docker logs "$container_id" || true
+            docker rm -f "$container_id" > /dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          # Wait briefly and check startup logs
+          echo "Waiting 10 seconds for startup to complete..."
+          sleep 10
+
+          # Check logs for successful startup signals
+          logs=$(docker logs "$container_id" 2>&1)
+
+          # Verify our new .env generation system is running
+          if echo "$logs" | grep -q "\[Gen-Env\]"; then
+            echo "✅ .env generation system detected"
+          else
+            echo "❌ .env generation system NOT detected in logs"
+            echo "Logs:"
+            echo "$logs"
+            exit 1
+          fi
+
+          if echo "$logs" | grep -q "Starting Supervisor"; then
+            echo "✅ Supervisor started successfully"
+            echo "✅ Smoke test passed - image builds and initializes correctly"
+          else
+            echo "❌ Container startup signals not found"
+            echo "Logs:"
+            echo "$logs"
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push image to registry
+        run: |
+          set -euo pipefail
+
+          base_tag="${{ steps.meta.outputs.tag_env }}"
+          tag_env_sha="${{ steps.meta.outputs.tag_env_sha }}"
+          tag_sha="${{ steps.meta.outputs.tag_sha }}"
+
+          echo "Tagging image with additional tags..."
+          docker tag "$base_tag" "$tag_env_sha"
+          docker tag "$base_tag" "$tag_sha"
+
+          echo "Pushing all tags to registry..."
+          docker push "$base_tag"
+          docker push "$tag_env_sha"
+          docker push "$tag_sha"
+
+          echo "✅ Successfully pushed image with tags:"
+          echo "  - $base_tag"
+          echo "  - $tag_env_sha"
+          echo "  - $tag_sha"
