@@ -67,7 +67,7 @@
         <div class="flex items-center justify-center relative">
           <button @click="showMenu = !showMenu">
             <img class="rounded-full min-w-[40px] max-h-[40px] cursor-pointer border-2 border-orange-300"
-              src="/images/blank.png" :alt="user.name">
+              src="images/blank.png" :alt="user.name">
           </button>
           <!-- User Menu Dropdown -->
           <div v-if="showMenu"
@@ -75,7 +75,7 @@
             <Link :href="route('dashboard')" @click="showMenu = !showMenu">
             <div class="flex items-center gap-3 hover:bg-green-100 p-2 rounded-lg">
               <img class="rounded-full ml-1 min-w-[35px] max-h-[35px] cursor-pointer border-2 border-orange-300"
-                src="/images/blank.png" :alt="user.name">
+                src="images/blank.png" :alt="user.name">
               <span class="text-green-800">{{ user.name }}</span>
             </div>
             </Link>
@@ -146,16 +146,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 
+import Close from 'vue-material-design-icons/Close.vue';
+import Settings from 'vue-material-design-icons/Cog.vue';
 import Earth from 'vue-material-design-icons/Earth.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
-import Settings from 'vue-material-design-icons/Cog.vue';
-import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Logout from 'vue-material-design-icons/Logout.vue';
 import Menu from 'vue-material-design-icons/Menu.vue';
-import Close from 'vue-material-design-icons/Close.vue';
+import Ticket from 'vue-material-design-icons/Ticket.vue';
 
 const props = defineProps({
   showNav: {
