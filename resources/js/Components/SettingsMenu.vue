@@ -49,7 +49,7 @@ const selectedRoute = ref('');
 
 const settingsMenu = [
     { name: 'Gares', route: 'admin.stations.index', icon: MapMarker },
-    { name: 'Routes', route: 'admin.routes.index', icon: Router },
+    { name: 'Trajets', route: 'admin.routes.index', icon: Router },
     { name: 'Destinations', route: 'admin.stops.index', icon: MapMarkerRadius },
     { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus },
     { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car },

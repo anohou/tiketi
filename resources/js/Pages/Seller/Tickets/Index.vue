@@ -16,7 +16,7 @@ const printTicket = (ticketId) => {
 
 const cancelTicket = (ticketId) => {
     if (confirm('Êtes-vous sûr de vouloir annuler ce ticket ?')) {
-        router.delete(route('tickets.destroy', { ticket: ticketId }), {
+        router.delete(route('seller.tickets.destroy', { ticket: ticketId }), {
             onSuccess: () => alert('Ticket annulé avec succès'),
             onError: () => alert('Erreur lors de l\'annulation')
         });

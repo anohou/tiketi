@@ -171,13 +171,13 @@
           </div>
       </div>
 
-      <!-- Right Trip Sidebar Column (Persistent & Full Height) -->
-      <aside class="hidden xl:block w-[320px] h-screen shrink-0 border-l border-orange-200 bg-white shadow-xl z-50">
+      <!-- Right Trip Sidebar Column (Persistent & Full Height) - Hidden for accountant/executive -->
+      <aside v-if="showTripSidebar" class="hidden xl:block w-[320px] h-screen shrink-0 border-l border-orange-200 bg-white shadow-xl z-50">
         <TripSidebar />
       </aside>
       
-      <!-- Mobile Trip Sidebar Overlay -->
-      <div v-if="isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
+      <!-- Mobile Trip Sidebar Overlay - Hidden for accountant/executive -->
+      <div v-if="showTripSidebar && isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
           <div class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
           <div class="absolute inset-y-0 right-0 w-[300px] bg-white shadow-2xl transform transition-transform duration-300" 
             :class="isSidebarOpen ? 'translate-x-0' : 'translate-x-full'"
@@ -216,6 +216,8 @@ import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import FileDocument from 'vue-material-design-icons/FileDocument.vue';
+import ChartLine from 'vue-material-design-icons/ChartLine.vue';
 import TripSidebar from '@/Components/TripSidebar.vue';
 
 const props = defineProps({
@@ -236,52 +238,75 @@ const user = page.props.auth.user || {};
 // Get assigned stations from page props (populated by HandleInertiaRequests middleware)
 const assignedStations = computed(() => page.props.assignedStations || []);
 
+// Should show trip sidebar? (Not for accountant, and not on admin parameter pages)
+const showTripSidebar = computed(() => {
+    if (user.role === 'accountant') return false;
+    // Hide on admin parameter pages (URL starts with /admin/ and is not dashboard)
+    if (user.role === 'admin') {
+        const path = window.location.pathname;
+        if (path.startsWith('/admin/') && path !== '/admin' && path !== '/admin/') {
+            return false;
+        }
+    }
+    return true;
+});
+
 // Navigation items based on user role
 const navItems = computed(() => {
   const baseItems = [];
   
   // Customize for Seller AND Supervisor
-  // Both roles want "Selling" as their Home screen
+  // Both roles want their Dashboard as Home screen
   if (['seller', 'supervisor'].includes(user.role)) {
-      baseItems.push({
-          route: 'seller.ticketing',
-          label: 'Accueil',
-          icon: HomeOutline
-      });
-      
-      // Secondary Menu
+      // Seller: Dashboard as home, Ticketing as secondary
       if (user.role === 'seller') {
           baseItems.push({
               route: 'seller.dashboard',
+              label: 'Accueil',
+              icon: HomeOutline
+          });
+          baseItems.push({
+              route: 'seller.ticketing',
               label: 'Voyages',
               icon: Bus
           });
       } else if (user.role === 'supervisor') {
+          // Supervisor: Dashboard (control tower) as home, Ticketing as secondary
           baseItems.push({
               route: 'supervisor.dashboard',
-              label: 'Supervision',
-              icon: Bus // Or Monitor icon if available, but Bus works for now
+              label: 'Accueil',
+              icon: HomeOutline
+          });
+          baseItems.push({
+              route: 'supervisor.ticketing',
+              label: 'Billetterie',
+              icon: Bus
           });
       }
-  } else {
-      // Admin / Others default
+  } else if (user.role === 'accountant') {
+      // Accountant navigation
       baseItems.push({
-        route: 'home',
+          route: 'accountant.reports',
+          label: 'Rapports',
+          icon: FileDocument
+      });
+  } else if (user.role === 'executive') {
+      // Executive navigation
+      baseItems.push({
+          route: 'executive.analytics',
+          label: 'Tableau de Bord',
+          icon: ChartLine
+      });
+  } else {
+      // Admin - Statistiques/Dashboard as home
+      baseItems.push({
+        route: 'admin.dashboard',
         label: 'Accueil',
         icon: HomeOutline
       });
   }
 
-  // Add statistics menu for admin only (Supervisor has it in Supervision dashboard)
-  if (['admin'].includes(user.role)) {
-    baseItems.push({
-      route: 'admin.dashboard',
-      label: 'Statistiques',
-      icon: Settings
-    });
-  }
-
-  // Add ticketing for Admin only (Supervisor/Seller has it as Home)
+  // Add ticketing for Admin only (Supervisor/Seller has it in their menu)
   if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'seller.ticketing',
@@ -290,10 +315,28 @@ const navItems = computed(() => {
     });
   }
 
+  // Add accountant reports for Admin
+  if (['admin'].includes(user.role)) {
+    baseItems.push({
+      route: 'accountant.reports',
+      label: 'Comptabilité',
+      icon: FileDocument
+    });
+  }
+
+  // Add executive analytics for Admin
+  if (['admin'].includes(user.role)) {
+    baseItems.push({
+      route: 'executive.analytics',
+      label: 'Analytics',
+      icon: ChartLine
+    });
+  }
+
   // Add settings menu only for admin
   if (['admin'].includes(user.role)) {
     baseItems.push({
-      route: 'admin.stations.index',
+      route: 'admin.settings.index',
       label: 'Paramétrage',
       icon: Settings
     });

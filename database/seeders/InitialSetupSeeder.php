@@ -55,6 +55,23 @@ class InitialSetupSeeder extends Seeder
             'role' => 'seller',
         ]);
 
+        // New Roles: Accountant & Executive
+        $accountant = User::create([
+            'name' => 'Comptable',
+            'email' => 'comptable@transport.ci',
+            'telephone' => '+225 0705678901',
+            'password' => Hash::make('password'),
+            'role' => 'accountant',
+        ]);
+
+        $executive = User::create([
+            'name' => 'Directeur Général',
+            'email' => 'dg@transport.ci',
+            'telephone' => '+225 0706789012',
+            'password' => Hash::make('password'),
+            'role' => 'executive',
+        ]);
+
         // ==========================================
         // STATIONS AVEC COORDONNÉES GPS RÉELLES
         // ==========================================

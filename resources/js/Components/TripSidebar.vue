@@ -79,7 +79,7 @@ const fetchSeatMap = async (tripId) => {
     // If on ticketing page, we might need stop filters from the parent
     // For now, fetch standard seat map
     try {
-        const response = await axios.get(route('trips.seatmap', { trip: tripId }));
+        const response = await axios.get(route('seller.trips.seatmap', { trip: tripId }));
         // Keep the whole object to stay consistent with Ticketing.vue
         seatMap.value = response.data;
     } catch (error) {

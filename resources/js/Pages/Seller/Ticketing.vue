@@ -288,7 +288,7 @@ const fetchSeatMap = async () => {
   }
   
   try {
-    const response = await axios.get(route('trips.seatmap', { 
+    const response = await axios.get(route('seller.trips.seatmap', { 
       trip: selectedTripId.value
     }), { params });
     seatMap.value = response.data;
@@ -303,7 +303,7 @@ const fetchSeatMap = async () => {
 const fetchSeatSuggestions = async () => {
     if (!selectedTripId.value || !selectedFare.value) return;
     try {
-        const response = await axios.get(route('api.trips.suggest-seats', { 
+        const response = await axios.get(route('seller.trips.suggest-seats', { 
             trip: selectedTripId.value 
         }), {
             params: {
@@ -427,7 +427,7 @@ const confirmBooking = () => {
     ticketData.passenger_phone = passengerForm.value.phone.replace(/\s/g, '');
   }
 
-  router.post(route('tickets.store'), ticketData, {
+  router.post(route('seller.tickets.store'), ticketData, {
     preserveState: true,
     preserveScroll: true,
     onSuccess: (page) => {

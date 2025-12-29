@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -21,6 +23,9 @@ import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Check from 'vue-material-design-icons/Check.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
 import EyeOff from 'vue-material-design-icons/EyeOff.vue';
+import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   users: {
@@ -396,15 +401,49 @@ const getRoleColor = (role) => {
   };
   return colors[role] || 'bg-gray-100 text-gray-800';
 };
+
+// Export/Print configuration
+const userColumns = {
+  name: 'Nom',
+  email: 'Email',
+  telephone: 'Téléphone',
+  role: 'Rôle',
+  active: 'Actif'
+};
+
+const handleExport = () => {
+  const data = filteredUsers.value.map(user => ({
+    ...user,
+    role: getRoleLabel(user.role),
+    active: user.active !== false
+  }));
+  exportToExcel(data, userColumns, 'utilisateurs');
+};
+
+const handlePrint = () => {
+  const data = filteredUsers.value.map(user => ({
+    ...user,
+    role: getRoleLabel(user.role),
+    active: user.active !== false
+  }));
+  printList(data, userColumns, 'Liste des Utilisateurs');
+};
 </script>
 
 <template>
   <MainNavLayout>
     <div class="w-full px-4 h-[calc(100vh-80px)]">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Gestion des Utilisateurs</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <AccountMultiple class="text-green-600" :size="28" />
+            </div>
+            Gestion des Utilisateurs
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->
@@ -467,6 +506,14 @@ const getRoleColor = (role) => {
                 >
                   Vendeur
                 </button>
+              </div>
+              <div class="flex justify-end mt-2">
+                <ExportPrintButtons 
+                  :disabled="filteredUsers.length === 0"
+                  small
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
             </div>
 

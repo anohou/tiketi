@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -18,6 +20,8 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   vehicles: {
@@ -152,15 +156,39 @@ const deleteVehicle = (id) => {
     });
   }
 };
+
+// Export/Print configuration
+const vehicleColumns = {
+  identifier: 'Immatriculation',
+  maker: 'Fabricant',
+  'vehicle_type.name': 'Type',
+  seat_count: 'Places',
+  trips_count: 'Voyages'
+};
+
+const handleExport = () => {
+  exportToExcel(filteredVehicles.value, vehicleColumns, 'vehicules');
+};
+
+const handlePrint = () => {
+  printList(filteredVehicles.value, vehicleColumns, 'Liste des Véhicules');
+};
 </script>
 
 <template>
   <MainNavLayout>
     <div class="w-full px-4 h-[calc(100vh-80px)]">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Gestion des Véhicules</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <Bus class="text-green-600" :size="28" />
+            </div>
+            Gestion des Véhicules
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->
@@ -175,7 +203,7 @@ const deleteVehicle = (id) => {
           <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
             <!-- List Header -->
             <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
@@ -185,10 +213,18 @@ const deleteVehicle = (id) => {
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
+              <div class="flex justify-end">
+                <ExportPrintButtons 
+                  :disabled="filteredVehicles.length === 0"
+                  small
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
+              </div>
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto" style="max-height: calc(100vh - 280px);">
               <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-gray-500">
                 Aucun véhicule trouvé.
               </div>
@@ -203,18 +239,20 @@ const deleteVehicle = (id) => {
                 >
                   <div class="flex justify-between items-start">
                     <div>
-                      <h3 :class="['font-semibold', isSelected(vehicle) ? 'text-green-800' : 'text-gray-800']">{{ vehicle.registration_number }}</h3>
-                      <p class="text-xs text-gray-500 mt-1">{{ vehicle.vehicle_type?.name }}</p>
+                      <h3 :class="['text-base font-bold', isSelected(vehicle) ? 'text-green-800' : 'text-gray-800']">{{ vehicle.identifier }}</h3>
+                      <p class="text-sm text-gray-500 mt-1">{{ vehicle.vehicle_type?.name }}</p>
                     </div>
-                    <span :class="[
-                      'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      vehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    ]">
-                      {{ vehicle.active ? 'Active' : 'Inactive' }}
-                    </span>
-                    <span class="text-xs text-gray-400 ml-1">
-                      {{ vehicle.trips_count || 0 }} voyages
-                    </span>
+                    <div class="flex flex-col items-end gap-1">
+                      <span :class="[
+                        'px-2 py-0.5 rounded-full text-xs font-medium',
+                        vehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      ]">
+                        {{ vehicle.active ? 'Active' : 'Inactive' }}
+                      </span>
+                      <span class="text-xs text-gray-400">
+                        {{ vehicle.trips_count || 0 }} voyages
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

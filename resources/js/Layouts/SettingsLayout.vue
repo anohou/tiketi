@@ -24,7 +24,7 @@ const menuItems = computed(() => [
   },
   {
     route: 'admin.routes.index',
-    label: 'Routes',
+    label: 'Trajets',
     icon: Router
   },
   {

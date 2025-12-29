@@ -9,6 +9,8 @@ import TextArea from '@/Components/TextArea.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -19,6 +21,8 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Account from 'vue-material-design-icons/Account.vue';
 import RouteIcon from 'vue-material-design-icons/Routes.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   stations: {
@@ -47,7 +51,7 @@ const form = ref({
 // Tabs configuration - only related tables, not details
 const tabs = [
   { id: 'destinations', label: 'Destinations', icon: MapMarker },
-  { id: 'routes', label: 'Routes', icon: RouteIcon },
+  { id: 'routes', label: 'Trajets', icon: RouteIcon },
   { id: 'sellers', label: 'Vendeurs', icon: Account, countKey: 'user_assignments_count' },
 ];
 
@@ -270,15 +274,40 @@ const deleteStation = (id) => {
     });
   }
 };
+
+// Export/Print configuration
+const stationColumns = {
+  code: 'Code',
+  name: 'Nom',
+  city: 'Ville',
+  address: 'Adresse',
+  active: 'Statut',
+  user_assignments_count: 'Vendeurs'
+};
+
+const handleExport = () => {
+  exportToExcel(filteredStations.value, stationColumns, 'stations');
+};
+
+const handlePrint = () => {
+  printList(filteredStations.value, stationColumns, 'Liste des Stations');
+};
 </script>
 
 <template>
   <MainNavLayout>
     <div class="w-full px-4 h-[calc(100vh-80px)]">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Gestion des Stations</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <MapMarker class="text-green-600" :size="28" />
+            </div>
+            Gestion des Stations
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->
@@ -293,7 +322,7 @@ const deleteStation = (id) => {
           <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
             <!-- List Header -->
             <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
@@ -302,6 +331,14 @@ const deleteStation = (id) => {
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Station">
                   <Plus class="h-5 w-5" />
                 </button>
+              </div>
+              <div class="flex justify-end">
+                <ExportPrintButtons 
+                  :disabled="filteredStations.length === 0"
+                  small
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
             </div>
 

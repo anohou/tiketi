@@ -15,9 +15,13 @@ onMounted(() => {
         router.visit(route('supervisor.dashboard'));
     } else if (props.auth?.user?.role === 'seller') {
         router.visit(route('seller.dashboard'));
+    } else if (props.auth?.user?.role === 'accountant') {
+        router.visit(route('accountant.reports'));
+    } else if (props.auth?.user?.role === 'executive') {
+        router.visit(route('executive.analytics'));
     } else {
-        // Default fallback
-        router.visit(route('home'));
+        // Default fallback - should not happen
+        console.warn('Unknown role:', props.auth?.user?.role);
     }
 });
 </script>

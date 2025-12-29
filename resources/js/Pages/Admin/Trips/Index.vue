@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -16,6 +18,9 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import MapClock from 'vue-material-design-icons/MapClock.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
+import Calendar from 'vue-material-design-icons/Calendar.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   trips: {
@@ -337,15 +342,49 @@ const deleteTrip = (id) => {
     });
   }
 };
+
+// Export/Print configuration
+const tripColumns = {
+  'route.name': 'Route',
+  departure_at: 'Départ',
+  'vehicle.identifier': 'Véhicule',
+  status: 'Statut',
+  tickets_count: 'Tickets'
+};
+
+const handleExport = () => {
+  const data = filteredTrips.value.map(trip => ({
+    ...trip,
+    departure_at: formatDate(trip.departure_at),
+    status: getStatusInfo(trip.status, trip.departure_at).label
+  }));
+  exportToExcel(data, tripColumns, 'voyages');
+};
+
+const handlePrint = () => {
+  const data = filteredTrips.value.map(trip => ({
+    ...trip,
+    departure_at: formatDate(trip.departure_at),
+    status: getStatusInfo(trip.status, trip.departure_at).label
+  }));
+  printList(data, tripColumns, 'Liste des Voyages');
+};
 </script>
 
 <template>
   <MainNavLayout>
     <div class="w-full px-4 h-[calc(100vh-80px)]">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Gestion des Voyages</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <Calendar class="text-green-600" :size="28" />
+            </div>
+            Gestion des Voyages
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->
@@ -398,13 +437,23 @@ const deleteTrip = (id) => {
                   </option>
                 </select>
               </div>
-              <button 
-                v-if="dateFilter || departureFilter || arrivalFilter"
-                @click="clearFilters" 
-                class="mt-2 text-xs text-orange-600 hover:text-orange-800"
-              >
-                Effacer les filtres
-              </button>
+              <div class="flex items-center justify-between mt-2">
+                <button 
+                  v-if="dateFilter || departureFilter || arrivalFilter"
+                  @click="clearFilters" 
+                  class="text-xs text-orange-600 hover:text-orange-800"
+                >
+                  Effacer les filtres
+                </button>
+                <div class="ml-auto">
+                  <ExportPrintButtons 
+                    :disabled="filteredTrips.length === 0"
+                    small
+                    @export="handleExport"
+                    @print="handlePrint"
+                  />
+                </div>
+              </div>
             </div>
 
             <!-- List Content -->

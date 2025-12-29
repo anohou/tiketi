@@ -9,6 +9,7 @@ import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
+import Settings from 'vue-material-design-icons/Cog.vue';
 
 const props = defineProps({
   settings: Object
@@ -68,9 +69,16 @@ const submit = () => {
   <MainNavLayout>
     <div class="w-full px-4">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Configuration d'Impression des Tickets</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <Printer class="text-green-600" :size="28" />
+            </div>
+            Impression des Tickets
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->

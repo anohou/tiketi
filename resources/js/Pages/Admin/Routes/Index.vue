@@ -21,6 +21,11 @@ import InputLabel from '@/Components/InputLabel.vue'
 import DialogModal from '@/Components/DialogModal.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue'
+import { useExportPrint } from '@/Composables/useExportPrint'
+import Router from 'vue-material-design-icons/Router.vue'
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   routes: {
@@ -251,10 +256,13 @@ const moveStopUp = (idx) => {
   const stops = selectedRoute.value.route_stop_orders || selectedRoute.value.routeStopOrders || [];
   if (stops.length < 2) return;
   
-  // Swap stop at idx with stop at idx-1
+  // Swap actual stop_index values between adjacent stops
+  const currentStop = stops[idx];
+  const prevStop = stops[idx - 1];
+  
   const orders = [
-    { id: stops[idx].id, stop_index: idx - 1 },
-    { id: stops[idx - 1].id, stop_index: idx }
+    { id: currentStop.id, stop_index: prevStop.stop_index },
+    { id: prevStop.id, stop_index: currentStop.stop_index }
   ];
   
   router.put(route('admin.routes.stops.reorder', selectedRoute.value.id), { orders }, {
@@ -268,10 +276,13 @@ const moveStopDown = (idx) => {
   const stops = selectedRoute.value.route_stop_orders || selectedRoute.value.routeStopOrders || [];
   if (idx >= stops.length - 1 || stops.length < 2) return;
   
-  // Swap stop at idx with stop at idx+1
+  // Swap actual stop_index values between adjacent stops
+  const currentStop = stops[idx];
+  const nextStop = stops[idx + 1];
+  
   const orders = [
-    { id: stops[idx].id, stop_index: idx + 1 },
-    { id: stops[idx + 1].id, stop_index: idx }
+    { id: currentStop.id, stop_index: nextStop.stop_index },
+    { id: nextStop.id, stop_index: currentStop.stop_index }
   ];
   
   router.put(route('admin.routes.stops.reorder', selectedRoute.value.id), { orders }, {
@@ -335,15 +346,47 @@ watch(() => props.routes, (newRoutes) => {
   }
 }, { deep: true });
 
+// Export/Print configuration
+const routeColumns = {
+  name: 'Nom',
+  'origin_station.name': 'Départ',
+  'destination_station.name': 'Arrivée',
+  active: 'Statut',
+  trips_count: 'Voyages'
+};
+
+const handleExport = () => {
+  const data = filteredRoutes.value.map(r => ({
+    ...r,
+    active: r.active ? 'Active' : 'Inactive'
+  }));
+  exportToExcel(data, routeColumns, 'routes');
+};
+
+const handlePrint = () => {
+  const data = filteredRoutes.value.map(r => ({
+    ...r,
+    active: r.active ? 'Active' : 'Inactive'
+  }));
+  printList(data, routeColumns, 'Liste des Trajets');
+};
+
 </script>
 
 <template>
   <MainNavLayout>
     <div class="w-full px-4 h-[calc(100vh-80px)]">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
-        <h1 class="text-2xl font-bold text-green-700">Paramètres</h1>
-        <p class="mt-1 text-sm text-green-600">Gestion des Routes</p>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <div class="p-2 bg-green-100 rounded-xl">
+              <Router class="text-green-600" :size="28" />
+            </div>
+            Gestion des Trajets
+          </h1>
+          <p class="text-gray-500 mt-1">Paramètres du système</p>
+        </div>
       </div>
 
       <!-- Three Column Layout -->
@@ -358,7 +401,7 @@ watch(() => props.routes, (newRoutes) => {
           <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
             <!-- List Header -->
             <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
@@ -367,6 +410,14 @@ watch(() => props.routes, (newRoutes) => {
                 <button @click="openCreateRouteModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Route">
                   <Plus class="h-5 w-5" />
                 </button>
+              </div>
+              <div class="flex justify-end">
+                <ExportPrintButtons 
+                  :disabled="filteredRoutes.length === 0"
+                  small
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
             </div>
 

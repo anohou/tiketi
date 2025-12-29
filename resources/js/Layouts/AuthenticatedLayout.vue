@@ -68,7 +68,7 @@
                                                 Stations
                                             </Link>
                                             <Link :href="route('admin.routes.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Routes
+                                                Trajets
                                             </Link>
                                             <Link :href="route('admin.vehicles.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
                                                 Vehicles

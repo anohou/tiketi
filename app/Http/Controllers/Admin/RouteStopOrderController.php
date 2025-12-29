@@ -89,19 +89,33 @@ class RouteStopOrderController extends Controller
     }
 
     /**
-     * Reorder stops.
+     * Reorder stops - swap two adjacent stops.
      */
     public function reorder(Request $request, Route $route)
     {
         $validated = $request->validate([
-            'orders' => 'required|array',
+            'orders' => 'required|array|size:2',
             'orders.*.id' => 'required|exists:route_stop_orders,id',
             'orders.*.stop_index' => 'required|integer',
         ]);
 
-        foreach ($validated['orders'] as $order) {
-            RouteStopOrder::where('id', $order['id'])->update(['stop_index' => $order['stop_index']]);
-        }
+        \DB::transaction(function () use ($validated) {
+            // Get a temporary index that won't conflict
+            $tempIndex = RouteStopOrder::max('stop_index') + 1;
+            
+            // Get the two stops being swapped
+            $stop1 = RouteStopOrder::find($validated['orders'][0]['id']);
+            $stop2 = RouteStopOrder::find($validated['orders'][1]['id']);
+            
+            // First move stop1 to temp to avoid unique constraint
+            $stop1->update(['stop_index' => $tempIndex]);
+            
+            // Set stop2 to its new index
+            $stop2->update(['stop_index' => $validated['orders'][1]['stop_index']]);
+            
+            // Set stop1 to its new index
+            $stop1->update(['stop_index' => $validated['orders'][0]['stop_index']]);
+        });
 
         return back()->with('success', 'Ordre mis à jour avec succès.');
     }
