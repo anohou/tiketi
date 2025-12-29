@@ -31,9 +31,11 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         
-        // Get assigned stations for the current user
+        // Get assigned stations for the current user (only if tenancy is initialized)
         $assignedStations = [];
-        if ($user) {
+        $isTenant = function_exists('tenancy') && tenancy()->initialized;
+
+        if ($user && $isTenant) {
             $assignedStations = \App\Models\UserStationAssignment::where('user_id', $user->id)
                 ->where('active', true)
                 ->with('station')
@@ -50,7 +52,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $user ? $user->load('stationAssignments') : null,
+                'user' => $user ? ($isTenant ? $user->load('stationAssignments') : $user) : null,
             ],
             'assignedStations' => $assignedStations,
             'flash' => [

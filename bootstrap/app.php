@@ -11,11 +11,17 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        then: function () {
+            // Load landlord routes for central domain (tenant management)
+            \Illuminate\Support\Facades\Route::middleware('web')
+                ->group(base_path('routes/landlord.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\UniversalTenancy::class,
         ]);
 
         $middleware->web(prepend: [

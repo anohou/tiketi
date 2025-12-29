@@ -9,7 +9,9 @@ const props = defineProps({
 
 onMounted(() => {
     // Redirect to appropriate dashboard based on role
-    if (props.auth?.user?.role === 'admin') {
+    if (props.auth?.user?.role === 'superadmin') {
+        router.visit(route('landlord.tenants.index'));
+    } else if (props.auth?.user?.role === 'admin') {
         router.visit(route('admin.dashboard'));
     } else if (props.auth?.user?.role === 'supervisor') {
         router.visit(route('supervisor.dashboard'));

@@ -733,8 +733,8 @@ onMounted(async () => {
 
     <div class="flex-1 flex flex-col gap-4 min-h-0">
           
-          <!-- Full-page blocking message if no station assigned (for sellers only) -->
-          <div v-if="$page.props.auth.user.role === 'seller' && !hasActiveAssignment" 
+          <!-- Full-page blocking message if no station assigned (for sellers and supervisors) -->
+          <div v-if="['seller', 'supervisor'].includes($page.props.auth.user.role) && !hasActiveAssignment" 
                class="flex-1 flex items-center justify-center">
             <div class="bg-white border border-orange-200 p-12 rounded-3xl flex flex-col items-center text-center shadow-lg max-w-lg">
               <div class="p-5 bg-orange-50 rounded-full shadow-sm mb-6">
@@ -746,7 +746,7 @@ onMounted(async () => {
               </p>
               <div class="space-y-3 w-full">
                 <p class="text-sm text-gray-500">
-                  Contactez votre superviseur pour être assigné à une station.
+                  Contactez votre Administrateur pour être assigné à une station.
                 </p>
                 <Link 
                   :href="route('profile.edit')" 

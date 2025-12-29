@@ -218,6 +218,7 @@ import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import FileDocument from 'vue-material-design-icons/FileDocument.vue';
 import ChartLine from 'vue-material-design-icons/ChartLine.vue';
+import Domain from 'vue-material-design-icons/Domain.vue';
 import TripSidebar from '@/Components/TripSidebar.vue';
 
 const props = defineProps({
@@ -240,6 +241,9 @@ const assignedStations = computed(() => page.props.assignedStations || []);
 
 // Should show trip sidebar? (Not for accountant, and not on admin parameter pages)
 const showTripSidebar = computed(() => {
+    // Hide sidebar for superadmin (Landlord)
+    if (user.role === 'superadmin') return false;
+
     if (user.role === 'accountant') return false;
     // Hide on admin parameter pages (URL starts with /admin/ and is not dashboard)
     if (user.role === 'admin') {
@@ -254,6 +258,16 @@ const showTripSidebar = computed(() => {
 // Navigation items based on user role
 const navItems = computed(() => {
   const baseItems = [];
+
+  // Superadmin (Landlord) - Special Navigation
+  if (user.role === 'superadmin') {
+      baseItems.push({
+          route: 'landlord.tenants.index',
+          label: 'Tenants',
+          icon: Domain
+      });
+      return baseItems;
+  }
   
   // Customize for Seller AND Supervisor
   // Both roles want their Dashboard as Home screen

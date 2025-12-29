@@ -29,8 +29,8 @@ class TicketingController extends Controller
         $user = auth()->user();
         
         // Récupérer les voyages assignés à l'utilisateur
-        if ($user->role === 'admin' || $user->role === 'supervisor') {
-            // Les admins et superviseurs voient tout
+        if ($user->role === 'admin') {
+            // Les admins voient tout
             $trips = Trip::with(['route.originStation', 'route.stops', 'route.routeStopOrders', 'vehicle.vehicleType'])
                 ->withCount('tripSeatOccupancies as occupied_seats')
                 ->where('departure_at', '>=', now())
@@ -126,7 +126,7 @@ class TicketingController extends Controller
         }
 
         // Récupérer toutes les routes et véhicules pour la création
-        if ($user->role === 'admin' || $user->role === 'supervisor') {
+        if ($user->role === 'admin') {
             $routes = \App\Models\Route::orderBy('name')->get(['id', 'name']);
         } else {
             // Un vendeur ne peut créer des voyages que pour ses routes assignées (par station)
@@ -163,9 +163,13 @@ class TicketingController extends Controller
 
         // Calculate real seat counts for each trip from seat_map
         foreach ($trips as $trip) {
-            $seatMap = $trip->vehicle?->vehicleType?->seat_map ?? [];
+            $seatMap = $trip->vehicle?->vehicleType?->seat_map;
+            if (!is_array($seatMap)) {
+                $seatMap = [];
+            }
             $totalSeats = 0;
             foreach ($seatMap as $row) {
+                if (!is_array($row)) continue;
                 foreach ($row as $cell) {
                     if (isset($cell['type']) && $cell['type'] === 'seat') {
                         $totalSeats++;

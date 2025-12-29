@@ -359,16 +359,16 @@ class InitialSetupSeeder extends Seeder
         RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopKorhogo->id, 'stop_index' => 4]);
 
         // Tarifs (environ 20 FCFA/km)
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopYamoussoukro->id, 'amount' => 5000]); // 240km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBouake->id, 'amount' => 7000]); // 335km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 9000]); // 425km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 11000]); // 525km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopBouake->id, 'amount' => 2000]); // 95km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 4000]); // 185km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 6000]); // 285km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 2000]); // 90km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 4000]); // 190km
-        RouteFare::create(['route_id' => $routeAbidjanKorhogo->id, 'from_stop_id' => $stopKatiola->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 2000]); // 100km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopYamoussoukro->id, 'amount' => 5000]); // 240km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBouake->id, 'amount' => 7000]); // 335km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 9000]); // 425km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 11000]); // 525km
+        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopBouake->id, 'amount' => 2000]); // 95km
+        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 4000]); // 185km
+        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 6000]); // 285km
+        RouteFare::create(['from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 2000]); // 90km
+        RouteFare::create(['from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 4000]); // 190km
+        RouteFare::create(['from_stop_id' => $stopKatiola->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 2000]); // 100km
 
         // ==========================================
         // TRAJET 2: ABIDJAN → BONDOUKOU (340 km, 5 arrêts incluant Abengourou)
@@ -388,16 +388,16 @@ class InitialSetupSeeder extends Seeder
         RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopBondoukou->id, 'stop_index' => 4]);
 
         // Tarifs
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAdzope->id, 'amount' => 2500]); // 105km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 4000]); // 180km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 5500]); // 260km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 7000]); // 340km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 1500]); // 75km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 3000]); // 155km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 4500]); // 235km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 1500]); // 80km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 3000]); // 160km
-        RouteFare::create(['route_id' => $routeAbidjanBondoukou->id, 'from_stop_id' => $stopAgnibilekrou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 1500]); // 80km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAdzope->id, 'amount' => 2500]); // 105km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 4000]); // 180km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 5500]); // 260km
+        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 7000]); // 340km
+        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 1500]); // 75km
+        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 3000]); // 155km
+        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 4500]); // 235km
+        RouteFare::create(['from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 1500]); // 80km
+        RouteFare::create(['from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 3000]); // 160km
+        RouteFare::create(['from_stop_id' => $stopAgnibilekrou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 1500]); // 80km
 
         // ==========================================
         // VOYAGES (TRIPS) - Mix de seat_assignment et bulk
