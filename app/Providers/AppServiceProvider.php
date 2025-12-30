@@ -24,9 +24,7 @@ class AppServiceProvider extends ServiceProvider
 
         Vite::prefetch(concurrency: 3);
 
-        // Force Laravel to use the correct URL root when behind a proxy with path prefix
-        if ($appUrl = config('app.url')) {
-            \Illuminate\Support\Facades\URL::forceRootUrl($appUrl);
-        }
+
+        // Removed forced root URL to allow multi-tenancy to detect correct domain
     }
 }

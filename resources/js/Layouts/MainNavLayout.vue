@@ -214,6 +214,10 @@ import Logout from 'vue-material-design-icons/Logout.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import MenuIcon from 'vue-material-design-icons/Menu.vue';
 import Receipt from 'vue-material-design-icons/Receipt.vue';
+import Ticket from 'vue-material-design-icons/Ticket.vue';
+import FileDocument from 'vue-material-design-icons/FileDocument.vue';
+import ChartLine from 'vue-material-design-icons/ChartLine.vue';
+import Settings from 'vue-material-design-icons/Cog.vue';
 
 const props = defineProps({
   showNav: {
