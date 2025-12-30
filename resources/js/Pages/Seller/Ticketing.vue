@@ -177,6 +177,16 @@ const availableFares = computed(() => {
         // Handle potential naming differences (snake_case vs camelCase)
         const fromStop = fare.from_stop || fare.fromStop;
         const toStop = fare.to_stop || fare.toStop;
+
+        const fareFromStationId = fromStop?.station_id || fromStop?.station?.id;
+
+        // GLOBAL RULE: For Admin/Supervisors (no assigned station), default to strict Trip Origin
+        // This MUST apply before any other logic to prevent showing intermediate segments (e.g. B->C)
+        if (!props.assignedStation && currentTrip.value.origin_station_id) {
+             if (fareFromStationId !== currentTrip.value.origin_station_id) {
+                 return false;
+             }
+        }
         
         // Priority 1: Match by Stop IDs
         const fromIdx = stopIndexMap[fare.from_stop_id];
@@ -205,11 +215,15 @@ const availableFares = computed(() => {
         // Priority 3: Filter by Trip Origin
         // Even if we fail index check, ensure the fare STARTS at our current location
         const fareFromStationId = fromStop?.station_id || fromStop?.station?.id;
-        if (fareFromStationId && currentTrip.value.origin_station_id) {
-             if (fareFromStationId !== currentTrip.value.origin_station_id) {
-                 return false; 
+        // Priority 3: Filter by Trip Origin check REMOVED (Handled Globally above for Admin now)
+        // Allow all fares that start at the current station (implicit in props.routeFares)
+        // BUT ensure the destination is actually on the current route (in stationIndexMap).
+        // This ensures we don't show tariffs for completely different lines/routes.
+        if (fareFromStationId) {
+             const fareToStationId = toStop?.station_id || toStop?.station?.id;
+             if (fareToStationId && stationIndexMap[fareToStationId] !== undefined) {
+                 return true;
              }
-             return true;
         }
         
         return false;
