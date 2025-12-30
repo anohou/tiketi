@@ -62,7 +62,7 @@
             <div class="flex items-center justify-center relative">
               <button @click="showMenu = !showMenu" class="flex items-center gap-2 bg-gray-50 p-1.5 pr-3 rounded-full border border-orange-200 hover:border-orange-300 hover:bg-orange-50 transition-all">
                 <img class="rounded-full w-8 h-8 cursor-pointer border-2 border-orange-300 shadow-sm"
-                   src="images/blank.png" :alt="user.name">
+                   src="/images/blank.png" :alt="user.name">
                 <span class="text-xs font-bold text-green-800 hidden lg:block">{{ user.name }}</span>
                 <ChevronDown :size="16" class="text-gray-400 group-hover:rotate-180 transition-transform" />
               </button>
@@ -304,6 +304,13 @@ const navItems = computed(() => {
           route: 'executive.analytics',
           label: 'Tableau de Bord',
           icon: ChartLine
+      });
+  } else if (user.role === 'superadmin') {
+      // Landlord (Superadmin) navigation
+      baseItems.push({
+          route: 'landlord.tenants.index',
+          label: 'Accueil',
+          icon: HomeOutline
       });
   } else {
       // Admin - Statistiques/Dashboard as home

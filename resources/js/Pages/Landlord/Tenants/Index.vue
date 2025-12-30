@@ -222,9 +222,9 @@ const closePasswordModal = () => {
 
 <template>
   <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
+    <div class="w-full px-4 h-[calc(100vh-140px)] flex flex-col">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-purple-100 rounded-xl">
@@ -237,7 +237,7 @@ const closePasswordModal = () => {
       </div>
 
       <!-- Two Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0">
         <!-- Left Column - Tenants List -->
         <div class="col-span-12 md:col-span-5 flex flex-col h-full">
           <div class="bg-white rounded-lg border border-purple-200 shadow-sm flex flex-col h-full">
@@ -300,7 +300,7 @@ const closePasswordModal = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-7 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-7 h-full overflow-y-auto pb-6">
           <!-- Empty State -->
           <div v-if="!selectedTenant" class="bg-white rounded-lg border border-purple-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <Domain class="h-16 w-16 text-purple-200 mb-4" />
