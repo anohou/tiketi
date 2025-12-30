@@ -109,7 +109,14 @@ const matchedFares = computed(() => {
     const fromInRoute = stopIds.has(fare.from_stop_id);
     const toInRoute = stopIds.has(fare.to_stop_id);
     
-    if (fromInRoute && toInRoute) return true;
+    if (fromInRoute && toInRoute) {
+        // Strict Filter: Fare MUST start at the Route's Origin
+        // This hides intermediate fares (B -> C) from the main list
+        if (selectedRoute.value.origin_station_id && fare.from_stop?.station_id !== selectedRoute.value.origin_station_id) {
+             return false;
+        }
+        return true;
+    }
     
     // Also check bidirectional (reverse direction)
     if (fare.is_bidirectional) {

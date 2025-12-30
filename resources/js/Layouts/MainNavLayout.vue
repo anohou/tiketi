@@ -260,11 +260,8 @@ const navItems = computed(() => {
   // Customize for Seller AND Supervisor
   // Both roles want their Dashboard as Home screen
   if (['seller', 'supervisor'].includes(user.role)) {
-      baseItems.push({
-          route: 'seller.ticketing',
-          label: 'Accueil',
-          icon: HomeOutline
-      });
+      // Logic split below to avoid duplicates
+
 
       // Secondary Menu
       if (user.role === 'seller') {

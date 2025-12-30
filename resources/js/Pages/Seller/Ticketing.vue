@@ -182,8 +182,10 @@ const availableFares = computed(() => {
 
         // GLOBAL RULE: For Admin/Supervisors (no assigned station), default to strict Trip Origin
         // This MUST apply before any other logic to prevent showing intermediate segments (e.g. B->C)
-        if (!props.assignedStation && currentTrip.value.origin_station_id) {
-             if (fareFromStationId !== currentTrip.value.origin_station_id) {
+        if (!props.assignedStation) {
+             const originId = currentTrip.value.origin_station_id || route.origin_station_id;
+             
+             if (originId && fareFromStationId !== originId) {
                  return false;
              }
         }
@@ -965,12 +967,12 @@ onMounted(async () => {
                          :class="[
                            'relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-300 active:scale-[0.98] border-2 shadow-sm',
                            selectedFare?.id === fare.id 
-                             ? 'ring-2 ring-offset-2 scale-[1.02] shadow-xl' 
+                             ? 'ring-2 ring-offset-2 scale-[1.02] shadow-xl border-red-500 ring-red-500' 
                              : 'border-transparent hover:shadow-lg hover:scale-[1.01]'
                          ]"
                          :style="{
                            backgroundColor: fare.color,
-                           '--tw-ring-color': fare.color
+                           '--tw-ring-color': selectedFare?.id === fare.id ? '#ef4444' : fare.color
                          }"
                     >
                       <!-- Horizontal Layout: Destination Left, Price Right -->
@@ -990,9 +992,7 @@ onMounted(async () => {
                             </div>
                             <div class="text-white/70 text-[10px] font-bold">FCFA</div>
                           </div>
-                          <div v-if="selectedFare?.id === fare.id" class="w-6 h-6 bg-white/30 rounded-full flex items-center justify-center">
-                            <Check class="w-4 h-4 text-white" />
-                          </div>
+                          <!-- Checkmark removed as requested -->
                         </div>
                       </div>
                       <div v-if="ticketQuantity > 1" class="bg-black/10 px-3 py-1 text-white/90 text-[10px] font-bold">
