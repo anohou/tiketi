@@ -27,6 +27,9 @@ class DatabaseSeeder extends Seeder
         $this->command->info('✅ Landlord Admin created.');
 
         // 2. Create Test Tenant (Fully Seeded)
+        // Clean up previous runs if they exist
+        \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
+
         $tenant = Tenant::firstOrCreate(['id' => 'test'], [
             'name' => 'Transport CI (Test)',
             'email' => 'admin@test.com',
@@ -41,26 +44,5 @@ class DatabaseSeeder extends Seeder
         $tenant->run(function () {
              $this->call(TenantSeeder::class);
         });
-        
-        // 3. Create Demo Tenant (Admin only)
-        $demoTenant = Tenant::firstOrCreate(['id' => 'demo'], [
-            'name' => 'Transport Demo',
-            'email' => 'admin@demo.com',
-            'phone' => '+225 0202020202',
-        ]);
-
-        $demoTenant->domains()->firstOrCreate(['domain' => 'demo.localhost']);
-
-        $demoTenant->run(function () {
-             User::create([
-                'name' => 'Admin Demo',
-                'email' => 'admin@demo.transport.ci',
-                'telephone' => '+225 0909090909',
-                'password' => Hash::make('password'),
-                'role' => 'admin',
-            ]);
-        });
-
-        $this->command->info('✅ Demo Tenant created (Admin only).');
     }
 }
