@@ -214,7 +214,6 @@ const availableFares = computed(() => {
         
         // Priority 3: Filter by Trip Origin
         // Even if we fail index check, ensure the fare STARTS at our current location
-        const fareFromStationId = fromStop?.station_id || fromStop?.station?.id;
         // Priority 3: Filter by Trip Origin check REMOVED (Handled Globally above for Admin now)
         // Allow all fares that start at the current station (implicit in props.routeFares)
         // BUT ensure the destination is actually on the current route (in stationIndexMap).
