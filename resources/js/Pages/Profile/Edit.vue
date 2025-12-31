@@ -4,7 +4,7 @@ import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import { Head, usePage } from '@inertiajs/vue3';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 
 const props = defineProps({
     mustVerifyEmail: {
@@ -39,7 +39,7 @@ const isSeller = user.role === 'seller';
                 <section>
                     <header>
                         <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            <MapMarker class="text-green-600" :size="24" />
+                            <OfficeBuilding class="text-green-600" :size="24" />
                             Stations assignées
                         </h2>
                         <p class="mt-1 text-sm text-gray-600">
@@ -56,7 +56,7 @@ const isSeller = user.role === 'seller';
                             >
                                 <div class="flex items-center gap-3">
                                     <div class="p-2 bg-white rounded-lg shadow-sm">
-                                        <MapMarker class="text-green-600" :size="20" />
+                                        <OfficeBuilding class="text-green-600" :size="20" />
                                     </div>
                                     <div>
                                         <div class="font-bold text-gray-900">{{ station.name }}</div>
@@ -69,7 +69,7 @@ const isSeller = user.role === 'seller';
                             </div>
                         </div>
                         <div v-else class="text-center py-8 bg-orange-50 border border-orange-200 rounded-xl">
-                            <MapMarker class="text-orange-400 mx-auto mb-3" :size="40" />
+                            <OfficeBuilding class="text-orange-400 mx-auto mb-3" :size="40" />
                             <h3 class="text-lg font-bold text-gray-700 mb-2">Aucune station assignée</h3>
                             <p class="text-sm text-gray-500 max-w-md mx-auto">
                                 Vous n'avez pas encore de station assignée. Veuillez contacter votre superviseur pour pouvoir vendre des billets.

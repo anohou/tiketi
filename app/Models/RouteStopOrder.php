@@ -15,7 +15,7 @@ class RouteStopOrder extends Model
 
     protected $fillable = [
         'route_id',
-        'stop_id',
+        'station_id',
         'stop_index'
     ];
 
@@ -24,8 +24,8 @@ class RouteStopOrder extends Model
         return $this->belongsTo(Route::class);
     }
 
-    public function stop(): BelongsTo
+    public function station(): BelongsTo
     {
-        return $this->belongsTo(Stop::class);
+        return $this->belongsTo(Station::class);
     }
 }

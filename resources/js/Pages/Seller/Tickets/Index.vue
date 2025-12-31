@@ -74,7 +74,7 @@ const cancelTicket = (ticketId) => {
                                             <div class="text-xs">{{ ticket.passenger_phone }}</div>
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ ticket.from_stop?.name }} → {{ ticket.to_stop?.name }}
+                                            {{ ticket.from_station?.name }} → {{ ticket.to_station?.name }}
                                         </td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
                                             {{ ticket.price }} FCFA

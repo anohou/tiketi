@@ -87,13 +87,13 @@
                   <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2 px-2">Stations assignées</div>
                   <div v-for="station in assignedStations" :key="station.id"
                        class="flex items-center gap-2 px-2 py-1.5 bg-green-50 rounded-lg border border-green-100 mb-1">
-                    <MapMarker :size="14" class="text-green-600" />
+                    <OfficeBuilding :size="14" class="text-green-600" />
                     <span class="text-xs font-bold text-green-700">{{ station.name }}</span>
                   </div>
                 </div>
                 <div v-else-if="user.role === 'seller'" class="px-2 py-2 border-b border-orange-100 mb-1">
                   <div class="flex items-center gap-2 px-2 py-1.5 bg-orange-50 rounded-lg border border-orange-100">
-                    <MapMarker :size="14" class="text-orange-500" />
+                    <OfficeBuilding :size="14" class="text-orange-500" />
                     <span class="text-xs font-medium text-orange-600">Aucune station assignée</span>
                   </div>
                 </div>
@@ -119,8 +119,11 @@
         </header>
 
         <!-- Main Scrollable Content -->
-        <main class="flex-1 overflow-y-auto overflow-x-hidden relative">
-          <div class="p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto">
+        <main :class="['flex-1 overflow-x-hidden relative', fullHeight ? 'overflow-hidden' : 'overflow-y-auto']">
+          <div :class="[
+              'mx-auto w-full',
+              fullHeight ? 'h-full flex flex-col p-0 max-w-full' : 'p-4 md:p-6 lg:p-8 max-w-[1600px]'
+          ]">
             <slot />
           </div>
         </main>
@@ -211,7 +214,7 @@ import Close from 'vue-material-design-icons/Close.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
 import Logout from 'vue-material-design-icons/Logout.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import MenuIcon from 'vue-material-design-icons/Menu.vue';
 import Receipt from 'vue-material-design-icons/Receipt.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
@@ -223,6 +226,10 @@ const props = defineProps({
   showNav: {
     type: Boolean,
     default: true
+  },
+  fullHeight: {
+    type: Boolean,
+    default: false
   }
 });
 

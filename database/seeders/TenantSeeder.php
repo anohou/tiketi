@@ -202,6 +202,9 @@ class TenantSeeder extends Seeder
         // TYPES DE VÉHICULES (6 types: 15, 30, 50x2, 50x3, 70x2, 70x3)
         // ==========================================
         
+        // Initialize SeatMapService
+        $seatMapService = new \App\Services\SeatMapService();
+
         // Minibus 15 places (2+1, 1 porte)
         $minibus15 = VehicleType::create([
             'name' => 'Minibus 15 places',
@@ -209,12 +212,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '2+1',
             'door_count' => 1,
             'door_positions' => [1],
-            'seat_map' => [
-                'rows' => 5,
-                'seats_per_row' => 3,
-                'aisle_position' => 2,
-                'layout' => '2+1'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 15,
+                'seat_configuration' => '2+1',
+                'door_positions' => [1],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/minibus_15.svg'
         ]);
 
@@ -225,12 +228,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '2+2',
             'door_count' => 2,
             'door_positions' => [1, 16],
-            'seat_map' => [
-                'rows' => 8,
-                'seats_per_row' => 4,
-                'aisle_position' => 2,
-                'layout' => '2+2'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 30,
+                'seat_configuration' => '2+2',
+                'door_positions' => [1, 16],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/bus_30.svg'
         ]);
 
@@ -241,12 +244,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '2+2',
             'door_count' => 2,
             'door_positions' => [1, 26],
-            'seat_map' => [
-                'rows' => 13,
-                'seats_per_row' => 4,
-                'aisle_position' => 2,
-                'layout' => '2+2'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 50,
+                'seat_configuration' => '2+2',
+                'door_positions' => [1, 26],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/bus_50_2x2.svg'
         ]);
 
@@ -257,12 +260,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '3+2',
             'door_count' => 2,
             'door_positions' => [1, 26],
-            'seat_map' => [
-                'rows' => 10,
-                'seats_per_row' => 5,
-                'aisle_position' => 3,
-                'layout' => '3+2'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 50,
+                'seat_configuration' => '3+2',
+                'door_positions' => [1, 26],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/bus_50_3x2.svg'
         ]);
 
@@ -273,12 +276,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '2+2',
             'door_count' => 3,
             'door_positions' => [1, 30, 55],
-            'seat_map' => [
-                'rows' => 18,
-                'seats_per_row' => 4,
-                'aisle_position' => 2,
-                'layout' => '2+2'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 70,
+                'seat_configuration' => '2+2',
+                'door_positions' => [1, 30, 55],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/bus_70_2x2.svg'
         ]);
 
@@ -289,12 +292,12 @@ class TenantSeeder extends Seeder
             'seat_configuration' => '3+2',
             'door_count' => 3,
             'door_positions' => [1, 30, 55],
-            'seat_map' => [
-                'rows' => 14,
-                'seats_per_row' => 5,
-                'aisle_position' => 3,
-                'layout' => '3+2'
-            ],
+            'seat_map' => $seatMapService->generateSeatMap([
+                'seat_count' => 70,
+                'seat_configuration' => '3+2',
+                'door_positions' => [1, 30, 55],
+                'last_row_seats' => 5
+            ]),
             'svg_template_path' => 'svg/vehicles/bus_70_3x2.svg'
         ]);
 
@@ -371,24 +374,24 @@ class TenantSeeder extends Seeder
             'active' => true
         ]);
 
-        // Ordre des arrêts
-        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopAbidjan->id, 'stop_index' => 0]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopYamoussoukro->id, 'stop_index' => 1]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopBouake->id, 'stop_index' => 2]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopKatiola->id, 'stop_index' => 3]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'stop_id' => $stopKorhogo->id, 'stop_index' => 4]);
+        // Ordre des stations (anciennement arrêts)
+        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'station_id' => $abidjan->id, 'stop_index' => 0]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'station_id' => $yamoussoukro->id, 'stop_index' => 1]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'station_id' => $bouake->id, 'stop_index' => 2]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'station_id' => $katiola->id, 'stop_index' => 3]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanKorhogo->id, 'station_id' => $korhogo->id, 'stop_index' => 4]);
 
         // Tarifs (environ 20 FCFA/km)
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopYamoussoukro->id, 'amount' => 5000]); // 240km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBouake->id, 'amount' => 7000]); // 335km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 9000]); // 425km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 11000]); // 525km
-        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopBouake->id, 'amount' => 2000]); // 95km
-        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 4000]); // 185km
-        RouteFare::create(['from_stop_id' => $stopYamoussoukro->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 6000]); // 285km
-        RouteFare::create(['from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKatiola->id, 'amount' => 2000]); // 90km
-        RouteFare::create(['from_stop_id' => $stopBouake->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 4000]); // 190km
-        RouteFare::create(['from_stop_id' => $stopKatiola->id, 'to_stop_id' => $stopKorhogo->id, 'amount' => 2000]); // 100km
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $yamoussoukro->id, 'amount' => 5000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $bouake->id, 'amount' => 7000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $katiola->id, 'amount' => 9000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $korhogo->id, 'amount' => 11000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $yamoussoukro->id, 'to_station_id' => $bouake->id, 'amount' => 2000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $yamoussoukro->id, 'to_station_id' => $katiola->id, 'amount' => 4000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $yamoussoukro->id, 'to_station_id' => $korhogo->id, 'amount' => 6000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $bouake->id, 'to_station_id' => $katiola->id, 'amount' => 2000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $bouake->id, 'to_station_id' => $korhogo->id, 'amount' => 4000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $katiola->id, 'to_station_id' => $korhogo->id, 'amount' => 2000, 'is_bidirectional' => true]);
 
         // ==========================================
         // TRAJET 2: ABIDJAN → BONDOUKOU (340 km, 5 arrêts incluant Abengourou)
@@ -400,24 +403,24 @@ class TenantSeeder extends Seeder
             'active' => true
         ]);
 
-        // Ordre des arrêts
-        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopAbidjan->id, 'stop_index' => 0]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopAdzope->id, 'stop_index' => 1]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopAbengourou->id, 'stop_index' => 2]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopAgnibilekrou->id, 'stop_index' => 3]);
-        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'stop_id' => $stopBondoukou->id, 'stop_index' => 4]);
+        // Ordre des stations
+        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'station_id' => $abidjan->id, 'stop_index' => 0]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'station_id' => $adzope->id, 'stop_index' => 1]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'station_id' => $abengourou->id, 'stop_index' => 2]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'station_id' => $agnibilekrou->id, 'stop_index' => 3]);
+        RouteStopOrder::create(['route_id' => $routeAbidjanBondoukou->id, 'station_id' => $bondoukou->id, 'stop_index' => 4]);
 
         // Tarifs
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAdzope->id, 'amount' => 2500]); // 105km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 4000]); // 180km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 5500]); // 260km
-        RouteFare::create(['from_stop_id' => $stopAbidjan->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 7000]); // 340km
-        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAbengourou->id, 'amount' => 1500]); // 75km
-        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 3000]); // 155km
-        RouteFare::create(['from_stop_id' => $stopAdzope->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 4500]); // 235km
-        RouteFare::create(['from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopAgnibilekrou->id, 'amount' => 1500]); // 80km
-        RouteFare::create(['from_stop_id' => $stopAbengourou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 3000]); // 160km
-        RouteFare::create(['from_stop_id' => $stopAgnibilekrou->id, 'to_stop_id' => $stopBondoukou->id, 'amount' => 1500]); // 80km
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $adzope->id, 'amount' => 2500, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $abengourou->id, 'amount' => 4000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $agnibilekrou->id, 'amount' => 5500, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abidjan->id, 'to_station_id' => $bondoukou->id, 'amount' => 7000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $adzope->id, 'to_station_id' => $abengourou->id, 'amount' => 1500, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $adzope->id, 'to_station_id' => $agnibilekrou->id, 'amount' => 3000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $adzope->id, 'to_station_id' => $bondoukou->id, 'amount' => 4500, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abengourou->id, 'to_station_id' => $agnibilekrou->id, 'amount' => 1500, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $abengourou->id, 'to_station_id' => $bondoukou->id, 'amount' => 3000, 'is_bidirectional' => true]);
+        RouteFare::create(['from_station_id' => $agnibilekrou->id, 'to_station_id' => $bondoukou->id, 'amount' => 1500, 'is_bidirectional' => true]);
 
         // ==========================================
         // VOYAGES (TRIPS) - Mix de seat_assignment et bulk

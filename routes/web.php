@@ -35,8 +35,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings.index');
         
         // CRUDs
+        Route::resource('destinations', \App\Http\Controllers\Admin\DestinationController::class);
         Route::resource('stations', \App\Http\Controllers\Admin\StationController::class);
-        Route::resource('stops', \App\Http\Controllers\Admin\StopController::class);
+
         Route::resource('vehicle-types', \App\Http\Controllers\Admin\VehicleTypeController::class);
         Route::resource('vehicles', \App\Http\Controllers\Admin\VehicleController::class);
         Route::resource('routes', \App\Http\Controllers\Admin\RouteController::class);

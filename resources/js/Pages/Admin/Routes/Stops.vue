@@ -8,7 +8,7 @@ import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue';
-import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 
 const props = defineProps({
   routeModel: Object,
@@ -164,7 +164,7 @@ const deleteStop = (stopOrder) => {
                       Ajout...
                     </span>
                     <span v-else class="flex items-center">
-                      <MapMarkerRadius class="w-5 h-5 mr-1" />
+                      <OfficeBuilding class="w-5 h-5 mr-1" />
                       Ajouter la destination
                     </span>
                   </button>

@@ -22,7 +22,7 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  stops: {
+  stations: {
     type: Array,
     default: () => []
   }
@@ -37,8 +37,8 @@ const showModal = ref(false);
 const isEditing = ref(false);
 
 const form = ref({
-  from_stop_id: '',
-  to_stop_id: '',
+  from_station_id: '',
+  to_station_id: '',
   amount: '',
   is_bidirectional: true
 });
@@ -49,23 +49,23 @@ const filteredFares = computed(() => {
 
   const searchTerm = search.value.toLowerCase();
   return props.fares.filter(fare =>
-    fare.from_stop?.name.toLowerCase().includes(searchTerm) ||
-    fare.to_stop?.name.toLowerCase().includes(searchTerm) ||
-    fare.from_stop?.station?.name?.toLowerCase().includes(searchTerm) ||
-    fare.to_stop?.station?.name?.toLowerCase().includes(searchTerm)
+    fare.from_station?.name.toLowerCase().includes(searchTerm) ||
+    fare.to_station?.name.toLowerCase().includes(searchTerm) ||
+    fare.from_station?.city?.toLowerCase().includes(searchTerm) ||
+    fare.to_station?.city?.toLowerCase().includes(searchTerm)
   );
 });
 
 // Filter out selected departure from arrival options
-const availableToStops = computed(() => {
-  if (!form.value.from_stop_id) return props.stops;
-  return props.stops.filter(stop => stop.id !== form.value.from_stop_id);
+const availableToStations = computed(() => {
+  if (!form.value.from_station_id) return props.stations;
+  return props.stations.filter(station => station.id !== form.value.from_station_id);
 });
 
 // Filter out selected arrival from departure options
-const availableFromStops = computed(() => {
-  if (!form.value.to_stop_id) return props.stops;
-  return props.stops.filter(stop => stop.id !== form.value.to_stop_id);
+const availableFromStations = computed(() => {
+  if (!form.value.to_station_id) return props.stations;
+  return props.stations.filter(station => station.id !== form.value.to_station_id);
 });
 
 // Watchers
@@ -91,8 +91,8 @@ const selectFare = (fare) => {
 const openCreateModal = () => {
   isEditing.value = false;
   form.value = {
-    from_stop_id: '',
-    to_stop_id: '',
+    from_station_id: '',
+    to_station_id: '',
     amount: '',
     is_bidirectional: true
   };
@@ -104,8 +104,8 @@ const openEditModal = () => {
   if (!selectedFare.value) return;
   isEditing.value = true;
   form.value = {
-    from_stop_id: selectedFare.value.from_stop_id,
-    to_stop_id: selectedFare.value.to_stop_id,
+    from_station_id: selectedFare.value.from_station_id,
+    to_station_id: selectedFare.value.to_station_id,
     amount: selectedFare.value.amount,
     is_bidirectional: selectedFare.value.is_bidirectional ?? true
   };
@@ -116,8 +116,8 @@ const openEditModal = () => {
 const closeModal = () => {
   showModal.value = false;
   form.value = {
-    from_stop_id: '',
-    to_stop_id: '',
+    from_station_id: '',
+    to_station_id: '',
     amount: '',
     is_bidirectional: true
   };
@@ -168,19 +168,19 @@ const deleteFare = (id) => {
   }
 };
 
-const getStopLabel = (stop) => {
-  if (stop.station_name) {
-    return `${stop.name} (${stop.station_name})`;
+const getStationLabel = (station) => {
+  if (station.city) {
+    return `${station.name} (${station.city})`;
   }
-  return stop.name;
+  return station.name;
 };
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -193,17 +193,17 @@ const getStopLabel = (stop) => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -217,14 +217,14 @@ const getStopLabel = (stop) => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredFares.length === 0" class="p-4 text-center text-gray-500">
                 Aucun tarif trouvé.
               </div>
               <div v-else>
                 <div v-for="fare in filteredFares" :key="fare.id" 
                   @click="selectFare(fare)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(fare) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(fare) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -232,19 +232,19 @@ const getStopLabel = (stop) => {
                 >
                   <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">
-                      <h3 :class="['font-semibold truncate', isSelected(fare) ? 'text-green-800' : 'text-gray-800']">
-                        {{ fare.from_stop?.name }} 
-                        <span v-if="fare.is_bidirectional" class="text-orange-500">↔</span>
-                        <span v-else>→</span>
-                        {{ fare.to_stop?.name }}
+                      <h3 :class="['text-sm font-semibold truncate', isSelected(fare) ? 'text-green-800' : 'text-gray-800']">
+                        {{ fare.from_station?.name }} 
+                        <span v-if="fare.is_bidirectional" class="text-orange-500 mx-1">↔</span>
+                        <span v-else class="mx-1">→</span>
+                        {{ fare.to_station?.name }}
                       </h3>
-                      <p class="text-xs text-gray-500 mt-0.5">
-                        {{ fare.from_stop?.station?.name || '' }} → {{ fare.to_stop?.station?.name || '' }}
+                      <p class="text-[10px] text-gray-500 mt-1 truncate">
+                        {{ fare.from_station?.city || '' }} → {{ fare.to_station?.city || '' }}
                       </p>
                     </div>
                     <div class="ml-3 text-right shrink-0">
-                      <span class="text-lg font-bold text-green-700">{{ fare.amount?.toLocaleString() }}</span>
-                      <span class="text-xs text-gray-500 ml-0.5">FCFA</span>
+                      <span class="text-base font-bold text-green-700">{{ fare.amount?.toLocaleString() }}</span>
+                      <span class="text-[10px] text-gray-500 ml-0.5">FCFA</span>
                     </div>
                   </div>
                 </div>
@@ -254,7 +254,7 @@ const getStopLabel = (stop) => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedFare" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <CashMultiple class="h-16 w-16 text-orange-200 mb-4" />
@@ -283,31 +283,31 @@ const getStopLabel = (stop) => {
 
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
-                <div class="col-span-6">
+                <div class="col-span-6 border-r border-gray-100 pr-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">DÉPART</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
-                    {{ selectedFare.from_stop?.name }}
+                    {{ selectedFare.from_station?.name }}
                   </div>
                   <div class="text-sm text-gray-500 mt-1">
-                    {{ selectedFare.from_stop?.station?.name }}
+                    {{ selectedFare.from_station?.city }}
                   </div>
                 </div>
-                <div class="col-span-6">
+                <div class="col-span-6 pl-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">ARRIVÉE</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
-                    {{ selectedFare.to_stop?.name }}
+                    {{ selectedFare.to_station?.name }}
                   </div>
                   <div class="text-sm text-gray-500 mt-1">
-                    {{ selectedFare.to_stop?.station?.name }}
+                    {{ selectedFare.to_station?.city }}
                   </div>
                 </div>
-                <div class="col-span-12">
+                <div class="col-span-12 pt-4 border-t border-gray-100">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">MONTANT</span>
                   <div class="text-3xl font-bold text-green-700">
-                    {{ selectedFare.amount?.toLocaleString() }} FCFA
+                    {{ selectedFare.amount?.toLocaleString() }} <span class="text-base font-normal text-gray-500">FCFA</span>
                   </div>
                 </div>
-                <div class="col-span-12">
+                <div class="col-span-12 pt-4 border-t border-gray-100">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">DIRECTION</span>
                   <div>
                     <span v-if="selectedFare.is_bidirectional" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
@@ -326,7 +326,7 @@ const getStopLabel = (stop) => {
     </div>
 
     <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
         {{ isEditing ? 'Modifier le Tarif' : 'Nouveau Tarif' }}
       </template>
@@ -334,29 +334,29 @@ const getStopLabel = (stop) => {
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <InputLabel for="from_stop_id" value="Départ" />
-              <select v-model="form.from_stop_id" id="from_stop_id"
-                class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
-                :class="{ 'border-red-500': errors.from_stop_id }">
-                <option value="">Sélectionner une destination</option>
-                <option v-for="stop in availableFromStops" :key="stop.id" :value="stop.id">
-                  {{ getStopLabel(stop) }}
+              <InputLabel for="from_station_id" value="Départ" />
+              <select v-model="form.from_station_id" id="from_station_id"
+                class="w-full border-orange-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm py-2"
+                :class="{ 'border-red-500': errors.from_station_id }">
+                <option value="">Sélectionner une gare</option>
+                <option v-for="station in availableFromStations" :key="station.id" :value="station.id">
+                  {{ getStationLabel(station) }}
                 </option>
               </select>
-              <InputError :message="errors.from_stop_id" />
+              <InputError :message="errors.from_station_id" />
             </div>
 
             <div>
-              <InputLabel for="to_stop_id" value="Arrivée" />
-              <select v-model="form.to_stop_id" id="to_stop_id"
-                class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500"
-                :class="{ 'border-red-500': errors.to_stop_id }">
-                <option value="">Sélectionner une destination</option>
-                <option v-for="stop in availableToStops" :key="stop.id" :value="stop.id">
-                  {{ getStopLabel(stop) }}
+              <InputLabel for="to_station_id" value="Arrivée" />
+              <select v-model="form.to_station_id" id="to_station_id"
+                class="w-full border-orange-200 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm py-2"
+                :class="{ 'border-red-500': errors.to_station_id }">
+                <option value="">Sélectionner une gare</option>
+                <option v-for="station in availableToStations" :key="station.id" :value="station.id">
+                  {{ getStationLabel(station) }}
                 </option>
               </select>
-              <InputError :message="errors.to_stop_id" />
+              <InputError :message="errors.to_station_id" />
             </div>
           </div>
 
@@ -388,3 +388,19 @@ const getStopLabel = (stop) => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

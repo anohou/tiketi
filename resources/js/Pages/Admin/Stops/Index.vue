@@ -14,7 +14,7 @@ import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
-import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 
 const props = defineProps({
@@ -146,7 +146,7 @@ const deleteStop = (id) => {
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
-              <MapMarkerRadius class="text-green-600" :size="28" />
+              <OfficeBuilding class="text-green-600" :size="28" />
             </div>
             Gestion des Destinations
           </h1>
@@ -208,7 +208,7 @@ const deleteStop = (id) => {
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
           <!-- Empty State -->
           <div v-if="!selectedStop" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+            <OfficeBuilding class="h-16 w-16 text-orange-200 mb-4" />
             <p class="text-lg">Sélectionnez une destination pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
               ou créez une nouvelle destination

@@ -26,13 +26,11 @@ class ReportsController extends Controller
 
         // Build tickets query with filters
         $ticketsQuery = Ticket::query()
-            ->with(['trip.route', 'trip.vehicle', 'seller', 'fromStop.station', 'toStop.station'])
+            ->with(['trip.route', 'trip.vehicle', 'seller', 'fromStation', 'toStation'])
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()]);
 
         if ($stationId) {
-            $ticketsQuery->whereHas('fromStop', function ($q) use ($stationId) {
-                $q->where('station_id', $stationId);
-            });
+            $ticketsQuery->where('from_station_id', $stationId);
         }
 
         if ($sellerId) {
@@ -58,10 +56,9 @@ class ReportsController extends Controller
 
         // Revenue by station
         $revenueByStation = Ticket::query()
-            ->join('stops', 'tickets.from_stop_id', '=', 'stops.id')
-            ->selectRaw('stops.station_id, SUM(tickets.price) as total, COUNT(*) as count')
-            ->whereBetween('tickets.created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
-            ->groupBy('stops.station_id')
+            ->selectRaw('from_station_id as station_id, SUM(price) as total, COUNT(*) as count')
+            ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
+            ->groupBy('from_station_id')
             ->get()
             ->map(function ($item) {
                 $station = Station::find($item->station_id);
@@ -111,7 +108,7 @@ class ReportsController extends Controller
         $endDate = $request->get('end_date', Carbon::now()->endOfDay()->toDateString());
 
         $tickets = Ticket::query()
-            ->with(['trip.route', 'seller', 'fromStop', 'toStop'])
+            ->with(['trip.route', 'seller', 'fromStation', 'toStation'])
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->orderBy('created_at', 'desc')
             ->get();
@@ -148,8 +145,8 @@ class ReportsController extends Controller
                     Carbon::parse($ticket->created_at)->format('d/m/Y'),
                     Carbon::parse($ticket->created_at)->format('H:i'),
                     $ticket->trip?->route?->name ?? '',
-                    $ticket->fromStop?->name ?? '',
-                    $ticket->toStop?->name ?? '',
+                    $ticket->fromStation?->name ?? '',
+                    $ticket->toStation?->name ?? '',
                     $ticket->seat_number ?? '',
                     $ticket->price,
                     $ticket->seller?->name ?? '',

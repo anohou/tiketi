@@ -46,6 +46,8 @@ class VehicleController extends Controller
             'maker' => 'nullable|string|max:255',
             'vehicle_type_id' => 'required|uuid|exists:vehicle_types,id',
             'seat_count' => 'required|integer|min:1',
+            'active' => 'boolean',
+            'inactive_reason' => 'nullable|string|required_if:active,false',
         ]);
         Vehicle::create($data);
         return redirect()->route('admin.vehicles.index');
@@ -80,6 +82,8 @@ class VehicleController extends Controller
             'maker' => 'nullable|string|max:255',
             'vehicle_type_id' => 'required|exists:vehicle_types,id',
             'seat_count' => 'required|integer|min:1',
+            'active' => 'boolean',
+            'inactive_reason' => 'nullable|string|required_if:active,false',
         ]);
         $vehicle->update($data);
         return redirect()->route('admin.vehicles.index');

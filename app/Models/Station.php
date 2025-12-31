@@ -14,7 +14,7 @@ class Station extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'name', 'code', 'city', 'address', 'phone', 'active', 'latitude', 'longitude',
+        'name', 'code', 'city', 'address', 'phone', 'active', 'latitude', 'longitude', 'destination_id',
     ];
 
     protected static function booted(): void
@@ -26,10 +26,12 @@ class Station extends Model
         });
     }
 
-    public function stops()
+    public function destination()
     {
-        return $this->hasMany(Stop::class);
+        return $this->belongsTo(Destination::class);
     }
+
+
 
     public function users()
     {

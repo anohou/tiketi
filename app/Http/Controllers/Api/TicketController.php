@@ -29,8 +29,8 @@ class TicketController extends Controller
     {
         $validated = $request->validate([
             'trip_id' => 'required|uuid|exists:trips,id',
-            'from_stop_id' => 'required|uuid|exists:stops,id',
-            'to_stop_id' => 'required|uuid|exists:stops,id',
+            'from_station_id' => 'required|uuid|exists:stations,id',
+            'to_station_id' => 'required|uuid|exists:stations,id',
             'seats' => 'required|array|min:1',
             'seats.*' => 'integer|min:1',
             'passenger_name' => 'nullable|string|max:255',
@@ -38,25 +38,58 @@ class TicketController extends Controller
             'amount' => 'required|integer|min:0',
         ]);
 
-        $trip = Trip::with(['route.stops', 'tripSeatOccupancies.ticket'])->findOrFail($validated['trip_id']);
+        // Load route stop orders to determine sequence
+        $trip = Trip::with(['route.routeStopOrders', 'tripSeatOccupancies.ticket'])->findOrFail($validated['trip_id']);
         
-        // Determine segment indices
-        $stopsOnRoute = $trip->route->stops->pluck('id')->toArray();
-        $reqStartIndex = array_search($validated['from_stop_id'], $stopsOnRoute);
-        $reqEndIndex = array_search($validated['to_stop_id'], $stopsOnRoute);
+        // Determine segment indices from RouteStopOrders
+        // Map station_id => stop_index
+        $stationIndices = $trip->route->routeStopOrders->pluck('stop_index', 'station_id')->toArray();
+        
+        $fromStationId = $validated['from_station_id'];
+        $toStationId = $validated['to_station_id'];
+        
+        $reqStartIndex = $stationIndices[$fromStationId] ?? false;
+        $reqEndIndex = $stationIndices[$toStationId] ?? false;
         
         // Safety check for stops validity
-        if ($reqStartIndex === false || $reqEndIndex === false || $reqStartIndex >= $reqEndIndex) {
-            return response()->json(['message' => 'Segment d\'itinéraire invalide.'], 422);
+        // Logic depends on direction? Assuming standard forward route for now OR bidirectional handled by indices logic?
+        // Indices are 0..N.
+        // If route is A->B->C (0,1,2). Trip A->B (0->1).
+        if ($reqStartIndex === false || $reqEndIndex === false) {
+             return response()->json(['message' => 'Segment d\'itinéraire invalide (gares non trouvées sur la route).'], 422);
+        }
+        
+        // Handle bidirectional validation if needed, but usually indices check suffices:
+        // Start must be != End.
+        if ($reqStartIndex == $reqEndIndex) {
+            return response()->json(['message' => 'Gare de départ et d\'arrivée identiques.'], 422);
+        }
+        
+        // Determine direction based on indices. 
+        // If Start < End : Forward. 
+        // If Start > End : Backward (if supported).
+        // Let's assume strict validation for now:
+        // Actually, for bidirectional routes, we might need more logic or just trust indices if route supports it.
+        // Ekkou usually does unidirectional routes? Or explicit Forward/Return routes?
+        // Assuming Forward:
+        $isForward = $reqStartIndex < $reqEndIndex;
+        // If backward is allowed, we'd handle it. BUT usually routes are A->B.
+        // If user tries B->A on A->B route, it should fail unless bidirectional trip.
+        // For now, let's enforce Start < End if standard.
+        // Note: Trip model might have 'is_bidirectional' or similar?
+        // Let's stick to strict index comparison for overlap check validity.
+        // Overlap logic works on [min, max] range? No, directional.
+        // Let's assume Forward only for this refactor to be safe, unless we see evidence otherwise.
+        if (!$isForward) {
+             return response()->json(['message' => 'Sens du trajet invalide (Départ après Arrivée).'], 422);
         }
 
         // Restriction station vendeur
         $user = auth()->user();
         if ($user->role === 'seller') {
             $assignedStationIds = $user->stationAssignments()->where('active', true)->pluck('station_id')->toArray();
-            $fromStop = \App\Models\Stop::findOrFail($validated['from_stop_id']);
             
-            if (!in_array($fromStop->station_id, $assignedStationIds)) {
+            if (!in_array($fromStationId, $assignedStationIds)) {
                 return response()->json([
                     'message' => 'Vous n\'êtes pas autorisé à vendre des tickets au départ de cette station.'
                 ], 403);
@@ -67,11 +100,10 @@ class TicketController extends Controller
             
             if (!$isAtOriginStation && $trip->isSalesClosed()) {
                 // Sur un voyage fermé, vérifier si les places demandées sont libérées à cette station
-                // (vendues pour un segment se terminant ici)
                 $seatsFreedAtThisStation = $trip->tripSeatOccupancies
-                    ->filter(function ($occupancy) use ($validated) {
+                    ->filter(function ($occupancy) use ($fromStationId) {
                         // Une place est "libérée" si le ticket se termine à notre station de départ
-                        return $occupancy->ticket && $occupancy->ticket->to_stop_id === $validated['from_stop_id'];
+                        return $occupancy->ticket && $occupancy->ticket->to_station_id === $fromStationId;
                     })
                     ->pluck('seat_number')
                     ->toArray();
@@ -81,20 +113,23 @@ class TicketController extends Controller
                 
                 if (!empty($seatsNotFreed)) {
                     return response()->json([
-                        'message' => 'Ce voyage est fermé aux ventes intermédiaires. Vous ne pouvez vendre que les places libérées à votre station (places: ' . implode(', ', $seatsFreedAtThisStation) . ').'
+                        'message' => 'Ce voyage est fermé aux ventes intermédiaires. Vous ne pouvez vendre que les places libérées à votre gare.'
                     ], 403);
                 }
             }
         }
 
         // Get occupied seats for this segment
-        $occupiedSeats = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stopsOnRoute, $reqStartIndex, $reqEndIndex) {
+        $occupiedSeats = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
             if (!$occupancy->ticket) return false;
             
-            $ticketFromIdx = array_search($occupancy->ticket->from_stop_id, $stopsOnRoute);
-            $ticketToIdx = array_search($occupancy->ticket->to_stop_id, $stopsOnRoute);
+            $ticketFromId = $occupancy->ticket->from_station_id;
+            $ticketToId = $occupancy->ticket->to_station_id;
             
-            if ($ticketFromIdx === false || $ticketToIdx === false) return true;
+            $ticketFromIdx = $stationIndices[$ticketFromId] ?? null;
+            $ticketToIdx = $stationIndices[$ticketToId] ?? null;
+            
+            if ($ticketFromIdx === null || $ticketToIdx === null) return true; // Conflicting/Unknown, treat as occupied safe bet
             
             // Overlap check: Start1 < End2 && Start2 < End1
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
@@ -102,26 +137,20 @@ class TicketController extends Controller
 
         $conflictingSeats = array_intersect($validated['seats'], $occupiedSeats);
         if (!empty($conflictingSeats)) {
+            $msg = 'Certaines places sont déjà occupées pour ce segment: ' . implode(', ', $conflictingSeats);
             if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Certaines places sont déjà occupées pour ce segment: ' . implode(', ', $conflictingSeats)
-                ], 422);
+                return response()->json(['message' => $msg], 422);
             }
-            return back()->withErrors([
-                'general' => 'Certaines places sont déjà occupées pour ce segment: ' . implode(', ', $conflictingSeats)
-            ]);
+            return back()->withErrors(['general' => $msg]);
         }
 
         // Vérifier que les places existent
         if (max($validated['seats']) > $trip->vehicle->seat_count) {
+            $msg = 'Certaines places n\'existent pas';
             if ($request->expectsJson()) {
-                return response()->json([
-                    'message' => 'Certaines places n\'existent pas'
-                ], 422);
+                return response()->json(['message' => $msg], 422);
             }
-            return back()->withErrors([
-                'general' => 'Certaines places n\'existent pas'
-            ]);
+            return back()->withErrors(['general' => $msg]);
         }
 
         try {
@@ -133,8 +162,8 @@ class TicketController extends Controller
                     'ticket_number' => 'TKT-' . strtoupper(Str::random(8)),
                     'trip_id' => $trip->id,
                     'vehicle_id' => $trip->vehicle_id,
-                    'from_stop_id' => $validated['from_stop_id'],
-                    'to_stop_id' => $validated['to_stop_id'],
+                    'from_station_id' => $validated['from_station_id'],
+                    'to_station_id' => $validated['to_station_id'],
                     'seat_number' => $seatNumber,
                     'passenger_name' => $validated['passenger_name'] ?? 'Passager',
                     'passenger_phone' => $validated['passenger_phone'] ?? '',
@@ -199,7 +228,7 @@ class TicketController extends Controller
     public function show(Ticket $ticket)
     {
         try {
-            $ticket->load(['trip.route', 'trip.vehicle', 'fromStop', 'toStop', 'seller']);
+            $ticket->load(['trip.route', 'trip.vehicle', 'fromStation', 'toStation', 'seller']);
             
             $settings = null;
             try {

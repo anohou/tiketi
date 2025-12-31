@@ -2,7 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Router from 'vue-material-design-icons/Router.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
@@ -20,7 +20,7 @@ defineProps({
     default: () => ({
       stations: 0,
       routes: 0,
-      stops: 0,
+      destinations: 0,
       vehicles: 0,
       vehicleTypes: 0,
       trips: 0,
@@ -35,7 +35,8 @@ const configSections = [
   {
     category: 'Infrastructure',
     items: [
-      { name: 'Gares', route: 'admin.stations.index', icon: MapMarker, description: 'Gérer les gares et points de départ' },
+      { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies' },
+      { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ' },
     ]
   },
   {
@@ -49,7 +50,6 @@ const configSections = [
     category: 'Opérations',
     items: [
       { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires' },
-      { name: 'Destinations', route: 'admin.stops.index', icon: MapMarkerRadius, description: 'Définir les arrêts et destinations' },
       { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages' },
       { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix' },
     ]
@@ -91,8 +91,8 @@ const configSections = [
           <div class="text-2xl font-black text-blue-600">{{ stats.routes }}</div>
           <div class="text-xs font-bold text-gray-400 uppercase mt-1">Trajets</div>
         </Link>
-        <Link :href="route('admin.stops.index')" class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center hover:border-green-300 hover:shadow-lg transition-all">
-          <div class="text-2xl font-black text-teal-600">{{ stats.stops }}</div>
+        <Link :href="route('admin.destinations.index')" class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center hover:border-green-300 hover:shadow-lg transition-all">
+          <div class="text-2xl font-black text-teal-600">{{ stats.destinations }}</div>
           <div class="text-xs font-bold text-gray-400 uppercase mt-1">Destinations</div>
         </Link>
         <Link :href="route('admin.vehicles.index')" class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center hover:border-green-300 hover:shadow-lg transition-all">

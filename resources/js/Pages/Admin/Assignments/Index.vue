@@ -152,10 +152,10 @@ const deleteAssignment = (id) => {
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -168,17 +168,17 @@ const deleteAssignment = (id) => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Assignments List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -192,14 +192,14 @@ const deleteAssignment = (id) => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500">
                 Aucune affectation trouvée.
               </div>
               <div v-else>
                 <div v-for="assignment in filteredAssignments" :key="assignment.id" 
                   @click="selectAssignment(assignment)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(assignment) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(assignment) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -207,13 +207,13 @@ const deleteAssignment = (id) => {
                 >
                   <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">
-                      <h3 :class="['font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800']">
+                      <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800']">
                         {{ assignment.user?.name }}
                       </h3>
-                      <p class="text-xs text-gray-500 mt-0.5">{{ assignment.station?.name }} - {{ assignment.station?.city }}</p>
+                      <p class="text-[10px] text-gray-500 mt-0.5">{{ assignment.station?.name }} - {{ assignment.station?.city }}</p>
                     </div>
                     <span :class="[
-                      'shrink-0 ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+                      'shrink-0 ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
                       assignment.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     ]">
                       {{ assignment.active ? 'Active' : 'Inactive' }}
@@ -226,7 +226,7 @@ const deleteAssignment = (id) => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedAssignment" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <AccountCheck class="h-16 w-16 text-orange-200 mb-4" />
@@ -255,7 +255,7 @@ const deleteAssignment = (id) => {
 
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
-                <div class="col-span-6">
+                <div class="col-span-6 border-r border-gray-100 pr-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">UTILISATEUR</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
                     {{ selectedAssignment.user?.name }}
@@ -263,13 +263,13 @@ const deleteAssignment = (id) => {
                   <div class="text-sm text-gray-500 mt-1">
                     {{ selectedAssignment.user?.email }}
                   </div>
-                  <div class="mt-1">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  <div class="mt-2">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 uppercase tracking-tight">
                       {{ selectedAssignment.user?.role }}
                     </span>
                   </div>
                 </div>
-                <div class="col-span-6">
+                <div class="col-span-6 pl-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">GARE</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
                     {{ selectedAssignment.station?.name }}
@@ -278,11 +278,11 @@ const deleteAssignment = (id) => {
                     {{ selectedAssignment.station?.city }}
                   </div>
                 </div>
-                <div class="col-span-12">
+                <div class="col-span-12 pt-4 border-t border-gray-100">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
                   <div>
                     <span :class="[
-                      'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
+                       'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
                       selectedAssignment.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     ]">
                       {{ selectedAssignment.active ? 'Active' : 'Inactive' }}
@@ -297,7 +297,7 @@ const deleteAssignment = (id) => {
     </div>
 
     <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
         {{ isEditing ? 'Modifier l\'Affectation' : 'Nouvelle Affectation' }}
       </template>
@@ -363,3 +363,19 @@ const deleteAssignment = (id) => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

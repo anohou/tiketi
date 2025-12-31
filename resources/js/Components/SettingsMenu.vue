@@ -34,7 +34,6 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import Router from 'vue-material-design-icons/Router.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Car from 'vue-material-design-icons/Car.vue';
@@ -42,15 +41,16 @@ import Calendar from 'vue-material-design-icons/Calendar.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Cash from 'vue-material-design-icons/Cash.vue';
 
 const selectedRoute = ref('');
 
 const settingsMenu = [
-    { name: 'Gares', route: 'admin.stations.index', icon: MapMarker },
+    { name: 'Villes/Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius },
+    { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding },
     { name: 'Trajets', route: 'admin.routes.index', icon: Router },
-    { name: 'Destinations', route: 'admin.stops.index', icon: MapMarkerRadius },
     { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus },
     { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car },
     { name: 'Voyages', route: 'admin.trips.index', icon: Calendar },

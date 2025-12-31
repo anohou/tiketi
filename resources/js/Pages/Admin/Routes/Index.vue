@@ -6,7 +6,7 @@ import { Link, router } from '@inertiajs/vue3'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Trash2 from 'vue-material-design-icons/Delete.vue'
 import Loader from 'vue-material-design-icons/Loading.vue'
-import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue'
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Cash from 'vue-material-design-icons/Cash.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
@@ -32,14 +32,15 @@ const props = defineProps({
     type: Object,
     default: () => ({ data: [] })
   },
+  destinations: {
+    type: Array, // Passed from controller
+    default: () => []
+  },
   stations: {
     type: Array,
     default: () => []
   },
-  stops: {
-    type: Array,
-    default: () => []
-  },
+  // Stops removed
   fares: {
     type: Array,
     default: () => []
@@ -66,19 +67,19 @@ const showTrips = ref(false);
 // Forms
 const routeForm = ref({
   name: '',
-  origin_station_id: '',
-  destination_station_id: '',
+  origin_destination_id: '',
+  target_destination_id: '',
   active: true
 });
 
 const stopForm = ref({
-  stop_id: '',
+  station_id: '', // Changed from stop_id
   stop_index: 0
 });
 
 const fareForm = ref({
-  from_stop_id: '',
-  to_stop_id: '',
+  from_station_id: '', // Changed from from_stop_id
+  to_station_id: '', // Changed from to_stop_id
   amount: '',
   is_bidirectional: true
 });
@@ -98,30 +99,27 @@ const filteredRoutes = computed(() => {
 const matchedFares = computed(() => {
   if (!selectedRoute.value) return [];
   
-  // Get all stop IDs for this route
+  // Get all station IDs for this route
   const routeStops = selectedRoute.value.route_stop_orders || selectedRoute.value.routeStopOrders || [];
-  const stopIds = new Set(routeStops.map(rs => rs.stop?.id).filter(Boolean));
+  const stationIds = new Set(routeStops.map(rs => rs.station?.id).filter(Boolean));
   
-  if (stopIds.size === 0) return [];
+  if (stationIds.size === 0) return [];
   
-  // Find fares where both from_stop and to_stop are in the route
+  // Find fares where both from_station and to_station are in the route
   return props.fares.filter(fare => {
-    const fromInRoute = stopIds.has(fare.from_stop_id);
-    const toInRoute = stopIds.has(fare.to_stop_id);
+    const fromInRoute = stationIds.has(fare.from_station_id);
+    const toInRoute = stationIds.has(fare.to_station_id);
     
     if (fromInRoute && toInRoute) {
-        // Strict Filter: Fare MUST start at the Route's Origin
-        // This hides intermediate fares (B -> C) from the main list
-        if (selectedRoute.value.origin_station_id && fare.from_stop?.station_id !== selectedRoute.value.origin_station_id) {
-             return false;
-        }
+        // Strict Filter: Fare MUST start at the Route's Origin (Destination's Station? No, let's relax this for now as Origin is a City)
+        // Or we just check if it's within the route set.
         return true;
     }
     
     // Also check bidirectional (reverse direction)
     if (fare.is_bidirectional) {
-      const reverseFromInRoute = stopIds.has(fare.to_stop_id);
-      const reverseToInRoute = stopIds.has(fare.from_stop_id);
+      const reverseFromInRoute = stationIds.has(fare.to_station_id);
+      const reverseToInRoute = stationIds.has(fare.from_station_id);
       if (reverseFromInRoute && reverseToInRoute) return true;
     }
     
@@ -160,8 +158,8 @@ const openEditRouteModal = () => {
   isEditingRoute.value = true;
   routeForm.value = {
     name: selectedRoute.value.name,
-    origin_station_id: selectedRoute.value.origin_station_id,
-    destination_station_id: selectedRoute.value.destination_station_id,
+    origin_destination_id: selectedRoute.value.origin_destination_id,
+    target_destination_id: selectedRoute.value.target_destination_id,
     active: selectedRoute.value.active
   };
   errors.value = {};
@@ -216,14 +214,14 @@ const deleteRoute = (id) => {
 
 // Methods - Stops
 const openAddStopModal = () => {
-  stopForm.value = { stop_id: '', stop_index: 0 };
+  stopForm.value = { station_id: '', stop_index: 0 };
   errors.value = {};
   showStopModal.value = true;
 };
 
 const closeStopModal = () => {
   showStopModal.value = false;
-  stopForm.value = { stop_id: '', stop_index: 0 };
+  stopForm.value = { station_id: '', stop_index: 0 };
   errors.value = {};
 };
 
@@ -301,11 +299,11 @@ const moveStopDown = (idx) => {
 const openAddFareModal = () => {
   // Auto-set the origin from the route's first stop (origin station)
   const routeStops = selectedRoute.value.route_stop_orders || selectedRoute.value.routeStopOrders || [];
-  const firstStop = routeStops.length > 0 ? routeStops[0].stop : null;
+  const firstStop = routeStops.length > 0 ? routeStops[0].station : null;
   
   fareForm.value = { 
-    from_stop_id: firstStop?.id || '', 
-    to_stop_id: '', 
+    from_station_id: firstStop?.id || '', 
+    to_station_id: '', 
     amount: '',
     is_bidirectional: true
   };
@@ -315,7 +313,7 @@ const openAddFareModal = () => {
 
 const closeFareModal = () => {
   showFareModal.value = false;
-  fareForm.value = { from_stop_id: '', to_stop_id: '', amount: '', is_bidirectional: true };
+  fareForm.value = { from_station_id: '', to_station_id: '', amount: '', is_bidirectional: true };
   errors.value = {};
 };
 
@@ -356,8 +354,8 @@ watch(() => props.routes, (newRoutes) => {
 // Export/Print configuration
 const routeColumns = {
   name: 'Nom',
-  'origin_station.name': 'Départ',
-  'destination_station.name': 'Arrivée',
+  'origin_destination.name': 'Départ',
+  'target_destination.name': 'Arrivée',
   active: 'Statut',
   trips_count: 'Voyages'
 };
@@ -381,10 +379,10 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -397,17 +395,17 @@ const handlePrint = () => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Routes List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -429,14 +427,14 @@ const handlePrint = () => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredRoutes.length === 0" class="p-4 text-center text-gray-500">
                 Aucune route trouvée.
               </div>
               <div v-else>
                 <div v-for="routeItem in filteredRoutes" :key="routeItem.id" 
                   @click="selectRoute(routeItem)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(routeItem) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(routeItem) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -446,18 +444,20 @@ const handlePrint = () => {
                     <div>
                       <h3 :class="['font-semibold', isSelected(routeItem) ? 'text-green-800' : 'text-gray-800']">{{ routeItem.name }}</h3>
                       <p class="text-xs text-gray-500 mt-1">
-                        {{ routeItem.origin_station?.name }} → {{ routeItem.destination_station?.name }}
+                        {{ routeItem.origin_destination?.name }} → {{ routeItem.target_destination?.name }}
                       </p>
                     </div>
-                    <span :class="[
-                      'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      routeItem.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    ]">
-                      {{ routeItem.active ? 'Active' : 'Inactive' }}
-                    </span>
-                    <span class="text-xs text-gray-400 ml-1">
-                      {{ routeItem.trips_count || 0 }} voyages
-                    </span>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                        <span :class="[
+                          'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                          routeItem.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        ]">
+                          {{ routeItem.active ? 'Active' : 'Inactive' }}
+                        </span>
+                        <span class="text-[10px] text-gray-400">
+                          {{ routeItem.trips_count || 0 }} voyages
+                        </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -466,10 +466,10 @@ const handlePrint = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedRoute" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+            <OfficeBuilding class="h-16 w-16 text-orange-200 mb-4" />
             <p class="text-lg">Sélectionnez une route pour voir les détails</p>
             <button @click="openCreateRouteModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
               ou créez une nouvelle route
@@ -478,7 +478,6 @@ const handlePrint = () => {
 
           <!-- View Details & Related -->
           <div v-else class="space-y-4">
-            <!-- Route Details Card -->
             <!-- Route Details Card -->
             <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
               <!-- Header Row -->
@@ -494,18 +493,18 @@ const handlePrint = () => {
                 </div>
               </div>
 
-              <!-- Details Row (6/6 Grid) -->
+              <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">DÉPART</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
-                    {{ selectedRoute.origin_station?.name }}
+                    {{ selectedRoute.origin_destination?.name }}
                   </div>
                 </div>
                 <div class="col-span-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">ARRIVÉE</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
-                    {{ selectedRoute.destination_station?.name }}
+                    {{ selectedRoute.target_destination?.name }}
                   </div>
                 </div>
               </div>
@@ -525,9 +524,9 @@ const handlePrint = () => {
             <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
               <div @click="showStops = !showStops" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
                 <div class="flex items-center gap-2">
-                  <MapMarkerRadius class="h-5 w-5 text-orange-500" />
+                  <OfficeBuilding class="h-5 w-5 text-orange-500" />
                   <h3 class="font-semibold text-gray-700">
-                    Destinations ({{ (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length }})
+                    Stations Escale ({{ (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length }})
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
@@ -550,8 +549,8 @@ const handlePrint = () => {
                         {{ idx + 1 }}
                       </span>
                       <div>
-                        <p class="text-sm font-medium text-gray-800">{{ order.stop?.name }}</p>
-                        <p class="text-xs text-gray-500">{{ order.stop?.station?.city || 'Ville inconnue' }}</p>
+                        <p class="text-sm font-medium text-gray-800">{{ order.station?.name }}</p>
+                        <p class="text-xs text-gray-500">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-1">
@@ -608,10 +607,10 @@ const handlePrint = () => {
                   <div v-for="fare in matchedFares" :key="fare.id" 
                     class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
                     <div class="text-sm">
-                      <span class="font-medium">{{ fare.from_stop?.name }}</span>
+                      <span class="font-medium">{{ fare.from_station?.name }}</span>
                       <span v-if="fare.is_bidirectional" class="text-orange-500 mx-1">↔</span>
                       <span v-else class="text-gray-400 mx-1">→</span>
-                      <span class="font-medium">{{ fare.to_stop?.name }}</span>
+                      <span class="font-medium">{{ fare.to_station?.name }}</span>
                     </div>
                     <div class="flex items-center gap-3">
                       <span class="font-bold text-green-700">{{ fare.amount?.toLocaleString() }} FCFA</span>
@@ -676,7 +675,7 @@ const handlePrint = () => {
     </div>
 
     <!-- Route Modal -->
-    <DialogModal :show="showRouteModal" @close="closeRouteModal">
+    <DialogModal :show="showRouteModal" @close="closeRouteModal" maxWidth="md">
       <template #title>
         {{ isEditingRoute ? 'Modifier la Route' : 'Nouvelle Route' }}
       </template>
@@ -690,20 +689,20 @@ const handlePrint = () => {
           
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <InputLabel for="origin" value="Départ" />
-              <select v-model="routeForm.origin_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+              <InputLabel for="origin" value="Ville de Départ" />
+              <select v-model="routeForm.origin_destination_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
                 <option value="">Choisir...</option>
-                <option v-for="s in stations" :key="s.id" :value="s.id">{{ s.name }}</option>
+                <option v-for="d in destinations" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
-              <InputError :message="errors.origin_station_id" />
+              <InputError :message="errors.origin_destination_id" />
             </div>
             <div>
-              <InputLabel for="dest" value="Arrivée" />
-              <select v-model="routeForm.destination_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+              <InputLabel for="dest" value="Ville d'Arrivée" />
+              <select v-model="routeForm.target_destination_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
                 <option value="">Choisir...</option>
-                <option v-for="s in stations" :key="s.id" :value="s.id">{{ s.name }}</option>
+                <option v-for="d in destinations" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
-              <InputError :message="errors.destination_station_id" />
+              <InputError :message="errors.target_destination_id" />
             </div>
           </div>
 
@@ -722,18 +721,18 @@ const handlePrint = () => {
     </DialogModal>
 
     <!-- Stop Modal -->
-    <DialogModal :show="showStopModal" @close="closeStopModal">
+    <DialogModal :show="showStopModal" @close="closeStopModal" maxWidth="md">
       <template #title>Ajouter une Destination</template>
       <template #content>
         <div>
-          <InputLabel for="stop" value="Sélectionner une destination" />
-          <select v-model="stopForm.stop_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 mt-1">
+          <InputLabel for="stop" value="Sélectionner une station" />
+          <select v-model="stopForm.station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 mt-1">
             <option value="">Choisir...</option>
-            <option v-for="stop in stops" :key="stop.id" :value="stop.id">
-              {{ stop.name }} ({{ stop.city }})
+            <option v-for="station in stations" :key="station.id" :value="station.id">
+              {{ station.name }} ({{ station.city }})
             </option>
           </select>
-          <InputError :message="errors.stop_id" class="mt-2" />
+          <InputError :message="errors.station_id" class="mt-2" />
         </div>
       </template>
       <template #footer>
@@ -743,26 +742,26 @@ const handlePrint = () => {
     </DialogModal>
 
     <!-- Fare Modal -->
-    <DialogModal :show="showFareModal" @close="closeFareModal">
+    <DialogModal :show="showFareModal" @close="closeFareModal" maxWidth="md">
       <template #title>Ajouter un Tarif</template>
       <template #content>
         <div class="space-y-4">
           <div>
-            <InputLabel for="from" value="Départ (origine de la route)" />
-            <select v-model="fareForm.from_stop_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-100" disabled>
+            <InputLabel for="from" value="Gare de départ" />
+            <select v-model="fareForm.from_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-100" disabled>
               <option value="">Choisir...</option>
-              <option v-for="stop in stops" :key="stop.id" :value="stop.id">{{ stop.name }}</option>
+              <option v-for="station in stations" :key="station.id" :value="station.id">{{ station.name }}</option>
             </select>
-            <p class="mt-1 text-xs text-gray-500">Le départ est automatiquement défini depuis l'origine de la route.</p>
-            <InputError :message="errors.from_stop_id" />
+            <p class="mt-1 text-xs text-gray-500">Le départ est automatiquement défini.</p>
+            <InputError :message="errors.from_station_id" />
           </div>
           <div>
-            <InputLabel for="to" value="Destination" />
-            <select v-model="fareForm.to_stop_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
-              <option value="">Choisir une destination...</option>
-              <option v-for="stop in stops" :key="stop.id" :value="stop.id">{{ stop.name }}</option>
+            <InputLabel for="to" value="Gare d'arrivée" />
+            <select v-model="fareForm.to_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+              <option value="">Choisir une station...</option>
+              <option v-for="station in stations" :key="station.id" :value="station.id">{{ station.name }}</option>
             </select>
-            <InputError :message="errors.to_stop_id" />
+            <InputError :message="errors.to_station_id" />
           </div>
           <div>
             <InputLabel for="amount" value="Montant (FCFA)" />
@@ -776,6 +775,21 @@ const handlePrint = () => {
         <PrimaryButton class="ml-3" @click="addFare" :disabled="processing">Ajouter</PrimaryButton>
       </template>
     </DialogModal>
-
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

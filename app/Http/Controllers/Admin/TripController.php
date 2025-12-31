@@ -38,7 +38,7 @@ class TripController extends Controller
      */
     public function index()
     {
-        $trips = Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders', 'vehicle', 'tickets.toStop'])
+        $trips = Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders', 'vehicle', 'tickets.toStation'])
             ->withCount(['tickets', 'tripSeatOccupancies as occupied_seats'])
             ->orderBy('departure_at', 'desc')
             ->paginate(20);

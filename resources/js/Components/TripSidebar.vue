@@ -4,7 +4,7 @@ import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Seat from 'vue-material-design-icons/Seat.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';

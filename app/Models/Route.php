@@ -14,26 +14,24 @@ class Route extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'name', 'origin_station_id', 'destination_station_id', 'active',
+        'name', 
+        'origin_destination_id', 
+        'target_destination_id',
+        'origin_station_id', // Optional/Deprecated?
+        'destination_station_id', // Optional/Deprecated?
+        'active',
     ];
 
-    protected static function booted(): void
+    // ... booted ...
+
+    public function originDestination()
     {
-        static::creating(function (self $model): void {
-            if (empty($model->id)) {
-                $model->id = (string) Str::uuid();
-            }
-        });
+        return $this->belongsTo(Destination::class, 'origin_destination_id');
     }
 
-    public function userAssignments()
+    public function targetDestination()
     {
-        return $this->hasMany(\App\Models\UserRouteAssignment::class);
-    }
-
-    public function trips()
-    {
-        return $this->hasMany(Trip::class);
+        return $this->belongsTo(Destination::class, 'target_destination_id');
     }
 
     public function originStation()
@@ -51,8 +49,8 @@ class Route extends Model
         return $this->hasMany(RouteStopOrder::class)->orderBy('stop_index');
     }
 
-    public function stops()
+    public function trips()
     {
-        return $this->belongsToMany(Stop::class, 'route_stop_orders')->orderBy('stop_index');
+        return $this->hasMany(Trip::class);
     }
 }

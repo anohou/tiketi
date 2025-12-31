@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Stop;
 use App\Models\Trip;
 use Illuminate\Support\Collection;
 
@@ -12,14 +11,14 @@ class SeatAllocator
      * Suggest the best available seats for a given trip and destination.
      *
      * @param Trip $trip The trip for which to suggest seats.
-     * @param Stop $destinationStop The passenger's destination stop.
+     * @param int|string $destinationStationId The passenger's destination station ID.
      * @param int $quantity The number of seats to suggest.
      * @return array An array of suggested seat numbers.
      */
-    public function suggestSeats(Trip $trip, Stop $destinationStop, int $quantity = 1): array
+    public function suggestSeats(Trip $trip, $destinationStationId, int $quantity = 1): array
     {
         // 1. Load vehicle with vehicle type to get door positions
-        $trip->load(['vehicle.vehicleType', 'route.stops', 'route']);
+        $trip->load(['vehicle.vehicleType', 'route.routeStopOrders', 'route']);
         $vehicle = $trip->vehicle;
         $vehicleType = $vehicle->vehicleType;
         $route = $trip->route;
@@ -39,18 +38,19 @@ class SeatAllocator
                           $trip->origin_station_id !== $route->origin_station_id;
 
         // 3. Determine the destination rank (considering trip direction)
-        $stopsOrder = $route->stops->pluck('id')->toArray();
+        // Use station_ids from RouteStopOrders
+        $stopsOrder = $route->routeStopOrders()->orderBy('stop_index')->pluck('station_id')->toArray();
         
         // If reversed, flip the stops order
         if ($isReversedTrip) {
             $stopsOrder = array_reverse($stopsOrder);
         }
         
-        $destinationIndex = array_search($destinationStop->id, $stopsOrder);
+        $destinationIndex = array_search($destinationStationId, $stopsOrder);
         $totalStops = count($stopsOrder);
         
         // Rank is from 0 (first stop) to 1 (last stop)
-        $destinationRank = ($totalStops > 1) ? ($destinationIndex / ($totalStops - 1)) : 1;
+        $destinationRank = ($destinationIndex !== false && $totalStops > 1) ? ($destinationIndex / ($totalStops - 1)) : 1;
 
         // 3. Generate a list of all available seats with their scores
         $availableSeats = collect(range(1, $seatCount))

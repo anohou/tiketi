@@ -141,7 +141,7 @@ class AdminDashboardController extends Controller
             ],
             'links' => [
                 ['label' => 'Gares', 'href' => '/admin/stations', 'icon' => 'station', 'count' => $totalStations],
-                ['label' => 'Arrêts', 'href' => '/admin/stops', 'icon' => 'stop'],
+
                 ['label' => 'Routes', 'href' => '/admin/routes', 'icon' => 'route', 'count' => $totalRoutes],
                 ['label' => 'Types de Véhicules', 'href' => '/admin/vehicle-types', 'icon' => 'vehicle-type'],
                 ['label' => 'Véhicules', 'href' => '/admin/vehicles', 'icon' => 'vehicle', 'count' => $totalVehicles],

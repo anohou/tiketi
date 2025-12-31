@@ -9,7 +9,7 @@ import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Filter from 'vue-material-design-icons/Filter.vue';
 import ChartLine from 'vue-material-design-icons/ChartLine.vue';
 import Account from 'vue-material-design-icons/Account.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 
 const props = defineProps({
     tickets: Object,
@@ -217,7 +217,7 @@ const formatDateTime = (dateString) => {
                 <!-- By Station -->
                 <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                     <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
-                        <MapMarker :size="20" class="text-gray-500" />
+                        <OfficeBuilding :size="20" class="text-gray-500" />
                         Revenus par Station
                     </h3>
                     <div class="space-y-3">
@@ -271,7 +271,7 @@ const formatDateTime = (dateString) => {
                                     {{ ticket.trip?.route?.name || '-' }}
                                 </td>
                                 <td class="px-5 py-3 text-sm text-gray-600">
-                                    {{ ticket.from_stop?.name }} → {{ ticket.to_stop?.name }}
+                                    {{ ticket.from_station?.name }} → {{ ticket.to_station?.name }}
                                 </td>
                                 <td class="px-5 py-3 text-sm text-gray-600">
                                     {{ ticket.seller?.name || '-' }}

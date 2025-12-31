@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Trip;
-use App\Models\Stop;
+
 use App\Models\RouteStopOrder;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
@@ -14,11 +14,11 @@ class OptimisationService
      * Obtient les suggestions de sièges optimaux pour un voyage et une destination
      * 
      * @param string $tripId ID du voyage
-     * @param string $destinationStopId ID de l'arrêt de destination
+     * @param string $destinationStationId ID de la gare de destination
      * @param int $maxSuggestions Nombre maximum de suggestions (défaut: 5)
      * @return array Tableau de suggestions avec seat_number, score et reason
      */
-    public function getSuggestedSeats(string $tripId, string $destinationStopId, int $maxSuggestions = 5, ?string $boardingStopId = null): array
+    public function getSuggestedSeats(string $tripId, string $destinationStationId, int $maxSuggestions = 5, ?string $boardingStationId = null): array
     {
         $trip = Trip::with(['vehicle.vehicleType', 'route.routeStopOrders'])->findOrFail($tripId);
         
@@ -36,7 +36,7 @@ class OptimisationService
         // Récupérer les sièges déjà occupés avec leurs destinations et origines
         $occupiedSeatsData = Ticket::where('trip_id', $tripId)
             ->where('status', '!=', 'cancelled')
-            ->with(['toStop', 'fromStop'])
+            ->with(['toStation', 'fromStation'])
             ->get()
             ->keyBy('seat_number');
 
@@ -46,13 +46,21 @@ class OptimisationService
         $doorPositions = $vehicleType->door_positions ?? [0];
         
         // Parse the seat map to get accurate seat types and neighbors
-        $seatMapInfo = $this->parseSeatMap($vehicleType->seat_map ?? []);
+        $seatMapService = app(\App\Services\SeatMapService::class);
+        $fullSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
+            'seat_count' => $totalSeats,
+            'seat_configuration' => $vehicleType->seat_configuration ?? '2+2',
+            'door_positions' => $doorPositions,
+            'last_row_seats' => $vehicleType->last_row_seats ?? 5
+        ]);
+        
+        $seatMapInfo = $this->parseSeatMap($fullSeatMap);
 
         // Calculer l'index de l'arrêt de destination (considering trip direction)
-        $destinationIndex = $this->getStopIndex($trip->route_id, $destinationStopId, $isReversedTrip);
+        $destinationIndex = $this->getStopIndex($trip->route_id, $destinationStationId, $isReversedTrip);
         
         // Get boarding stop index (for semi-intelligent mode)
-        $boardingIndex = $boardingStopId ? $this->getStopIndex($trip->route_id, $boardingStopId, $isReversedTrip) : 0;
+        $boardingIndex = $boardingStationId ? $this->getStopIndex($trip->route_id, $boardingStationId, $isReversedTrip) : 0;
         
         // Get total stops on route
         $totalStops = RouteStopOrder::where('route_id', $trip->route_id)->count();
@@ -83,7 +91,7 @@ class OptimisationService
                     $availableSeats[] = $seatNumber;
                 } else {
                     $currentOccupant = $occupiedSeatsData[$seatNumber];
-                    $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_stop_id, $isReversedTrip);
+                    $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_station_id, $isReversedTrip);
                     if ($occupantDestIndex < $boardingIndex) {
                         $availableSeats[] = $seatNumber;
                     }
@@ -386,7 +394,7 @@ class OptimisationService
             $aisleSeats = $seatInfo['adjacent_aisle_seats'];
             foreach ($aisleSeats as $aisleSeat) {
                 if ($occupiedSeatsData->has($aisleSeat)) {
-                    $occupantDestIndex = $this->getStopIndex($routeId, $occupiedSeatsData[$aisleSeat]->to_stop_id, $isReversed);
+                    $occupantDestIndex = $this->getStopIndex($routeId, $occupiedSeatsData[$aisleSeat]->to_station_id, $isReversed);
                     if ($occupantDestIndex < $destinationIndex) {
                         $wouldBlockPassengers = true;
                         break;
@@ -410,14 +418,14 @@ class OptimisationService
      * Obtient l'index d'un arrêt dans un trajet
      * 
      * @param string $routeId ID du trajet
-     * @param string $stopId ID de l'arrêt
+     * @param string $stationId ID de l'arrêt
      * @param bool $isReversed Whether the trip is in reverse direction
      * @return int Index de l'arrêt (1 for first destination, higher for further destinations)
      */
-    private function getStopIndex(string $routeId, string $stopId, bool $isReversed = false): int
+    private function getStopIndex(string $routeId, string $stationId, bool $isReversed = false): int
     {
         $stopOrder = RouteStopOrder::where('route_id', $routeId)
-            ->where('stop_id', $stopId)
+            ->where('station_id', $stationId)
             ->first();
 
         if (!$stopOrder) {
