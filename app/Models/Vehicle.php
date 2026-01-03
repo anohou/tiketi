@@ -19,10 +19,13 @@ class Vehicle extends Model
         'vehicle_type_id',
         'seat_count',
         'door_positions',
+        'active',
+        'inactive_reason',
     ];
 
     protected $casts = [
         'door_positions' => 'array',
+        'active' => 'boolean',
     ];
 
     protected static function booted(): void

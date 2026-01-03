@@ -181,13 +181,50 @@ const removeDomain = (domainId) => {
     }
   });
 };
+// Setup for password display modal
+import { usePage } from '@inertiajs/vue3';
+import { watch } from 'vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
+import Check from 'vue-material-design-icons/Check.vue';
+
+const page = usePage();
+const showPasswordModal = ref(false);
+const generatedPassword = ref('');
+const passwordCopied = ref(false);
+
+watch(() => page.props.flash?.tenant_admin_password, (newPassword) => {
+  if (newPassword) {
+    generatedPassword.value = newPassword;
+    showPasswordModal.value = true;
+    passwordCopied.value = false;
+  }
+});
+
+const copyPassword = async () => {
+  try {
+    await navigator.clipboard.writeText(generatedPassword.value);
+    passwordCopied.value = true;
+    setTimeout(() => {
+      passwordCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('Failed to copy password', err);
+  }
+};
+
+const closePasswordModal = () => {
+    showPasswordModal.value = false;
+    // Clear the flash message via a manual visit or just hide model. 
+    // Inertia usually clears flash on next visit.
+    generatedPassword.value = '';
+}
 </script>
 
 <template>
   <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
+    <div class="w-full px-4 h-[calc(100vh-140px)] flex flex-col">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-purple-100 rounded-xl">
@@ -200,7 +237,7 @@ const removeDomain = (domainId) => {
       </div>
 
       <!-- Two Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0">
         <!-- Left Column - Tenants List -->
         <div class="col-span-12 md:col-span-5 flex flex-col h-full">
           <div class="bg-white rounded-lg border border-purple-200 shadow-sm flex flex-col h-full">
@@ -263,7 +300,7 @@ const removeDomain = (domainId) => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-7 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-7 h-full overflow-y-auto pb-6">
           <!-- Empty State -->
           <div v-if="!selectedTenant" class="bg-white rounded-lg border border-purple-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <Domain class="h-16 w-16 text-purple-200 mb-4" />
@@ -453,6 +490,51 @@ const removeDomain = (domainId) => {
         <SecondaryButton @click="closeDomainModal">Annuler</SecondaryButton>
         <PrimaryButton @click="addDomain" :disabled="processing" class="ml-3">
           Ajouter
+        </PrimaryButton>
+      </template>
+    </DialogModal>
+    <!-- Password Display Modal -->
+    <DialogModal :show="showPasswordModal" @close="closePasswordModal">
+      <template #title>
+        Tenant Créé avec Succès !
+      </template>
+      <template #content>
+        <div class="text-center py-4">
+          <div class="mb-4">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <Check class="h-6 w-6 text-green-600" />
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Admin Tenant Créé</h3>
+            <div class="mt-2 px-7 py-3">
+              <p class="text-sm text-gray-500">
+                Voici le mot de passe généré pour l'administrateur du tenant.
+                Veuillez le copier maintenant, car il ne sera plus affiché.
+              </p>
+            </div>
+          </div>
+          
+          <div class="relative mt-2 rounded-md shadow-sm max-w-sm mx-auto">
+            <input type="text"
+               readonly
+               :value="generatedPassword"
+               class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pr-12 text-2xl font-mono text-center border-gray-300 rounded-md tracking-widest bg-gray-50 py-3" 
+            />
+            <div class="absolute inset-y-0 right-0 flex items-center">
+                <button @click="copyPassword" 
+                    class="h-full px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-r-md transition-colors border-l"
+                    :class="{'text-green-500 hover:text-green-600': passwordCopied}"
+                    title="Copier">
+                    <Check v-if="passwordCopied" class="h-5 w-5" />
+                    <ContentCopy v-else class="h-5 w-5" />
+                </button>
+            </div>
+          </div>
+          <p v-if="passwordCopied" class="text-xs text-green-600 mt-2 font-medium">Mot de passe copié !</p>
+        </div>
+      </template>
+      <template #footer>
+        <PrimaryButton @click="closePasswordModal">
+          Terminer
         </PrimaryButton>
       </template>
     </DialogModal>

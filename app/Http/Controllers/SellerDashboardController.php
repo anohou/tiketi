@@ -6,6 +6,10 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Trip;
 use App\Models\Route as BusRoute;
+use App\Models\UserStationAssignment;
+use App\Models\Station;
+use App\Models\Vehicle;
+use App\Models\Ticket;
 
 class SellerDashboardController extends Controller
 {
@@ -21,7 +25,7 @@ class SellerDashboardController extends Controller
             $routes = BusRoute::all();
         } else {
             // Unifier avec la logique de TicketingController: Basé sur les stations assignées
-            $assignedStationIds = \App\Models\UserStationAssignment::where('user_id', $user->id)
+            $assignedStationIds = UserStationAssignment::where('user_id', $user->id)
                 ->where('active', true)
                 ->pluck('station_id')
                 ->toArray();
@@ -30,7 +34,7 @@ class SellerDashboardController extends Controller
             ->where(function($query) use ($assignedStationIds) {
                 $query->whereIn('origin_station_id', $assignedStationIds)
                       ->orWhereIn('destination_station_id', $assignedStationIds)
-                      ->orWhereHas('stops', function($q) use ($assignedStationIds) {
+                      ->orWhereHas('routeStopOrders', function($q) use ($assignedStationIds) {
                           $q->whereIn('station_id', $assignedStationIds);
                       });
             })
@@ -64,12 +68,12 @@ class SellerDashboardController extends Controller
             
             $hasActiveAssignment = count($assignedStationIds) > 0;
             $assignedStation = $hasActiveAssignment 
-                ? \App\Models\Station::find($assignedStationIds[0])?->name 
+                ? Station::find($assignedStationIds[0])?->name 
                 : null;
         }
-        $vehicles = \App\Models\Vehicle::with('vehicleType')->get();
+        $vehicles = Vehicle::with('vehicleType')->get();
         
-        $todaySales = \App\Models\Ticket::where('seller_id', $user->id)
+        $todaySales = Ticket::where('seller_id', $user->id)
             ->whereDate('created_at', now()->today())
             ->where('status', '!=', 'cancelled')
             ->sum('price');

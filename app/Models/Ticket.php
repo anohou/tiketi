@@ -14,7 +14,7 @@ class Ticket extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'ticket_number','trip_id','vehicle_id','seat_number','from_stop_id','to_stop_id','price','seller_id','station_id','status','qr_payload','passenger_name','passenger_phone','qr_code'
+        'ticket_number','trip_id','vehicle_id','seat_number','from_station_id','to_station_id','price','seller_id','station_id','status','qr_payload','passenger_name','passenger_phone','qr_code'
     ];
 
     protected $casts = [
@@ -40,15 +40,17 @@ class Ticket extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
-    public function fromStop()
+    public function fromStation()
     {
-        return $this->belongsTo(Stop::class, 'from_stop_id');
+        return $this->belongsTo(Station::class, 'from_station_id');
     }
 
-    public function toStop()
+    public function toStation()
     {
-        return $this->belongsTo(Stop::class, 'to_stop_id');
+        return $this->belongsTo(Station::class, 'to_station_id');
     }
+
+
 
     public function seller()
     {

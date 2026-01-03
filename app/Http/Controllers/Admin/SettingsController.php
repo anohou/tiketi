@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Station;
 use App\Models\Route;
-use App\Models\Stop;
+
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Models\Trip;
@@ -21,8 +21,9 @@ class SettingsController extends Controller
         return Inertia::render('Admin/Settings/Index', [
             'stats' => [
                 'stations' => Station::count(),
+                'destinations' => \App\Models\Destination::count(),
                 'routes' => Route::count(),
-                'stops' => Stop::count(),
+
                 'vehicles' => Vehicle::count(),
                 'vehicleTypes' => VehicleType::count(),
                 'trips' => Trip::count(),

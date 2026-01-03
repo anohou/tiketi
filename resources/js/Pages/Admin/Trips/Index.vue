@@ -139,7 +139,7 @@ const destinationBreakdown = computed(() => {
   const totalTickets = selectedTrip.value.tickets.length;
   const breakdown = new Map();
   selectedTrip.value.tickets.forEach(ticket => {
-    const destName = ticket.to_stop?.name || 'Inconnu';
+    const destName = ticket.to_station?.name || ticket.toStation?.name || 'Inconnu';
     const current = breakdown.get(destName) || { count: 0, revenue: 0 };
     current.count++;
     current.revenue += ticket.price || 0;
@@ -190,8 +190,8 @@ const orderedTickets = computed(() => {
     switch (ticketSortBy.value) {
       case 'distance':
         // Try getting the stop_id from both the direct field and the loaded relation
-        const stopIdA = a.to_stop_id || a.toStopId || a.to_stop?.id;
-        const stopIdB = b.to_stop_id || b.toStopId || b.to_stop?.id;
+        const stopIdA = a.to_station_id || a.toStationId || a.to_station?.id || a.toStation?.id;
+        const stopIdB = b.to_station_id || b.toStationId || b.to_station?.id || a.toStation?.id;
         const indexA = stopIndexMap.get(stopIdA) ?? 999;
         const indexB = stopIndexMap.get(stopIdB) ?? 999;
         comparison = indexA - indexB;
@@ -372,10 +372,10 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -388,17 +388,17 @@ const handlePrint = () => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Trips List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -415,12 +415,12 @@ const handlePrint = () => {
                 <input 
                   type="date" 
                   v-model="dateFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-xs focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
                   title="Filtrer par date"
                 />
                 <select 
                   v-model="departureFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-xs focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
                 >
                   <option value="">Départ</option>
                   <option v-for="station in uniqueDepartures" :key="station.id" :value="station.id">
@@ -429,7 +429,7 @@ const handlePrint = () => {
                 </select>
                 <select 
                   v-model="arrivalFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-xs focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
                 >
                   <option value="">Arrivée</option>
                   <option v-for="station in uniqueArrivals" :key="station.id" :value="station.id">
@@ -441,7 +441,7 @@ const handlePrint = () => {
                 <button 
                   v-if="dateFilter || departureFilter || arrivalFilter"
                   @click="clearFilters" 
-                  class="text-xs text-orange-600 hover:text-orange-800"
+                  class="text-[10px] text-orange-600 hover:text-orange-800"
                 >
                   Effacer les filtres
                 </button>
@@ -457,14 +457,14 @@ const handlePrint = () => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredTrips.length === 0" class="p-4 text-center text-gray-500">
                 Aucun voyage trouvé.
               </div>
               <div v-else>
                 <div v-for="trip in filteredTrips" :key="trip.id" 
                   @click="selectTrip(trip)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(trip) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(trip) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -475,17 +475,17 @@ const handlePrint = () => {
                       <h3 :class="['font-semibold truncate', isSelected(trip) ? 'text-green-800' : 'text-gray-800']">
                         {{ trip.route?.name }}
                       </h3>
-                      <p class="text-xs text-gray-500 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
-                      <p class="text-xs text-gray-400">{{ trip.vehicle?.identifier }}</p>
+                      <p class="text-[10px] text-gray-500 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
+                      <p class="text-[10px] text-gray-400">{{ trip.vehicle?.identifier }}</p>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
-                        'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                        'px-2 py-0.5 rounded-full text-[9px] font-medium',
                         getStatusInfo(trip.status, trip.departure_at).color
                       ]">
                         {{ getStatusInfo(trip.status, trip.departure_at).label }}
                       </span>
-                      <span class="text-xs text-gray-500">
+                      <span class="text-[10px] text-gray-500">
                         {{ trip.tickets_count || 0 }} tickets
                       </span>
                     </div>
@@ -497,7 +497,7 @@ const handlePrint = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedTrip" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <MapClock class="h-16 w-16 text-orange-200 mb-4" />
@@ -585,11 +585,11 @@ const handlePrint = () => {
                   class="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
                 >
                   <div class="flex items-center gap-3 flex-1">
-                    <span class="font-medium text-gray-800">{{ dest.name }}</span>
-                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                    <span class="font-medium text-gray-800 text-sm">{{ dest.name }}</span>
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">
                       {{ dest.count }}
                     </span>
-                    <span class="text-xs text-gray-500">({{ dest.percentage }}%)</span>
+                    <span class="text-[10px] text-gray-500">({{ dest.percentage }}%)</span>
                   </div>
                   <span class="text-sm text-gray-600 font-medium">{{ formatMoney(dest.revenue) }}</span>
                 </div>
@@ -608,9 +608,9 @@ const handlePrint = () => {
                 <table class="w-full text-sm">
                   <thead class="bg-gray-50">
                     <tr>
-                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">N°</th>
+                      <th class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">N°</th>
                       <th 
-                        class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
                         @click="toggleTicketSort('seat')"
                       >
                         <span class="flex items-center gap-1">
@@ -621,7 +621,7 @@ const handlePrint = () => {
                         </span>
                       </th>
                       <th 
-                        class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
                         @click="toggleTicketSort('distance')"
                       >
                         <span class="flex items-center gap-1">
@@ -632,7 +632,7 @@ const handlePrint = () => {
                         </span>
                       </th>
                       <th 
-                        class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
                         @click="toggleTicketSort('price')"
                       >
                         <span class="flex items-center justify-end gap-1">
@@ -644,11 +644,11 @@ const handlePrint = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-gray-100">
+                  <tbody class="divide-y divide-gray-100 text-xs">
                     <tr v-for="ticket in orderedTickets" :key="ticket.id" class="hover:bg-gray-50">
-                      <td class="px-3 py-2 font-mono text-xs">{{ ticket.ticket_number }}</td>
+                      <td class="px-3 py-2 font-mono">{{ ticket.ticket_number }}</td>
                       <td class="px-3 py-2">{{ ticket.seat_number }}</td>
-                      <td class="px-3 py-2">{{ ticket.to_stop?.name || '-' }}</td>
+                      <td class="px-3 py-2">{{ ticket.to_station?.name || ticket.toStation?.name || '-' }}</td>
                       <td class="px-3 py-2 text-right font-medium">{{ formatMoney(ticket.price) }}</td>
                     </tr>
                   </tbody>
@@ -661,7 +661,7 @@ const handlePrint = () => {
     </div>
 
     <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
         {{ isEditing ? 'Modifier le Voyage' : 'Nouveau Voyage' }}
       </template>
@@ -737,3 +737,19 @@ const handlePrint = () => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

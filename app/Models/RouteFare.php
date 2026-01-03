@@ -14,8 +14,8 @@ class RouteFare extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'from_stop_id',
-        'to_stop_id',
+        'from_station_id',
+        'to_station_id',
         'amount',
         'is_bidirectional'
     ];
@@ -24,25 +24,25 @@ class RouteFare extends Model
         'is_bidirectional' => 'boolean',
     ];
 
-    public function fromStop(): BelongsTo
+    public function fromStation(): BelongsTo
     {
-        return $this->belongsTo(Stop::class, 'from_stop_id');
+        return $this->belongsTo(Station::class, 'from_station_id');
     }
 
-    public function toStop(): BelongsTo
+    public function toStation(): BelongsTo
     {
-        return $this->belongsTo(Stop::class, 'to_stop_id');
+        return $this->belongsTo(Station::class, 'to_station_id');
     }
 
     /**
      * Get the fare amount for a specific journey.
      * Checks both directions if fare is bidirectional.
      */
-    public static function getFare(string $fromStopId, string $toStopId): ?int
+    public static function getFare(string $fromStationId, string $toStationId): ?int
     {
         // First try direct match
-        $fare = self::where('from_stop_id', $fromStopId)
-            ->where('to_stop_id', $toStopId)
+        $fare = self::where('from_station_id', $fromStationId)
+            ->where('to_station_id', $toStationId)
             ->first();
 
         if ($fare) {
@@ -50,8 +50,8 @@ class RouteFare extends Model
         }
 
         // Try reverse direction if bidirectional
-        $reverseFare = self::where('from_stop_id', $toStopId)
-            ->where('to_stop_id', $fromStopId)
+        $reverseFare = self::where('from_station_id', $toStationId)
+            ->where('to_station_id', $fromStationId)
             ->where('is_bidirectional', true)
             ->first();
 
@@ -62,11 +62,11 @@ class RouteFare extends Model
      * Find fare for a journey, considering bidirectional fares.
      * Returns the fare object with direction info.
      */
-    public static function findFare(string $fromStopId, string $toStopId): ?array
+    public static function findFare(string $fromStationId, string $toStationId): ?array
     {
         // First try direct match
-        $fare = self::where('from_stop_id', $fromStopId)
-            ->where('to_stop_id', $toStopId)
+        $fare = self::where('from_station_id', $fromStationId)
+            ->where('to_station_id', $toStationId)
             ->first();
 
         if ($fare) {
@@ -78,8 +78,8 @@ class RouteFare extends Model
         }
 
         // Try reverse direction if bidirectional
-        $reverseFare = self::where('from_stop_id', $toStopId)
-            ->where('to_stop_id', $fromStopId)
+        $reverseFare = self::where('from_station_id', $toStationId)
+            ->where('to_station_id', $fromStationId)
             ->where('is_bidirectional', true)
             ->first();
 

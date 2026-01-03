@@ -3,8 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Tenant;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,8 +14,35 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            InitialSetupSeeder::class,
+        // 1. Create Landlord Admin
+        User::firstOrCreate(
+            ['email' => 'admin@transport.ci'],
+            [
+                'name' => 'Landlord Admin',
+                'password' => Hash::make('password'),
+                'role' => 'superadmin',
+                'active' => true,
+            ]
+        );
+        $this->command->info('✅ Landlord Admin created.');
+
+        // 2. Create Test Tenant (Fully Seeded)
+        // Clean up previous runs if they exist
+        \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
+
+        $tenant = Tenant::firstOrCreate(['id' => 'test'], [
+            'name' => 'Transport CI (Test)',
+            'email' => 'admin@test.com',
+            'phone' => '+225 0101010101',
         ]);
+        
+        $tenant->domains()->firstOrCreate(['domain' => 'test.localhost']);
+        
+        $this->command->info('✅ Test Tenant created.');
+
+        // Initialize Seeding for Test Tenant
+        $tenant->run(function () {
+             $this->call(TenantSeeder::class);
+        });
     }
 }

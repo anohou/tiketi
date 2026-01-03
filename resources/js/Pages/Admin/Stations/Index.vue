@@ -17,10 +17,10 @@ import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import Routes from 'vue-material-design-icons/Routes.vue';
 import Account from 'vue-material-design-icons/Account.vue';
-import RouteIcon from 'vue-material-design-icons/Routes.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -28,6 +28,10 @@ const props = defineProps({
   stations: {
     type: Object,
     default: () => ({ data: [] })
+  },
+  destinations: {
+    type: Array, // Passed from controller
+    default: () => []
   }
 });
 
@@ -50,8 +54,8 @@ const form = ref({
 
 // Tabs configuration - only related tables, not details
 const tabs = [
-  { id: 'destinations', label: 'Destinations', icon: MapMarker },
-  { id: 'routes', label: 'Trajets', icon: RouteIcon },
+  { id: 'destinations', label: 'Destinations', icon: MapMarkerRadius },
+  { id: 'routes', label: 'Trajets', icon: Routes },
   { id: 'sellers', label: 'Vendeurs', icon: Account, countKey: 'user_assignments_count' },
 ];
 
@@ -198,6 +202,7 @@ const openCreateModal = () => {
   form.value = {
     code: '',
     name: '',
+    destination_id: '', // New field
     city: '',
     address: '',
     active: true
@@ -212,6 +217,7 @@ const openEditModal = () => {
   form.value = {
     code: selectedStation.value.code,
     name: selectedStation.value.name,
+    destination_id: selectedStation.value.destination_id, // Load existing
     city: selectedStation.value.city,
     address: selectedStation.value.address || '',
     active: selectedStation.value.active
@@ -225,6 +231,7 @@ const closeModal = () => {
   form.value = {
     code: '',
     name: '',
+    destination_id: '',
     city: '',
     address: '',
     active: true
@@ -295,14 +302,14 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
-              <MapMarker class="text-green-600" :size="28" />
+              <OfficeBuilding class="text-green-600" :size="28" />
             </div>
             Gestion des Stations
           </h1>
@@ -311,17 +318,17 @@ const handlePrint = () => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Stations List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+             <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -343,14 +350,14 @@ const handlePrint = () => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredStations.length === 0" class="p-4 text-center text-gray-500">
                 Aucune station trouvée.
               </div>
               <div v-else>
                 <div v-for="station in filteredStations" :key="station.id" 
                   @click="selectStation(station)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(station) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(station) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -380,10 +387,10 @@ const handlePrint = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedStation" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+            <OfficeBuilding class="h-16 w-16 text-orange-200 mb-4" />
             <p class="text-lg">Sélectionnez une station pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
               ou créez une nouvelle station
@@ -474,7 +481,7 @@ const handlePrint = () => {
                       :key="dest.id"
                       class="flex items-center p-3 bg-gray-50 rounded-lg"
                     >
-                      <MapMarker class="h-6 w-6 text-orange-500 mr-3" />
+                      <OfficeBuilding class="h-6 w-6 text-orange-500 mr-3" />
                       <div>
                         <p class="font-medium text-gray-800">{{ dest.name }}</p>
                         <p class="text-xs text-gray-500">{{ dest.city }}</p>
@@ -556,22 +563,34 @@ const handlePrint = () => {
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
+              <InputLabel for="destination" value="Ville / Destination*" />
+              <select id="destination" v-model="form.destination_id" class="w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-md shadow-sm">
+                <option value="">Sélectionner...</option>
+                <option v-for="dest in destinations" :key="dest.id" :value="dest.id">
+                  {{ dest.name }}
+                </option>
+              </select>
+              <InputError :message="errors.destination_id" />
+            </div>
+            <div>
               <InputLabel for="code" value="Code (unique)" />
               <TextInput v-model="form.code" id="code" class="w-full" placeholder="Ex: ABJ" />
               <InputError :message="errors.code" />
             </div>
-            <div>
-              <InputLabel for="city" value="Ville" />
-              <TextInput v-model="form.city" id="city" class="w-full" placeholder="Ex: Abidjan" />
-              <InputError :message="errors.city" />
-            </div>
           </div>
 
           <div>
-            <InputLabel for="name" value="Nom de la station" />
-            <TextInput v-model="form.name" id="name" class="w-full" placeholder="Ex: Gare Nord" />
-            <InputError :message="errors.name" />
+             <InputLabel for="name" value="Nom de la station" />
+             <TextInput v-model="form.name" id="name" class="w-full" placeholder="Ex: Gare Nord" />
+             <InputError :message="errors.name" />
           </div>
+
+          <!-- Hidden city field, as it is derived from destination now, but kept if user wants custom display city -->
+          <!-- <div>
+              <InputLabel for="city" value="Ville (Affichage)" />
+              <TextInput v-model="form.city" id="city" class="w-full" placeholder="Ex: Abidjan" />
+              <InputError :message="errors.city" />
+            </div> -->
 
           <div>
             <InputLabel for="address" value="Adresse" />
@@ -594,3 +613,19 @@ const handlePrint = () => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

@@ -16,97 +16,89 @@ class RouteController extends Controller
     public function index()
     {
         $routes = BusRoute::with([
-            'originStation', 
-            'destinationStation',
-            'routeStopOrders.stop.station',
+            'originDestination', 
+            'targetDestination',
+            'originStation', // Optional
+            'destinationStation', // Optional
+            'routeStopOrders.station', // Changed from stop.station
             'trips.vehicle'
         ])
         ->withCount(['trips', 'routeStopOrders'])
         ->orderBy('name')
         ->paginate(50);
             
-        $stations = Station::orderBy('name')->get(['id', 'name', 'city']);
-        $stops = \App\Models\Stop::with('station')->orderBy('name')->get()->map(function ($stop) {
+        $destinations = \App\Models\Destination::orderBy('name')->get(['id', 'name']);
+        
+        // Provide all stations for intermediate stops selection
+        $stations = Station::with('destination')->orderBy('name')->get()->map(function ($station) {
             return [
-                'id' => $stop->id,
-                'name' => $stop->name,
-                'city' => $stop->station ? $stop->station->city : null,
+                'id' => $station->id,
+                'name' => $station->name,
+                'city' => $station->destination ? $station->destination->name : $station->city,
+                'destination_id' => $station->destination_id
             ];
         });
         
-        // Get all fares for frontend to compute matched fares per route
-        $fares = \App\Models\RouteFare::with(['fromStop', 'toStop'])->get();
+        // Get all fares
+        $fares = \App\Models\RouteFare::with(['fromStation', 'toStation'])->get(); // Changed relations
         
         return Inertia::render('Admin/Routes/Index', [ 
             'routes' => $routes,
+            'destinations' => $destinations,
             'stations' => $stations,
-            'stops' => $stops,
+            // 'stops' removed as concept
             'fares' => $fares
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         return Inertia::render('Admin/Routes/Form', [
-            'stations' => Station::orderBy('name')->get(['id','name','city','code'])
+            'destinations' => \App\Models\Destination::orderBy('name')->get(),
+            'stations' => Station::orderBy('name')->get()
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $data = $request->validate([
             'name' => 'required|string',
-            'origin_station_id' => 'required|uuid|exists:stations,id',
-            'destination_station_id' => 'required|uuid|exists:stations,id',
+            'origin_destination_id' => 'required|uuid|exists:destinations,id',
+            'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
         ]);
+        
         BusRoute::create($data);
         return redirect()->route('admin.routes.index');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(BusRoute $route)
     {
         return redirect()->route('admin.routes.edit', $route);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(BusRoute $route)
     {
         return Inertia::render('Admin/Routes/Form', [
             'routeItem' => $route,
-            'stations' => Station::orderBy('name')->get(['id','name','city','code'])
+            'destinations' => \App\Models\Destination::orderBy('name')->get(),
+            'stations' => Station::orderBy('name')->get()
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, BusRoute $route)
     {
         $data = $request->validate([
             'name' => 'required|string',
-            'origin_station_id' => 'required|uuid|exists:stations,id',
-            'destination_station_id' => 'required|uuid|exists:stations,id',
+            'origin_destination_id' => 'required|uuid|exists:destinations,id',
+            'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
         ]);
+        
         $route->update($data);
         return redirect()->route('admin.routes.index');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(BusRoute $route)
     {
         $route->delete();

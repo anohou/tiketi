@@ -12,9 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
         then: function () {
-            // Load landlord routes for central domain (tenant management)
-            \Illuminate\Support\Facades\Route::middleware('web')
-                ->group(base_path('routes/landlord.php'));
+            // Load landlord routes for central domain ONLY (tenant management)
+            $centralDomains = config('tenancy.central_domains', []);
+
+            foreach ($centralDomains as $domain) {
+                \Illuminate\Support\Facades\Route::middleware('web')
+                    ->domain($domain)
+                    ->group(base_path('routes/landlord.php'));
+            }
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

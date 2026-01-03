@@ -11,6 +11,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 
+import Checkbox from '@/Components/Checkbox.vue';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
@@ -47,7 +48,9 @@ const form = ref({
   identifier: '',
   maker: '',
   vehicle_type_id: '',
-  seat_count: ''
+  seat_count: '',
+  active: true,
+  inactive_reason: ''
 });
 
 // Computed
@@ -90,7 +93,9 @@ const openCreateModal = () => {
     identifier: '',
     maker: '',
     vehicle_type_id: '',
-    seat_count: ''
+    seat_count: '',
+    active: true,
+    inactive_reason: ''
   };
   errors.value = {};
   showModal.value = true;
@@ -103,7 +108,9 @@ const openEditModal = () => {
     identifier: selectedVehicle.value.identifier,
     maker: selectedVehicle.value.maker,
     vehicle_type_id: selectedVehicle.value.vehicle_type_id,
-    seat_count: selectedVehicle.value.seat_count.toString()
+    seat_count: selectedVehicle.value.seat_count.toString(),
+    active: selectedVehicle.value.active !== false,
+    inactive_reason: selectedVehicle.value.inactive_reason || ''
   };
   errors.value = {};
   showModal.value = true;
@@ -115,7 +122,9 @@ const closeModal = () => {
     identifier: '',
     maker: '',
     vehicle_type_id: '',
-    seat_count: ''
+    seat_count: '',
+    active: true,
+    inactive_reason: ''
   };
   errors.value = {};
 };
@@ -173,13 +182,23 @@ const handleExport = () => {
 const handlePrint = () => {
   printList(filteredVehicles.value, vehicleColumns, 'Liste des Véhicules');
 };
+
+const getTripStatus = (trip) => {
+  if (trip.status === 'scheduled') {
+    const departure = new Date(trip.departure_at);
+    if (departure < new Date()) {
+      return 'expired';
+    }
+  }
+  return trip.status;
+};
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -192,17 +211,17 @@ const handlePrint = () => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Vehicles List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -224,14 +243,14 @@ const handlePrint = () => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto" style="max-height: calc(100vh - 280px);">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-gray-500">
                 Aucun véhicule trouvé.
               </div>
               <div v-else>
                 <div v-for="vehicle in filteredVehicles" :key="vehicle.id" 
                   @click="selectVehicle(vehicle)"
-                  class="p-3 cursor-pointer transition-colors"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
                   :style="{
                     backgroundColor: isSelected(vehicle) ? '#f0fdf4' : '#ffffff',
                     borderLeft: isSelected(vehicle) ? '4px solid #16a34a' : '4px solid #fed7aa'
@@ -242,14 +261,14 @@ const handlePrint = () => {
                       <h3 :class="['text-base font-bold', isSelected(vehicle) ? 'text-green-800' : 'text-gray-800']">{{ vehicle.identifier }}</h3>
                       <p class="text-sm text-gray-500 mt-1">{{ vehicle.vehicle_type?.name }}</p>
                     </div>
-                    <div class="flex flex-col items-end gap-1">
+                    <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
-                        'px-2 py-0.5 rounded-full text-xs font-medium',
+                        'px-2 py-0.5 rounded-full text-[10px] font-medium',
                         vehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       ]">
                         {{ vehicle.active ? 'Active' : 'Inactive' }}
                       </span>
-                      <span class="text-xs text-gray-400">
+                      <span class="text-[10px] text-gray-400">
                         {{ vehicle.trips_count || 0 }} voyages
                       </span>
                     </div>
@@ -261,7 +280,7 @@ const handlePrint = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedVehicle" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
@@ -308,6 +327,13 @@ const handlePrint = () => {
                     {{ selectedVehicle.seat_count }} places
                   </div>
                 </div>
+                
+                <div class="col-span-12" v-if="!selectedVehicle.active">
+                   <div class="p-4 rounded-lg bg-red-50 border border-red-100">
+                      <span class="text-xs text-red-600 uppercase tracking-wider font-bold block mb-1">MOTIF D'INACTIVITÉ</span>
+                      <p class="text-red-800">{{ selectedVehicle.inactive_reason || 'Raison non spécifiée' }}</p>
+                   </div>
+                </div>
               </div>
             </div>
 
@@ -341,16 +367,18 @@ const handlePrint = () => {
                     </div>
                     <span :class="[
                       'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      trip.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                      trip.status === 'departed' ? 'bg-purple-100 text-purple-800' :
-                      trip.status === 'arrived' ? 'bg-green-100 text-green-800' :
-                      trip.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      getTripStatus(trip) === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                      getTripStatus(trip) === 'departed' ? 'bg-purple-100 text-purple-800' :
+                      getTripStatus(trip) === 'arrived' ? 'bg-green-100 text-green-800' :
+                      getTripStatus(trip) === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      getTripStatus(trip) === 'expired' ? 'bg-gray-100 text-gray-800' :
                       'bg-gray-100 text-gray-800'
                     ]">
-                      {{ trip.status === 'scheduled' ? 'Programmé' :
-                         trip.status === 'departed' ? 'Effectué' :
-                         trip.status === 'arrived' ? 'Arrivé' :
-                         trip.status === 'cancelled' ? 'Annulé' :
+                      {{ getTripStatus(trip) === 'scheduled' ? 'Programmé' :
+                         getTripStatus(trip) === 'departed' ? 'Effectué' :
+                         getTripStatus(trip) === 'arrived' ? 'Arrivé' :
+                         getTripStatus(trip) === 'cancelled' ? 'Annulé' :
+                         getTripStatus(trip) === 'expired' ? 'Passé' :
                          trip.status }}
                     </span>
                   </div>
@@ -363,7 +391,7 @@ const handlePrint = () => {
     </div>
 
     <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
         {{ isEditing ? 'Modifier le Véhicule' : 'Nouveau Véhicule' }}
       </template>
@@ -407,6 +435,26 @@ const handlePrint = () => {
               <InputError :message="errors.seat_count" />
             </div>
           </div>
+          
+          <div class="flex items-center">
+             <label class="flex items-center text-sm text-gray-700 cursor-pointer">
+                <Checkbox v-model:checked="form.active" />
+                <span class="ml-2">Véhicule Actif</span>
+             </label>
+          </div>
+
+          <div v-if="!form.active">
+            <InputLabel for="inactive_reason" value="Motif d'inactivité" />
+            <textarea
+              id="inactive_reason"
+              v-model="form.inactive_reason"
+              rows="3"
+              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              placeholder="Expliquez pourquoi le véhicule est inactif (panne, garage, etc.)"
+              required
+            ></textarea>
+            <InputError :message="errors.inactive_reason" />
+          </div>
         </div>
       </template>
       <template #footer>
@@ -418,3 +466,19 @@ const handlePrint = () => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+</style>

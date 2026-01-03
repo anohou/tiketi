@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Stop;
+
 use App\Models\Trip;
 use App\Services\OptimisationService;
 use Illuminate\Http\Request;
@@ -34,7 +34,7 @@ class TripController extends Controller
             // Le contrôle sales_control s'applique uniquement au moment de la vente
             $query->whereHas('route', function($q) use ($assignedStationIds) {
                 $q->whereIn('origin_station_id', $assignedStationIds)
-                  ->orWhereHas('stops', function($sq) use ($assignedStationIds) {
+                  ->orWhereHas('routeStopOrders', function($sq) use ($assignedStationIds) {
                       $sq->whereIn('station_id', $assignedStationIds);
                   });
             });
@@ -46,21 +46,21 @@ class TripController extends Controller
     public function suggestSeats(Request $request, Trip $trip)
     {
         $validated = $request->validate([
-            'destination_stop_id' => 'required|uuid|exists:stops,id',
-            'boarding_stop_id' => 'sometimes|uuid|exists:stops,id', // For semi-intelligent mode
+            'destination_station_id' => 'required|uuid|exists:stations,id',
+            'boarding_station_id' => 'sometimes|uuid|exists:stations,id', // For semi-intelligent mode
             'quantity' => 'sometimes|integer|min:1',
         ]);
 
-        $destinationStopId = $validated['destination_stop_id'];
-        $boardingStopId = $validated['boarding_stop_id'] ?? null;
+        $destinationStationId = $validated['destination_station_id'];
+        $boardingStationId = $validated['boarding_station_id'] ?? null;
         $quantity = $validated['quantity'] ?? 1;
 
         // Utiliser le service d'optimisation
         $suggestions = $this->optimisationService->getSuggestedSeats(
             $trip->id, 
-            $destinationStopId, 
+            $destinationStationId, 
             $quantity,
-            $boardingStopId
+            $boardingStationId
         );
         $stats = $this->optimisationService->getTripOccupancyStats($trip->id);
 
@@ -79,59 +79,58 @@ class TripController extends Controller
     public function seatMap(Trip $trip, Request $request)
     {
         $validated = $request->validate([
-            'from_stop_id' => 'nullable|uuid',
-            'to_stop_id' => 'nullable|uuid',
+            'from_station_id' => 'nullable|uuid',
+            'to_station_id' => 'nullable|uuid',
         ]);
         
-        $reqFromId = $validated['from_stop_id'] ?? null;
-        $reqToId = $validated['to_stop_id'] ?? null;
+        $reqFromId = $validated['from_station_id'] ?? null;
+        $reqToId = $validated['to_station_id'] ?? null;
 
-        $trip->load(['vehicle.vehicleType', 'tripSeatOccupancies.ticket.toStop', 'tripSeatOccupancies.ticket.fromStop', 'route.stops']);
+        $trip->load(['vehicle.vehicleType', 'tripSeatOccupancies.ticket.toStation', 'tripSeatOccupancies.ticket.fromStation', 'route.routeStopOrders']);
 
         $vehicleType = $trip->vehicle->vehicleType;
         $seatCount = $vehicleType->seat_count;
         $config = $vehicleType->seat_configuration ?? '2+2';
         $parts = array_map('intval', explode('+', $config));
-        $seatsPerRow = array_sum($parts);
         
-        $stopsOnRoute = $trip->route->stops->pluck('id')->toArray();
-        $totalStops = count($stopsOnRoute);
+        // Map station_id => stop_index using routeStopOrders
+        $stationIndices = $trip->route?->routeStopOrders?->pluck('stop_index', 'station_id')?->toArray() ?? [];
+        $totalStops = count($stationIndices);
         
-        // Determine requested segment indices
+        // Determine requested segment indices (default to full route if not provided)
         $reqStartIndex = 0;
-        $reqEndIndex = $totalStops - 1; // Default to full route
+        $reqEndIndex = max(0, $totalStops - 1); 
         
-        if ($reqFromId) {
-             $idx = array_search($reqFromId, $stopsOnRoute);
-             if ($idx !== false) $reqStartIndex = $idx;
+        if ($reqFromId && isset($stationIndices[$reqFromId])) {
+             $reqStartIndex = $stationIndices[$reqFromId];
         }
-        if ($reqToId) {
-             $idx = array_search($reqToId, $stopsOnRoute);
-             if ($idx !== false) $reqEndIndex = $idx;
+        if ($reqToId && isset($stationIndices[$reqToId])) {
+             $reqEndIndex = $stationIndices[$reqToId];
         }
 
-        $occupiedSeatsLookup = $trip->tripSeatOccupancies->keyBy('seat_number')->filter(function ($occupancy) use ($stopsOnRoute, $reqStartIndex, $reqEndIndex) {
+        $occupiedSeatsLookup = $trip->tripSeatOccupancies->keyBy('seat_number')->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
             if (!$occupancy->ticket) {
-                return false; // Should not happen for occupancy record, but safe to ignore if no ticket linked
+                return false; 
             }
             
             // Get Ticket Segment Indices
-            $ticketFromIdx = array_search($occupancy->ticket->from_stop_id, $stopsOnRoute);
-            $ticketToIdx = array_search($occupancy->ticket->to_stop_id, $stopsOnRoute);
+            $ticketFromIdx = $stationIndices[$occupancy->ticket->from_station_id] ?? null;
+            $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
             
-            // Safety fallback: if stops not found in current route (e.g. route changed), assume occupied
-            if ($ticketFromIdx === false || $ticketToIdx === false) return true;
+            // Safety fallback: if stations not found in current route, assume occupied to be safe
+            if ($ticketFromIdx === null || $ticketToIdx === null) return true;
             
             // Check Overlap: [TicketStart, TicketEnd) vs [ReqStart, ReqEnd)
             // Overlap condition: Start1 < End2 && Start2 < End1
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
             
-        })->map(function ($occupancy) use ($stopsOnRoute, $totalStops) {
-            $ticketToIdx = array_search($occupancy->ticket->to_stop_id, $stopsOnRoute);
-            $stopOrder = $ticketToIdx !== false ? $ticketToIdx + 1 : $totalStops;
+        })->map(function ($occupancy) use ($stationIndices, $totalStops) {
+            $ticketToStation = $occupancy->ticket->toStation;
+            $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
+            $stopOrder = $ticketToIdx !== null ? $ticketToIdx + 1 : $totalStops;
             
             return [
-                'destination_name' => $occupancy->ticket->toStop->name ?? 'Inconnu',
+                'destination_name' => $ticketToStation->name ?? 'Inconnu',
                 'color' => $this->getStopColor($stopOrder, $totalStops)
             ];
         });
@@ -144,8 +143,14 @@ class TripController extends Controller
             return $pos > 0;
         });
         
-        // Use the stored seat map from VehicleType as the source of truth
-        $storedSeatMap = $vehicleType->seat_map ?? [];
+        // Use SeatMapService to ensure we have a valid 2D grid
+        $seatMapService = app(\App\Services\SeatMapService::class);
+        $storedSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
+            'seat_count' => $seatCount,
+            'seat_configuration' => $config,
+            'door_positions' => $dbDoorPositions,
+            'last_row_seats' => $vehicleType->last_row_seats ?? 5
+        ]);
         
         $seatMap = [];
         $processedSeatsCount = 0;

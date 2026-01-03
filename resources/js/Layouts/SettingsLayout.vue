@@ -7,7 +7,7 @@ import Earth from 'vue-material-design-icons/Earth.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Router from 'vue-material-design-icons/Router.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Car from 'vue-material-design-icons/Car.vue';
@@ -20,7 +20,7 @@ const menuItems = computed(() => [
   {
     route: 'admin.stations.index',
     label: 'Gares',
-    icon: MapMarker
+    icon: OfficeBuilding
   },
   {
     route: 'admin.routes.index',

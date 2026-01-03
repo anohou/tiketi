@@ -9,7 +9,7 @@ import CashMultiple from 'vue-material-design-icons/CashMultiple.vue'
 import Ticket from 'vue-material-design-icons/Ticket.vue'
 import Bus from 'vue-material-design-icons/Bus.vue'
 import Account from 'vue-material-design-icons/Account.vue'
-import MapMarker from 'vue-material-design-icons/MapMarker.vue'
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue'
 import Routes from 'vue-material-design-icons/Routes.vue'
 import Database from 'vue-material-design-icons/Database.vue'
 import CheckCircle from 'vue-material-design-icons/CheckCircle.vue'
@@ -314,8 +314,8 @@ onMounted(() => {
             >
               <div class="flex items-center gap-3">
                 <div class="p-2 bg-gray-100 group-hover:bg-green-100 rounded-lg transition-colors">
-                  <MapMarker v-if="link.icon === 'station'" :size="18" class="text-gray-500 group-hover:text-green-600" />
-                  <MapMarker v-else-if="link.icon === 'stop'" :size="18" class="text-gray-500 group-hover:text-green-600" />
+                  <OfficeBuilding v-if="link.icon === 'station'" :size="18" class="text-gray-500 group-hover:text-green-600" />
+                  <OfficeBuilding v-else-if="link.icon === 'stop'" :size="18" class="text-gray-500 group-hover:text-green-600" />
                   <Routes v-else-if="link.icon === 'route'" :size="18" class="text-gray-500 group-hover:text-green-600" />
                   <Bus v-else-if="link.icon === 'vehicle' || link.icon === 'vehicle-type'" :size="18" class="text-gray-500 group-hover:text-green-600" />
                   <Play v-else-if="link.icon === 'trip'" :size="18" class="text-gray-500 group-hover:text-green-600" />

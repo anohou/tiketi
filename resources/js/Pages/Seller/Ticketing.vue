@@ -9,7 +9,7 @@ import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Cash from 'vue-material-design-icons/Cash.vue';
 import Check from 'vue-material-design-icons/Check.vue';
@@ -33,7 +33,11 @@ const props = defineProps({
   routes: Array,
   vehicles: Array,
   hasActiveAssignment: Boolean,
-  assignedStation: String
+  assignedStation: String,
+  destinations: {
+    type: Array,
+    default: () => []
+  }
 });
 
 // Get page props for auth user
@@ -45,6 +49,7 @@ const selectedTripId = ref(null);
 const selectedFare = ref(null);
 const ticketQuantity = ref(1);
 const searchQuery = ref('');
+const selectedDestinationId = ref(''); // Added for filtering by City
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
 const suggestedSeats = ref([]);
@@ -138,91 +143,122 @@ const currentTrip = computed(() => {
 });
 
 const filteredTrips = computed(() => {
-  if (!searchQuery.value) return trips.value;
-  const query = searchQuery.value.toLowerCase();
-  return trips.value.filter(trip => 
-    trip.display_name?.toLowerCase().includes(query) ||
-    trip.vehicle?.identifier?.toLowerCase().includes(query)
-  );
+  let filtered = trips.value;
+  
+  // 1. Filter by Destination (City) if selected
+  if (selectedDestinationId.value) {
+      filtered = filtered.filter(trip => {
+          // Check Route Target
+          if (trip.route?.target_destination_id === selectedDestinationId.value) return true;
+          if (trip.route?.destination_station?.destination_id === selectedDestinationId.value) return true;
+          
+          // Check intermediate stops (if the city is an intermediate stop)
+          // We need to check if any stop's station belongs to this city
+          const stops = trip.route?.routeStopOrders || [];
+          return stops.some(stop => stop.station?.destination_id === selectedDestinationId.value);
+      });
+  }
+
+  // 2. Filter by Search Query
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(trip => 
+      trip.display_name?.toLowerCase().includes(query) ||
+      trip.vehicle?.identifier?.toLowerCase().includes(query)
+    );
+  }
+  
+  return filtered;
 });
 
 const availableFares = computed(() => {
     if (!currentTrip.value) return [];
     
     const route = currentTrip.value.route;
-    const stops = route?.stops || [];
-    
-    // If no stops are loaded, we can't filter precisely, so show everything relevant to this seller
-    if (stops.length === 0) return props.routeFares;
+    // stops (intermediate)
+    // Handle both snake_case (default Laravel) and camelCase (potential JS transform)
+    const stops = route?.route_stop_orders || route?.routeStopOrders || [];
 
-    // Use the order of the 'stops' array directly, as it's ordered by stop_index in the backend
-    const stopIndexMap = {};
-    const stationIndexMap = {};
+    console.log('Ticketing Debug: Route', route);
+    console.log('Ticketing Debug: Stops', stops);
     
-    stops.forEach((s, index) => {
-        stopIndexMap[s.id] = index;
-        if (s.station_id) {
-            stationIndexMap[s.station_id] = index;
-        }
+    // Build a Set of ALL allowed Station IDs for this route
+    // This includes: Origin, Destination, and all Intermediate Stops
+    const allowedStationIds = new Set();
+    
+    if (route.origin_station_id) allowedStationIds.add(route.origin_station_id);
+    if (route.destination_station_id) allowedStationIds.add(route.destination_station_id);
+    
+    // Add intermediate stations
+    // Handle both direct station_id and nested station object
+    stops.forEach(s => {
+        if (s.station_id) allowedStationIds.add(s.station_id);
+        if (s.station?.id) allowedStationIds.add(s.station.id);
     });
     
-    const totalStops = stops.length;
+    // Also build IndexMap for direction/ordering logic
+    const stationIndexMap = {};
+    if (route.origin_station_id) stationIndexMap[route.origin_station_id] = -1; // Start
+    
+    stops.forEach((s, index) => {
+        const sId = s.station_id || s.station?.id;
+        if (sId) stationIndexMap[sId] = index;
+    });
+    
+    if (route.destination_station_id) {
+         // Ensure Destination is last
+         stationIndexMap[route.destination_station_id] = 9999;
+    }
 
     // Check for reversed trip (Trip Origin == Route Destination)
     const isReversedTrip = currentTrip.value.origin_station_id && 
                            route.destination_station_id && 
                            currentTrip.value.origin_station_id === route.destination_station_id;
 
+    // Filter Fares
     const filtered = props.routeFares.filter(fare => {
-        // Handle potential naming differences (snake_case vs camelCase)
-        const fromStop = fare.from_stop || fare.fromStop;
-        const toStop = fare.to_stop || fare.toStop;
-        
-        // Priority 1: Match by Stop IDs
-        const fromIdx = stopIndexMap[fare.from_stop_id];
-        const toIdx = stopIndexMap[fare.to_stop_id];
+        // Handle potential naming differences
+        const fromStation = fare.from_station || fare.fromStation;
+        const toStation = fare.to_station || fare.toStation;
+
+        // IDs from the fare object
+        const fareFromId = fare.from_station_id || fromStation?.id;
+        const fareToId = fare.to_station_id || toStation?.id;
+
+        if (!fareFromId || !fareToId) return false;
+
+        // STRICT CHECK 1: Both stations must be on the route
+        if (!allowedStationIds.has(fareFromId) || !allowedStationIds.has(fareToId)) {
+            return false;
+        }
+
+        // STRICT CHECK 2: For Admin/No-Assignment, force strict origin comparison?
+        // Actually, if we just want valid segments on the route, strict origin might not be needed 
+        // if we trust the route set. But typically ticketing starts from the Trip Origin.
+        if (!props.assignedStation) {
+             const tripOriginId = currentTrip.value.origin_station_id || route.origin_station_id;
+             if (tripOriginId && fareFromId !== tripOriginId) {
+                 return false;
+             }
+        }
+
+        // Direction Check using IndexMap
+        const fromIdx = stationIndexMap[fareFromId];
+        const toIdx = stationIndexMap[fareToId];
         
         if (fromIdx !== undefined && toIdx !== undefined) {
-            // If reversed trip, we move from High Index -> Low Index
-            // Backend already swaps from/to in the fare object for display
-            // So 'from' is High Index (Source), 'to' is Low Index (Dest)
-            return isReversedTrip ? fromIdx > toIdx : fromIdx < toIdx;
+             return isReversedTrip ? fromIdx > toIdx : fromIdx < toIdx;
         }
         
-        // Priority 2: Match by Station IDs
-        const fromStationId = fromStop?.station_id || fromStop?.station?.id;
-        const toStationId = toStop?.station_id || toStop?.station?.id;
-        
-        if (fromStationId && toStationId) {
-            const fromStationIdx = stationIndexMap[fromStationId];
-            const toStationIdx = stationIndexMap[toStationId];
-            
-            if (fromStationIdx !== undefined && toStationIdx !== undefined) {
-                 return isReversedTrip ? fromStationIdx > toStationIdx : fromStationIdx < toStationIdx;
-            }
-        }
-        
-        // Priority 3: Filter by Trip Origin
-        // Even if we fail index check, ensure the fare STARTS at our current location
-        const fareFromStationId = fromStop?.station_id || fromStop?.station?.id;
-        if (fareFromStationId && currentTrip.value.origin_station_id) {
-             if (fareFromStationId !== currentTrip.value.origin_station_id) {
-                 return false; 
-             }
-             return true;
-        }
-        
+        // Fallback direction check (rare if map is complete)
         return false;
     });
 
-    // Final Fallback: If filtering resulted in 0 fares, show nothing to avoid confusion
-    const results = filtered;
-
     // Sort by amount (cheapest/closest first)
-    const sortedResults = [...results].sort((a, b) => a.amount - b.amount);
+    const sortedResults = [...filtered].sort((a, b) => a.amount - b.amount);
 
     return sortedResults.map((fare, index) => {
-        // Color based on position in sorted list (closer = lighter blue, further = darker blue/purple)
+        // Color based on position in sorted list
         const ratio = sortedResults.length > 1 ? index / (sortedResults.length - 1) : 0;
         const hue = 210 + (ratio * 30);
         const lightness = 75 - (ratio * 40);
@@ -283,8 +319,9 @@ const fetchSeatMap = async () => {
   };
   
   if (selectedFare.value) {
-    params.from_stop_id = selectedFare.value.from_stop_id;
-    params.to_stop_id = selectedFare.value.to_stop_id;
+    // UPDATED: Use station_id
+    params.from_station_id = selectedFare.value.from_station_id;
+    params.to_station_id = selectedFare.value.to_station_id;
   }
   
   try {
@@ -307,7 +344,8 @@ const fetchSeatSuggestions = async () => {
             trip: selectedTripId.value 
         }), {
             params: {
-                destination_stop_id: selectedFare.value.to_stop_id,
+                // UPDATED: Use station_id
+                destination_station_id: selectedFare.value.to_station_id,
                 quantity: 1
             }
         });
@@ -413,8 +451,9 @@ const confirmBooking = () => {
 
   const ticketData = {
     trip_id: selectedTripId.value,
-    from_stop_id: selectedFare.value.from_stop_id,
-    to_stop_id: selectedFare.value.to_stop_id,
+    // UPDATED: Use station_id
+    from_station_id: selectedFare.value.from_station_id,
+    to_station_id: selectedFare.value.to_station_id,
     seats: [selectedSeatNumber.value],
     amount: selectedFare.value.amount, // Use selectedFare.value.amount directly
     seller_id: page.props.auth.user.id,
@@ -511,8 +550,8 @@ const printWithBluetooth = async (ticketId) => {
     const ticketData = {
       ticket_number: ticket.ticket_number || 'N/A',
       route_name: ticket.trip?.route?.name || 'N/A',
-      from_stop: ticket.from_stop?.name || 'N/A',
-      to_stop: ticket.to_stop?.name || 'N/A',
+      from_stop: ticket.from_station?.name || 'N/A',
+      to_stop: ticket.to_station?.name || 'N/A',
       date: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleDateString('fr-FR') : 'N/A',
       time: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
       class: ticket.trip?.vehicle?.vehicle_type?.name || 'Standard',
@@ -738,7 +777,7 @@ onMounted(async () => {
                class="flex-1 flex items-center justify-center">
             <div class="bg-white border border-orange-200 p-12 rounded-3xl flex flex-col items-center text-center shadow-lg max-w-lg">
               <div class="p-5 bg-orange-50 rounded-full shadow-sm mb-6">
-                <MapMarker class="w-16 h-16 text-orange-500" />
+                <OfficeBuilding class="w-16 h-16 text-orange-500" />
               </div>
               <h2 class="text-2xl font-black text-gray-900 mb-3">Aucune station assignée</h2>
               <p class="text-gray-600 mb-6 leading-relaxed">
@@ -767,7 +806,7 @@ onMounted(async () => {
                 <div class="flex items-center gap-3">
                   <h1 class="text-3xl font-black text-gray-900 tracking-tight">Billetterie</h1>
                   <div v-if="assignedStation" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
-                      <MapMarker :size="14" />
+                      <OfficeBuilding :size="14" />
                       {{ assignedStation }}
                   </div>
                 </div>
@@ -807,6 +846,31 @@ onMounted(async () => {
                     </button>
                   </div>
                 </div>
+                <!-- Filter Section -->
+                <div class="px-5 py-3 border-b border-orange-50 bg-white space-y-3">
+                  <!-- Destination Filter -->
+                  <div>
+                      <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Ville d'Arrivée</label>
+                      <select v-model="selectedDestinationId" class="w-full border-gray-200 rounded-lg text-sm focus:border-green-500 focus:ring-green-500 bg-gray-50">
+                          <option value="">Toutes les destinations</option>
+                          <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
+                      </select>
+                  </div>
+                  <!-- Search -->
+                  <div class="relative">
+                    <input 
+                      type="text" 
+                      v-model="searchQuery"
+                      placeholder="Rechercher un voyage..." 
+                      class="w-full pl-9 pr-4 py-2 border-gray-200 rounded-lg text-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 placeholder-gray-400"
+                    />
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
                 <div class="flex-1 p-3 overflow-y-auto">
                   <!-- Mobile: Show only selected trip -->
                   <div v-if="isMobile && currentTrip" class="bg-white rounded-xl border border-green-200 p-3 shadow-sm relative overflow-hidden">
@@ -839,9 +903,9 @@ onMounted(async () => {
                   </div>
 
                   <!-- Desktop: Show all trips with highlighted selected -->
-                  <div v-if="!isMobile && trips.length > 0" class="space-y-3">
+                  <div v-if="!isMobile && filteredTrips.length > 0" class="space-y-3">
                     <div 
-                      v-for="trip in trips" 
+                      v-for="trip in filteredTrips" 
                       :key="trip.id"
                       @click="selectTrip(trip.id)"
                       :class="[
@@ -952,22 +1016,22 @@ onMounted(async () => {
                          :class="[
                            'relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-300 active:scale-[0.98] border-2 shadow-sm',
                            selectedFare?.id === fare.id 
-                             ? 'ring-2 ring-offset-2 scale-[1.02] shadow-xl' 
+                             ? 'ring-2 ring-offset-2 scale-[1.02] shadow-xl border-red-500 ring-red-500' 
                              : 'border-transparent hover:shadow-lg hover:scale-[1.01]'
                          ]"
                          :style="{
-                           backgroundColor: fare.color,
-                           '--tw-ring-color': fare.color
+                           backgroundColor: fare.color || '#4F46E5',
+                           '--tw-ring-color': selectedFare?.id === fare.id ? '#ef4444' : (fare.color || '#4F46E5')
                          }"
                     >
                       <!-- Horizontal Layout: Destination Left, Price Right -->
                       <div class="p-3 flex items-center justify-between">
                         <div class="flex-1 min-w-0 mr-3">
                           <div class="text-white text-base font-bold truncate">
-                            {{ fare.to_stop?.name }}
+                            {{ fare.to_station?.name }}
                           </div>
                           <div class="text-white/70 text-[10px] font-medium">
-                            → depuis {{ fare.from_stop?.name?.split(' - ')[1] || fare.from_stop?.name }}
+                            → depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}
                           </div>
                         </div>
                         <div class="text-right shrink-0 flex items-center gap-2">
@@ -977,9 +1041,7 @@ onMounted(async () => {
                             </div>
                             <div class="text-white/70 text-[10px] font-bold">FCFA</div>
                           </div>
-                          <div v-if="selectedFare?.id === fare.id" class="w-6 h-6 bg-white/30 rounded-full flex items-center justify-center">
-                            <Check class="w-4 h-4 text-white" />
-                          </div>
+                          <!-- Checkmark removed as requested -->
                         </div>
                       </div>
                       <div v-if="ticketQuantity > 1" class="bg-black/10 px-3 py-1 text-white/90 text-[10px] font-bold">
@@ -1031,7 +1093,7 @@ onMounted(async () => {
                         {{ currentTrip?.display_name || '---' }}
                     </div>
                     <div class="text-xs text-gray-500 font-medium">
-                        {{ selectedFare?.from_stop?.name }} → {{ selectedFare?.to_stop?.name }}
+                        {{ selectedFare?.from_station?.name }} → {{ selectedFare?.to_station?.name }}
                     </div>
                 </div>
                 <div class="text-2xl font-black text-green-700 mt-4 px-4 py-2 bg-green-100/50 rounded-xl inline-block border border-green-200">
@@ -1333,7 +1395,7 @@ onMounted(async () => {
                   }) }}</span>
                 </div>
                 <div class="flex items-center text-sm text-gray-600">
-                  <MapMarker class="w-4 h-4 mr-2 text-green-500" />
+                  <OfficeBuilding class="w-4 h-4 mr-2 text-green-500" />
                   <span>Bus: {{ trip.vehicle?.identifier }}</span>
                 </div>
               </div>

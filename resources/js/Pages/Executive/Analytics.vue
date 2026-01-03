@@ -11,7 +11,7 @@ import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Gauge from 'vue-material-design-icons/Gauge.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 
 const props = defineProps({
     kpis: Object,
@@ -272,7 +272,7 @@ onMounted(() => {
                 <!-- Revenue by Station -->
                 <div class="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                     <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
-                        <MapMarker :size="20" class="text-gray-500" />
+                        <OfficeBuilding :size="20" class="text-gray-500" />
                         Revenus par Station
                     </h3>
                     <div class="h-[300px]">

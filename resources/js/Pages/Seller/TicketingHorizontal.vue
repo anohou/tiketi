@@ -9,7 +9,6 @@ import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Cash from 'vue-material-design-icons/Cash.vue';
 import Check from 'vue-material-design-icons/Check.vue';
@@ -158,7 +157,7 @@ const fetchSeatSuggestions = async () => {
             trip: selectedTripId.value 
         }), {
             params: {
-                destination_stop_id: selectedFare.value.to_stop_id,
+                destination_station_id: selectedFare.value.to_station_id,
                 quantity: 1
             }
         });
@@ -222,8 +221,8 @@ const confirmBooking = () => {
 
   const ticketData = {
     trip_id: selectedTripId.value,
-    from_stop_id: selectedFare.value.from_stop_id,
-    to_stop_id: selectedFare.value.to_stop_id,
+    from_station_id: selectedFare.value.from_station_id,
+    to_station_id: selectedFare.value.to_station_id,
     seats: [selectedSeatNumber.value],
     amount: selectedFare.value.amount, // Use selectedFare.value.amount directly
     seller_id: page.props.auth.user.id,
@@ -320,8 +319,8 @@ const printWithBluetooth = async (ticketId) => {
     const ticketData = {
       ticket_number: ticket.ticket_number || 'N/A',
       route_name: ticket.trip?.route?.name || 'N/A',
-      from_stop: ticket.from_stop?.name || 'N/A',
-      to_stop: ticket.to_stop?.name || 'N/A',
+      from_stop: ticket.from_station?.name || 'N/A',
+      to_stop: ticket.to_station?.name || 'N/A',
       date: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleDateString('fr-FR') : 'N/A',
       time: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
       class: ticket.trip?.vehicle?.vehicle_type?.name || 'Standard',
@@ -568,7 +567,7 @@ onMounted(async () => {
              >
                 <div class="flex flex-col items-center justify-center h-full text-white">
                   <div class="font-bold text-lg mb-1 transition-colors">
-                    {{ fare.to_stop?.name }}
+                    {{ fare.to_station?.name }}
                   </div>
                   <div class="text-xl font-extrabold">
                     {{ fare.amount.toLocaleString('fr-FR') }} F
@@ -666,7 +665,7 @@ onMounted(async () => {
                   <span class="font-semibold">Raison:</span> {{ selectedSeatSuggestion.reason }}
                 </div>
                 <div class="text-sm text-gray-600">{{ currentTrip.route.name }}</div>
-                <div class="text-sm text-gray-600">{{ selectedFare.from_stop.name }} → {{ selectedFare.to_stop.name }}</div>
+                <div class="text-sm text-gray-600">{{ selectedFare.from_station.name }} → {{ selectedFare.to_station.name }}</div>
                 <div class="text-2xl font-bold text-green-600 mt-2">{{ selectedFare.amount }} FCFA</div>
                 
                 <!-- Quantity Input Moved Here -->

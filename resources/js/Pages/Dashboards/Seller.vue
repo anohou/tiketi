@@ -7,7 +7,7 @@ import Plus from 'vue-material-design-icons/Plus.vue'
 import Cash from 'vue-material-design-icons/Cash.vue'
 import MenuOpen from 'vue-material-design-icons/MenuOpen.vue'
 import Clock from 'vue-material-design-icons/Clock.vue'
-import MapMarker from 'vue-material-design-icons/MapMarker.vue'
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import Close from 'vue-material-design-icons/Close.vue'
@@ -68,7 +68,7 @@ const createTrip = () => {
            class="min-h-[70vh] flex items-center justify-center">
         <div class="bg-white border border-orange-200 p-12 rounded-3xl flex flex-col items-center text-center shadow-lg max-w-lg">
           <div class="p-5 bg-orange-50 rounded-full shadow-sm mb-6">
-            <MapMarker class="w-16 h-16 text-orange-500" />
+            <OfficeBuilding class="w-16 h-16 text-orange-500" />
           </div>
           <h2 class="text-2xl font-black text-gray-900 mb-3">Aucune station assignée</h2>
           <p class="text-gray-600 mb-6 leading-relaxed">
@@ -96,7 +96,7 @@ const createTrip = () => {
             <div class="flex items-center gap-3">
               <h1 class="text-3xl font-black text-gray-900 tracking-tight">Tableau de Bord</h1>
               <div v-if="assignedStation" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
-                  <MapMarker :size="14" />
+                  <OfficeBuilding :size="14" />
                   {{ assignedStation }}
               </div>
             </div>
@@ -141,7 +141,7 @@ const createTrip = () => {
               
               <div class="space-y-3 mb-6">
                 <div class="flex items-center gap-2">
-                    <MapMarker :size="16" class="text-gray-400" />
+                    <OfficeBuilding :size="16" class="text-gray-400" />
                     <span class="font-bold text-gray-700 truncate">{{ trip.display_name || trip.route?.name }}</span>
                 </div>
                 <div class="flex items-center gap-4">
@@ -221,7 +221,7 @@ const createTrip = () => {
                 </button>
                 <button class="flex flex-col items-start p-4 bg-gray-50 hover:bg-orange-50 hover:border-orange-200 border border-transparent rounded-2xl transition-all group">
                     <div class="p-2 bg-white rounded-lg shadow-sm mb-3 group-hover:text-orange-600 transition-colors">
-                        <MapMarker :size="20" />
+                        <OfficeBuilding :size="20" />
                     </div>
                     <span class="font-bold text-gray-700 text-sm">Arrêts</span>
                     <span class="text-[10px] text-gray-400">Gérer les stations</span>

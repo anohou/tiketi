@@ -59,7 +59,7 @@ class UserAssignmentController extends Controller
         }
         
         UserStationAssignment::create($data);
-        return redirect()->route('admin.assignments.index');
+        return back();
     }
 
     /**
@@ -104,7 +104,7 @@ class UserAssignmentController extends Controller
         }
         
         $assignment->update($data);
-        return redirect()->route('admin.assignments.index');
+        return back();
     }
 
     /**

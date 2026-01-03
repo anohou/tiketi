@@ -17,7 +17,7 @@ import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Account from 'vue-material-design-icons/Account.vue';
-import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Check from 'vue-material-design-icons/Check.vue';
@@ -265,6 +265,7 @@ const addAssignment = () => {
   if (isEditingAssignment.value && editingAssignment.value) {
     // Update existing assignment
     router.put(route('admin.assignments.update', editingAssignment.value.id), {
+      user_id: selectedUser.value.id,
       station_id: assignmentForm.value.station_id,
       active: editingAssignment.value.active
     }, {
@@ -280,16 +281,19 @@ const addAssignment = () => {
     });
   } else {
     // Create new assignment
-    form.value.post(route('admin.users.stations.store', selectedUser.value.id), {
+    router.post(route('admin.assignments.store'), {
+      user_id: selectedUser.value.id,
       station_id: assignmentForm.value.station_id
     }, {
       preserveScroll: true,
       onSuccess: () => {
         closeAssignmentModal();
-        // Optimistic update handled by watcher or re-fetch
+        processing.value = false; // Ensure processing is reset
       },
       onError: (err) => {
+        processing.value = false;
         console.error(err);
+        errors.value = err; 
       }
     });
   }
@@ -431,10 +435,10 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="w-full px-4 h-[calc(100vh-80px)]">
-      <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <!-- Header with padding -->
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
@@ -447,17 +451,17 @@ const handlePrint = () => {
       </div>
 
       <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 h-full">
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
           <SettingsMenu />
         </div>
 
         <!-- Middle Column - Users List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full">
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
@@ -469,12 +473,12 @@ const handlePrint = () => {
                 </button>
               </div>
               <!-- Role Filter -->
-              <div class="flex gap-1">
+              <div class="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
                 <button 
                   @click="roleFilter = ''"
                   :class="[
-                    'px-2 py-1 text-xs rounded-full transition-colors',
-                    roleFilter === '' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
+                    roleFilter === '' ? 'bg-green-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
                   ]"
                 >
                   Tous
@@ -482,8 +486,8 @@ const handlePrint = () => {
                 <button 
                   @click="roleFilter = 'admin'"
                   :class="[
-                    'px-2 py-1 text-xs rounded-full transition-colors',
-                    roleFilter === 'admin' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                    'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
+                    roleFilter === 'admin' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
                   ]"
                 >
                   Admin
@@ -491,8 +495,8 @@ const handlePrint = () => {
                 <button 
                   @click="roleFilter = 'supervisor'"
                   :class="[
-                    'px-2 py-1 text-xs rounded-full transition-colors',
-                    roleFilter === 'supervisor' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
+                    roleFilter === 'supervisor' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                   ]"
                 >
                   Superviseur
@@ -500,8 +504,8 @@ const handlePrint = () => {
                 <button 
                   @click="roleFilter = 'seller'"
                   :class="[
-                    'px-2 py-1 text-xs rounded-full transition-colors',
-                    roleFilter === 'seller' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
+                    roleFilter === 'seller' ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                   ]"
                 >
                   Vendeur
@@ -518,7 +522,7 @@ const handlePrint = () => {
             </div>
 
             <!-- List Content -->
-            <div class="overflow-y-auto flex-1">
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredUsers.length === 0" class="p-4 text-center text-gray-500">
                 Aucun utilisateur trouvé.
               </div>
@@ -526,7 +530,7 @@ const handlePrint = () => {
                 <div v-for="user in filteredUsers" :key="user.id" 
                   @click="selectUser(user)"
                   :class="[
-                    'p-3 cursor-pointer transition-colors',
+                    'p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0',
                     user.active === false ? 'opacity-60' : ''
                   ]"
                   :style="{
@@ -537,15 +541,15 @@ const handlePrint = () => {
                   <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
-                        <h3 :class="['font-semibold truncate', isSelected(user) ? 'text-green-800' : 'text-gray-800', user.active === false ? 'line-through' : '']">{{ user.name }}</h3>
-                        <span v-if="user.active === false" class="px-1.5 py-0.5 bg-red-100 text-red-600 text-[9px] rounded shrink-0">Inactif</span>
+                        <h3 :class="['text-sm font-semibold truncate', isSelected(user) ? 'text-green-800' : 'text-gray-800', user.active === false ? 'line-through' : '']">{{ user.name }}</h3>
+                        <span v-if="user.active === false" class="px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] rounded shrink-0">Inactif</span>
                       </div>
-                      <p class="text-xs text-gray-500 mt-1 truncate">{{ user.email }}</p>
+                      <p class="text-[10px] text-gray-500 mt-1 truncate">{{ user.email }}</p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-2">
                       <!-- Role Badge -->
                       <span :class="[
-                        'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                        'px-2 py-0.5 rounded-full text-[9px] font-medium',
                         user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
                         user.role === 'supervisor' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
                       ]">
@@ -570,7 +574,7 @@ const handlePrint = () => {
         </div>
 
         <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
+        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
           <div v-if="!selectedUser" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <Account class="h-16 w-16 text-orange-200 mb-4" />
@@ -615,7 +619,7 @@ const handlePrint = () => {
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">RÔLE</span>
                   <div>
                     <span :class="[
-                      'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
+                       'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
                       getRoleColor(selectedUser.role)
                     ]">
                       {{ getRoleLabel(selectedUser.role) }}
@@ -672,7 +676,7 @@ const handlePrint = () => {
                       : 'border-transparent text-gray-500 hover:text-gray-700'
                   ]"
                 >
-                  <MapMarker class="h-4 w-4" />
+                  <OfficeBuilding class="h-4 w-4" />
                   Affectations ({{ (selectedUser.station_assignments || []).length }})
                 </button>
               </div>
@@ -695,7 +699,7 @@ const handlePrint = () => {
 
                   <!-- Empty State -->
                   <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-gray-400">
-                    <MapMarker class="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <OfficeBuilding class="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>Aucune gare affectée</p>
                   </div>
 
@@ -709,18 +713,18 @@ const handlePrint = () => {
                         assignment.active !== false ? 'bg-gray-50 border-gray-100' : 'bg-gray-100 border-gray-200 opacity-60'
                       ]"
                     >
-                      <div class="flex items-center gap-3">
+                      <div class="flex items-center gap-3 border-orange-50">
                         <div :class="[
                           'w-8 h-8 flex items-center justify-center rounded-full',
                           assignment.active !== false ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-500'
                         ]">
-                          <MapMarker class="h-4 w-4" />
+                          <OfficeBuilding class="h-4 w-4" />
                         </div>
                         <div>
-                          <p :class="['font-medium', assignment.active !== false ? 'text-gray-800' : 'text-gray-500']">
+                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-gray-800' : 'text-gray-500']">
                             {{ assignment.station?.name }}
                           </p>
-                          <p class="text-xs text-gray-500">{{ assignment.station?.city }}</p>
+                          <p class="text-[10px] text-gray-500">{{ assignment.station?.city }}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-2">
@@ -762,7 +766,7 @@ const handlePrint = () => {
     </div>
 
     <!-- User Modal -->
-    <DialogModal :show="showModal" @close="closeModal">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
         {{ isEditing ? 'Modifier l\'Utilisateur' : 'Nouvel Utilisateur' }}
       </template>
@@ -878,7 +882,7 @@ const handlePrint = () => {
     </DialogModal>
 
     <!-- Assignment Modal -->
-    <DialogModal :show="showAssignmentModal" @close="closeAssignmentModal">
+    <DialogModal :show="showAssignmentModal" @close="closeAssignmentModal" maxWidth="md">
       <template #title>{{ isEditingAssignment ? 'Modifier l\'Affectation' : 'Affecter une Gare' }}</template>
       <template #content>
         <div class="space-y-4">
@@ -887,13 +891,13 @@ const handlePrint = () => {
             <select
               id="station_id"
               v-model="assignmentForm.station_id"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500"
+              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
               required
             >
               <option value="">Choisir une gare...</option>
               <!-- When editing, show all stations (including current one) -->
               <option 
-                v-for="station in (isEditingAssignment ? $props.stations : availableStations)" 
+                v-for="station in (isEditingAssignment ? stations : availableStations)" 
                 :key="station.id" 
                 :value="station.id"
               >
@@ -921,7 +925,7 @@ const handlePrint = () => {
     </DialogModal>
 
     <!-- Reset Password Modal -->
-    <DialogModal :show="showResetPasswordModal" @close="showResetPasswordModal = false">
+    <DialogModal :show="showResetPasswordModal" @close="showResetPasswordModal = false" maxWidth="md">
       <template #title>Générer un nouveau mot de passe</template>
       <template #content>
         <div class="space-y-4">
@@ -990,3 +994,27 @@ const handlePrint = () => {
     </DialogModal>
   </MainNavLayout>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #fed7aa;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #fdba74;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

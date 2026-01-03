@@ -59,8 +59,22 @@ class TenantController extends Controller
             'domain' => $validated['domain'],
         ]);
 
+        // Generate strong password (10 chars)
+        $password = \Illuminate\Support\Str::password(10, true, true, false, false);
+
+        // Create Tenant Admin
+        $tenant->run(function () use ($validated, $password) {
+             \App\Models\User::create([
+                'name' => 'Admin ' . $validated['name'],
+                'email' => $validated['email'] ?? ('admin@' . $validated['id'] . '.com'),
+                'password' => \Illuminate\Support\Facades\Hash::make($password),
+                'role' => 'admin',
+             ]);
+        });
+
         return redirect()->route('landlord.tenants.index')
-            ->with('success', "Tenant '{$tenant->name}' created successfully with domain '{$validated['domain']}'");
+            ->with('success', "Tenant '{$tenant->name}' created successfully with domain '{$validated['domain']}'")
+            ->with('tenant_admin_password', $password);
     }
 
     /**
