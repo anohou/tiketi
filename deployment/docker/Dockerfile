@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS frontend-builder
 
-# Build argument for Vite base path (e.g., /billeterie-stg-xxx or /)
+# Build argument for Vite base path (e.g., /myapp-stg-xxx or /)
 ARG APP_BASE_PATH=/
 
 WORKDIR /app

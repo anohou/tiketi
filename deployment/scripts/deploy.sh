@@ -179,11 +179,12 @@ deploy() {
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
 
-        # TEMPORARY: Hard-code staging path until dynamic extraction works
+        # Extract base path from APP_URL_PATH for Vite builds
+        # For path-based routing, Vite needs the path + /build
         local base_path="/"
-        if [[ "$environment" == "staging" ]]; then
-            # Laravel Vite plugin outputs to public/build/, so base path must include /build
-            base_path="/billeterie-stg-qhxQH0oZswr/build"
+        if [[ -n "${APP_URL_PATH}" ]] && [[ "${APP_URL_PATH}" != "/" ]]; then
+            # Laravel Vite plugin outputs to public/build/, so base path needs /build suffix
+            base_path="${APP_URL_PATH}/build"
         fi
         log "INFO" "Using base path for assets: ${base_path}"
 
@@ -195,7 +196,7 @@ deploy() {
         fi
 
         # Build with local tag only
-        local local_image="billeterie_staging:latest"
+        local local_image="${DOCKER_IMAGE_NAME}"
         docker build -t "${local_image}" \
             -f "${DEPLOYMENT_ROOT}/docker/Dockerfile" \
             --build-arg APP_ENV="$environment" \

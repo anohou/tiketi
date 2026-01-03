@@ -1,6 +1,6 @@
 services:
     app:
-        image: ghcr.io/anohou/billeterie:production
+        image: ${DOCKER_IMAGE_NAME:-ghcr.io/anohou/billeterie:production}
         container_name: dc_billeterie_production
         restart: unless-stopped
         networks:
