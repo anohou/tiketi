@@ -255,6 +255,21 @@ deploy() {
             log "INFO" "Building with --no-cache (fresh build, no layer caching)"
         fi
 
+        # Pass VITE_ variables from secrets as build args
+        if [ -f "$SECRETS_MOUNT_FILE" ]; then
+            log "INFO" "Extracting VITE_ variables for frontend build..."
+            while IFS='=' read -r key value || [ -n "$key" ]; do
+                # Trim whitespace and quotes
+                key=$(echo "$key" | tr -d '[:space:]')
+                value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+
+                if [[ $key == VITE_* ]] && [[ -n "$value" ]]; then
+                    log "INFO" "  -> Adding build arg: $key"
+                    build_flags+=" --build-arg $key=$value"
+                fi
+            done < <(grep "^VITE_" "$SECRETS_MOUNT_FILE")
+        fi
+
         # Build with local tag only
         local local_image="${DOCKER_IMAGE_NAME}"
         docker build -t "${local_image}" \
@@ -302,13 +317,12 @@ deploy() {
 
     # Clean up stale frontend build directory to force restoration from image backup
     # This prevents volume-mounted old builds from overriding fresh builds in the Docker image
-    if [ "$environment" != "local" ]; then
-        local build_dir="${DEPLOYMENT_ROOT}/../public/build"
-        if [ -d "$build_dir" ]; then
-            log "INFO" "Removing stale build directory to ensure fresh assets..."
-            rm -rf "$build_dir"
-            log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
-        fi
+    # Always do this to ensure we use the assets from the image we just built/pulled
+    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
+    if [ -d "$build_dir" ]; then
+        log "INFO" "Removing stale build directory to ensure fresh assets..."
+        rm -rf "$build_dir"
+        log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
     fi
 
     # === HOOK: post-validation ===
@@ -401,6 +415,14 @@ deploy() {
         else
             log "WARNING" "Migrations failed - manual intervention may be required"
         fi
+    fi
+
+    # Clear view cache to ensure fresh assets are served
+    log "INFO" "Clearing view cache..."
+    if docker exec "$DOCKER_CONTAINER_NAME" php artisan view:clear >/dev/null 2>&1; then
+        log "SUCCESS" "View cache cleared"
+    else
+        log "WARNING" "Failed to clear view cache"
     fi
 
     # === DEPLOYMENT VERIFICATION ===

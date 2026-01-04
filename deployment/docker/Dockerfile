@@ -12,6 +12,18 @@ FROM node:20-alpine AS frontend-builder
 # Build argument for Vite base path (e.g., /myapp-stg-xxx or /)
 ARG APP_BASE_PATH=/
 
+# Build arguments for Reverb/Pusher (injected from secrets)
+ARG VITE_REVERB_APP_KEY
+ARG VITE_REVERB_HOST
+ARG VITE_REVERB_PORT
+ARG VITE_REVERB_SCHEME
+
+# Make them available as environment variables during build
+ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
+ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
+ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
+ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+
 WORKDIR /app
 
 # Install minimal PHP and Composer for vendor dependencies
