@@ -174,7 +174,7 @@ RUN chown -R sail:sail /var/lib/nginx /var/log/nginx /run/nginx
 COPY --chown=sail:sail . /var/www/html
 
 # Install Composer dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
 # Copy built frontend assets from frontend-builder stage (AFTER app code to avoid overwriting)
 # Debug: verify the source exists in the builder stage before copying

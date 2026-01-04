@@ -11,13 +11,19 @@ echo "[Startup] API Container Starting..."
 if [ ! -d "vendor" ]; then
     echo "[Startup] Installing composer dependencies..."
     if [ "$APP_ENV" = "production" ]; then
-        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-scripts
     else
-        composer install --no-interaction --no-progress --prefer-dist
+        composer install --no-interaction --no-progress --prefer-dist --no-scripts
     fi
 else
     echo "[Startup] Composer dependencies already installed (CI/CD image)"
 fi
+
+# Clear bootstrap cache BEFORE any artisan commands
+# This is CRITICAL when vendor/ is volume-mounted because cached service providers
+# may reference packages that aren't in the mounted vendor directory
+echo "[Startup] Clearing bootstrap cache..."
+rm -f bootstrap/cache/*.php 2>/dev/null || true
 
 # Generate .env file from YAML config and secrets (now vendor exists)
 echo "[Startup] Generating .env file..."

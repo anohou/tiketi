@@ -174,10 +174,69 @@ deploy() {
             exit 1
         }
 
+
         # Export image name for docker-compose
         export DOCKER_IMAGE_NAME="${FULL_REGISTRY_PATH}:${environment}"
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
+
+        # Ensure composer dependencies are installed locally before building
+        # This is CRITICAL for all environments because docker-compose.yml files
+        # volume-mount the entire project (../../), which overwrites the image's vendor/
+        # Without this, the container will have missing dependencies after mount
+        log "INFO" "Installing Composer dependencies locally (required for volume mount)..."
+
+        # Navigate to project root
+        local project_root="${DEPLOYMENT_ROOT}/.."
+        cd "$project_root" || {
+            log "ERROR" "Failed to navigate to project root: $project_root"
+            exit 1
+        }
+
+        # Check if composer is available
+        if ! command -v composer &> /dev/null; then
+            log "ERROR" "Composer not found. Please install Composer: https://getcomposer.org"
+            exit 1
+        fi
+
+        # Run composer install (production mode for non-local environments)
+        if [[ "$environment" == "local" ]]; then
+            log "INFO" "Running: composer install --no-interaction --no-scripts (with dev dependencies)"
+            composer install --no-interaction --no-scripts || {
+                log "ERROR" "Composer install failed"
+                exit 1
+            }
+        else
+            log "INFO" "Running: composer install --no-dev --no-interaction --no-scripts (production mode)"
+            composer install --no-dev --no-interaction --no-scripts || {
+                log "ERROR" "Composer install failed"
+                exit 1
+            }
+        fi
+
+
+        log "SUCCESS" "Composer dependencies installed for $environment environment"
+
+        # Install npm dependencies for local development (frontend rebuilding)
+        # Production/staging use pre-built assets from Docker image
+        if [[ "$environment" == "local" ]]; then
+            log "INFO" "Installing npm dependencies for local development..."
+
+            # Check if npm is available
+            if ! command -v npm &> /dev/null; then
+                log "WARNING" "npm not found. Frontend assets cannot be rebuilt locally."
+                log "WARNING" "Install Node.js from https://nodejs.org or use pre-built assets from Docker image"
+            else
+                log "INFO" "Running: npm install"
+                npm install || {
+                    log "WARNING" "npm install failed. Frontend may not rebuild correctly."
+                }
+                log "SUCCESS" "npm dependencies installed"
+            fi
+        fi
+
+        # Return to deployment root
+        cd "${DEPLOYMENT_ROOT}" || exit 1
 
         # Extract base path from APP_URL_PATH for Vite builds
         # For path-based routing, Vite needs the path + /build

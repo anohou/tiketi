@@ -19,6 +19,7 @@ services:
       - APP_TYPE=fullstack
     networks:
       - app_local
+      - traefik_swarm_network
     depends_on:
       - db
       - redis
@@ -28,6 +29,24 @@ services:
       timeout: 3s
       retries: 3
       start_period: 40s
+    labels:
+      # Enable Traefik for this container
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_swarm_network"
+
+      # Central/Landlord domain router
+      - "traefik.http.routers.billeterie-central.rule=Host(`billeterie.localhost`)"
+      - "traefik.http.routers.billeterie-central.entrypoints=web"
+      - "traefik.http.routers.billeterie-central.service=billeterie-service"
+
+      # Wildcard tenant subdomain router
+      # Matches: alpha.localhost, beta.localhost, etc.
+      - "traefik.http.routers.billeterie-tenants.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.localhost`)"
+      - "traefik.http.routers.billeterie-tenants.entrypoints=web"
+      - "traefik.http.routers.billeterie-tenants.service=billeterie-service"
+
+      # Service configuration (single service for both routers)
+      - "traefik.http.services.billeterie-service.loadbalancer.server.port=9000"
 
   db:
     image: mysql:8.0
@@ -58,6 +77,9 @@ services:
 networks:
   app_local:
     driver: bridge
+  traefik_swarm_network:
+    external: true
+    name: traefik_swarm_network
 
 volumes:
   db_data:

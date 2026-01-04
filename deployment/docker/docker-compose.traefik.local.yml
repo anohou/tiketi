@@ -1,0 +1,42 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: traefik_local
+    command:
+      # Enable Docker provider
+      - "--providers.docker=true"
+      # Don't expose all containers by default
+      - "--providers.docker.exposedbydefault=false"
+      # Watch for new containers
+      - "--providers.docker.watch=true"
+
+      # Define entrypoints (using port 81 to avoid conflict with OrbStack on port 80)
+      - "--entrypoints.web.address=:81"
+
+      # Enable dashboard
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "8888:81"     # HTTP (OrbStack occupies ports 80, 8080, 8081)
+      - "9999:8080"   # Dashboard
+    volumes:
+      # So Traefik can listen to Docker events
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - traefik_local
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # Dashboard route
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=web"
+
+networks:
+  traefik_local:
+    name: traefik_local
+    driver: bridge

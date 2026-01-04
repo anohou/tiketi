@@ -199,10 +199,10 @@ environments:
         level: debug
 
       cors:
-        allowed_origins: "http://localhost:3000,http://localhost,http://billeterie.localhost"
+        allowed_origins: "http://localhost:3000,http://localhost,http://billeterie.localhost,http://*.localhost"
 
       sanctum:
-        stateful_domains: "localhost,billeterie.localhost,127.0.0.1"
+        stateful_domains: "localhost,billeterie.localhost,.localhost,127.0.0.1"
 
   staging:
     # Variables defined in PROJECT CUSTOMIZATION section above
