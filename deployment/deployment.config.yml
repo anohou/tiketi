@@ -191,7 +191,7 @@ environments:
         asset_url: http://billeterie.localhost
 
       session:
-        domain: .localhost
+        domain: null
         secure_cookie: false
         same_site: lax
 

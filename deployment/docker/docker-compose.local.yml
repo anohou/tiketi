@@ -41,7 +41,7 @@ services:
 
       # Wildcard tenant subdomain router
       # Matches: alpha.localhost, beta.localhost, etc.
-      - "traefik.http.routers.billeterie-tenants.rule=HostRegexp(`{subdomain:[a-z0-9-]+}.localhost`)"
+      - 'traefik.http.routers.billeterie-tenants.rule=HostRegexp(`^[a-z0-9-]+\.localhost$`)'
       - "traefik.http.routers.billeterie-tenants.entrypoints=web"
       - "traefik.http.routers.billeterie-tenants.service=billeterie-service"
 
