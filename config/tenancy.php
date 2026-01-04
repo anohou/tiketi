@@ -14,7 +14,7 @@ return [
     /**
      * The list of domains hosting your central app.
      * These domains will NOT be treated as tenant domains.
-     * 
+     *
      * Add your main/admin domain here.
      */
     'central_domains' => [
@@ -52,7 +52,7 @@ return [
         /**
          * Tenant database names are created like this:
          * prefix + tenant_id + suffix.
-         * 
+         *
          * Example: t_demo, t_alpha, t_beta
          */
         'prefix' => 't_',
@@ -139,7 +139,7 @@ return [
          * disable asset() helper tenancy and explicitly use tenant_asset() calls in places
          * where you want to use tenant-specific assets (product images, avatars, etc).
          */
-        'asset_helper_tenancy' => true,
+        'asset_helper_tenancy' => false,
     ],
 
     /**
