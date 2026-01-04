@@ -240,10 +240,11 @@ deploy() {
 
         # Extract base path from APP_URL_PATH for Vite builds
         # For path-based routing, Vite needs the path + /build
-        local base_path="/"
+        # For domain-based routing (root /), Vite needs /build/ to resolve dynamic assets correctly
+        local base_path="/build/"
         if [[ -n "${APP_URL_PATH}" ]] && [[ "${APP_URL_PATH}" != "/" ]]; then
             # Laravel Vite plugin outputs to public/build/, so base path needs /build suffix
-            base_path="${APP_URL_PATH}/build"
+            base_path="${APP_URL_PATH}/build/"
         fi
         log "INFO" "Using base path for assets: ${base_path}"
 

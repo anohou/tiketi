@@ -18,13 +18,12 @@ services:
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
     networks:
-      - app_local
       - traefik_swarm_network
     depends_on:
       - db
       - redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/up"]
       interval: 30s
       timeout: 3s
       retries: 3
@@ -62,7 +61,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     networks:
-      - app_local
+      - traefik_swarm_network
 
   redis:
     image: redis:7-alpine
@@ -72,11 +71,9 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - app_local
+      - traefik_swarm_network
 
 networks:
-  app_local:
-    driver: bridge
   traefik_swarm_network:
     external: true
     name: traefik_swarm_network
