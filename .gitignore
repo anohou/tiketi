@@ -25,3 +25,4 @@ Thumbs.db
 deployment.working
 billeterie.scaffold.env
 .env.old
+deployment.working.*
