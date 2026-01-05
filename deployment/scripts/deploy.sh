@@ -35,8 +35,15 @@ validate_required_vars() {
     local missing_vars=()
 
     for var in "${required_vars[@]}"; do
-        if [[ -z "${!var:-}" ]]; then
-            missing_vars+=("$var")
+        # Special case: APP_URL_PATH can be empty (for domain-based routing)
+        if [[ "$var" == "APP_URL_PATH" ]]; then
+            if [[ ! -v $var ]]; then
+                missing_vars+=("$var")
+            fi
+        else
+            if [[ -z "${!var:-}" ]]; then
+                missing_vars+=("$var")
+            fi
         fi
     done
 
@@ -180,42 +187,36 @@ deploy() {
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
 
-        # Ensure composer dependencies are installed locally before building
-        # This is CRITICAL for all environments because docker-compose.yml files
-        # volume-mount the entire project (../../), which overwrites the image's vendor/
-        # Without this, the container will have missing dependencies after mount
-        log "INFO" "Installing Composer dependencies locally (required for volume mount)..."
-
-        # Navigate to project root
-        local project_root="${DEPLOYMENT_ROOT}/.."
-        cd "$project_root" || {
-            log "ERROR" "Failed to navigate to project root: $project_root"
-            exit 1
-        }
-
-        # Check if composer is available
-        if ! command -v composer &> /dev/null; then
-            log "ERROR" "Composer not found. Please install Composer: https://getcomposer.org"
-            exit 1
-        fi
-
-        # Run composer install (production mode for non-local environments)
+        # Ensure composer dependencies are installed locally ONLY for local environment
+        # Local environment uses volume mounts, so it needs vendor/ on the host
+        # Staging/production use code baked into Docker image, so they don't need this
         if [[ "$environment" == "local" ]]; then
+            log "INFO" "Installing Composer dependencies locally (required for volume mount)..."
+
+            # Navigate to project root
+            local project_root="${DEPLOYMENT_ROOT}/.."
+            cd "$project_root" || {
+                log "ERROR" "Failed to navigate to project root: $project_root"
+                exit 1
+            }
+
+            # Check if composer is available
+            if ! command -v composer &> /dev/null; then
+                log "ERROR" "Composer not found. Please install Composer: https://getcomposer.org"
+                exit 1
+            fi
+
+            # Run composer install with dev dependencies for local
             log "INFO" "Running: composer install --no-interaction --no-scripts (with dev dependencies)"
             composer install --no-interaction --no-scripts || {
                 log "ERROR" "Composer install failed"
                 exit 1
             }
+
+            log "SUCCESS" "Composer dependencies installed for $environment environment"
         else
-            log "INFO" "Running: composer install --no-dev --no-interaction --no-scripts (production mode)"
-            composer install --no-dev --no-interaction --no-scripts || {
-                log "ERROR" "Composer install failed"
-                exit 1
-            }
+            log "INFO" "Skipping host composer install - using dependencies from Docker image"
         fi
-
-
-        log "SUCCESS" "Composer dependencies installed for $environment environment"
 
         # Install npm dependencies for local development (frontend rebuilding)
         # Production/staging use pre-built assets from Docker image
@@ -355,7 +356,7 @@ deploy() {
 
     # Test database connection (wait for container to fully boot)
     log "INFO" "Testing database connection..."
-    sleep 3  # Extra wait for Laravel to boot
+    sleep 10  # Wait for Laravel to fully bootstrap before testing DB
     # Service name from docker-compose
     local service_name="app"
     if ${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" \

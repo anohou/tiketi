@@ -90,10 +90,12 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan migrate --force
 fi
 
-# Clear file-based caches (no database connection needed)
-echo "[Startup] Clearing file-based caches..."
-php artisan config:clear
-php artisan route:clear
+# Clear file-based caches (DISABLED - causes bootstrap failures on staging/production)
+# These commands can fail if Laravel can't bootstrap properly
+# Caches are cleared during deployment anyway
+echo "[Startup] Skipping cache clear (caches cleared during deployment)..."
+# php artisan config:clear
+# php artisan route:clear
 # Note: cache:clear requires DB/Redis - skip on startup
 
 # Ensure storage directories and bootstrap/cache exist with .gitignore files

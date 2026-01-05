@@ -15,7 +15,7 @@ services:
       - APP_ENV=staging
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
-      - ASSET_URL=https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr
+      - ASSET_URL=https://stg-billeterie.anohou.dev
 
     networks:
       - traefik_swarm_network
@@ -24,17 +24,21 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_swarm_network"
 
-      # Dynamic routing configuration (path-based or domain-based)
-      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswr`)"
-      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswr"
-      - "traefik.http.routers.billeterie-staging.middlewares=billeterie-staging-strip"
-
+      # Central domain routing (landlord)
+      - "traefik.http.routers.billeterie-staging.rule=Host(`stg-billeterie.anohou.dev`)"
       - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
       - "traefik.http.routers.billeterie-staging.tls=true"
       - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
-
-      # Service configuration
       - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
+
+      # Wildcard tenant subdomain routing
+      - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\\\.stg-billeterie\\\\.anohou\\\\.dev$`)"
+      - "traefik.http.routers.billeterie-staging-tenants.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-staging-tenants.tls=true"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-staging-tenants.service=billeterie-staging-service"
+
+      # Service configuration (shared by both routers)
       - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
 
     restart: unless-stopped
