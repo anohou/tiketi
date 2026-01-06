@@ -329,6 +329,25 @@ deploy() {
     # === HOOK: post-validation ===
     exec_hook "post-validation"
 
+    # Create empty .env file if it doesn't exist (prevents Docker from creating it as directory)
+    # The container will populate it from the template during startup
+    local env_file="${DEPLOYMENT_ROOT}/../.env"
+    if [ ! -f "$env_file" ]; then
+        log "INFO" "Creating empty .env file for container volume mount..."
+        touch "$env_file"
+        chmod 666 "$env_file"  # Allow container to write
+    fi
+
+    # Create public/build directory if it doesn't exist (prevents Docker from creating it as root-owned)
+    # The container will populate it from the image backup during startup
+    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
+    if [ ! -d "$build_dir" ]; then
+        log "INFO" "Creating public/build directory for container volume mount..."
+        mkdir -p "$build_dir"
+        chown -R $(whoami):$(whoami) "$build_dir"
+        chmod -R 775 "$build_dir"
+    fi
+
     # === HOOK: pre-deploy ===
     exec_hook "pre-deploy"
 

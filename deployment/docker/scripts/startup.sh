@@ -113,5 +113,9 @@ echo "[Startup] Setting permissions..."
 # Files are already owned by sail from Docker build
 chmod -R 775 storage bootstrap/cache 2>/dev/null || true
 
+# Create storage symlink for public access to uploaded files
+echo "[Startup] Creating storage symlink..."
+php artisan storage:link 2>/dev/null || echo "[Startup] Storage link already exists or failed (non-critical)"
+
 echo "[Startup] Starting Supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
