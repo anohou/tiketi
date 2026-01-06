@@ -56,6 +56,14 @@ services:
       # Service configuration (shared by both routers)
       - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
 
+      # WebSocket routing for Laravel Reverb
+      - "traefik.http.routers.billeterie-reverb-staging.rule=Host(`stg-billeterie.anohou.dev`) && PathPrefix(`/app`)"
+      - "traefik.http.routers.billeterie-reverb-staging.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-reverb-staging.tls=true"
+      - "traefik.http.routers.billeterie-reverb-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-reverb-staging.service=billeterie-reverb-service"
+      - "traefik.http.services.billeterie-reverb-service.loadbalancer.server.port=6001"
+
     restart: unless-stopped
 
 networks:
