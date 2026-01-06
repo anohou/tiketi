@@ -6,11 +6,11 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class TripCreated implements ShouldBroadcast
+class TripCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -35,7 +35,7 @@ class TripCreated implements ShouldBroadcast
         $channels = [];
         
         // Load route stops if not loaded
-        $this->trip->loadMissing('route.stops');
+        $this->trip->loadMissing('route.routeStopOrders');
         $route = $this->trip->route;
 
         // Origin Station
@@ -49,12 +49,22 @@ class TripCreated implements ShouldBroadcast
         }
 
         // Intermediate Stops linked to stations
-        foreach ($route->stops as $stop) {
+        foreach ($route->routeStopOrders as $stop) {
             if ($stop->station_id) {
                 $channels[] = new PrivateChannel('station.' . $stop->station_id);
             }
         }
 
+        // Broadcast to global channel for admins/executives
+        $channels[] = new PrivateChannel('trips.global');
+
         return array_unique($channels, SORT_REGULAR);
+    }
+    /**
+     * Get the broadcast event name.
+     */
+    public function broadcastAs(): string
+    {
+        return 'TripCreated';
     }
 }

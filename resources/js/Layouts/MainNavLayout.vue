@@ -12,8 +12,9 @@
             <Link :href="route('dashboard')" class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full">
               <Receipt class="text-green-700 font-bold" :size="32" />
               <div>
-                <span class="font-black text-xl text-green-700">i-</span>
-                <span class="font-black text-xl text-orange-500 uppercase tracking-tighter">Ticket</span>
+                <span class="font-black text-xl text-green-700">TI</span>
+                <span class="font-black text-xl text-orange-500 uppercase tracking-tighter">KÊ</span>
+                <span class="font-black text-xl text-green-700">TI</span>
               </div>
             </Link>
 

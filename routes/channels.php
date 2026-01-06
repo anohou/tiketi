@@ -11,7 +11,11 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('station.{stationId}', function ($user, $stationId) {
-    if ($user->role === 'admin') return true;
+    if ($user->role === 'admin' || $user->role === 'executive') return true;
     // Check if user is assigned to this station
     return $user->stationAssignments()->where('station_id', $stationId)->exists();
+});
+
+Broadcast::channel('trips.global', function ($user) {
+    return in_array($user->role, ['admin', 'executive']);
 });

@@ -86,7 +86,7 @@ onMounted(() => {
   if (page.props.auth.user.station_assignments) {
     page.props.auth.user.station_assignments.forEach(assignment => {
       Echo.private(`station.${assignment.station_id}`)
-          .listen('TripCreated', (e) => {
+          .listen('.TripCreated', (e) => {
               // Check if trip already exists
               if (!trips.value.find(t => t.id === e.trip.id)) {
                   // Add new trip to list
@@ -95,6 +95,18 @@ onMounted(() => {
               }
           });
     });
+  }
+
+  // Listen for global updates if Admin or Executive
+  if (['admin', 'executive'].includes(page.props.auth.user.role)) {
+      Echo.private('trips.global')
+          .listen('.TripCreated', (e) => {
+               // Check if trip already exists
+               if (!trips.value.find(t => t.id === e.trip.id)) {
+                   // Add new trip to list
+                   trips.value.unshift(e.trip);
+               }
+          });
   }
 });
 const showTripSelectionModal = ref(false); // Modal for selecting a trip
@@ -847,9 +859,9 @@ onMounted(async () => {
                   </div>
                 </div>
                 <!-- Filter Section -->
-                <div class="px-5 py-3 border-b border-orange-50 bg-white space-y-3">
+                <div class="px-5 py-3 border-b border-orange-50 bg-white flex flex-col md:flex-row gap-3 md:items-end">
                   <!-- Destination Filter -->
-                  <div>
+                  <div class="w-full md:w-1/2">
                       <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Ville d'Arrivée</label>
                       <select v-model="selectedDestinationId" class="w-full border-gray-200 rounded-lg text-sm focus:border-green-500 focus:ring-green-500 bg-gray-50">
                           <option value="">Toutes les destinations</option>
@@ -857,7 +869,7 @@ onMounted(async () => {
                       </select>
                   </div>
                   <!-- Search -->
-                  <div class="relative">
+                  <div class="relative w-full md:w-1/2">
                     <input 
                       type="text" 
                       v-model="searchQuery"
