@@ -38,32 +38,71 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
     {
         $name = $tenant->database()->getName();
 
+        \Log::info("🔧 Starting tenant database creation", [
+            'tenant_id' => $tenant->id,
+            'database_name' => $name,
+        ]);
+
         // Validate database name
         $this->validateDatabaseName($name);
 
         // Use provisioner connection for database creation
         $provisioner = $this->getProvisionerConnection();
 
+        \Log::info("🔌 Using provisioner connection", [
+            'connection' => 'tenant_provisioner',
+            'username' => config('database.connections.tenant_provisioner.username'),
+        ]);
+
         // Create database with UTF8MB4
         $charset = config('database.connections.mysql.charset', 'utf8mb4');
         $collation = config('database.connections.mysql.collation', 'utf8mb4_unicode_ci');
 
-        $provisioner->statement(
-            "CREATE DATABASE `{$name}` CHARACTER SET {$charset} COLLATE {$collation}"
-        );
+        try {
+            \Log::info("📦 Creating database", [
+                'database' => $name,
+                'charset' => $charset,
+                'collation' => $collation,
+            ]);
 
-        // Grant app user access to this specific tenant database
-        $appUser = config('database.connections.mysql.username');
-        $appHost = $this->getAppUserHost();
+            $provisioner->statement(
+                "CREATE DATABASE `{$name}` CHARACTER SET {$charset} COLLATE {$collation}"
+            );
 
-        // Grant all privileges on the new tenant database to app user
-        $provisioner->statement(
-            "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'"
-        );
+            \Log::info("✅ Database created successfully", ['database' => $name]);
 
-        $provisioner->statement("FLUSH PRIVILEGES");
+            // Grant app user access to this specific tenant database
+            $appUser = config('database.connections.mysql.username');
+            $appHost = $this->getAppUserHost();
 
-        return true;
+            \Log::info("🔐 Granting privileges to app user", [
+                'app_user' => $appUser,
+                'app_host' => $appHost,
+                'database' => $name,
+                'grant_sql' => "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'",
+            ]);
+
+            // Grant all privileges on the new tenant database to app user
+            $provisioner->statement(
+                "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'"
+            );
+
+            \Log::info("✅ Privileges granted successfully");
+
+            // Note: FLUSH PRIVILEGES not needed - grants take effect immediately
+            // and provisioner user doesn't have RELOAD privilege
+
+            \Log::info("🎉 Tenant database creation completed", ['database' => $name]);
+
+            return true;
+        } catch (\Exception $e) {
+            \Log::error("❌ Tenant database creation failed", [
+                'database' => $name,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     /**

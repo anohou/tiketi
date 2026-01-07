@@ -18,8 +18,6 @@ return [
      * Add your main/admin domain here.
      */
     'central_domains' => [
-        '127.0.0.1',
-        'localhost',
         env('CENTRAL_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)), // Main admin domain
     ],
 
