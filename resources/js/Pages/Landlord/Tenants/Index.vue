@@ -401,7 +401,7 @@ const closePasswordModal = () => {
                       </div>
                       <div>
                         <p class="font-medium text-gray-800">{{ domain.domain }}</p>
-                        <a :href="'http://' + domain.domain + ':8000'"
+                        <a :href="(domain.domain.includes('localhost') ? 'http://' + domain.domain + ':8000' : 'https://' + domain.domain)"
                            target="_blank"
                            class="text-xs text-blue-500 hover:underline">
                           Ouvrir →
