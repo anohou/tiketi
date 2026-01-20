@@ -45,8 +45,8 @@ services:
       - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
       - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
 
-      # Wildcard tenant subdomain routing
-      - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\\\.stg-billeterie\\\\.anohou\\\\.dev$`)"
+      # Wildcard tenant subdomain routing (using DNS challenge for wildcard certificate)
+      - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\.stg-billeterie\\.anohou\\.dev$$`)"
       - "traefik.http.routers.billeterie-staging-tenants.entrypoints=websecure"
       - "traefik.http.routers.billeterie-staging-tenants.tls=true"
       - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=cloudflare"
