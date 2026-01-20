@@ -42,6 +42,15 @@ services:
             # HTTPS Redirect Middleware
             - "traefik.http.middlewares.billeterie-production-https-redirect.redirectscheme.scheme=https"
 
+            # Wildcard tenant subdomain routing (using DNS challenge for wildcard certificate)
+            - "traefik.http.routers.billeterie-production-tenants.rule=HostRegexp(`^[a-z0-9-]+\\.billeterie\\.anohou\\.dev$$`)"
+            - "traefik.http.routers.billeterie-production-tenants.entrypoints=websecure"
+            - "traefik.http.routers.billeterie-production-tenants.tls=true"
+            - "traefik.http.routers.billeterie-production-tenants.tls.certresolver=cloudflare"
+            - "traefik.http.routers.billeterie-production-tenants.tls.domains[0].main=billeterie.anohou.dev"
+            - "traefik.http.routers.billeterie-production-tenants.tls.domains[0].sans=*.billeterie.anohou.dev"
+            - "traefik.http.routers.billeterie-production-tenants.service=billeterie-production-http-service"
+
 networks:
     traefik_swarm_network:
         external: true
