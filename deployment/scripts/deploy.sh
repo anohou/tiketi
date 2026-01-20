@@ -37,7 +37,7 @@ validate_required_vars() {
     for var in "${required_vars[@]}"; do
         # Special case: APP_URL_PATH can be empty (for domain-based routing)
         if [[ "$var" == "APP_URL_PATH" ]]; then
-            if [[ ! -v $var ]]; then
+            if [[ -z "${!var+x}" ]]; then
                 missing_vars+=("$var")
             fi
         else
