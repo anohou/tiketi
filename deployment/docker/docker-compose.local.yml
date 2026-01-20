@@ -9,6 +9,7 @@ services:
     image: ${DOCKER_IMAGE_NAME}
     ports:
       - "8000:9000"
+      - "6001:6001"
     volumes:
       - ../..:/var/www/html
       - vendor_data:/var/www/html/vendor
@@ -18,16 +19,34 @@ services:
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
     networks:
-      - app_local
+      - traefik_swarm_network
     depends_on:
       - db
       - redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/up"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 40s
+    labels:
+      # Enable Traefik for this container
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_swarm_network"
+
+      # Central/Landlord domain router
+      - "traefik.http.routers.billeterie-central.rule=Host(`billeterie.localhost`)"
+      - "traefik.http.routers.billeterie-central.entrypoints=web"
+      - "traefik.http.routers.billeterie-central.service=billeterie-service"
+
+      # Wildcard tenant subdomain router
+      # Matches: alpha.localhost, beta.localhost, etc.
+      - 'traefik.http.routers.billeterie-tenants.rule=HostRegexp(`^[a-z0-9-]+\.localhost$`)'
+      - "traefik.http.routers.billeterie-tenants.entrypoints=web"
+      - "traefik.http.routers.billeterie-tenants.service=billeterie-service"
+
+      # Service configuration (single service for both routers)
+      - "traefik.http.services.billeterie-service.loadbalancer.server.port=9000"
 
   db:
     image: mysql:8.0
@@ -43,7 +62,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     networks:
-      - app_local
+      - traefik_swarm_network
 
   redis:
     image: redis:7-alpine
@@ -53,11 +72,12 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - app_local
+      - traefik_swarm_network
 
 networks:
-  app_local:
-    driver: bridge
+  traefik_swarm_network:
+    external: true
+    name: traefik_swarm_network
 
 volumes:
   db_data:

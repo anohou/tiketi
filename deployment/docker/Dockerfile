@@ -9,8 +9,20 @@
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS frontend-builder
 
-# Build argument for Vite base path (e.g., /billeterie-stg-xxx or /)
+# Build argument for Vite base path (e.g., /myapp-stg-xxx or /)
 ARG APP_BASE_PATH=/
+
+# Build arguments for Reverb/Pusher (injected from secrets)
+ARG VITE_REVERB_APP_KEY
+ARG VITE_REVERB_HOST
+ARG VITE_REVERB_PORT
+ARG VITE_REVERB_SCHEME
+
+# Make them available as environment variables during build
+ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
+ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
+ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
+ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
 
 WORKDIR /app
 
@@ -174,7 +186,7 @@ RUN chown -R sail:sail /var/lib/nginx /var/log/nginx /run/nginx
 COPY --chown=sail:sail . /var/www/html
 
 # Install Composer dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
 # Copy built frontend assets from frontend-builder stage (AFTER app code to avoid overwriting)
 # Debug: verify the source exists in the builder stage before copying

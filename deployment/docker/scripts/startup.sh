@@ -11,13 +11,19 @@ echo "[Startup] API Container Starting..."
 if [ ! -d "vendor" ]; then
     echo "[Startup] Installing composer dependencies..."
     if [ "$APP_ENV" = "production" ]; then
-        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader
+        composer install --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-scripts
     else
-        composer install --no-interaction --no-progress --prefer-dist
+        composer install --no-interaction --no-progress --prefer-dist --no-scripts
     fi
 else
     echo "[Startup] Composer dependencies already installed (CI/CD image)"
 fi
+
+# Clear bootstrap cache BEFORE any artisan commands
+# This is CRITICAL when vendor/ is volume-mounted because cached service providers
+# may reference packages that aren't in the mounted vendor directory
+echo "[Startup] Clearing bootstrap cache..."
+rm -f bootstrap/cache/*.php 2>/dev/null || true
 
 # Generate .env file from YAML config and secrets (now vendor exists)
 echo "[Startup] Generating .env file..."
@@ -84,10 +90,12 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     php artisan migrate --force
 fi
 
-# Clear file-based caches (no database connection needed)
-echo "[Startup] Clearing file-based caches..."
-php artisan config:clear
-php artisan route:clear
+# Clear file-based caches (DISABLED - causes bootstrap failures on staging/production)
+# These commands can fail if Laravel can't bootstrap properly
+# Caches are cleared during deployment anyway
+echo "[Startup] Skipping cache clear (caches cleared during deployment)..."
+# php artisan config:clear
+# php artisan route:clear
 # Note: cache:clear requires DB/Redis - skip on startup
 
 # Ensure storage directories and bootstrap/cache exist with .gitignore files
@@ -104,6 +112,10 @@ done
 echo "[Startup] Setting permissions..."
 # Files are already owned by sail from Docker build
 chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
+# Create storage symlink for public access to uploaded files
+echo "[Startup] Creating storage symlink..."
+php artisan storage:link 2>/dev/null || echo "[Startup] Storage link already exists or failed (non-critical)"
 
 echo "[Startup] Starting Supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

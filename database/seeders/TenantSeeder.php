@@ -7,8 +7,8 @@ use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Station;
 use App\Models\Route;
-use App\Models\Stop;
 use App\Models\RouteStopOrder;
+
 use App\Models\RouteFare;
 use App\Models\VehicleType;
 use App\Models\Vehicle;
@@ -185,23 +185,12 @@ class TenantSeeder extends Seeder
             'active' => true
         ]);
 
-        // ==========================================
-        // ARRÊTS (STOPS) POUR CHAQUE STATION
-        // ==========================================
-        $stopAbidjan = Stop::create(['name' => 'Abidjan - Adjamé', 'station_id' => $abidjan->id]);
-        $stopYamoussoukro = Stop::create(['name' => 'Yamoussoukro Centre', 'station_id' => $yamoussoukro->id]);
-        $stopBouake = Stop::create(['name' => 'Bouaké Centre', 'station_id' => $bouake->id]);
-        $stopKatiola = Stop::create(['name' => 'Katiola Centre', 'station_id' => $katiola->id]);
-        $stopKorhogo = Stop::create(['name' => 'Korhogo Centre', 'station_id' => $korhogo->id]);
-        $stopAdzope = Stop::create(['name' => 'Adzopé Centre', 'station_id' => $adzope->id]);
-        $stopAbengourou = Stop::create(['name' => 'Abengourou Centre', 'station_id' => $abengourou->id]);
-        $stopAgnibilekrou = Stop::create(['name' => 'Agnibilékrou Centre', 'station_id' => $agnibilekrou->id]);
-        $stopBondoukou = Stop::create(['name' => 'Bondoukou Centre', 'station_id' => $bondoukou->id]);
+
 
         // ==========================================
         // TYPES DE VÉHICULES (6 types: 15, 30, 50x2, 50x3, 70x2, 70x3)
         // ==========================================
-        
+
         // Initialize SeatMapService
         $seatMapService = new \App\Services\SeatMapService();
 
@@ -426,7 +415,7 @@ class TenantSeeder extends Seeder
         // VOYAGES (TRIPS) - Mix de seat_assignment et bulk
         // ==========================================
         $today = Carbon::today();
-        
+
         // Voyages Abidjan → Korhogo (Bus 70 places)
         Trip::create([
             'route_id' => $routeAbidjanKorhogo->id,
@@ -487,7 +476,7 @@ class TenantSeeder extends Seeder
 
         // Voyages pour demain
         $tomorrow = Carbon::tomorrow();
-        
+
         Trip::create([
             'route_id' => $routeAbidjanKorhogo->id,
             'vehicle_id' => $vehiclesBus70_3x2[0]->id,

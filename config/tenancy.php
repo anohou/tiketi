@@ -14,12 +14,10 @@ return [
     /**
      * The list of domains hosting your central app.
      * These domains will NOT be treated as tenant domains.
-     * 
+     *
      * Add your main/admin domain here.
      */
     'central_domains' => [
-        '127.0.0.1',
-        'localhost',
         env('CENTRAL_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)), // Main admin domain
     ],
 
@@ -52,10 +50,11 @@ return [
         /**
          * Tenant database names are created like this:
          * prefix + tenant_id + suffix.
-         * 
-         * Example: t_demo, t_alpha, t_beta
+         *
+         * Example: app_tenant_bil_alpha, app_tenant_bil_beta
+         * Pattern matches app_% grant for svc_app_rw_stg_2025
          */
-        'prefix' => 't_',
+        'prefix' => env('TENANT_DB_PREFIX', 'app_tenant_bil_'),
         'suffix' => '',
 
         /**
@@ -63,7 +62,7 @@ return [
          */
         'managers' => [
             'sqlite' => Stancl\Tenancy\TenantDatabaseManagers\SQLiteDatabaseManager::class,
-            'mysql' => Stancl\Tenancy\TenantDatabaseManagers\MySQLDatabaseManager::class,
+            'mysql' => App\TenantDatabaseManagers\SecureMySQLDatabaseManager::class,
             'pgsql' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
 
         /**
@@ -139,7 +138,7 @@ return [
          * disable asset() helper tenancy and explicitly use tenant_asset() calls in places
          * where you want to use tenant-specific assets (product images, avatars, etc).
          */
-        'asset_helper_tenancy' => true,
+        'asset_helper_tenancy' => false,
     ],
 
     /**

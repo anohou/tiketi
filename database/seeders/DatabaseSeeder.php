@@ -28,16 +28,24 @@ class DatabaseSeeder extends Seeder
 
         // 2. Create Test Tenant (Fully Seeded)
         // Clean up previous runs if they exist
-        \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
+        $existingTenant = Tenant::find('test');
+        if ($existingTenant) {
+            $existingTenant->delete();
+        }
 
-        $tenant = Tenant::firstOrCreate(['id' => 'test'], [
+
+        // Ensure DB is gone (handled by model deletion usually)
+        // \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
+
+        $tenant = Tenant::create([
+            'id' => 'test',
             'name' => 'Transport CI (Test)',
             'email' => 'admin@test.com',
             'phone' => '+225 0101010101',
         ]);
-        
-        $tenant->domains()->firstOrCreate(['domain' => 'test.localhost']);
-        
+
+        $tenant->domains()->create(['domain' => 'test.localhost']);
+
         $this->command->info('✅ Test Tenant created.');
 
         // Initialize Seeding for Test Tenant

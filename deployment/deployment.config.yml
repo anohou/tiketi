@@ -57,14 +57,14 @@ common_vars:
 # Staging environment variables
 staging_vars:
   app_name: &stg_app_name "Billeterie - Vente de tickets (Staging)"
-  domain: &stg_domain "billeterie.anohou.dev"
+  domain: &stg_domain "stg-billeterie.anohou.dev"
   # Database name (DB_DATABASE) must be set in project secrets file:
   # /srv/apps/.config/staging/laravel/billeterie.env
-  session_domain: &stg_session_domain "billeterie.anohou.dev"
-  origin: &stg_origin "https://billeterie.anohou.dev"
-  routing_type: &stg_routing_type "path-based"
-  url_path: &stg_url_path "/billeterie-stg-qhxQH0oZswr"
-  url: &stg_url "https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr"
+  session_domain: &stg_session_domain ".stg-billeterie.anohou.dev"
+  origin: &stg_origin "https://stg-billeterie.anohou.dev,https://*.stg-billeterie.anohou.dev"
+  routing_type: &stg_routing_type "domain-based"
+  url_path: &stg_url_path ""
+  url: &stg_url "https://stg-billeterie.anohou.dev"
 
 # Production environment variables
 production_vars:
@@ -191,7 +191,7 @@ environments:
         asset_url: http://billeterie.localhost
 
       session:
-        domain: .localhost
+        domain: null
         secure_cookie: false
         same_site: lax
 
@@ -199,10 +199,10 @@ environments:
         level: debug
 
       cors:
-        allowed_origins: "http://localhost:3000,http://localhost,http://billeterie.localhost"
+        allowed_origins: "http://localhost:3000,http://localhost,http://billeterie.localhost,http://*.localhost"
 
       sanctum:
-        stateful_domains: "localhost,billeterie.localhost,127.0.0.1"
+        stateful_domains: "localhost,billeterie.localhost,.localhost,127.0.0.1"
 
   staging:
     # Variables defined in PROJECT CUSTOMIZATION section above
@@ -249,7 +249,7 @@ environments:
         secure_cookie: true
         same_site: none
         domain: *stg_session_domain
-        path: *stg_url_path
+        path: /
 
       cors:
         allowed_origins: *stg_origin

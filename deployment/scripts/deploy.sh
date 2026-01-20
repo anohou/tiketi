@@ -35,8 +35,15 @@ validate_required_vars() {
     local missing_vars=()
 
     for var in "${required_vars[@]}"; do
-        if [[ -z "${!var:-}" ]]; then
-            missing_vars+=("$var")
+        # Special case: APP_URL_PATH can be empty (for domain-based routing)
+        if [[ "$var" == "APP_URL_PATH" ]]; then
+            if [[ -z "${!var+x}" ]]; then
+                missing_vars+=("$var")
+            fi
+        else
+            if [[ -z "${!var:-}" ]]; then
+                missing_vars+=("$var")
+            fi
         fi
     done
 
@@ -174,16 +181,71 @@ deploy() {
             exit 1
         }
 
+
         # Export image name for docker-compose
         export DOCKER_IMAGE_NAME="${FULL_REGISTRY_PATH}:${environment}"
     elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
         log "INFO" "Building Docker image locally"
 
-        # TEMPORARY: Hard-code staging path until dynamic extraction works
-        local base_path="/"
-        if [[ "$environment" == "staging" ]]; then
-            # Laravel Vite plugin outputs to public/build/, so base path must include /build
-            base_path="/billeterie-stg-qhxQH0oZswr/build"
+        # Ensure composer dependencies are installed locally ONLY for local environment
+        # Local environment uses volume mounts, so it needs vendor/ on the host
+        # Staging/production use code baked into Docker image, so they don't need this
+        if [[ "$environment" == "local" ]]; then
+            log "INFO" "Installing Composer dependencies locally (required for volume mount)..."
+
+            # Navigate to project root
+            local project_root="${DEPLOYMENT_ROOT}/.."
+            cd "$project_root" || {
+                log "ERROR" "Failed to navigate to project root: $project_root"
+                exit 1
+            }
+
+            # Check if composer is available
+            if ! command -v composer &> /dev/null; then
+                log "ERROR" "Composer not found. Please install Composer: https://getcomposer.org"
+                exit 1
+            fi
+
+            # Run composer install with dev dependencies for local
+            log "INFO" "Running: composer install --no-interaction --no-scripts (with dev dependencies)"
+            composer install --no-interaction --no-scripts || {
+                log "ERROR" "Composer install failed"
+                exit 1
+            }
+
+            log "SUCCESS" "Composer dependencies installed for $environment environment"
+        else
+            log "INFO" "Skipping host composer install - using dependencies from Docker image"
+        fi
+
+        # Install npm dependencies for local development (frontend rebuilding)
+        # Production/staging use pre-built assets from Docker image
+        if [[ "$environment" == "local" ]]; then
+            log "INFO" "Installing npm dependencies for local development..."
+
+            # Check if npm is available
+            if ! command -v npm &> /dev/null; then
+                log "WARNING" "npm not found. Frontend assets cannot be rebuilt locally."
+                log "WARNING" "Install Node.js from https://nodejs.org or use pre-built assets from Docker image"
+            else
+                log "INFO" "Running: npm install"
+                npm install || {
+                    log "WARNING" "npm install failed. Frontend may not rebuild correctly."
+                }
+                log "SUCCESS" "npm dependencies installed"
+            fi
+        fi
+
+        # Return to deployment root
+        cd "${DEPLOYMENT_ROOT}" || exit 1
+
+        # Extract base path from APP_URL_PATH for Vite builds
+        # For path-based routing, Vite needs the path + /build
+        # For domain-based routing (root /), Vite needs /build/ to resolve dynamic assets correctly
+        local base_path="/build/"
+        if [[ -n "${APP_URL_PATH}" ]] && [[ "${APP_URL_PATH}" != "/" ]]; then
+            # Laravel Vite plugin outputs to public/build/, so base path needs /build suffix
+            base_path="${APP_URL_PATH}/build/"
         fi
         log "INFO" "Using base path for assets: ${base_path}"
 
@@ -194,8 +256,23 @@ deploy() {
             log "INFO" "Building with --no-cache (fresh build, no layer caching)"
         fi
 
+        # Pass VITE_ variables from secrets as build args
+        if [ -f "$SECRETS_MOUNT_FILE" ]; then
+            log "INFO" "Extracting VITE_ variables for frontend build..."
+            while IFS='=' read -r key value || [ -n "$key" ]; do
+                # Trim whitespace and quotes
+                key=$(echo "$key" | tr -d '[:space:]')
+                value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+
+                if [[ $key == VITE_* ]] && [[ -n "$value" ]]; then
+                    log "INFO" "  -> Adding build arg: $key"
+                    build_flags+=" --build-arg $key=$value"
+                fi
+            done < <(grep "^VITE_" "$SECRETS_MOUNT_FILE")
+        fi
+
         # Build with local tag only
-        local local_image="billeterie_staging:latest"
+        local local_image="${DOCKER_IMAGE_NAME}"
         docker build -t "${local_image}" \
             -f "${DEPLOYMENT_ROOT}/docker/Dockerfile" \
             --build-arg APP_ENV="$environment" \
@@ -241,17 +318,35 @@ deploy() {
 
     # Clean up stale frontend build directory to force restoration from image backup
     # This prevents volume-mounted old builds from overriding fresh builds in the Docker image
-    if [ "$environment" != "local" ]; then
-        local build_dir="${DEPLOYMENT_ROOT}/../public/build"
-        if [ -d "$build_dir" ]; then
-            log "INFO" "Removing stale build directory to ensure fresh assets..."
-            rm -rf "$build_dir"
-            log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
-        fi
+    # Always do this to ensure we use the assets from the image we just built/pulled
+    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
+    if [ -d "$build_dir" ]; then
+        log "INFO" "Removing stale build directory to ensure fresh assets..."
+        rm -rf "$build_dir"
+        log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
     fi
 
     # === HOOK: post-validation ===
     exec_hook "post-validation"
+
+    # Create empty .env file if it doesn't exist (prevents Docker from creating it as directory)
+    # The container will populate it from the template during startup
+    local env_file="${DEPLOYMENT_ROOT}/../.env"
+    if [ ! -f "$env_file" ]; then
+        log "INFO" "Creating empty .env file for container volume mount..."
+        touch "$env_file"
+        chmod 666 "$env_file"  # Allow container to write
+    fi
+
+    # Create public/build directory if it doesn't exist (prevents Docker from creating it as root-owned)
+    # The container will populate it from the image backup during startup
+    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
+    if [ ! -d "$build_dir" ]; then
+        log "INFO" "Creating public/build directory for container volume mount..."
+        mkdir -p "$build_dir"
+        chown -R $(whoami):$(whoami) "$build_dir"
+        chmod -R 775 "$build_dir"
+    fi
 
     # === HOOK: pre-deploy ===
     exec_hook "pre-deploy"
@@ -280,7 +375,7 @@ deploy() {
 
     # Test database connection (wait for container to fully boot)
     log "INFO" "Testing database connection..."
-    sleep 3  # Extra wait for Laravel to boot
+    sleep 10  # Wait for Laravel to fully bootstrap before testing DB
     # Service name from docker-compose
     local service_name="app"
     if ${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" \
@@ -340,6 +435,14 @@ deploy() {
         else
             log "WARNING" "Migrations failed - manual intervention may be required"
         fi
+    fi
+
+    # Clear view cache to ensure fresh assets are served
+    log "INFO" "Clearing view cache..."
+    if docker exec "$DOCKER_CONTAINER_NAME" php artisan view:clear >/dev/null 2>&1; then
+        log "SUCCESS" "View cache cleared"
+    else
+        log "WARNING" "Failed to clear view cache"
     fi
 
     # === DEPLOYMENT VERIFICATION ===

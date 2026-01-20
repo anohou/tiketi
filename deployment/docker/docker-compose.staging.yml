@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   app:
@@ -6,16 +5,31 @@ services:
     container_name: dc_billeterie_staging
 
     volumes:
-      # Bind mount entire project for code updates without rebuild
+      # Persist user uploads, logs, sessions (CRITICAL - data loss prevention)
       - type: bind
-        source: ../../
-        target: /var/www/html
+        source: ../../storage
+        target: /var/www/html/storage
+
+      # Persist bootstrap cache for performance
+      - type: bind
+        source: ../../bootstrap/cache
+        target: /var/www/html/bootstrap/cache
+
+      # Persist compiled frontend assets (survives container restarts)
+      - type: bind
+        source: ../../public/build
+        target: /var/www/html/public/build
+
+      # Persist generated .env for inspection (generated from template on startup)
+      - type: bind
+        source: ../../.env
+        target: /var/www/html/.env
 
     environment:
       - APP_ENV=staging
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
-      - ASSET_URL=https://billeterie.anohou.dev/billeterie-stg-qhxQH0oZswr
+      - ASSET_URL=https://stg-billeterie.anohou.dev
 
     networks:
       - traefik_swarm_network
@@ -24,18 +38,32 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik_swarm_network"
 
-      # Dynamic routing configuration (path-based or domain-based)
-      - "traefik.http.routers.billeterie-staging.rule=Host(`billeterie.anohou.dev`) && PathPrefix(`/billeterie-stg-qhxQH0oZswr`)"
-      - "traefik.http.middlewares.billeterie-staging-strip.stripprefix.prefixes=/billeterie-stg-qhxQH0oZswr"
-      - "traefik.http.routers.billeterie-staging.middlewares=billeterie-staging-strip"
-
+      # Central domain routing (landlord)
+      - "traefik.http.routers.billeterie-staging.rule=Host(`stg-billeterie.anohou.dev`)"
       - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
       - "traefik.http.routers.billeterie-staging.tls=true"
       - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
-
-      # Service configuration
       - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
+
+      # Wildcard tenant subdomain routing (using DNS challenge for wildcard certificate)
+      - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\.stg-billeterie\\.anohou\\.dev$$`)"
+      - "traefik.http.routers.billeterie-staging-tenants.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-staging-tenants.tls=true"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=cloudflare"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].main=stg-billeterie.anohou.dev"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].sans=*.stg-billeterie.anohou.dev"
+      - "traefik.http.routers.billeterie-staging-tenants.service=billeterie-staging-service"
+
+      # Service configuration (shared by both routers)
       - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
+
+      # WebSocket routing for Laravel Reverb
+      - "traefik.http.routers.billeterie-reverb-staging.rule=Host(`stg-billeterie.anohou.dev`) && PathPrefix(`/app`)"
+      - "traefik.http.routers.billeterie-reverb-staging.entrypoints=websecure"
+      - "traefik.http.routers.billeterie-reverb-staging.tls=true"
+      - "traefik.http.routers.billeterie-reverb-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-reverb-staging.service=billeterie-reverb-service"
+      - "traefik.http.services.billeterie-reverb-service.loadbalancer.server.port=6001"
 
     restart: unless-stopped
 
