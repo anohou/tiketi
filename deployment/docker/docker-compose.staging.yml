@@ -49,7 +49,9 @@ services:
       - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\\\.stg-billeterie\\\\.anohou\\\\.dev$`)"
       - "traefik.http.routers.billeterie-staging-tenants.entrypoints=websecure"
       - "traefik.http.routers.billeterie-staging-tenants.tls=true"
-      - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=cloudflare"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].main=stg-billeterie.anohou.dev"
+      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].sans=*.stg-billeterie.anohou.dev"
       - "traefik.http.routers.billeterie-staging-tenants.service=billeterie-staging-service"
 
       # Service configuration (shared by both routers)
