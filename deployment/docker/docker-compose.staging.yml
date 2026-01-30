@@ -42,7 +42,7 @@ services:
       - "traefik.http.routers.billeterie-staging.rule=Host(`stg-billeterie.anohou.dev`)"
       - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
       - "traefik.http.routers.billeterie-staging.tls=true"
-      - "traefik.http.routers.billeterie-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-staging.tls.certresolver=cloudflare"
       - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
 
       # Wildcard tenant subdomain routing (using DNS challenge for wildcard certificate)
@@ -61,7 +61,7 @@ services:
       - "traefik.http.routers.billeterie-reverb-staging.rule=Host(`stg-billeterie.anohou.dev`) && PathPrefix(`/app`)"
       - "traefik.http.routers.billeterie-reverb-staging.entrypoints=websecure"
       - "traefik.http.routers.billeterie-reverb-staging.tls=true"
-      - "traefik.http.routers.billeterie-reverb-staging.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.billeterie-reverb-staging.tls.certresolver=cloudflare"
       - "traefik.http.routers.billeterie-reverb-staging.service=billeterie-reverb-service"
       - "traefik.http.services.billeterie-reverb-service.loadbalancer.server.port=6001"
 

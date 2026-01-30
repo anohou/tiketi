@@ -35,7 +35,7 @@ services:
             # Main HTTPS Router configuration
             - "traefik.http.routers.billeterie-production-http.entrypoints=websecure"
             - "traefik.http.routers.billeterie-production-http.tls=true"
-            - "traefik.http.routers.billeterie-production-http.tls.certresolver=letsencrypt"
+            - "traefik.http.routers.billeterie-production-http.tls.certresolver=cloudflare"
             - "traefik.http.routers.billeterie-production-http.service=billeterie-production-http-service"
             - "traefik.http.routers.billeterie-production-http.middlewares=secure-headers,billeterie-production-forwarded-host"
 
