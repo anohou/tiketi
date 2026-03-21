@@ -9,13 +9,8 @@
 
           <!-- Left: Logo & Context Title -->
           <div id="NavLeft" class="flex items-center gap-4 h-full">
-            <Link :href="route('dashboard')" class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full">
-              <Receipt class="text-green-700 font-bold" :size="32" />
-              <div>
-                <span class="font-black text-xl text-green-700">TI</span>
-                <span class="font-black text-xl text-orange-500 uppercase tracking-tighter">KÊ</span>
-                <span class="font-black text-xl text-green-700">TI</span>
-              </div>
+            <Link :href="route('dashboard')" class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full py-2">
+              <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-10 w-auto object-contain" />
             </Link>
 
             <!-- Mobile Hamburger Menu (Main Nav) -->
@@ -46,15 +41,11 @@
           <div class="flex items-center gap-2 lg:gap-4 h-full lg:pl-4 lg:border-l border-orange-100">
             <!-- Utility Area (Grouped) -->
             <div class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full">
-                <!-- Mobile Trip Sidebar Toggle (Vue 360°) -->
-                <button @click="isSidebarOpen = !isSidebarOpen" class="xl:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg active:scale-95 transition-all">
-                    <Bus :size="24" />
-                </button>
                 <!-- Optional Header Actions Slot -->
                 <slot name="header-actions" />
 
-                <!-- Desktop Help Button -->
-                <button class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all hidden lg:flex items-center justify-center cursor-help" title="Aide">
+                <!-- Help Button (Desktop & Mobile) -->
+                <button class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all flex items-center justify-center cursor-help" title="Aide">
                    <HelpCircleOutline :size="20" />
                 </button>
             </div>
@@ -139,8 +130,7 @@
               <div class="h-full flex flex-col">
                   <div class="p-4 border-b border-orange-100 flex items-center justify-between bg-white pt-6">
                         <div class="flex items-center gap-2">
-                             <Receipt class="text-green-700 font-bold" :size="28" />
-                             <span class="font-black text-xl text-green-700">i-Ticket</span>
+                             <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-8 w-auto object-contain" />
                         </div>
                         <button @click="isNavOpen = false" class="p-2 hover:bg-gray-100 rounded-xl">
                             <Close :size="24" class="text-gray-400" />

@@ -59,13 +59,57 @@ class VehicleTypeSeeder extends Seeder
                 })(),
             ],
             [
-                'name' => 'Bus Articulé 80 places',
+                'name' => 'Bus Double-Étage 80 places',
                 'seat_count' => 80,
                 'seat_configuration' => '2+2',
-                'door_count' => 3,
-                'door_positions' => [1, 35, 65], // Portes avant, milieu et arrière
-                'svg_template_path' => 'bus_articule_80',
-                'seat_map' => $this->generateSeatMap(80, '2+2'),
+                'door_count' => 2,
+                'door_positions' => [1, 20], // Portes en bas
+                'svg_template_path' => 'bus_double_echap_80',
+                'seat_map' => (function() {
+                    // Lower deck: 30 seats (rows of 4 + some spaces for stairs)
+                    $lowerDeck = [];
+                    $seatNum = 1;
+                    for ($row = 1; $row <= 7; $row++) {
+                        $lowerDeck[] = [
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'aisle'],
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'seat', 'number' => $seatNum++]
+                        ];
+                    }
+                    $lowerDeck[] = [
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'aisle'],
+                        ['type' => 'empty'], // Escalier
+                        ['type' => 'empty']
+                    ];
+                    
+                    // Upper deck: 50 seats
+                    $upperDeck = [];
+                    for ($row = 1; $row <= 12; $row++) {
+                        $upperDeck[] = [
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'aisle'],
+                            ['type' => 'seat', 'number' => $seatNum++],
+                            ['type' => 'seat', 'number' => $seatNum++]
+                        ];
+                    }
+                    $upperDeck[] = [
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'empty'], // Escalier
+                        ['type' => 'empty'],
+                        ['type' => 'empty']
+                    ];
+                    
+                    return [
+                        'lower_deck' => $lowerDeck,
+                        'upper_deck' => $upperDeck
+                    ];
+                })(),
             ],
         ];
 

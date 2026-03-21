@@ -202,7 +202,7 @@
         <!-- Route & Details Container -->
         <div class="route-box">
             <div class="route-name">
-                {{ strtoupper($ticket->fromStop->name) }}-{{ strtoupper($ticket->toStop->name) }}
+                {{ strtoupper($ticket->fromStation->name) }}-{{ strtoupper($ticket->toStation->name) }}
             </div>
             
             <div class="info-grid">
@@ -220,6 +220,10 @@
                     Siège: <div class="seat-circle">{{ $ticket->seat_number }}</div>
                 </div>
                 <div>ALLER</div>
+            </div>
+            
+            <div style="text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 5px; text-transform: uppercase;">
+                Zone d'embarquement : {{ $ticket->boarding_group ?? '1' }}
             </div>
         </div>
 

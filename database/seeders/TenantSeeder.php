@@ -290,6 +290,61 @@ class TenantSeeder extends Seeder
             'svg_template_path' => 'svg/vehicles/bus_70_3x2.svg'
         ]);
 
+        // Bus Double-Étage 80 places
+        $busDouble80 = VehicleType::create([
+            'name' => 'Bus Double-Étage 80 places',
+            'seat_count' => 80,
+            'seat_configuration' => '2+2',
+            'door_count' => 2,
+            'door_positions' => [1, 20],
+            'svg_template_path' => 'bus_double_echap_80',
+            'seat_map' => (function() {
+                // Lower deck: 30 seats
+                $lowerDeck = [];
+                $seatNum = 1;
+                for ($row = 1; $row <= 7; $row++) {
+                    $lowerDeck[] = [
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'aisle'],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++]
+                    ];
+                }
+                $lowerDeck[] = [
+                    ['type' => 'seat', 'number' => $seatNum++],
+                    ['type' => 'seat', 'number' => $seatNum++],
+                    ['type' => 'aisle'],
+                    ['type' => 'empty'],
+                    ['type' => 'empty']
+                ];
+                
+                // Upper deck: 50 seats
+                $upperDeck = [];
+                for ($row = 1; $row <= 12; $row++) {
+                    $upperDeck[] = [
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'aisle'],
+                        ['type' => 'seat', 'number' => $seatNum++],
+                        ['type' => 'seat', 'number' => $seatNum++]
+                    ];
+                }
+                $upperDeck[] = [
+                    ['type' => 'seat', 'number' => $seatNum++],
+                    ['type' => 'seat', 'number' => $seatNum++],
+                    ['type' => 'empty'],
+                    ['type' => 'empty'],
+                    ['type' => 'empty']
+                ];
+                
+                return [
+                    'lower_deck' => $lowerDeck,
+                    'upper_deck' => $upperDeck
+                ];
+            })(),
+        ]);
+
         // ==========================================
         // VÉHICULES
         // ==========================================
@@ -350,6 +405,16 @@ class TenantSeeder extends Seeder
                 'maker' => 'MAN Lion Coach',
                 'vehicle_type_id' => $bus70_3x2->id,
                 'seat_count' => 70
+            ]);
+        }
+        
+        $vehiclesDouble80 = [];
+        for ($i = 1; $i <= 1; $i++) {
+            $vehiclesDouble80[] = Vehicle::create([
+                'identifier' => 'DBL-' . str_pad($i, 3, '0', STR_PAD_LEFT),
+                'maker' => 'Neoplan Skyliner',
+                'vehicle_type_id' => $busDouble80->id,
+                'seat_count' => 80
             ]);
         }
 
@@ -479,7 +544,7 @@ class TenantSeeder extends Seeder
 
         Trip::create([
             'route_id' => $routeAbidjanKorhogo->id,
-            'vehicle_id' => $vehiclesBus70_3x2[0]->id,
+            'vehicle_id' => $vehiclesDouble80[0]->id,
             'departure_at' => $tomorrow->copy()->setTime(6, 0),
             'status' => 'scheduled',
             'booking_type' => 'seat_assignment'

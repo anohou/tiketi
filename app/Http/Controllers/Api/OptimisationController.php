@@ -27,7 +27,9 @@ class OptimisationController extends Controller
     public function suggestSeats(Request $request, string $tripId)
     {
         $validator = Validator::make($request->all(), [
-            'destination_stop_id' => 'required|exists:stops,id',
+            'destination_stop_id' => 'required|exists:stations,id',
+            'boarding_station_id' => 'nullable|exists:stations,id',
+            'quantity' => 'sometimes|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -41,7 +43,9 @@ class OptimisationController extends Controller
         try {
             $suggestions = $this->optimisationService->getSuggestedSeats(
                 $tripId,
-                $request->destination_stop_id
+                $request->destination_stop_id,
+                (int) ($request->quantity ?? 1),
+                $request->boarding_station_id
             );
 
             $stats = $this->optimisationService->getTripOccupancyStats($tripId);

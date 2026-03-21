@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Route;
 use App\Models\RouteStopOrder;
-use App\Models\Stop;
+use App\Models\Station;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -16,14 +16,14 @@ class RouteStopOrderController extends Controller
      */
     public function index(Route $route)
     {
-        $route->load(['routeStopOrders.stop.station']);
-        
-        // Get all stops to allow adding new ones
-        $allStops = Stop::with('station')->orderBy('name')->get()->map(function ($stop) {
+        $route->load(['routeStopOrders.station']);
+
+        // Get all stations to allow adding new ones
+        $allStations = Station::orderBy('name')->get()->map(function ($station) {
             return [
-                'id' => $stop->id,
-                'name' => $stop->name,
-                'city' => $stop->station ? $stop->station->city : null,
+                'id' => $station->id,
+                'name' => $station->name,
+                'city' => $station->city,
             ];
         });
 
@@ -33,14 +33,14 @@ class RouteStopOrderController extends Controller
                 return [
                     'id' => $order->id,
                     'stop' => [
-                        'id' => $order->stop->id,
-                        'name' => $order->stop->name,
-                        'city' => $order->stop->station ? $order->stop->station->city : null,
+                        'id' => $order->station->id,
+                        'name' => $order->station->name,
+                        'city' => $order->station->city,
                     ],
                     'stop_index' => $order->stop_index,
                 ];
             }),
-            'availableStops' => $allStops
+            'availableStops' => $allStations
         ]);
     }
 
@@ -50,13 +50,13 @@ class RouteStopOrderController extends Controller
     public function store(Request $request, Route $route)
     {
         $validated = $request->validate([
-            'stop_id' => 'required|exists:stops,id',
+            'station_id' => 'required|exists:stations,id',
             'stop_index' => 'required|integer|min:0',
         ]);
 
-        // Check if stop already exists in this route
-        if ($route->routeStopOrders()->where('stop_id', $validated['stop_id'])->exists()) {
-            return back()->withErrors(['stop_id' => 'Cet arrêt est déjà présent sur cette route.']);
+        // Check if station already exists in this route
+        if ($route->routeStopOrders()->where('station_id', $validated['station_id'])->exists()) {
+            return back()->withErrors(['station_id' => 'Cette station est déjà présente sur cette route.']);
         }
 
         // Shift existing stops if inserting in middle
@@ -65,7 +65,7 @@ class RouteStopOrderController extends Controller
             ->increment('stop_index');
 
         $route->routeStopOrders()->create([
-            'stop_id' => $validated['stop_id'],
+            'station_id' => $validated['station_id'],
             'stop_index' => $validated['stop_index']
         ]);
 
@@ -102,17 +102,17 @@ class RouteStopOrderController extends Controller
         \DB::transaction(function () use ($validated) {
             // Get a temporary index that won't conflict
             $tempIndex = RouteStopOrder::max('stop_index') + 1;
-            
+
             // Get the two stops being swapped
             $stop1 = RouteStopOrder::find($validated['orders'][0]['id']);
             $stop2 = RouteStopOrder::find($validated['orders'][1]['id']);
-            
+
             // First move stop1 to temp to avoid unique constraint
             $stop1->update(['stop_index' => $tempIndex]);
-            
+
             // Set stop2 to its new index
             $stop2->update(['stop_index' => $validated['orders'][1]['stop_index']]);
-            
+
             // Set stop1 to its new index
             $stop1->update(['stop_index' => $validated['orders'][0]['stop_index']]);
         });

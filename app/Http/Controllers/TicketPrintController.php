@@ -14,8 +14,8 @@ class TicketPrintController extends Controller
         $ticket = Ticket::with([
             'trip.route',
             'trip.vehicle',
-            'fromStop',
-            'toStop',
+            'fromStation',
+            'toStation',
             'seller'
         ])->findOrFail($ticketId);
 
@@ -24,8 +24,8 @@ class TicketPrintController extends Controller
             'ticket_id' => $ticket->id,
             'ticket_number' => $ticket->ticket_number,
             'trip_id' => $ticket->trip_id,
-            'from_stop' => $ticket->fromStop->name,
-            'to_stop' => $ticket->toStop->name,
+            'from_stop' => $ticket->fromStation->name,
+            'to_stop' => $ticket->toStation->name,
             'seat_number' => $ticket->seat_number,
             'passenger_name' => $ticket->passenger_name,
             'amount' => $ticket->amount,
@@ -49,8 +49,8 @@ class TicketPrintController extends Controller
         $tickets = Ticket::with([
             'trip.route',
             'trip.vehicle',
-            'fromStop',
-            'toStop',
+            'fromStation',
+            'toStation',
             'seller'
         ])->whereIn('id', $ticketIds)->get();
 
@@ -60,8 +60,8 @@ class TicketPrintController extends Controller
                 'ticket_id' => $ticket->id,
                 'ticket_number' => $ticket->ticket_number,
                 'trip_id' => $ticket->trip_id,
-                'from_stop' => $ticket->fromStop->name,
-                'to_stop' => $ticket->toStop->name,
+                'from_stop' => $ticket->fromStation->name,
+                'to_stop' => $ticket->toStation->name,
                 'seat_number' => $ticket->seat_number,
                 'passenger_name' => $ticket->passenger_name,
                 'amount' => $ticket->amount,

@@ -199,6 +199,7 @@ class BluetoothPrinter {
         commands += this.SIZE_DOUBLE;
         commands += this.BOLD_ON;
         commands += `Siege: ${ticketData.seat_number}\n`;
+        commands += `Zone: ${ticketData.boarding_group || '1'}\n`;
         commands += this.BOLD_OFF;
         commands += this.SIZE_NORMAL;
         commands += this.LINE_FEED;

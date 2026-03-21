@@ -20,7 +20,13 @@ class TripController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Trip::with(['route.originStation', 'vehicle.vehicleType'])
+        $query = Trip::withCount('tripSeatOccupancies as occupied_seats')
+            ->with([
+                'route.originStation', 
+                'route.destinationStation', 
+                'route.routeStopOrders.station',
+                'vehicle.vehicleType'
+            ])
             ->where('departure_at', '>=', now())
             ->orderBy('departure_at');
 
@@ -182,7 +188,8 @@ class TripController extends Controller
             'seat_map' => $seatMap,
             'total_seats' => $seatCount, // Total capacity
             'occupied_seats_count' => $occupiedSeatsLookup->count(),
-            'available_seats_count' => $seatCount - $occupiedSeatsLookup->count()
+            'available_seats_count' => $seatCount - $occupiedSeatsLookup->count(),
+            'vehicle_type' => $vehicleType,
         ]);
     }
 

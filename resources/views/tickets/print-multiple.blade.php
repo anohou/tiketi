@@ -217,7 +217,7 @@
             <!-- Route Information -->
             <div class="route-section">
                 <div class="route-box">
-                    {{ $ticket->fromStop->name }}-{{ $ticket->toStop->name }}
+                    {{ $ticket->fromStation->name }}-{{ $ticket->toStation->name }}
                 </div>
             </div>
 

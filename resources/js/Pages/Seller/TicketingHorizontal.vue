@@ -1,42 +1,45 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { router, Link, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
+import TicketInspectionModal from '@/Components/Supervisor/TicketInspectionModal.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
-import Clock from 'vue-material-design-icons/Clock.vue';
-import Ticket from 'vue-material-design-icons/Ticket.vue';
-import Cash from 'vue-material-design-icons/Cash.vue';
 import Check from 'vue-material-design-icons/Check.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Close from 'vue-material-design-icons/Close.vue';
-import Seat from 'vue-material-design-icons/Seat.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
 import axios from 'axios';
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
+import { ticketingStore } from '@/Stores/ticketingStore.js';
 
 const props = defineProps({
   trips: Array,
   routeFares: Array,
   routes: Array,
   vehicles: Array,
+  hasActiveAssignment: Boolean,
+  assignedStation: String,
+  destinations: { type: Array, default: () => [] },
 });
 
 // Get page props for auth user
 const page = usePage();
 
 // State
+const trips = ref([...props.trips]);
 const selectedTripId = ref(null);
 const selectedFare = ref(null);
 const ticketQuantity = ref(1);
 const searchQuery = ref('');
+const selectedDestinationId = ref('');
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
 const suggestedSeats = ref([]);
@@ -49,19 +52,69 @@ const createTripForm = ref({
   route_id: '',
   vehicle_id: '',
   departure_at: '',
-  status: 'scheduled'
+  status: 'scheduled',
+  sales_control: 'closed',
 });
 const createTripErrors = ref({});
 const createTripProcessing = ref(false);
 const showZoomModal = ref(false);
-const autoSelectOptimal = ref(true); // Auto-select optimal seat by default
-const showPassengerFields = ref(false); // Hide passenger fields by default
+const autoSelectOptimal = ref(true);
+const showPassengerFields = ref(false);
+
+// Live clock
+const currentTime = ref('');
+const currentDate = ref('');
+let clockInterval = null;
+const updateClock = () => {
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  currentDate.value = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+};
+updateClock();
+
+// Supervisor Inspection
+const showInspectionModal = ref(false);
+const selectedTicketForInspection = ref(null);
 
 // Bluetooth Printer state
 const bluetoothPrinter = new BluetoothPrinter();
 const useBluetoothPrinter = ref(localStorage.getItem('use_bluetooth_printer') === 'true');
 const bluetoothPrinterConnected = ref(false);
 const bluetoothPrinterName = ref(null);
+
+// WebSocket: canal actif pour les mises à jour du plan de sièges en temps réel
+const currentTripChannel = ref(null);
+
+const subscribeTripChannel = (tripId) => {
+  unsubscribeTripChannel();
+  if (!tripId) return;
+  currentTripChannel.value = tripId;
+  Echo.private(`trip.${tripId}`)
+    .listen('.SeatMapUpdated', (e) => {
+      fetchSeatMap();
+      ticketingStore.notifySeatMapChanged(); // Also refresh sidebar
+      if (selectedFare.value) {
+        fetchSeatSuggestions();
+      }
+      // Update trip card counts from WebSocket event
+      const occupied = (e.changedSeats || []).filter(s => s.status === 'occupied').length;
+      const freed = (e.changedSeats || []).filter(s => s.status === 'available').length;
+      const delta = occupied - freed;
+      if (delta !== 0) {
+        const idx = trips.value.findIndex(t => t.id === tripId);
+        if (idx !== -1) {
+          trips.value[idx] = { ...trips.value[idx], available_seats: Math.max(0, (trips.value[idx].available_seats || 0) - delta) };
+        }
+      }
+    });
+};
+
+const unsubscribeTripChannel = () => {
+  if (currentTripChannel.value) {
+    Echo.leave(`trip.${currentTripChannel.value}`);
+    currentTripChannel.value = null;
+  }
+};
 
 // Zoom and Pan state for Places section
 const zoomLevel = ref(1);
@@ -74,16 +127,6 @@ const dragStartY = ref(0);
 // Passenger form modal
 const showPassengerModal = ref(false);
 const selectedSeatNumber = ref(null);
-const selectedSeatInfo = computed(() => {
-  if (!selectedSeatNumber.value || !seatMap.value) return null;
-  
-  // Find seat info from seat map
-  for (const row of seatMap.value.seat_map) {
-    const seat = row.find(s => s.number === selectedSeatNumber.value);
-    if (seat) return seat;
-  }
-  return null;
-});
 
 const selectedSeatSuggestion = computed(() => {
   if (!selectedSeatNumber.value || !suggestedSeats.value) return null;
@@ -95,23 +138,93 @@ const passengerForm = ref({
 });
 const passengerFormErrors = ref({});
 
+// Seats to book: multi-seat uses suggestions, single uses selected seat
+const seatsToBook = computed(() => {
+  if (ticketQuantity.value > 1 && suggestedSeats.value.length >= ticketQuantity.value) {
+    return suggestedSeats.value.slice(0, ticketQuantity.value).map(s => s.seat_number);
+  }
+  return selectedSeatNumber.value ? [selectedSeatNumber.value] : [];
+});
+
 // Computed
 const currentTrip = computed(() => {
-  return props.trips.find(trip => trip.id === selectedTripId.value);
+  return trips.value.find(trip => trip.id === selectedTripId.value);
 });
 
 const filteredTrips = computed(() => {
-  if (!searchQuery.value) return props.trips;
-  const query = searchQuery.value.toLowerCase();
-  return props.trips.filter(trip => 
-    trip.display_name?.toLowerCase().includes(query) ||
-    trip.vehicle?.identifier?.toLowerCase().includes(query)
-  );
+  let filtered = trips.value;
+
+  if (selectedDestinationId.value) {
+    filtered = filtered.filter(trip => {
+      if (trip.route?.target_destination_id === selectedDestinationId.value) return true;
+      if (trip.route?.destination_station?.destination_id === selectedDestinationId.value) return true;
+      const stops = trip.route?.routeStopOrders || trip.route?.route_stop_orders || [];
+      return stops.some(stop => stop.station?.destination_id === selectedDestinationId.value);
+    });
+  }
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(trip =>
+      trip.display_name?.toLowerCase().includes(query) ||
+      trip.vehicle?.identifier?.toLowerCase().includes(query)
+    );
+  }
+
+  return filtered;
 });
 
 const availableFares = computed(() => {
     if (!currentTrip.value) return [];
-    return props.routeFares.filter(fare => fare.route_id === currentTrip.value.route_id);
+
+    const route = currentTrip.value.route;
+    const stops = route?.route_stop_orders || route?.routeStopOrders || [];
+
+    const allowedStationIds = new Set();
+    if (route.origin_station_id) allowedStationIds.add(route.origin_station_id);
+    if (route.destination_station_id) allowedStationIds.add(route.destination_station_id);
+    stops.forEach(s => {
+        if (s.station_id) allowedStationIds.add(s.station_id);
+        if (s.station?.id) allowedStationIds.add(s.station.id);
+    });
+
+    const stationIndexMap = {};
+    if (route.origin_station_id) stationIndexMap[route.origin_station_id] = -1;
+    stops.forEach((s, index) => {
+        const sId = s.station_id || s.station?.id;
+        if (sId) stationIndexMap[sId] = index;
+    });
+    if (route.destination_station_id) stationIndexMap[route.destination_station_id] = 9999;
+
+    const isReversedTrip = currentTrip.value.origin_station_id &&
+        route.destination_station_id &&
+        currentTrip.value.origin_station_id === route.destination_station_id;
+
+    const filtered = props.routeFares.filter(fare => {
+        const fromStation = fare.from_station || fare.fromStation;
+        const toStation = fare.to_station || fare.toStation;
+        const fareFromId = fare.from_station_id || fromStation?.id;
+        const fareToId = fare.to_station_id || toStation?.id;
+        if (!fareFromId || !fareToId) return false;
+        if (!allowedStationIds.has(fareFromId) || !allowedStationIds.has(fareToId)) return false;
+
+        if (!props.assignedStation) {
+            const tripOriginId = currentTrip.value.origin_station_id || route.origin_station_id;
+            if (tripOriginId && fareFromId !== tripOriginId) return false;
+        }
+
+        const fromIdx = stationIndexMap[fareFromId];
+        const toIdx = stationIndexMap[fareToId];
+        if (fromIdx !== undefined && toIdx !== undefined) {
+            return isReversedTrip ? fromIdx > toIdx : fromIdx < toIdx;
+        }
+        return false;
+    });
+
+    return [...filtered].sort((a, b) => a.amount - b.amount).map((fare, index, arr) => {
+        const ratio = arr.length > 1 ? index / (arr.length - 1) : 0;
+        return { ...fare, color: `hsl(${210 + ratio * 30}, ${65 + ratio * 35}%, ${75 - ratio * 40}%)` };
+    });
 });
 
 const totalAmount = computed(() => {
@@ -125,65 +238,105 @@ const canBookTickets = computed(() => {
          !processing.value;
 });
 
+// Watch for prop updates (e.g. inertia navigation)
+watch(() => props.trips, (newTrips) => {
+    trips.value = [...newTrips];
+});
+
 // Methods
 const selectTrip = (tripId) => {
   selectedTripId.value = tripId;
+  ticketingStore.setSelectedTripId(tripId);
   selectedFare.value = null;
   seatMap.value = null;
   suggestedSeats.value = [];
+  ticketingStore.setSuggestions([]);
 };
 
-const fetchSeatMap = async () => {
+const fetchSeatMap = async ({ silent = false } = {}) => {
   if (!selectedTripId.value) return;
-  seatMapLoading.value = true;
+  if (!silent) seatMapLoading.value = true;
   try {
-    const response = await axios.get(route('seller.trips.seatmap', { 
+    const response = await axios.get(route('seller.trips.seatmap', {
       trip: selectedTripId.value,
       _t: new Date().getTime() // Cache busting
     }));
     seatMap.value = response.data;
   } catch (error) {
     console.error("Erreur lors de la récupération du plan de salle:", error);
-    errors.value.seatmap = "Impossible de charger le plan de salle.";
+    if (!silent) errors.value.seatmap = "Impossible de charger le plan de salle.";
   } finally {
-    seatMapLoading.value = false;
+    if (!silent) seatMapLoading.value = false;
   }
 };
 
 const fetchSeatSuggestions = async () => {
     if (!selectedTripId.value || !selectedFare.value) return;
     try {
-        const response = await axios.get(route('seller.trips.suggest-seats', { 
-            trip: selectedTripId.value 
+        const response = await axios.get(route('seller.trips.suggest-seats', {
+            trip: selectedTripId.value
         }), {
             params: {
                 destination_station_id: selectedFare.value.to_station_id,
-                quantity: 1
+                quantity: ticketQuantity.value
             }
         });
         suggestedSeats.value = response.data.suggested_seats || [];
+        ticketingStore.setSuggestions(suggestedSeats.value);
         bookingType.value = response.data.booking_type;
         occupancyStats.value = response.data.occupancy;
     } catch (error) {
         console.error("Erreur lors de la récupération des suggestions:", error);
         suggestedSeats.value = [];
+        ticketingStore.setSuggestions([]);
         bookingType.value = null;
         occupancyStats.value = null;
     }
 };
 
-const bookSeat = (seatNumber) => {
+const handleSeatClick = (seatNumber) => {
+  if (!seatMap.value) return;
+
+  let seatObj = null;
+  const mapData = seatMap.value.seat_map;
+  const rows = Array.isArray(mapData) ? mapData : [...(mapData.lower_deck || []), ...(mapData.upper_deck || [])];
+  
+  for (const row of rows) {
+    const found = row.find(s => s.number === seatNumber);
+    if (found) { seatObj = found; break; }
+  }
+
+  if (seatObj?.isOccupied) {
+    if (['admin', 'supervisor'].includes(page.props.auth.user.role)) {
+      selectedTicketForInspection.value = {
+        id: 'req-' + seatObj.ticket_id,
+        ticket_number: seatObj.ticket_number || 'UNKNOWN',
+        seller_name: 'Guichetier (Auto)',
+        reason: 'Inspection Directe',
+        time_ago: 'À l\'instant',
+        seat_number: seatNumber,
+        trip_id: selectedTripId.value,
+        original_ticket_id: seatObj.ticket_id,
+      };
+      showInspectionModal.value = true;
+    }
+    return;
+  }
+
   if (!selectedFare.value) {
     errors.value.general = "Veuillez sélectionner un tronçon avant de réserver un siège.";
     return;
   }
 
-  // Open passenger form modal
-  selectedSeatNumber.value = seatNumber;
-  passengerForm.value = { name: '', phone: '' };
-  passengerFormErrors.value = {};
-  showPassengerFields.value = false; // Reset to hidden by default
-  showPassengerModal.value = true;
+  if (selectedSeatNumber.value === seatNumber) {
+    selectedSeatNumber.value = null;
+  } else {
+    selectedSeatNumber.value = seatNumber;
+    passengerForm.value = { name: '', phone: '' };
+    passengerFormErrors.value = {};
+    showPassengerFields.value = false;
+    showPassengerModal.value = true;
+  }
 };
 
 const autoSelectOptimalSeat = () => {
@@ -197,35 +350,74 @@ const autoSelectOptimalSeat = () => {
   
   // Auto-select the first (best) suggested seat and open modal
   const optimalSeat = suggestedSeats.value[0];
-  bookSeat(optimalSeat.seat_number); // Pass seat_number, not the whole object
+  handleSeatClick(optimalSeat.seat_number);
 };
 
-const confirmBooking = () => {
+// Immutable update: replaces seatMap.value entirely to guarantee Vue reactivity
+const updateSeatMapImmutable = (seatNumber, isOccupied, color) => {
+  if (!seatMap.value?.seat_map) return;
+  const seatNum = String(seatNumber);
+  const delta = isOccupied ? 1 : -1;
+  
+  const mapRow = (row) => row.map(cell =>
+    cell.type === 'seat' && String(cell.number) === seatNum
+      ? { ...cell, isOccupied, ...(color ? { color } : {}) }
+      : cell
+  );
+
+  let newSeatMapData;
+  if (Array.isArray(seatMap.value.seat_map)) {
+    newSeatMapData = seatMap.value.seat_map.map(mapRow);
+  } else {
+    newSeatMapData = {};
+    if (seatMap.value.seat_map.lower_deck) newSeatMapData.lower_deck = seatMap.value.seat_map.lower_deck.map(mapRow);
+    if (seatMap.value.seat_map.upper_deck) newSeatMapData.upper_deck = seatMap.value.seat_map.upper_deck.map(mapRow);
+  }
+
+  seatMap.value = {
+    ...seatMap.value,
+    seat_map: newSeatMapData,
+    occupied_seats: (seatMap.value.occupied_seats || 0) + delta,
+    available_seats: (seatMap.value.available_seats || 0) - delta,
+    occupied_seats_count: (seatMap.value.occupied_seats_count || 0) + delta,
+    available_seats_count: (seatMap.value.available_seats_count || 0) - delta,
+  };
+};
+
+const markSeatOccupied = (seatNumber, color) => {
+  updateSeatMapImmutable(seatNumber, true, color);
+};
+
+const revertSeatAvailable = (seatNumber) => {
+  updateSeatMapImmutable(seatNumber, false);
+};
+
+const confirmBooking = async () => {
   // Validate passenger form
   passengerFormErrors.value = {};
-  
+
   if (showPassengerFields.value && passengerForm.value.name && passengerForm.value.name.trim().length < 2) {
     passengerFormErrors.value.name = 'Le nom doit contenir au moins 2 caractères';
   }
-  
+
   if (showPassengerFields.value && passengerForm.value.phone && !/^[0-9]{9,15}$/.test(passengerForm.value.phone.replace(/\s/g, ''))) {
     passengerFormErrors.value.phone = 'Numéro de téléphone invalide (9-15 chiffres)';
   }
-  
+
   if (Object.keys(passengerFormErrors.value).length > 0) {
     return;
   }
 
-  processing.value = true;
-  errors.value = {};
+  // Determine all seats to book
+  const allSeats = seatsToBook.value.length > 0 ? [...seatsToBook.value] : [selectedSeatNumber.value];
+  const totalAmount = selectedFare.value.amount * allSeats.length;
 
   const ticketData = {
     trip_id: selectedTripId.value,
     from_station_id: selectedFare.value.from_station_id,
     to_station_id: selectedFare.value.to_station_id,
-    seats: [selectedSeatNumber.value],
-    amount: selectedFare.value.amount, // Use selectedFare.value.amount directly
-    seller_id: page.props.auth.user.id,
+    seats: allSeats,
+    amount: totalAmount,
   };
 
   if (showPassengerFields.value && passengerForm.value.name) {
@@ -235,38 +427,61 @@ const confirmBooking = () => {
     ticketData.passenger_phone = passengerForm.value.phone.replace(/\s/g, '');
   }
 
-  router.post(route('seller.tickets.store'), ticketData, {
-    preserveState: true,
-    preserveScroll: true,
-    onSuccess: (page) => {
-      showPassengerModal.value = false;
-      fetchSeatMap(); // Refresh seat map
-      
-      // Clear selection
-      selectedFare.value = null;
-      selectedSeatNumber.value = null;
-      suggestedSeats.value = [];
+  // Optimistic: close modal + mark ALL seats occupied instantly with fare color
+  const fareColor = selectedFare.value?.color;
+  showPassengerModal.value = false;
+  allSeats.forEach(seat => markSeatOccupied(seat, fareColor));
+  ticketingStore.notifySeatBooked(allSeats, fareColor);
+  selectedSeatNumber.value = null;
+  // Clear stale suggestions immediately
+  suggestedSeats.value = [];
+  ticketingStore.setSuggestions([]);
+  // Reset quantity back to 1 for next booking (skip watcher to avoid re-fetching suggestions)
+  skipQuantityWatch = true;
+  ticketQuantity.value = 1;
+  // Optimistic: update trip card seat counts
+  const tripIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
+  if (tripIdx !== -1) {
+    trips.value[tripIdx] = {
+      ...trips.value[tripIdx],
+      available_seats: Math.max(0, (trips.value[tripIdx].available_seats || 0) - allSeats.length),
+    };
+  }
 
-      if (page.props.flash?.ticket_id) {
-        // Try Bluetooth printing first if enabled
-        if (useBluetoothPrinter.value && bluetoothPrinterConnected.value) {
-          printWithBluetooth(page.props.flash.ticket_id).catch(error => {
-            console.error('Bluetooth print failed, falling back to browser print:', error);
-            fallbackToBrowserPrint(page.props.flash.ticket_id);
-          });
-        } else {
-          fallbackToBrowserPrint(page.props.flash.ticket_id);
-        }
+  // Keep selectedFare so seller can immediately book the next seat
+
+  try {
+    const response = await axios.post(route('seller.tickets.store'), ticketData);
+    const data = response.data;
+    const ticketIds = data.ticket_ids || [];
+    // Print tickets
+    if (ticketIds.length > 0) {
+      if (useBluetoothPrinter.value && bluetoothPrinterConnected.value) {
+        printWithBluetooth(ticketIds[0]).catch(() => fallbackToBrowserPrint(ticketIds[0]));
+      } else {
+        ticketIds.forEach(id => fallbackToBrowserPrint(id));
       }
-    },
-    onError: (errs) => {
-      errors.value = errs;
-      alert('Erreur lors de la création du ticket.');
-    },
-    onFinish: () => {
-      processing.value = false;
     }
-  });
+
+    // Refresh seat map from server (silent — no loading spinner)
+    fetchSeatMap({ silent: true });
+    ticketingStore.notifySeatMapChanged(); // Tell sidebar to refetch too
+  } catch (error) {
+    allSeats.forEach(seat => {
+      revertSeatAvailable(seat);
+    });
+    ticketingStore.notifySeatReverted(allSeats);
+    // Revert trip card seat counts
+    const revertIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
+    if (revertIdx !== -1) {
+      trips.value[revertIdx] = {
+        ...trips.value[revertIdx],
+        available_seats: (trips.value[revertIdx].available_seats || 0) + allSeats.length,
+      };
+    }
+    const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
+    alert(message);
+  }
 };
 
 // Bluetooth Printer Methods
@@ -304,8 +519,6 @@ const printWithBluetooth = async (ticketId) => {
     const response = await axios.get(route('api.tickets.show', ticketId));
     const ticket = response.data;
     
-    console.log('Ticket data received:', ticket);
-    
     // Extract settings from response
     const settings = response.data.settings || {
       company_name: 'TSR CI',
@@ -330,8 +543,6 @@ const printWithBluetooth = async (ticketId) => {
       qr_code: ticket.qr_code || null,
       timestamp: new Date().toLocaleString('fr-FR')
     };
-    
-    console.log('Formatted ticket data:', ticketData);
     
     await bluetoothPrinter.printTicket(ticketData, settings);
   } catch (error) {
@@ -419,6 +630,7 @@ const resetZoom = () => {
 
 // Watchers
 watch(selectedTripId, (newVal) => {
+  subscribeTripChannel(newVal);
   if (newVal) {
     selectedFare.value = null;
     seatMap.value = null;
@@ -430,25 +642,34 @@ watch(selectedTripId, (newVal) => {
 
 watch(selectedFare, (newVal) => {
     if(newVal) {
+        fetchSeatMap();
         fetchSeatSuggestions().then(() => {
-            // Auto-select optimal seat if enabled
             if (autoSelectOptimal.value && suggestedSeats.value && suggestedSeats.value.length > 0) {
                 autoSelectOptimalSeat();
             }
         });
     } else {
+        fetchSeatMap();
         suggestedSeats.value = [];
+    }
+});
+
+// Re-fetch suggestions when ticket quantity changes (skip programmatic resets)
+let skipQuantityWatch = false;
+watch(ticketQuantity, () => {
+    if (skipQuantityWatch) { skipQuantityWatch = false; return; }
+    if (selectedFare.value) {
+        fetchSeatSuggestions();
     }
 });
 
 // Auto-reconnect to Bluetooth printer on page load
 onMounted(async () => {
+  clockInterval = setInterval(updateClock, 1000);
   if (useBluetoothPrinter.value && bluetoothPrinter.isSupported()) {
     try {
-      // Try to get previously paired devices
       const devices = await navigator.bluetooth.getDevices();
       if (devices && devices.length > 0) {
-        // Reconnect to the first device (most recent)
         bluetoothPrinter.device = devices[0];
         const server = await bluetoothPrinter.device.gatt.connect();
         const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
@@ -456,13 +677,42 @@ onMounted(async () => {
         bluetoothPrinter.connected = true;
         bluetoothPrinterConnected.value = true;
         bluetoothPrinterName.value = bluetoothPrinter.device.name;
-        console.log('Auto-reconnected to Bluetooth printer:', bluetoothPrinter.device.name);
       }
     } catch (error) {
-      console.log('Auto-reconnect failed:', error);
       // Silently fail - user can manually reconnect
     }
   }
+
+  // Subscribe to WebSocket for selected trip
+  if (selectedTripId.value) {
+    subscribeTripChannel(selectedTripId.value);
+  }
+
+  // Listen for real-time trip additions
+  if (page.props.auth.user.station_assignments) {
+    page.props.auth.user.station_assignments.forEach(assignment => {
+      Echo.private(`station.${assignment.station_id}`)
+        .listen('.TripCreated', (e) => {
+          if (!trips.value.find(t => t.id === e.trip.id)) {
+            trips.value.unshift(e.trip);
+          }
+        });
+    });
+  }
+
+  if (['admin', 'executive'].includes(page.props.auth.user.role)) {
+    Echo.private('trips.global')
+      .listen('.TripCreated', (e) => {
+        if (!trips.value.find(t => t.id === e.trip.id)) {
+          trips.value.unshift(e.trip);
+        }
+      });
+  }
+});
+
+onUnmounted(() => {
+  unsubscribeTripChannel();
+  if (clockInterval) clearInterval(clockInterval);
 });
 
 </script>
@@ -477,7 +727,13 @@ onMounted(async () => {
             <h1 class="text-xl font-bold text-gray-900">Billetterie</h1>
             <p class="text-sm text-gray-500">Vente de tickets</p>
           </div>
-          
+
+          <!-- Live Clock -->
+          <div class="text-center">
+            <div class="text-3xl font-black text-gray-900 tracking-tight leading-none">{{ currentTime }}</div>
+            <div class="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5">{{ currentDate }}</div>
+          </div>
+
           <!-- Trip Selection Dropdown -->
           <div class="flex-1 max-w-2xl">
             <div class="relative flex items-center">
@@ -632,7 +888,8 @@ onMounted(async () => {
                    :selected-seat="selectedSeatNumber"
                    :selected-color="selectedFare?.color"
                    :show-suggestions="!autoSelectOptimal"
-                   @seat-click="bookSeat"
+                   :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
+                   @seat-click="handleSeatClick"
                  />
               </div>
               
@@ -659,8 +916,10 @@ onMounted(async () => {
             <!-- Seat Information -->
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <div class="text-center">
-                <div class="text-3xl font-bold text-blue-600 mb-2">Place {{ selectedSeatNumber }}</div>
-                <div v-if="selectedSeatSuggestion" class="text-sm text-gray-700 mb-2">
+                <div v-if="seatsToBook.length > 1" class="text-3xl font-bold text-blue-600 mb-2">Places {{ seatsToBook.join(', ') }}</div>
+                <div v-else class="text-3xl font-bold text-blue-600 mb-2">Place {{ selectedSeatNumber }}</div>
+                <div v-if="seatsToBook.length > 1" class="text-sm text-green-600 font-semibold mb-2">{{ seatsToBook.length }} places adjacentes</div>
+                <div v-else-if="selectedSeatSuggestion" class="text-sm text-gray-700 mb-2">
                   <span class="font-semibold">Score:</span> {{ selectedSeatSuggestion.score }}<br>
                   <span class="font-semibold">Raison:</span> {{ selectedSeatSuggestion.reason }}
                 </div>
@@ -865,6 +1124,14 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+    <!-- Supervisor Inspection Modal -->
+    <TicketInspectionModal
+      :show="showInspectionModal"
+      :validation="selectedTicketForInspection"
+      @close="showInspectionModal = false"
+      @approve="() => { showInspectionModal = false; }"
+      @decline="() => { showInspectionModal = false; }"
+    />
   </MainNavLayout>
 </template>
 

@@ -104,8 +104,7 @@ class AnalyticsController extends Controller
 
         // Revenue by station
         $revenueByStation = Ticket::query()
-            ->join('stops', 'tickets.from_stop_id', '=', 'stops.id')
-            ->join('stations', 'stops.station_id', '=', 'stations.id')
+            ->join('stations', 'tickets.from_station_id', '=', 'stations.id')
             ->selectRaw('stations.id, stations.name, SUM(tickets.price) as revenue, COUNT(*) as ticket_count')
             ->whereBetween('tickets.created_at', [$startDate, $endDate])
             ->groupBy('stations.id', 'stations.name')

@@ -138,6 +138,62 @@ watch(() => ticketingStore.selectedTripId, (newId) => {
     }
 }, { immediate: true });
 
+// Immutable seat map update: replaces seatMap.value entirely to guarantee Vue reactivity
+const updateSeatMapImmutable = (seatNumber, isOccupied, color) => {
+    if (!seatMap.value?.seat_map) return;
+    const seatNum = String(seatNumber);
+    const delta = isOccupied ? 1 : -1;
+
+    const mapRow = (row) => row.map(cell =>
+        cell.type === 'seat' && String(cell.number) === seatNum
+            ? { ...cell, isOccupied, ...(color ? { color } : {}) }
+            : cell
+    );
+
+    let newSeatMapData;
+    if (Array.isArray(seatMap.value.seat_map)) {
+        newSeatMapData = seatMap.value.seat_map.map(mapRow);
+    } else {
+        newSeatMapData = {};
+        if (seatMap.value.seat_map.lower_deck) newSeatMapData.lower_deck = seatMap.value.seat_map.lower_deck.map(mapRow);
+        if (seatMap.value.seat_map.upper_deck) newSeatMapData.upper_deck = seatMap.value.seat_map.upper_deck.map(mapRow);
+    }
+
+    seatMap.value = {
+        ...seatMap.value,
+        seat_map: newSeatMapData,
+        occupied_seats: (seatMap.value.occupied_seats || 0) + delta,
+        available_seats: (seatMap.value.available_seats || 0) - delta,
+        occupied_seats_count: (seatMap.value.occupied_seats_count || 0) + delta,
+        available_seats_count: (seatMap.value.available_seats_count || 0) - delta,
+    };
+};
+
+// Optimistic local update when seat(s) are booked (no refetch, no reload)
+watch(() => ticketingStore.lastBookedSeat, (val) => {
+    if (!val) return;
+    const seats = val.seats || [val.seat]; // Support both old {seat} and new {seats} format
+    seats.forEach(s => updateSeatMapImmutable(s, true, val.color));
+});
+
+// Optimistic local revert when a booking fails
+watch(() => ticketingStore.lastRevertedSeat, (val) => {
+    if (!val) return;
+    const seats = val.seats || [val.seat];
+    seats.forEach(s => updateSeatMapImmutable(s, false));
+});
+
+// Silent refresh for WebSocket updates (another seller booked) — no loading spinner
+watch(() => ticketingStore.seatMapVersion, async () => {
+    if (!selectedTripId.value) return;
+    try {
+        const response = await axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }));
+        seatMap.value = response.data;
+    } catch (error) {
+        console.error("Erreur lors du rafraîchissement silencieux:", error);
+    }
+});
+
 watch(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('trip_id');
@@ -157,6 +213,33 @@ onMounted(() => {
 import { onUnmounted } from 'vue';
 onUnmounted(() => {
     if (refreshInterval) clearInterval(refreshInterval);
+});
+
+// The selected trip object (from trips array)
+const selectedTrip = computed(() => {
+    return trips.value.find(t => t.id === selectedTripId.value);
+});
+
+const filteredTrips = computed(() => {
+    let result = trips.value;
+    const destName = ticketingStore.selectedDestinationId;
+    if (destName) {
+        result = result.filter(trip => {
+            if (trip.route?.destination_station?.city === destName) return true;
+            const stops = trip.route?.route_stop_orders || trip.route?.routeStopOrders || [];
+            return stops.some(stop => stop.station?.city === destName);
+        });
+    }
+    return result;
+});
+
+// Key counter: forces VehicleSeatMapSVG to fully re-render on every seatMap change
+const seatMapKey = ref(0);
+watch(seatMap, () => { seatMapKey.value++; });
+
+// Vehicle type: prefer seatMap response (always available), fallback to trip data
+const vehicleType = computed(() => {
+    return seatMap.value?.vehicle_type || selectedTrip.value?.vehicle?.vehicle_type;
 });
 
 // Stats for the selected trip
@@ -186,8 +269,82 @@ const seatStats = computed(() => {
             </button>
         </div>
 
-        <!-- Trips List -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-3">
+        <!-- TICKETING PAGE: Show only selected trip seat map (workspace mode) -->
+        <template v-if="isTicketingPage">
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- Compact selected trip info -->
+                <div v-if="selectedTrip" class="px-3 py-2 bg-green-50/50 border-b border-green-100">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></div>
+                        <div class="text-xs font-bold text-gray-900 truncate">{{ selectedTrip.display_name || selectedTrip.route?.name }}</div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-0.5 pl-3.5">
+                        <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">{{ selectedTrip.vehicle?.identifier }}</span>
+                        <span class="text-[10px] font-bold text-gray-400">{{ formatTime(selectedTrip.departure_at) }}</span>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div v-if="seatMapLoading" class="flex-1 flex flex-col items-center justify-center">
+                    <div class="animate-spin mb-2"><Refresh :size="24" class="text-green-600" /></div>
+                    <span class="text-xs text-gray-500">Chargement du plan...</span>
+                </div>
+
+                <!-- Seat Map -->
+                <template v-else-if="seatMap && seatStats && vehicleType">
+                    <!-- Stats Row -->
+                    <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100 shrink-0">
+                        <div class="flex items-center gap-1 text-xs">
+                            <span class="font-bold text-gray-500">Cap</span>
+                            <span class="font-black text-gray-800">{{ seatStats.total }}</span>
+                            <span class="mx-1 text-gray-300">|</span>
+                            <span class="font-bold text-red-500">Occ</span>
+                            <span class="font-black text-red-600">{{ seatStats.occupied }}</span>
+                            <span class="mx-1 text-gray-300">|</span>
+                            <span class="font-bold text-green-500">Lib</span>
+                            <span class="font-black text-green-600">{{ seatStats.available }}</span>
+                        </div>
+                        <!-- Zoom Controls -->
+                        <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
+                            <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom -">
+                                <Minus :size="12" class="text-gray-600" />
+                            </button>
+                            <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center">{{ Math.round(zoomLevel * 100) }}%</span>
+                            <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom +">
+                                <Plus :size="12" class="text-gray-600" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Seat Map SVG - Full remaining height -->
+                    <div class="flex-1 bg-white relative overflow-auto">
+                        <div class="w-full h-full flex items-center justify-center"
+                             :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }">
+                            <VehicleSeatMapSVG
+                                :key="seatMapKey"
+                                :seat-map="seatMap"
+                                :vehicle-type="vehicleType"
+                                :suggested-seats="ticketingStore.suggestedSeats"
+                                :selected-seat="ticketingStore.selectedSeat"
+                                :selected-color="ticketingStore.selectedFareColor"
+                                :show-suggestions="ticketingStore.showSuggestions"
+                                @seat-click="handleSeatClick"
+                                class="w-full h-full"
+                            />
+                        </div>
+                    </div>
+                </template>
+
+                <!-- No trip selected -->
+                <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4">
+                    <Bus :size="32" class="mb-2 opacity-30" />
+                    <p class="text-xs text-center">Sélectionnez un voyage pour voir le plan</p>
+                </div>
+            </div>
+        </template>
+
+        <!-- OTHER PAGES: Show full trip list with expandable seat maps -->
+        <div v-else class="flex-1 overflow-y-auto p-3 space-y-3">
             <div v-if="loading && trips.length === 0" class="flex flex-col items-center justify-center py-10 text-gray-400">
                 <div class="animate-spin mb-2"><Refresh :size="32" /></div>
                 <span>Chargement des voyages...</span>
@@ -197,20 +354,23 @@ const seatStats = computed(() => {
                 Aucun voyage disponible pour le moment.
             </div>
 
-            <div v-else v-for="trip in trips" :key="trip.id" 
+            <div v-else-if="filteredTrips.length === 0" class="text-center py-10 text-gray-500 italic px-4">
+                Aucun voyage ne correspond à cette destination.
+            </div>
+
+            <div v-else v-for="trip in filteredTrips" :key="trip.id"
                 class="border-2 rounded-2xl overflow-hidden transition-all duration-300"
                 :class="selectedTripId === trip.id ? 'border-green-500 shadow-lg' : 'border-transparent bg-gray-50 hover:border-orange-200 hover:bg-white hover:shadow-md'"
             >
                 <!-- Trip Summary Header -->
-                <div @click="selectTrip(trip)" 
+                <div @click="selectTrip(trip)"
                     class="p-3 cursor-pointer"
                     :class="selectedTripId === trip.id ? 'bg-green-50/50' : ''"
                 >
-                    <!-- Full trip name (not truncated) -->
                     <div class="flex items-center gap-2 mb-1">
                         <Bus :size="16" :class="selectedTripId === trip.id ? 'text-green-600' : 'text-gray-400'" />
                         <div class="text-sm font-bold text-gray-900 tracking-tight leading-snug">{{ trip.display_name || trip.route?.name }}</div>
-                        <span 
+                        <span
                             :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
                             class="text-xs shrink-0"
                         >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
@@ -223,20 +383,17 @@ const seatStats = computed(() => {
                         <span class="text-[10px] font-bold text-gray-400">
                             {{ formatTime(trip.departure_at) }}
                         </span>
-                        <!-- Only show chevron when NOT selected -->
                         <ChevronRight v-if="selectedTripId !== trip.id" :size="14" class="text-gray-400 ml-auto" />
                     </div>
                 </div>
 
                 <!-- Expanded Content (Seat Map) -->
                 <div v-if="selectedTripId === trip.id" class="border-t border-green-100 bg-white">
-                    <!-- Loading State for Seat Map -->
                     <div v-if="seatMapLoading" class="flex flex-col items-center justify-center py-8">
                         <div class="animate-spin mb-2"><Refresh :size="24" class="text-green-600" /></div>
                         <span class="text-xs text-gray-500">Chargement du plan...</span>
                     </div>
 
-                    <!-- Seat Map and Stats -->
                     <div v-else-if="seatMap">
                         <!-- Compact Stats Row -->
                         <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100">
@@ -250,33 +407,26 @@ const seatStats = computed(() => {
                                 <span class="font-bold text-green-500">Lib</span>
                                 <span class="font-black text-green-600">{{ seatStats.available }}</span>
                             </div>
-                            <!-- Zoom Controls -->
                             <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
-                                <button @click="zoomOut" 
-                                    :disabled="zoomLevel <= minZoom"
-                                    class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all"
-                                    title="Zoom -"
-                                >
+                                <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom -">
                                     <Minus :size="12" class="text-gray-600" />
                                 </button>
                                 <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center">{{ Math.round(zoomLevel * 100) }}%</span>
-                                <button @click="zoomIn" 
-                                    :disabled="zoomLevel >= maxZoom"
-                                    class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all"
-                                    title="Zoom +"
-                                >
+                                <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom +">
                                     <Plus :size="12" class="text-gray-600" />
                                 </button>
                             </div>
                         </div>
 
-                        <!-- Interactive Seat Map - MAXIMIZED Height -->
+                        <!-- Interactive Seat Map -->
                         <div class="bg-white relative overflow-auto" style="height: calc(100vh - 220px); min-height: 400px;">
                             <div class="w-full h-full flex items-center justify-center"
                                  :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }">
-                                <VehicleSeatMapSVG 
+                                <VehicleSeatMapSVG
+                                    v-if="vehicleType"
+                                    :key="seatMapKey"
                                     :seat-map="seatMap"
-                                    :vehicle-type="trip.vehicle?.vehicle_type"
+                                    :vehicle-type="vehicleType"
                                     :suggested-seats="ticketingStore.suggestedSeats"
                                     :selected-seat="ticketingStore.selectedSeat"
                                     :selected-color="ticketingStore.selectedFareColor"
@@ -286,10 +436,10 @@ const seatStats = computed(() => {
                                 />
                             </div>
                         </div>
-                        
-                        <!-- Only show "Vendre" button if NOT on ticketing page -->
-                        <div v-if="!isTicketingPage" class="p-3 border-t border-gray-100">
-                            <button 
+
+                        <!-- "Vendre" button -->
+                        <div class="p-3 border-t border-gray-100">
+                            <button
                                 @click="router.visit(route('seller.ticketing', { trip_id: trip.id }))"
                                 class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                             >

@@ -1,31 +1,27 @@
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { router, Link, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
+import TicketInspectionModal from '@/Components/Supervisor/TicketInspectionModal.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
-import Ticket from 'vue-material-design-icons/Ticket.vue';
-import Cash from 'vue-material-design-icons/Cash.vue';
 import Check from 'vue-material-design-icons/Check.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Close from 'vue-material-design-icons/Close.vue';
-import Seat from 'vue-material-design-icons/Seat.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
-import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
-import Account from 'vue-material-design-icons/Account.vue'; // Added for passenger modal
-import Refresh from 'vue-material-design-icons/Refresh.vue'; // Added for processing spinner
+import Account from 'vue-material-design-icons/Account.vue';
+import Refresh from 'vue-material-design-icons/Refresh.vue';
+import Magnify from 'vue-material-design-icons/Magnify.vue';
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
-import { watchEffect } from 'vue';
-import TicketInspectionModal from '@/Components/Supervisor/TicketInspectionModal.vue'; // Added
 
 const props = defineProps({
   trips: Array,
@@ -49,7 +45,10 @@ const selectedTripId = ref(null);
 const selectedFare = ref(null);
 const ticketQuantity = ref(1);
 const searchQuery = ref('');
-const selectedDestinationId = ref(''); // Added for filtering by City
+const selectedDestinationId = computed({
+  get: () => ticketingStore.selectedDestinationId,
+  set: (val) => ticketingStore.setDestinationFilter(val)
+}); // Bound to global store for Sidebar filtering
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
 const suggestedSeats = ref([]);
@@ -72,12 +71,31 @@ const autoSelectOptimal = ref(true); // Auto-select optimal seat by default
 const showPassengerFields = ref(false); // Hide passenger fields by default
 const isMobile = ref(window.innerWidth < 768);
 
+// Live clock
+const currentTime = ref('');
+const currentDate = ref('');
+let clockInterval = null;
+const updateClock = () => {
+  const now = new Date();
+  currentTime.value = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  currentDate.value = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+};
+updateClock();
+
 // Supervisor Inspection
 const showInspectionModal = ref(false);
 const selectedTicketForInspection = ref(null);
 
 // Update isMobile on resize
+const scrollToSeats = () => {
+  setTimeout(() => {
+    const el = document.getElementById('mobile-seat-map');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }, 100);
+};
+
 onMounted(() => {
+  clockInterval = setInterval(updateClock, 1000);
   window.addEventListener('resize', () => {
     isMobile.value = window.innerWidth < 768;
   });
@@ -117,6 +135,47 @@ const useBluetoothPrinter = ref(localStorage.getItem('use_bluetooth_printer') ==
 const bluetoothPrinterConnected = ref(false);
 const bluetoothPrinterName = ref(null);
 
+// WebSocket: canal actif pour les mises à jour du plan de sièges en temps réel
+const currentTripChannel = ref(null);
+
+/**
+ * S'abonner au canal WebSocket d'un voyage pour recevoir les mises à jour
+ * du plan de sièges en temps réel (quand un autre vendeur réserve/annule)
+ */
+const subscribeTripChannel = (tripId) => {
+  // Quitter l'ancien canal s'il existe
+  unsubscribeTripChannel();
+
+  if (!tripId) return;
+
+  currentTripChannel.value = tripId;
+  Echo.private(`trip.${tripId}`)
+    .listen('.SeatMapUpdated', (e) => {
+      fetchSeatMap();
+      ticketingStore.notifySeatMapChanged(); // Also refresh sidebar
+      if (selectedFare.value) {
+        fetchSeatSuggestions();
+      }
+      // Update trip card counts from WebSocket event
+      const occupied = (e.changedSeats || []).filter(s => s.status === 'occupied').length;
+      const freed = (e.changedSeats || []).filter(s => s.status === 'available').length;
+      const delta = occupied - freed;
+      if (delta !== 0) {
+        const idx = trips.value.findIndex(t => t.id === tripId);
+        if (idx !== -1) {
+          trips.value[idx] = { ...trips.value[idx], available_seats: Math.max(0, (trips.value[idx].available_seats || 0) - delta) };
+        }
+      }
+    });
+};
+
+const unsubscribeTripChannel = () => {
+  if (currentTripChannel.value) {
+    Echo.leave(`trip.${currentTripChannel.value}`);
+    currentTripChannel.value = null;
+  }
+};
+
 // Zoom and Pan state for Places section
 const zoomLevel = ref(1);
 const panX = ref(0);
@@ -128,17 +187,6 @@ const dragStartY = ref(0);
 // Passenger form modal
 const showPassengerModal = ref(false);
 const selectedSeatNumber = ref(null);
-const selectedSeatInfo = computed(() => {
-  if (!selectedSeatNumber.value || !seatMap.value) return null;
-  
-  // Find seat info from seat map
-  for (const row of seatMap.value.seat_map) {
-    const seat = row.find(s => s.number === selectedSeatNumber.value);
-    if (seat) return seat;
-  }
-  return null;
-});
-
 const selectedSeatSuggestion = computed(() => {
   if (!selectedSeatNumber.value || !suggestedSeats.value) return null;
   return suggestedSeats.value.find(s => s.seat_number === selectedSeatNumber.value);
@@ -148,6 +196,14 @@ const passengerForm = ref({
   phone: ''
 });
 const passengerFormErrors = ref({});
+
+// Seats to book: multi-seat uses suggestions, single uses selected seat
+const seatsToBook = computed(() => {
+  if (ticketQuantity.value > 1 && suggestedSeats.value.length >= ticketQuantity.value) {
+    return suggestedSeats.value.slice(0, ticketQuantity.value).map(s => s.seat_number);
+  }
+  return selectedSeatNumber.value ? [selectedSeatNumber.value] : [];
+});
 
 // Computed
 const currentTrip = computed(() => {
@@ -160,14 +216,12 @@ const filteredTrips = computed(() => {
   // 1. Filter by Destination (City) if selected
   if (selectedDestinationId.value) {
       filtered = filtered.filter(trip => {
-          // Check Route Target
-          if (trip.route?.target_destination_id === selectedDestinationId.value) return true;
-          if (trip.route?.destination_station?.destination_id === selectedDestinationId.value) return true;
+          // Check Route Target Target returning true if City matches
+          if (trip.route?.destination_station?.city === selectedDestinationId.value) return true;
           
-          // Check intermediate stops (if the city is an intermediate stop)
-          // We need to check if any stop's station belongs to this city
-          const stops = trip.route?.routeStopOrders || [];
-          return stops.some(stop => stop.station?.destination_id === selectedDestinationId.value);
+          // Check intermediate stops
+          const stops = trip.route?.route_stop_orders || trip.route?.routeStopOrders || [];
+          return stops.some(stop => stop.station?.city === selectedDestinationId.value);
       });
   }
 
@@ -191,9 +245,6 @@ const availableFares = computed(() => {
     // Handle both snake_case (default Laravel) and camelCase (potential JS transform)
     const stops = route?.route_stop_orders || route?.routeStopOrders || [];
 
-    console.log('Ticketing Debug: Route', route);
-    console.log('Ticketing Debug: Stops', stops);
-    
     // Build a Set of ALL allowed Station IDs for this route
     // This includes: Origin, Destination, and all Intermediate Stops
     const allowedStationIds = new Set();
@@ -358,7 +409,7 @@ const fetchSeatSuggestions = async () => {
             params: {
                 // UPDATED: Use station_id
                 destination_station_id: selectedFare.value.to_station_id,
-                quantity: 1
+                quantity: ticketQuantity.value
             }
         });
         suggestedSeats.value = response.data.suggested_seats || [];
@@ -376,7 +427,6 @@ const fetchSeatSuggestions = async () => {
 
 // New function for the actual booking flow
 const initiateBookingFlow = (seatNumber) => {
-  console.log('[Ticketing] initiateBookingFlow called with:', seatNumber);
   if (!selectedFare.value) {
     alert("Veuillez d'abord sélectionner une destination.");
     return;
@@ -393,7 +443,10 @@ const handleSeatClick = (seatNumber) => {
   if (!seatMap.value) return;
 
   let seatObj = null;
-  for (const row of seatMap.value.seat_map) {
+  const mapData = seatMap.value.seat_map;
+  const rows = Array.isArray(mapData) ? mapData : [...(mapData.lower_deck || []), ...(mapData.upper_deck || [])];
+  
+  for (const row of rows) {
       const found = row.find(s => s.number === seatNumber);
       if (found) {
           seatObj = found;
@@ -442,33 +495,71 @@ const autoSelectOptimalSeat = () => {
   initiateBookingFlow(optimalSeat.seat_number); // Pass seat_number, not the whole object
 };
 
-const confirmBooking = () => {
+// Immutable update: replaces seatMap.value entirely to guarantee Vue reactivity
+const updateSeatMapImmutable = (seatNumber, isOccupied, color) => {
+  if (!seatMap.value?.seat_map) return;
+  const seatNum = String(seatNumber);
+  const delta = isOccupied ? 1 : -1;
+  
+  const mapRow = (row) => row.map(cell =>
+    cell.type === 'seat' && String(cell.number) === seatNum
+      ? { ...cell, isOccupied, ...(color ? { color } : {}) }
+      : cell
+  );
+
+  let newSeatMapData;
+  if (Array.isArray(seatMap.value.seat_map)) {
+    newSeatMapData = seatMap.value.seat_map.map(mapRow);
+  } else {
+    newSeatMapData = {};
+    if (seatMap.value.seat_map.lower_deck) newSeatMapData.lower_deck = seatMap.value.seat_map.lower_deck.map(mapRow);
+    if (seatMap.value.seat_map.upper_deck) newSeatMapData.upper_deck = seatMap.value.seat_map.upper_deck.map(mapRow);
+  }
+
+  seatMap.value = {
+    ...seatMap.value,
+    seat_map: newSeatMapData,
+    occupied_seats: (seatMap.value.occupied_seats || 0) + delta,
+    available_seats: (seatMap.value.available_seats || 0) - delta,
+    occupied_seats_count: (seatMap.value.occupied_seats_count || 0) + delta,
+    available_seats_count: (seatMap.value.available_seats_count || 0) - delta,
+  };
+};
+
+const markSeatOccupied = (seatNumber, color) => {
+  updateSeatMapImmutable(seatNumber, true, color);
+};
+
+const revertSeatAvailable = (seatNumber) => {
+  updateSeatMapImmutable(seatNumber, false);
+};
+
+const confirmBooking = async () => {
   // Validate passenger form
   passengerFormErrors.value = {};
-  
+
   if (showPassengerFields.value && passengerForm.value.name && passengerForm.value.name.trim().length < 2) {
     passengerFormErrors.value.name = 'Le nom doit contenir au moins 2 caractères';
   }
-  
+
   if (showPassengerFields.value && passengerForm.value.phone && !/^[0-9]{9,15}$/.test(passengerForm.value.phone.replace(/\s/g, ''))) {
     passengerFormErrors.value.phone = 'Numéro de téléphone invalide (9-15 chiffres)';
   }
-  
+
   if (Object.keys(passengerFormErrors.value).length > 0) {
     return;
   }
 
-  processing.value = true;
-  errors.value = {};
+  // Determine all seats to book
+  const allSeats = seatsToBook.value.length > 0 ? [...seatsToBook.value] : [selectedSeatNumber.value];
+  const totalAmount = selectedFare.value.amount * allSeats.length;
 
   const ticketData = {
     trip_id: selectedTripId.value,
-    // UPDATED: Use station_id
     from_station_id: selectedFare.value.from_station_id,
     to_station_id: selectedFare.value.to_station_id,
-    seats: [selectedSeatNumber.value],
-    amount: selectedFare.value.amount, // Use selectedFare.value.amount directly
-    seller_id: page.props.auth.user.id,
+    seats: allSeats,
+    amount: totalAmount,
   };
 
   if (showPassengerFields.value && passengerForm.value.name) {
@@ -478,38 +569,65 @@ const confirmBooking = () => {
     ticketData.passenger_phone = passengerForm.value.phone.replace(/\s/g, '');
   }
 
-  router.post(route('seller.tickets.store'), ticketData, {
-    preserveState: true,
-    preserveScroll: true,
-    onSuccess: (page) => {
-      showPassengerModal.value = false;
-      fetchSeatMap(); // Refresh seat map
-      
-      // Clear selection
-      selectedFare.value = null;
-      selectedSeatNumber.value = null;
-      suggestedSeats.value = [];
+  // Optimistic: close modal + mark ALL seats occupied instantly with fare color
+  const fareColor = selectedFare.value?.color;
+  showPassengerModal.value = false;
+  allSeats.forEach(seat => markSeatOccupied(seat, fareColor));
+  ticketingStore.notifySeatBooked(allSeats, fareColor);
+  selectedSeatNumber.value = null;
+  // Clear stale suggestions immediately
+  suggestedSeats.value = [];
+  ticketingStore.setSuggestions([]);
+  // Reset quantity back to 1 for next booking (skip watcher to avoid re-fetching suggestions)
+  skipQuantityWatch = true;
+  ticketQuantity.value = 1;
+  // Optimistic: update trip card seat counts
+  const tripIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
+  if (tripIdx !== -1) {
+    trips.value[tripIdx] = {
+      ...trips.value[tripIdx],
+      available_seats: Math.max(0, (trips.value[tripIdx].available_seats || 0) - allSeats.length),
+    };
+  }
 
-      if (page.props.flash?.ticket_id) {
-        // Try Bluetooth printing first if enabled
-        if (useBluetoothPrinter.value && bluetoothPrinterConnected.value) {
-          printWithBluetooth(page.props.flash.ticket_id).catch(error => {
-            console.error('Bluetooth print failed, falling back to browser print:', error);
-            fallbackToBrowserPrint(page.props.flash.ticket_id);
-          });
-        } else {
-          fallbackToBrowserPrint(page.props.flash.ticket_id);
-        }
+  // Reset fare/destination after booking so the form is clean for the next customer
+  selectedFare.value = null;
+
+
+  try {
+    const response = await axios.post(route('seller.tickets.store'), ticketData);
+    const data = response.data;
+    const ticketIds = data.ticket_ids || [];
+    // Print tickets
+    if (ticketIds.length > 0) {
+      const printId = ticketIds.length > 1 ? ticketIds.join(',') : ticketIds[0];
+      if (useBluetoothPrinter.value && bluetoothPrinterConnected.value) {
+        printWithBluetooth(ticketIds[0]).catch(() => fallbackToBrowserPrint(ticketIds[0]));
+      } else {
+        // For multiple tickets, print them all
+        ticketIds.forEach(id => fallbackToBrowserPrint(id));
       }
-    },
-    onError: (errs) => {
-      errors.value = errs;
-      alert('Erreur lors de la création du ticket.');
-    },
-    onFinish: () => {
-      processing.value = false;
     }
-  });
+
+    // Refresh seat map from server (ground truth — works even without WebSocket)
+    fetchSeatMap();
+    ticketingStore.notifySeatMapChanged(); // Tell sidebar to refetch too
+  } catch (error) {
+    allSeats.forEach(seat => {
+      revertSeatAvailable(seat);
+    });
+    ticketingStore.notifySeatReverted(allSeats);
+    // Revert trip card seat counts
+    const revertIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
+    if (revertIdx !== -1) {
+      trips.value[revertIdx] = {
+        ...trips.value[revertIdx],
+        available_seats: (trips.value[revertIdx].available_seats || 0) + allSeats.length,
+      };
+    }
+    const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
+    alert(message);
+  }
 };
 
 // Bluetooth Printer Methods
@@ -547,8 +665,6 @@ const printWithBluetooth = async (ticketId) => {
     const response = await axios.get(route('api.tickets.show', ticketId));
     const ticket = response.data;
     
-    console.log('Ticket data received:', ticket);
-    
     // Extract settings from response
     const settings = response.data.settings || {
       company_name: 'TSR CI',
@@ -568,13 +684,12 @@ const printWithBluetooth = async (ticketId) => {
       time: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
       class: ticket.trip?.vehicle?.vehicle_type?.name || 'Standard',
       seat_number: ticket.seat_number || 'N/A',
+      boarding_group: ticket.boarding_group || '1',
       price: String(ticket.price || 0),
       vehicle_number: ticket.trip?.vehicle?.registration_number || 'N/A',
       qr_code: ticket.qr_code || null,
       timestamp: new Date().toLocaleString('fr-FR')
     };
-    
-    console.log('Formatted ticket data:', ticketData);
     
     await bluetoothPrinter.printTicket(ticketData, settings);
   } catch (error) {
@@ -678,7 +793,10 @@ watch(() => {
     }
 }, { immediate: true });
 
-watch(selectedTripId, (newVal) => {
+watch(selectedTripId, (newVal, oldVal) => {
+  // Gérer l'abonnement WebSocket pour le nouveau voyage
+  subscribeTripChannel(newVal);
+
   if (newVal) {
     selectedFare.value = null;
     seatMap.value = null;
@@ -709,9 +827,19 @@ watch(selectedFare, (newVal) => {
     }
 });
 
+// Re-fetch suggestions when ticket quantity changes (skip programmatic resets)
+let skipQuantityWatch = false;
+watch(ticketQuantity, () => {
+    if (skipQuantityWatch) { skipQuantityWatch = false; return; }
+    if (selectedFare.value) {
+        fetchSeatSuggestions();
+    }
+});
+
 // Watch for seat selection from the Sidebar
-watch(() => ticketingStore.selectedSeat, (newSeat) => {
-    if (newSeat && newSeat !== selectedSeatNumber.value) {
+watch(() => ticketingStore.clickTimestamp, () => {
+    const newSeat = ticketingStore.selectedSeat;
+    if (newSeat) {
         initiateBookingFlow(newSeat);
     }
 });
@@ -731,12 +859,15 @@ onMounted(async () => {
         bluetoothPrinter.connected = true;
         bluetoothPrinterConnected.value = true;
         bluetoothPrinterName.value = bluetoothPrinter.device.name;
-        console.log('Auto-reconnected to Bluetooth printer:', bluetoothPrinter.device.name);
       }
     } catch (error) {
-      console.log('Auto-reconnect failed:', error);
       // Silently fail - user can manually reconnect
     }
+  }
+
+  // S'abonner au canal WebSocket du voyage sélectionné (si déjà sélectionné au mount)
+  if (selectedTripId.value) {
+    subscribeTripChannel(selectedTripId.value);
   }
 
   // Auto-select trip from query param or closest trip
@@ -760,6 +891,12 @@ onMounted(async () => {
     });
     selectTrip(sortedTrips[0].id);
   }
+});
+
+// Nettoyage : quitter le canal WebSocket du voyage au démontage
+onUnmounted(() => {
+  unsubscribeTripChannel();
+  if (clockInterval) clearInterval(clockInterval);
 });
 
 </script>
@@ -812,25 +949,40 @@ onMounted(async () => {
           <!-- Main content (only shown if seller has assigned station or user is admin/supervisor) -->
           <template v-else>
           <!-- Workplace Header (Synced with Dashboard) -->
-          <div class="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 shrink-0">
-            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
+          <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-orange-100 shrink-0 relative">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="z-10">
                 <div class="flex items-center gap-3">
                   <h1 class="text-3xl font-black text-gray-900 tracking-tight">Billetterie</h1>
-                  <div v-if="assignedStation" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
+                  <div v-if="assignedStation || ['admin', 'executive', 'supervisor'].includes($page.props.auth.user.role)" class="px-3 py-1 bg-green-50 text-green-700 text-xs font-black rounded-full border border-green-100 flex items-center gap-1.5 shadow-sm">
                       <OfficeBuilding :size="14" />
-                      {{ assignedStation }}
+                      {{ assignedStation || 'Toutes les gares' }}
                   </div>
                 </div>
                 <p class="text-gray-500 font-medium">Vente de tickets en temps réel</p>
               </div>
-                <button 
-                  @click="showCreateTripModal = true" 
-                  class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all active:scale-95"
+
+              <!-- Absolute Centered Clock on Desktop -->
+              <div class="hidden md:block absolute left-1/2 -translate-x-1/2 text-center z-0">
+                <div class="text-4xl font-black text-gray-900 tracking-tight leading-none">{{ currentTime }}</div>
+                <div class="text-[10px] font-bold text-gray-400 tracking-widest mt-1">{{ currentDate }}</div>
+              </div>
+
+              <!-- Clock and Button aligned on mobile / Button on right on Desktop -->
+              <div class="flex items-center justify-between md:justify-end gap-4 md:gap-6 mt-2 md:mt-0 w-full md:w-auto z-10 shrink-0">
+                <!-- Mobile Clock -->
+                <div class="text-left md:hidden">
+                  <div class="text-2xl font-black text-gray-900 tracking-tight leading-none">{{ currentTime }}</div>
+                  <div class="text-[10px] font-bold text-gray-400 tracking-widest mt-1">{{ currentDate }}</div>
+                </div>
+                <button
+                  @click="showCreateTripModal = true"
+                  class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all active:scale-95 flex-shrink-0"
                 >
                   <Plus :size="20" />
                   <span>Nouveau Voyage</span>
                 </button>
+              </div>
             </div>
           </div>
 
@@ -839,48 +991,42 @@ onMounted(async () => {
             <!-- Voyages -->
             <div class="lg:col-span-7 xl:col-span-8 flex flex-col min-h-0 overflow-hidden">
               <div class="bg-white rounded-2xl border border-orange-100 shadow-sm flex flex-col h-full overflow-hidden">
-                <div class="px-5 py-4 border-b border-orange-50 bg-green-50/50 flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <h2 class="text-base font-semibold text-green-700 flex items-center">
-                      <Bus class="mr-2 w-5 h-5" />
-                      Voyage
-                    </h2>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <span class="px-2.5 py-1 bg-green-600 text-white rounded-full text-sm font-black shadow-sm">
-                      {{ trips.length }} en cours
-                    </span>
-                    <button 
-                      @click="showTripSelectionModal = true"
-                      class="px-3 py-1 bg-white border border-green-500 text-green-700 rounded-md text-xs font-bold hover:bg-green-50 transition-colors shadow-sm"
-                    >
-                      {{ selectedTripId ? 'Changer' : 'Sélectionner' }}
-                    </button>
-                  </div>
-                </div>
-                <!-- Filter Section -->
-                <div class="px-5 py-3 border-b border-orange-50 bg-white flex flex-col md:flex-row gap-3 md:items-end">
-                  <!-- Destination Filter -->
-                  <div class="w-full md:w-1/2">
-                      <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Ville d'Arrivée</label>
-                      <select v-model="selectedDestinationId" class="w-full border-gray-200 rounded-lg text-sm focus:border-green-500 focus:ring-green-500 bg-gray-50">
+                <div class="px-5 py-3 border-b border-orange-50 bg-green-50/50 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div class="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
+                    <!-- Mobile Group: Title + Badges -->
+                    <div class="flex items-center justify-between w-full md:w-auto">
+                      <h2 class="text-base font-semibold text-green-700 flex items-center shrink-0">
+                        <Bus class="mr-2 w-5 h-5" />
+                        Voyage
+                      </h2>
+                      <!-- Badges on Mobile -->
+                      <div class="flex items-center gap-2 md:hidden">
+                        <span class="px-2 py-0.5 bg-green-600 text-white rounded-full text-xs font-black shadow-sm">
+                          {{ trips.length }} en cours
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <!-- Destination Filter + Changer on Mobile & Desktop -->
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                       <select v-model="selectedDestinationId" class="flex-1 md:w-64 border-green-200 text-green-800 rounded-lg text-sm px-3 py-1.5 focus:border-green-500 focus:ring-green-500 bg-white shadow-sm font-semibold">
                           <option value="">Toutes les destinations</option>
                           <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
                       </select>
-                  </div>
-                  <!-- Search -->
-                  <div class="relative w-full md:w-1/2">
-                    <input 
-                      type="text" 
-                      v-model="searchQuery"
-                      placeholder="Rechercher un voyage..." 
-                      class="w-full pl-9 pr-4 py-2 border-gray-200 rounded-lg text-sm focus:border-green-500 focus:ring-green-500 bg-gray-50 placeholder-gray-400"
-                    />
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                      </svg>
+                      <button 
+                        @click="showTripSelectionModal = true"
+                        class="px-3 py-1.5 bg-white border border-green-500 text-green-700 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap active:bg-green-50 flex items-center justify-center gap-1.5 hover:bg-green-50 transition-colors"
+                      >
+                        <Magnify :size="18" />
+                        <span>Tous les voyages</span>
+                      </button>
                     </div>
+                  </div>
+                  
+                  <div class="hidden md:flex items-center gap-2 shrink-0">
+                    <span class="px-2.5 py-1 bg-green-600 text-white rounded-full text-sm font-black shadow-sm">
+                      {{ trips.length }} en cours
+                    </span>
                   </div>
                 </div>
                 <div class="flex-1 p-3 overflow-y-auto">
@@ -916,14 +1062,14 @@ onMounted(async () => {
 
                   <!-- Desktop: Show all trips with highlighted selected -->
                   <div v-if="!isMobile && filteredTrips.length > 0" class="space-y-3">
-                    <div 
-                      v-for="trip in filteredTrips" 
+                    <div
+                      v-for="trip in filteredTrips"
                       :key="trip.id"
                       @click="selectTrip(trip.id)"
                       :class="[
                         'p-4 rounded-2xl cursor-pointer transition-all duration-300 border-2',
-                        selectedTripId === trip.id 
-                          ? 'bg-green-50 border-green-500 shadow-lg scale-[1.01]' 
+                        selectedTripId === trip.id
+                          ? 'bg-green-50 border-green-500 shadow-lg scale-[1.01]'
                           : 'bg-gray-50 border-transparent hover:border-green-200 hover:bg-white hover:shadow-md'
                       ]"
                     >
@@ -939,7 +1085,7 @@ onMounted(async () => {
                             <div class="flex items-center gap-2">
                               <div v-if="selectedTripId === trip.id" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                               <div class="font-bold text-gray-900 truncate tracking-tight">{{ trip.display_name }}</div>
-                              <span 
+                              <span
                                 :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
                                 class="text-xs shrink-0"
                               >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
@@ -1011,15 +1157,27 @@ onMounted(async () => {
                     Destinations
                   </h2>
                   
-                  <!-- Auto toggle moved here -->
-                  <label class="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-orange-100 shadow-sm hover:border-green-200 transition-colors">
-                    <input 
-                      type="checkbox" 
-                      v-model="autoSelectOptimal"
-                      class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-                    />
-                    <span class="text-xs text-gray-700 font-medium">⚡ Auto</span>
-                  </label>
+                  <div class="flex items-center gap-3">
+                    <!-- Seats modal button for mobile (scrolls down) -->
+                    <button 
+                      v-if="currentTrip"
+                      @click="scrollToSeats"
+                      class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-sm text-xs font-bold flex items-center justify-center gap-1.5 transition-colors md:hidden"
+                    >
+                      <Bus :size="16" />
+                      <span>Sièges</span>
+                    </button>
+
+                    <!-- Auto toggle moved here -->
+                    <label class="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-orange-100 shadow-sm hover:border-green-200 transition-colors">
+                      <input 
+                        type="checkbox" 
+                        v-model="autoSelectOptimal"
+                        class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                      />
+                      <span class="text-xs text-gray-700 font-medium">⚡ Auto</span>
+                    </label>
+                  </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-2">
                   <div v-if="currentTrip" class="space-y-2">
@@ -1061,11 +1219,40 @@ onMounted(async () => {
                       </div>
                     </div>
                   </div>
-                  <div v-else class="h-32 flex flex-col items-center justify-center text-gray-400">
-                    <Routes class="w-8 h-8 mb-2 opacity-50" />
-                    <p class="text-xs">Sélectionnez un voyage</p>
+                  <div v-else class="p-8 text-center text-gray-400">
+                    <p>Sélectionnez un voyage pour voir les destinations.</p>
                   </div>
                 </div>
+                
+                <!-- Mobile Seat Map inline -->
+                <div id="mobile-seat-map" v-if="seatMap && currentTrip?.vehicle?.vehicle_type" class="p-4 border-t border-orange-100 bg-gray-50 flex flex-col items-center overflow-x-hidden md:hidden">
+                  <h3 class="text-sm font-bold text-gray-700 mb-8 w-full flex items-center justify-center gap-2">
+                     <Bus class="w-5 h-5 text-green-600 bg-white border border-green-200 rounded p-0.5 shadow-sm" />
+                     Avant du bus
+                  </h3>
+                  
+                  <div class="w-full flex items-center justify-center py-4 overflow-x-auto">
+                    <div class="scale-100 origin-top transition-transform">
+                      <VehicleSeatMapSVG
+                        :key="'mobile-' + currentTrip.id"
+                        :vehicle-type="currentTrip.vehicle.vehicle_type"
+                        :seat-map="seatMap"
+                        :suggested-seats="suggestedSeats"
+                        :show-suggestions="!!selectedFare && suggestedSeats.length > 0"
+                        :selected-seat="selectedSeatNumber"
+                        :selected-color="selectedFare?.color"
+                        :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
+                        @seat-click="handleSeatClick"
+                        class="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div class="mt-8 text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                     Arrière du bus
+                  </div>
+                </div>
+                
               </div>
             </div>
         </div>
@@ -1090,12 +1277,16 @@ onMounted(async () => {
             <div class="bg-gradient-to-br from-green-50 to-orange-50/50 border border-orange-100 rounded-2xl p-5 mb-6 shadow-sm">
               <div class="text-center">
                 <div class="text-3xl font-black text-gray-900 mb-2 leading-none">
-                    <span class="text-blue-600">Place {{ selectedSeatNumber }}</span>
+                    <span v-if="seatsToBook.length > 1" class="text-blue-600">Places {{ seatsToBook.join(', ') }}</span>
+                    <span v-else class="text-blue-600">Place {{ selectedSeatNumber }}</span>
                 </div>
-                <div v-if="selectedSeatSuggestion" class="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-3 border border-orange-100 inline-block text-left">
+                <div v-if="seatsToBook.length > 1" class="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-3 border border-orange-100 inline-block">
+                  <div class="text-[10px] font-black text-green-600 uppercase tracking-widest">{{ seatsToBook.length }} places adjacentes</div>
+                </div>
+                <div v-else-if="selectedSeatSuggestion" class="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-3 border border-orange-100 inline-block text-left">
                   <div class="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1">Suggestion</div>
                   <div class="text-xs text-gray-700 leading-snug">
-                    <span class="font-bold">Score:</span> {{ selectedSeatSuggestion.score }} • 
+                    <span class="font-bold">Score:</span> {{ selectedSeatSuggestion.score }} •
                     {{ selectedSeatSuggestion.reason }}
                   </div>
                 </div>
@@ -1325,6 +1516,7 @@ onMounted(async () => {
         <div class="flex-1 overflow-auto p-6 bg-gray-100 flex items-center justify-center">
           <div class="transform rotate-90">
             <VehicleSeatMapSVG
+              :key="'modal-' + (currentTrip?.id || 'default')"
               v-if="currentTrip?.vehicle?.vehicle_type"
               :vehicle-type="currentTrip.vehicle.vehicle_type"
               :seat-map="seatMap"
@@ -1333,6 +1525,7 @@ onMounted(async () => {
               :selected-seat="selectedSeatNumber"
               :selected-color="selectedFare?.color"
               :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
+              :vertical-mode="true"
               @seat-click="handleSeatClick"
               class="scale-125"
             />
@@ -1347,7 +1540,7 @@ onMounted(async () => {
     </div>
 
     <!-- Trip Selection Modal -->
-    <div v-if="showTripSelectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+    <div v-if="showTripSelectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[100] flex items-center justify-center p-4">
       <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-gray-100 bg-green-50 flex items-center justify-between">
@@ -1360,17 +1553,18 @@ onMounted(async () => {
           </button>
         </div>
 
-        <!-- Search Bar -->
+        <!-- Destination Filter -->
         <div class="p-4 border-b border-gray-100 bg-white">
           <div class="relative">
-            <input 
-              v-model="searchQuery"
-              type="text"
-              placeholder="Rechercher par destination ou numéro de bus..."
-              class="w-full pl-10 pr-4 py-3 bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 rounded-xl text-sm transition-all"
-            />
-            <div class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-               <Bus class="w-5 h-5" />
+            <select 
+              v-model="selectedDestinationId"
+              class="w-full pl-10 py-3 bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 rounded-xl text-sm transition-all font-bold text-gray-800 cursor-pointer"
+            >
+              <option value="">Toutes les destinations</option>
+              <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
+            </select>
+            <div class="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-600 pointer-events-none">
+               <Routes class="w-5 h-5" />
             </div>
           </div>
         </div>
@@ -1438,7 +1632,7 @@ onMounted(async () => {
         :validation="selectedTicketForInspection"
         @close="showInspectionModal = false"
         @approve="() => { /* No-op for inspection */ }"
-        @decline="() => { console.log('Cancel Ticket', selectedTicketForInspection); showInspectionModal = false; }" 
+        @decline="() => { showInspectionModal = false; }"
     />
   </MainNavLayout>
 </template>

@@ -11,11 +11,7 @@ localStorage.getItem('locale') ? localStorage.getItem('locale') : localStorage.s
             
                 <!-- Logo -->
                 <div class="flex items-center">
-                    <Receipt class="text-green-700" :size="40"/>
-                    <div class="ml-2">
-                        <span class="font-bold text-2xl text-green-700">i - </span>
-                        <span class="font-bold text-2xl text-orange-500">Ticket</span>
-                    </div>
+                    <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-12 w-auto object-contain" />
                 </div>
             
         </div>

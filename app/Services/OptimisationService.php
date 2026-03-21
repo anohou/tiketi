@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Trip;
-
 use App\Models\RouteStopOrder;
 use App\Models\Ticket;
 use Illuminate\Support\Collection;
@@ -11,26 +10,37 @@ use Illuminate\Support\Collection;
 class OptimisationService
 {
     /**
+     * Cache en mémoire des index d'arrêts par route
+     * Évite les requêtes N+1 dans getStopIndex()
+     *
+     * @var array<string, array{map: array<string, int>, total: int}>
+     */
+    private array $stopIndexCache = [];
+
+    /**
      * Obtient les suggestions de sièges optimaux pour un voyage et une destination
-     * 
+     *
      * @param string $tripId ID du voyage
      * @param string $destinationStationId ID de la gare de destination
      * @param int $maxSuggestions Nombre maximum de suggestions (défaut: 5)
+     * @param string|null $boardingStationId ID de la gare d'embarquement (pour le mode semi-intelligent)
      * @return array Tableau de suggestions avec seat_number, score et reason
      */
     public function getSuggestedSeats(string $tripId, string $destinationStationId, int $maxSuggestions = 5, ?string $boardingStationId = null): array
     {
         $trip = Trip::with(['vehicle.vehicleType', 'route.routeStopOrders'])->findOrFail($tripId);
-        
+
         // Si le voyage est en mode "bulk", retourner un tableau vide (pas de suggestions)
         if ($trip->isBulk()) {
             return [];
         }
 
-        // DETECT IF TRIP IS REVERSED compared to route's default direction
-        // If trip's origin_station_id != route's origin_station_id, the trip is reversed
-        $isReversedTrip = $trip->origin_station_id && 
-                          $trip->route && 
+        // Précharger tous les index d'arrêts de la route en une seule requête
+        $this->preloadStopIndices($trip->route_id);
+
+        // Détecter si le voyage est inversé par rapport à la direction par défaut de la route
+        $isReversedTrip = $trip->origin_station_id &&
+                          $trip->route &&
                           $trip->origin_station_id !== $trip->route->origin_station_id;
 
         // Récupérer les sièges déjà occupés avec leurs destinations et origines
@@ -43,87 +53,95 @@ class OptimisationService
         // Récupérer la configuration du véhicule
         $vehicleType = $trip->vehicle->vehicleType;
         $totalSeats = $vehicleType->seat_count;
-        $doorPositions = $vehicleType->door_positions ?? [0];
-        
-        // Parse the seat map to get accurate seat types and neighbors
-        $seatMapService = app(\App\Services\SeatMapService::class);
+        $doorPositions = $vehicleType->door_positions ?? [];
+
+        // Parser le plan de sièges pour obtenir les types et voisins
+        $seatMapService = app(SeatMapService::class);
         $fullSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
             'seat_count' => $totalSeats,
             'seat_configuration' => $vehicleType->seat_configuration ?? '2+2',
             'door_positions' => $doorPositions,
             'last_row_seats' => $vehicleType->last_row_seats ?? 5
         ]);
-        
+
         $seatMapInfo = $this->parseSeatMap($fullSeatMap);
 
-        // Calculer l'index de l'arrêt de destination (considering trip direction)
+        // Calculer l'index de l'arrêt de destination (en tenant compte de la direction)
         $destinationIndex = $this->getStopIndex($trip->route_id, $destinationStationId, $isReversedTrip);
-        
-        // Get boarding stop index (for semi-intelligent mode)
-        $boardingIndex = $boardingStationId ? $this->getStopIndex($trip->route_id, $boardingStationId, $isReversedTrip) : 0;
-        
-        // Get total stops on route
-        $totalStops = RouteStopOrder::where('route_id', $trip->route_id)->count();
-        
-        // Calculate trip distance ratio (0 = first stop, 1 = last stop)
+
+        // Index de l'arrêt d'embarquement (pour le mode semi-intelligent)
+        $boardingIndex = $boardingStationId
+            ? $this->getStopIndex($trip->route_id, $boardingStationId, $isReversedTrip)
+            : 0;
+
+        // Nombre total d'arrêts sur la route
+        $totalStops = $this->stopIndexCache[$trip->route_id]['total'];
+
+        // Ratio de distance du voyage (0 = premier arrêt, 1 = dernier arrêt)
         $tripDistanceRatio = $totalStops > 1 ? $destinationIndex / ($totalStops - 1) : 0;
-        
-        // Define tronçons (route segments) based on total stops
-        // Short: < 40%, Medium: 40-70%, Long: >= 70%
-        $troncon = 'long'; // default
+
+        // Classifier le tronçon : court < 40%, moyen 40-70%, long >= 70%
+        $troncon = 'long';
         if ($tripDistanceRatio < 0.40) {
             $troncon = 'short';
         } elseif ($tripDistanceRatio < 0.70) {
             $troncon = 'medium';
         }
-        
-        // DYNAMIC ZONES LOGIC
-        // N = Number of destinations (stops excluding departure)
+
+        // Nombre de zones dynamiques = nombre de destinations (arrêts hors départ)
         $numZones = max(1, $totalStops - 1);
-        
-        // Determine available seats based on booking type
+
+        // Déterminer les sièges disponibles selon le mode de réservation
         $availableSeats = [];
-        
+
         if ($trip->isSemiIntelligent()) {
-            // SEMI-INTELLIGENT MODE: Seats can be reused
+            // MODE SEMI-INTELLIGENT : les sièges peuvent être réutilisés
+            // si l'occupant actuel descend avant l'arrêt d'embarquement du nouveau passager
             for ($seatNumber = 1; $seatNumber <= $totalSeats; $seatNumber++) {
                 if (!$occupiedSeatsData->has($seatNumber)) {
                     $availableSeats[] = $seatNumber;
                 } else {
                     $currentOccupant = $occupiedSeatsData[$seatNumber];
                     $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_station_id, $isReversedTrip);
-                    if ($occupantDestIndex < $boardingIndex) {
+                    if ($occupantDestIndex <= $boardingIndex) {
                         $availableSeats[] = $seatNumber;
                     }
                 }
             }
         } else {
-            // INTELLIGENT MODE: Only truly empty seats
+            // MODE INTELLIGENT : seuls les sièges vraiment vides
             for ($seatNumber = 1; $seatNumber <= $totalSeats; $seatNumber++) {
                 if (!$occupiedSeatsData->has($seatNumber)) {
                     $availableSeats[] = $seatNumber;
                 }
             }
         }
-        
-        // Get Preference Order for Zones based on Trip Type
+
+        // Obtenir l'ordre de préférence des zones selon le type de trajet
         $zonePreferences = $this->getZonePreferences($numZones, $troncon);
-        
-        // Calculate scores for available seats
+
+        // Pré-calculer les index de destination de tous les passagers occupés (évite N+1)
+        $occupantDestIndices = [];
+        foreach ($occupiedSeatsData as $seatNum => $ticket) {
+            $occupantDestIndices[$seatNum] = $this->getStopIndex(
+                $trip->route_id, $ticket->to_station_id, $isReversedTrip
+            );
+        }
+
+        // Calculer les scores pour chaque siège disponible
         $seatScores = [];
         foreach ($availableSeats as $seatNumber) {
             $score = $this->calculateDynamicZoneScore(
                 $seatNumber,
                 $troncon,
                 $destinationIndex,
+                $destinationStationId,
                 $numZones,
                 $zonePreferences,
                 $totalSeats,
-                $doorPositions,
                 $seatMapInfo,
                 $occupiedSeatsData,
-                $trip->route_id,
-                $isReversedTrip
+                $occupantDestIndices
             );
 
             $seatScores[] = [
@@ -133,16 +151,132 @@ class OptimisationService
             ];
         }
 
-        // Trier par score décroissant et prendre les N meilleurs
+        // Trier par score décroissant
         usort($seatScores, function($a, $b) {
             return $b['score'] <=> $a['score'];
         });
+
+        // GROUPE / FAMILLE : si on cherche > 1 siège, trouver des groupes adjacents
+        if ($maxSuggestions > 1) {
+            return $this->findAdjacentGroups(
+                $seatScores,
+                $seatMapInfo,
+                $maxSuggestions,
+                $maxSuggestions
+            );
+        }
 
         return array_slice($seatScores, 0, $maxSuggestions);
     }
 
     /**
-     * Parse the seat map to determine seat types, neighbors and coordinates
+     * Trouve des groupes de sièges adjacents (même rangée) et retourne
+     * le meilleur groupe trié par score moyen.
+     *
+     * @param array $seatScores Scores individuels de chaque siège disponible
+     * @param array $seatMapInfo Informations parsed du plan de sièges
+     * @param int $groupSize Nombre de sièges par groupe
+     * @param int $maxResults Nombre maximum de sièges à retourner
+     * @return array Sièges du meilleur groupe avec scores et raisons
+     */
+    private function findAdjacentGroups(array $seatScores, array $seatMapInfo, int $groupSize, int $maxResults = 5): array
+    {
+        // Créer un lookup rapide des scores par numéro de siège
+        $scoreMap = [];
+        foreach ($seatScores as $s) {
+            $scoreMap[$s['seat_number']] = $s;
+        }
+
+        // Regrouper les sièges disponibles par rangée
+        $seatsByRow = [];
+        foreach ($seatScores as $s) {
+            $seatNum = $s['seat_number'];
+            $info = $seatMapInfo['seats'][$seatNum] ?? null;
+            if (!$info) continue;
+            $row = $info['row'];
+            $col = $info['col'];
+            $seatsByRow[$row][] = ['seat_number' => $seatNum, 'col' => $col, 'score' => $s['score'], 'reason' => $s['reason']];
+        }
+
+        // Trouver tous les groupes adjacents possibles dans chaque rangée
+        $groups = [];
+        foreach ($seatsByRow as $row => $seats) {
+            // Trier par colonne pour garantir l'adjacence
+            usort($seats, fn($a, $b) => $a['col'] <=> $b['col']);
+
+            // Sliding window pour trouver des séquences adjacentes
+            for ($i = 0; $i <= count($seats) - $groupSize; $i++) {
+                $group = array_slice($seats, $i, $groupSize);
+
+                // Vérifier l'adjacence : les colonnes doivent être consécutives
+                // (en ignorant les couloirs/portes entre les colonnes)
+                $isAdjacent = true;
+                for ($j = 1; $j < count($group); $j++) {
+                    $colDiff = $group[$j]['col'] - $group[$j - 1]['col'];
+                    // Adjacent = colonnes consécutives (diff == 1), pas de couloir entre eux
+                    if ($colDiff !== 1) {
+                        $isAdjacent = false;
+                        break;
+                    }
+                }
+
+                if ($isAdjacent) {
+                    $avgScore = array_sum(array_column($group, 'score')) / $groupSize;
+                    $groups[] = [
+                        'seats' => $group,
+                        'avg_score' => $avgScore,
+                        'row' => $row,
+                    ];
+                }
+            }
+        }
+
+        if (empty($groups)) {
+            // Pas de groupe adjacent trouvé : fallback sur les meilleurs sièges individuels
+            return array_slice($seatScores, 0, $maxResults);
+        }
+
+        // Trier les groupes par score moyen décroissant
+        usort($groups, fn($a, $b) => $b['avg_score'] <=> $a['avg_score']);
+
+        // Retourner les sièges du meilleur groupe
+        $bestGroup = $groups[0];
+        $result = [];
+        foreach ($bestGroup['seats'] as $seat) {
+            $result[] = [
+                'seat_number' => $seat['seat_number'],
+                'score' => $seat['score'],
+                'reason' => $seat['reason'] . ' | Groupe adjacent',
+            ];
+        }
+
+        return array_slice($result, 0, $maxResults);
+    }
+
+    /**
+     * Précharge tous les index d'arrêts d'une route en une seule requête
+     * Stocke le résultat en cache mémoire pour éviter les requêtes N+1
+     */
+    private function preloadStopIndices(string $routeId): void
+    {
+        if (isset($this->stopIndexCache[$routeId])) {
+            return;
+        }
+
+        $stopOrders = RouteStopOrder::where('route_id', $routeId)
+            ->pluck('stop_index', 'station_id')
+            ->toArray();
+
+        $this->stopIndexCache[$routeId] = [
+            'map' => $stopOrders,
+            'total' => count($stopOrders),
+        ];
+    }
+
+    /**
+     * Parse the seat map to determine seat types, neighbors and coordinates.
+     * Calcule aussi les sièges de fenêtre adjacents pour chaque siège couloir
+     * (nécessaire pour l'anti-blocage bidirectionnel).
      */
     private function parseSeatMap(array $seatMap): array
     {
@@ -150,10 +284,19 @@ class OptimisationService
             'seats' => [],
             'doors' => []
         ];
-        
-        foreach ($seatMap as $rowIndex => $row) {
-            $rowLength = count($row);
-            
+
+        // Ensure we handle decks
+        $decks = isset($seatMap['lower_deck']) || isset($seatMap['upper_deck']) 
+            ? $seatMap 
+            : ['lower_deck' => $seatMap];
+
+        $globalRowOffset = 0;
+
+        foreach ($decks as $deckKey => $deckMap) {
+            foreach ($deckMap as $rowIndex => $row) {
+                $actualRowIndex = $globalRowOffset + $rowIndex;
+                $rowLength = count($row);
+
             foreach ($row as $colIndex => $cell) {
                 if (!isset($cell['type'])) {
                     continue;
@@ -161,7 +304,7 @@ class OptimisationService
 
                 if ($cell['type'] === 'door') {
                     $info['doors'][] = [
-                        'row' => $rowIndex,
+                        'row' => $actualRowIndex,
                         'col' => $colIndex
                     ];
                     continue;
@@ -170,49 +313,48 @@ class OptimisationService
                 if ($cell['type'] !== 'seat') {
                     continue;
                 }
-                
+
                 $seatNumber = (int)$cell['number'];
-                $type = 'middle'; // Default
+                $type = 'middle';
                 $adjacentAisleSeats = [];
-                
-                // Check Left Neighbor
+                $adjacentWindowSeats = [];
+
+                // Vérifier le voisin gauche
                 $leftIsWall = ($colIndex === 0);
                 $leftIsAisle = false;
                 if (!$leftIsWall) {
                     $leftCell = $row[$colIndex - 1];
-                    if ($leftCell['type'] === 'aisle' || $leftCell['type'] === 'door' || $leftCell['type'] === 'empty') {
+                    if (in_array($leftCell['type'], ['aisle', 'door', 'empty'])) {
                         $leftIsAisle = true;
                     }
                 }
-                
-                // Check Right Neighbor
+
+                // Vérifier le voisin droit
                 $rightIsWall = ($colIndex === $rowLength - 1);
                 $rightIsAisle = false;
                 if (!$rightIsWall) {
                     $rightCell = $row[$colIndex + 1];
-                    if ($rightCell['type'] === 'aisle' || $rightCell['type'] === 'door' || $rightCell['type'] === 'empty') {
+                    if (in_array($rightCell['type'], ['aisle', 'door', 'empty'])) {
                         $rightIsAisle = true;
                     }
                 }
-                
-                // Determine Type
+
+                // Déterminer le type de siège
                 if ($leftIsWall || $rightIsWall) {
                     $type = 'window';
                 } elseif ($leftIsAisle || $rightIsAisle) {
                     $type = 'aisle';
                 }
-                
-                // Find adjacent aisle seats (for blocking check)
+
+                // Trouver les sièges adjacents entre ce siège et le couloir
                 if ($type === 'window' || $type === 'middle') {
-                    // Search towards the aisle in the same row
-                    // Left search
+                    // Chercher vers le couloir dans la même rangée
                     for ($i = $colIndex - 1; $i >= 0; $i--) {
                         if ($row[$i]['type'] === 'aisle') break;
                         if ($row[$i]['type'] === 'seat') {
                             $adjacentAisleSeats[] = (int)$row[$i]['number'];
                         }
                     }
-                    // Right search
                     for ($i = $colIndex + 1; $i < $rowLength; $i++) {
                         if ($row[$i]['type'] === 'aisle') break;
                         if ($row[$i]['type'] === 'seat') {
@@ -220,17 +362,39 @@ class OptimisationService
                         }
                     }
                 }
-                
+
+                // Pour les sièges couloir, trouver les sièges fenêtre adjacents
+                // (nécessaire pour vérifier si on bloquerait un passager fenêtre)
+                if ($type === 'aisle') {
+                    // Chercher les sièges fenêtre du même côté (entre ce siège et le mur)
+                    for ($i = $colIndex - 1; $i >= 0; $i--) {
+                        if (in_array($row[$i]['type'], ['aisle', 'door', 'empty'])) break;
+                        if ($row[$i]['type'] === 'seat') {
+                            $adjacentWindowSeats[] = (int)$row[$i]['number'];
+                        }
+                    }
+                    for ($i = $colIndex + 1; $i < $rowLength; $i++) {
+                        if (in_array($row[$i]['type'], ['aisle', 'door', 'empty'])) break;
+                        if ($row[$i]['type'] === 'seat') {
+                            $adjacentWindowSeats[] = (int)$row[$i]['number'];
+                        }
+                    }
+                }
+
                 $info['seats'][$seatNumber] = [
                     'type' => $type,
                     'adjacent_aisle_seats' => array_unique($adjacentAisleSeats),
-                    'row' => $rowIndex,
-                    'col' => $colIndex
+                    'adjacent_window_seats' => array_unique($adjacentWindowSeats),
+                    'row' => $actualRowIndex,
+                    'col' => $colIndex,
+                    'deck' => $deckKey
                 ];
             }
         }
-        
-        // --- Calculate Global Proximity Ranking ---
+        $globalRowOffset += count($deckMap) + 2; // Offset to visually separate decks
+    }
+
+        // Calculer le classement global de proximité aux portes
         $seatDistances = [];
         foreach ($info['seats'] as $seatNumber => $s) {
             $minDist = PHP_INT_MAX;
@@ -242,221 +406,310 @@ class OptimisationService
             }
             $seatDistances[$seatNumber] = $minDist;
         }
-        
-        // Sort seats by proximity (ascending)
-        // If distance is equal, prefer lower seat numbers (usually front)
+
+        // Trier par proximité (ascendant), puis par numéro de siège
         uksort($seatDistances, function($a, $b) use ($seatDistances) {
             if ($seatDistances[$a] !== $seatDistances[$b]) {
                 return $seatDistances[$a] <=> $seatDistances[$b];
             }
-            return $a <=> $b; // Prefer lower seat number if distance is same
+            return $a <=> $b;
         });
-        
+
         $rank = 0;
         $info['proximity_ranking'] = [];
         foreach ($seatDistances as $seatNumber => $dist) {
             $rank++;
             $info['seats'][$seatNumber]['proximity_rank'] = $rank;
-            $info['proximity_ranking'][] = $seatNumber; // Order based on proximity
+            $info['seats'][$seatNumber]['door_distance'] = $dist;
+            $info['proximity_ranking'][] = $seatNumber;
         }
-        
+
         return $info;
     }
 
     /**
-     * Get preferred zone order based on trip type
-     * Zone 1 = Back, Zone N = Front
+     * Obtient l'ordre de préférence des zones selon le type de trajet
+     * Zone 1 = proche de la porte (avant), Zone N = fond du véhicule
      */
     private function getZonePreferences(int $numZones, string $troncon): array
     {
         $zones = range(1, $numZones);
-        
+
         if ($troncon === 'long') {
-            // Long trips: Prefer Back (1) to Front (N)
-            // Order: 1, 2, 3, ..., N
-            return $zones;
-        } elseif ($troncon === 'short') {
-            // Short trips: Prefer Front (N) to Back (1)
-            // Order: N, N-1, ..., 1
+            // Trajets longs : préférer le fond (zone N) vers l'avant (zone 1)
             return array_reverse($zones);
+        } elseif ($troncon === 'short') {
+            // Trajets courts : préférer l'avant (zone 1) vers le fond (zone N)
+            return $zones;
         } else {
-            // Medium trips: Prefer Middle zones
-            // Algorithm: Start from middle, expand outwards
-            // Bias towards Back (lower numbers) slightly?
-            // Example N=4: Mid=2.5. Order: 2, 3, 1, 4
-            
-            $preferences = [];
-            $mid = $numZones / 2;
-            
-            // Create array of zones with their distance to middle
-            $zoneDistances = [];
-            foreach ($zones as $z) {
-                $zoneDistances[$z] = abs($z - $mid);
-            }
-            
-            // Sort by distance to middle (ascending)
-            // If distances equal, prefer lower zone number (Back)
-            usort($zones, function($a, $b) use ($zoneDistances) {
-                $distA = $zoneDistances[$a];
-                $distB = $zoneDistances[$b];
-                
+            // Trajets moyens : préférer les zones du milieu, puis s'étendre
+            usort($zones, function($a, $b) use ($numZones) {
+                $mid = ($numZones + 1) / 2;
+                $distA = abs($a - $mid);
+                $distB = abs($b - $mid);
+
                 if (abs($distA - $distB) < 0.001) {
-                    return $a <=> $b; // Prefer lower number (Back) if equal distance
+                    return $a <=> $b;
                 }
                 return $distA <=> $distB;
             });
-            
+
             return $zones;
         }
     }
 
     /**
-     * Calculate seat score based on Dynamic Zones + Door Proximity
+     * Calcule le score d'un siège selon les zones dynamiques, la proximité aux portes,
+     * l'anti-blocage bidirectionnel et le regroupement par destination
      */
     private function calculateDynamicZoneScore(
         int $seatNumber,
         string $troncon,
         int $destinationIndex,
+        string $destinationStationId,
         int $numZones,
         array $zonePreferences,
         int $totalSeats,
-        array $doorPositions,
         array $seatMapInfo,
         Collection $occupiedSeatsData,
-        string $routeId,
-        bool $isReversed = false
+        array $occupantDestIndices
     ): array {
         $score = 100;
-        $reason = '';
+        $reasons = [];
 
-        // 1. Partitioned Destination Zoning
-        // Total stops including departure. Destinations = N = totalStops - 1.
-        // We use $numZones which is already calculated as totalStops - 1.
+        // --- 1. ZONAGE PAR DESTINATION ---
         $seatsPerZone = $totalSeats / max(1, $numZones);
-        
-        // Passenger's Target Zone (1-indexed based on destination order)
-        // If first destination stop is index 1, targetZone = 1.
-        $targetZone = $destinationIndex; 
-        
-        // Which zone does THIS seat belong to?
+
+        // Zone cible du passager (1-indexé selon l'ordre des destinations)
+        $targetZone = $destinationIndex;
+
+        // Zone du siège (basée sur le classement de proximité)
         $seatRank = $seatMapInfo['seats'][$seatNumber]['proximity_rank'] ?? 999;
         $seatZone = (int)ceil($seatRank / $seatsPerZone);
         $seatZone = max(1, min($numZones, $seatZone));
 
-        // Scoring based on Zone Match
         if ($seatZone === $targetZone) {
-            $score += 2000; // Massive bonus for being in the correct partition
-            $reason = "Zone Destination Idéale (Zone $seatZone)";
+            $score += 2000;
+            $reasons[] = "Zone Idéale ($seatZone)";
         } else {
-            // Very heavy penalty for cross-zone allocation to ensure "filling" logic
             $zoneDiff = abs($seatZone - $targetZone);
-            $score -= 1000 + ($zoneDiff * 500); 
-            $reason = "Zone $seatZone (Réservé Destination $seatZone)";
-        }
 
-        // 2. Intra-Zone Order & Comfort
-        // Apply secondary factors within the zone
-        if ($troncon === 'long') {
-             // For long trips, favor higher seat numbers (usually further back/quieter)
-             $score += ($seatNumber / $totalSeats) * 50;
-        }
-
-        // 3. DOOR PROXIMITY (Refined for intra-zone ranking)
-        $minDistanceToDoor = PHP_INT_MAX;
-        $seatPos = $seatMapInfo['seats'][$seatNumber] ?? null;
-        if ($seatPos) {
-            foreach ($seatMapInfo['doors'] as $door) {
-                $distance = abs($seatPos['row'] - $door['row']) + abs($seatPos['col'] - $door['col']);
-                if ($distance < $minDistanceToDoor) {
-                    $minDistanceToDoor = $distance;
+            // Vérifier le taux de remplissage de la zone cible pour réduire la pénalité
+            $seatsInTargetZone = 0;
+            $occupiedInTargetZone = 0;
+            foreach ($seatMapInfo['seats'] as $sNum => $sInfo) {
+                $sZone = (int)ceil(($sInfo['proximity_rank'] ?? 999) / $seatsPerZone);
+                $sZone = max(1, min($numZones, $sZone));
+                if ($sZone === $targetZone) {
+                    $seatsInTargetZone++;
+                    if ($occupiedSeatsData->has($sNum)) {
+                        $occupiedInTargetZone++;
+                    }
                 }
             }
+
+            $zoneFillRate = $seatsInTargetZone > 0 ? $occupiedInTargetZone / $seatsInTargetZone : 0;
+
+            if ($zoneFillRate > 0.80) {
+                // Zone cible quasi pleine : pénalité réduite, favoriser la zone adjacente
+                $score -= 200 + ($zoneDiff * 100);
+                $reasons[] = "Zone $seatZone (cible $targetZone pleine à " . round($zoneFillRate * 100) . "%)";
+            } else {
+                $score -= 1000 + ($zoneDiff * 500);
+                $reasons[] = "Zone $seatZone (cible: $targetZone)";
+            }
         }
-        
-        $isNearDoor = ($minDistanceToDoor <= 1);
-        
-        // 4. Seat Type Logic
-        $seatInfo = $seatMapInfo['seats'][$seatNumber] ?? ['type' => 'standard', 'adjacent_aisle_seats' => []];
+
+        // --- 2. PRÉFÉRENCE DE ZONE (court/moyen/long) ---
+        // Appliquer un bonus basé sur la position dans l'ordre de préférence des zones
+        $preferencePosition = array_search($seatZone, $zonePreferences);
+        if ($preferencePosition !== false) {
+            // Le premier dans l'ordre de préférence obtient le meilleur bonus
+            $preferenceBonus = max(0, (count($zonePreferences) - $preferencePosition) * 15);
+            $score += $preferenceBonus;
+        }
+
+        // --- 3. CONFORT INTRA-ZONE ---
+        if ($troncon === 'long') {
+            // Pour les longs trajets, favoriser les sièges plus au fond (plus calmes)
+            $score += ($seatNumber / $totalSeats) * 50;
+        }
+
+        // --- 4. PROXIMITÉ AUX PORTES ---
+        $doorDistance = $seatMapInfo['seats'][$seatNumber]['door_distance'] ?? PHP_INT_MAX;
+        $isNearDoor = ($doorDistance <= 1);
+
+        // --- 5. TYPE DE SIÈGE ---
+        $seatInfo = $seatMapInfo['seats'][$seatNumber] ?? ['type' => 'middle', 'adjacent_aisle_seats' => [], 'adjacent_window_seats' => []];
         $seatType = $seatInfo['type'];
-        
+
         if ($seatType === 'aisle') {
             $score += 30;
-            $reason .= ' + Couloir';
+            $reasons[] = 'Couloir';
         } elseif ($seatType === 'window' && !$isNearDoor) {
             $score -= 20;
-            $reason .= ' - Fenêtre';
+            $reasons[] = 'Fenêtre';
         }
-        
-        // 5. CRITICAL: Anti-Blocking Logic
-        $wouldBlockPassengers = false;
-        
+
+        // --- 6. ANTI-BLOCAGE BIDIRECTIONNEL ---
+
+        // 6a. Siège fenêtre : vérifier si un passager couloir descend AVANT nous
+        // (il devrait se lever pour nous laisser passer quand nous descendons)
         if ($seatType === 'window') {
-            $aisleSeats = $seatInfo['adjacent_aisle_seats'];
-            foreach ($aisleSeats as $aisleSeat) {
+            foreach ($seatInfo['adjacent_aisle_seats'] as $aisleSeat) {
                 if ($occupiedSeatsData->has($aisleSeat)) {
-                    $occupantDestIndex = $this->getStopIndex($routeId, $occupiedSeatsData[$aisleSeat]->to_station_id, $isReversed);
-                    if ($occupantDestIndex < $destinationIndex) {
-                        $wouldBlockPassengers = true;
+                    $occupantDest = $occupantDestIndices[$aisleSeat] ?? 0;
+                    if ($occupantDest < $destinationIndex) {
+                        // L'occupant du couloir descend avant nous : il nous bloquera
+                        $score -= 200;
+                        $reasons[] = 'Bloqué par couloir';
                         break;
                     }
                 }
             }
         }
-        
-        if ($wouldBlockPassengers) {
-            $score -= 200; // VERY heavy penalty (increased from 100)
-            $reason = 'Bloquerait un passager';
+
+        // 6b. Siège couloir : vérifier si un passager fenêtre descend APRÈS nous
+        // (nous devrions nous lever pour le laisser sortir plus tard)
+        if ($seatType === 'aisle') {
+            foreach ($seatInfo['adjacent_window_seats'] as $windowSeat) {
+                if ($occupiedSeatsData->has($windowSeat)) {
+                    $occupantDest = $occupantDestIndices[$windowSeat] ?? 0;
+                    if ($occupantDest > $destinationIndex) {
+                        // L'occupant de la fenêtre descend après nous : on le bloquerait
+                        $score -= 150;
+                        $reasons[] = 'Bloquerait fenêtre';
+                        break;
+                    }
+                }
+            }
+        }
+
+        // --- 7. REGROUPEMENT PAR DESTINATION ---
+        // Bonus si un siège voisin (même rangée) a la même destination
+        $seatRow = $seatInfo['row'];
+        $seatCol = $seatInfo['col'];
+        $allNeighborSeats = array_merge(
+            $seatInfo['adjacent_aisle_seats'] ?? [],
+            $seatInfo['adjacent_window_seats'] ?? []
+        );
+
+        foreach ($allNeighborSeats as $neighborSeat) {
+            if ($occupiedSeatsData->has($neighborSeat)
+                && $occupiedSeatsData[$neighborSeat]->to_station_id === $destinationStationId) {
+                $score += 100;
+                $reasons[] = 'Même destination voisin';
+                break;
+            }
         }
 
         return [
             'score' => round($score, 2),
-            'reason' => $reason
+            'reason' => implode(' | ', $reasons)
         ];
     }
 
     /**
-     * Obtient l'index d'un arrêt dans un trajet
-     * 
-     * @param string $routeId ID du trajet
-     * @param string $stationId ID de l'arrêt
-     * @param bool $isReversed Whether the trip is in reverse direction
-     * @return int Index de l'arrêt (1 for first destination, higher for further destinations)
+     * Obtient l'index d'un arrêt dans un trajet (utilise le cache mémoire)
+     *
+     * @param string $routeId ID de la route
+     * @param string $stationId ID de la station
+     * @param bool $isReversed Si le voyage est en sens inverse
+     * @return int Index de l'arrêt (0 = départ, valeurs plus élevées = plus loin)
      */
     private function getStopIndex(string $routeId, string $stationId, bool $isReversed = false): int
     {
-        $stopOrder = RouteStopOrder::where('route_id', $routeId)
-            ->where('station_id', $stationId)
-            ->first();
+        // Utiliser le cache pré-chargé
+        $cached = $this->stopIndexCache[$routeId] ?? null;
 
-        if (!$stopOrder) {
+        if (!$cached) {
+            // Fallback : charger et cacher si pas encore fait
+            $this->preloadStopIndices($routeId);
+            $cached = $this->stopIndexCache[$routeId];
+        }
+
+        $originalIndex = $cached['map'][$stationId] ?? null;
+
+        if ($originalIndex === null) {
             return 0;
         }
 
-        $originalIndex = $stopOrder->stop_index;
-
         if ($isReversed) {
-            // For reversed trips, invert the index
-            // Example: Route has 5 stops (indices 0-4)
-            // Bondoukou is index 4 (last), Agnibilékrou is index 3
-            // For reversed trip, Bondoukou becomes 0 (start), Agnibilékrou becomes 1 (first dest)
-            $totalStops = RouteStopOrder::where('route_id', $routeId)->count();
-            // Invert: originalIndex 4 -> 0, 3 -> 1, 2 -> 2, 1 -> 3, 0 -> 4
-            return ($totalStops - 1) - $originalIndex;
+            return ($cached['total'] - 1) - $originalIndex;
         }
 
         return $originalIndex;
     }
 
     /**
+     * Compute the boarding group (zone) for a given seat to speed up boarding.
+     * Zone 1 : furthest from door (board first)
+     * Zone 2 : middle distance
+     * Zone 3 : closest to door (board last)
+     *
+     * @param \App\Models\VehicleType $vehicleType
+     * @param int $seatNumber
+     * @return int
+     */
+    public function computeBoardingGroup(\App\Models\VehicleType $vehicleType, int $seatNumber): int
+    {
+        $totalSeats = $vehicleType->seat_count;
+        $doorPositions = $vehicleType->door_positions ?? [];
+
+        $seatMapService = app(SeatMapService::class);
+        $fullSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
+            'seat_count' => $totalSeats,
+            'seat_configuration' => $vehicleType->seat_configuration ?? '2+2',
+            'door_positions' => $doorPositions,
+            'last_row_seats' => $vehicleType->last_row_seats ?? 5
+        ]);
+
+        $seatMapInfo = $this->parseSeatMap($fullSeatMap);
+
+        if (!isset($seatMapInfo['seats'][$seatNumber])) {
+            return 1; // Default to zone 1 if seat not found
+        }
+
+        $seatDistance = $seatMapInfo['seats'][$seatNumber]['door_distance'] ?? 0;
+
+        // Find max distance to door across all seats
+        $maxDistance = 0;
+        foreach ($seatMapInfo['seats'] as $info) {
+            $dist = $info['door_distance'] ?? 0;
+            if ($dist > $maxDistance) {
+                $maxDistance = $dist;
+            }
+        }
+
+        if ($maxDistance == 0) {
+            return 1; 
+        }
+
+        // Zone 3: closest to door (<= 33% of max distance)
+        // Zone 2: middle
+        // Zone 1: furthest from door (> 66% of max distance)
+        $threshold1 = $maxDistance / 3.0;
+        $threshold2 = ($maxDistance * 2.0) / 3.0;
+
+        if ($seatDistance <= $threshold1) {
+            return 3;
+        } elseif ($seatDistance <= $threshold2) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    /**
      * Obtient des statistiques sur l'occupation d'un voyage
-     * 
+     *
      * @param string $tripId ID du voyage
      * @return array Statistiques d'occupation
      */
     public function getTripOccupancyStats(string $tripId): array
     {
         $trip = Trip::with('vehicle.vehicleType')->findOrFail($tripId);
-        
+
         $totalSeats = $trip->vehicle->vehicleType->seat_count;
         $occupiedSeats = Ticket::where('trip_id', $tripId)
             ->where('status', '!=', 'cancelled')

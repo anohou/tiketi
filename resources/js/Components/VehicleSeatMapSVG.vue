@@ -29,6 +29,10 @@ const props = defineProps({
   allowOccupiedClick: {
     type: Boolean,
     default: false
+  },
+  verticalMode: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -52,21 +56,31 @@ const ROW_SPACING = 5;
 const MARGIN = 20; // Reduced margin
 const DRIVER_CABIN_HEIGHT = 80;
 
-// Filter out trailing empty rows
-const validRows = computed(() => {
+// Filter out trailing empty rows and format into decks
+const decksData = computed(() => {
   if (!props.seatMap.seat_map) return [];
-  const rows = [...props.seatMap.seat_map];
-  // Remove trailing rows that have no seats
-  while (rows.length > 0) {
-    const lastRow = rows[rows.length - 1];
-    const hasSeats = lastRow.some(item => item.type === 'seat');
-    if (!hasSeats) {
-      rows.pop();
-    } else {
-      break;
+  const sourceDecks = [];
+  if (Array.isArray(props.seatMap.seat_map)) {
+    sourceDecks.push({ name: 'Niveau Unique', rows: [...props.seatMap.seat_map] });
+  } else {
+    if (props.seatMap.seat_map.lower_deck) {
+      sourceDecks.push({ name: 'Niveau Bas', rows: [...props.seatMap.seat_map.lower_deck] });
+    }
+    if (props.seatMap.seat_map.upper_deck) {
+      sourceDecks.push({ name: 'Niveau Haut', rows: [...props.seatMap.seat_map.upper_deck] });
     }
   }
-  return rows;
+  
+  return sourceDecks.map(deck => {
+    const rows = [...deck.rows];
+    while (rows.length > 0) {
+      const lastRow = rows[rows.length - 1];
+      const hasSeats = lastRow.some(item => item.type === 'seat');
+      if (!hasSeats) rows.pop();
+      else break;
+    }
+    return { ...deck, rows };
+  });
 });
 
 // Calculer les dimensions du SVG
@@ -75,15 +89,23 @@ const svgDimensions = computed(() => {
   const parts = config.split('+').map(Number);
   const seatsPerRow = parts.reduce((a, b) => a + b, 0);
   const aisles = parts.length - 1;
-  
   const width = MARGIN * 2 + (seatsPerRow * SEAT_WIDTH) + ((seatsPerRow - 1) * SEAT_SPACING) + (aisles * (AISLE_WIDTH - SEAT_SPACING));
-  const rows = validRows.value.length;
-  // Calculate height: Margins + Cabin + (Remaining rows * (Height + Spacing))
-  // Row 0 is inside the cabin, so we only add height for rows 1..N
-  const height = MARGIN * 2 + DRIVER_CABIN_HEIGHT + (Math.max(0, rows - 1) * (SEAT_HEIGHT + ROW_SPACING));
   
-  console.log('SVG dimensions:', { width, height, rows });
-  return { width, height };
+  let totalHeight = MARGIN; 
+  decksData.value.forEach((deck, index) => {
+    if (decksData.value.length > 1) totalHeight += 50; // deck label space
+    const hasCabin = index === 0;
+    if (hasCabin) totalHeight += DRIVER_CABIN_HEIGHT;
+    
+    const rowsCount = deck.rows.length;
+    const rowHeightMultiplier = hasCabin ? Math.max(0, rowsCount - 1) : rowsCount;
+    totalHeight += rowHeightMultiplier * (SEAT_HEIGHT + ROW_SPACING);
+    
+    if (index < decksData.value.length - 1) totalHeight += 60; // Deck spacing
+  });
+  
+  totalHeight += MARGIN;
+  return { width, height: totalHeight };
 });
 
 // Générer les positions des sièges
@@ -94,86 +116,73 @@ const seatPositions = computed(() => {
   const aisles = parts.length - 1;
   const positions = [];
   
-  validRows.value.forEach((row, rowIndex) => {
-    // Check if this is a standard row (matches config structure)
-    // A standard row in 2+2 has 5 elements (2 seats + aisle + 2 seats)
-    // But our stored map might have different structure.
-    // Let's count actual seats in this row
-    const seatsInRow = row.filter(s => s.type === 'seat').length;
-    const totalSlots = row.length;
-    
-    // Calculate Y position for this row
-    // Row 0 is the driver row, place it inside the cabin
-    // Subsequent rows start after the cabin
-    const y = rowIndex === 0 
-      ? MARGIN + 10 
-      : MARGIN + DRIVER_CABIN_HEIGHT + ((rowIndex - 1) * (SEAT_HEIGHT + ROW_SPACING));
-
-    // Special handling for rows that don't match the standard layout (e.g. last row with more seats)
-    // Standard 2+2 has 4 seats. If we have more, or if the structure is just a flat list of seats (like last row often is)
-    const isStandardRow = row.some(s => s.type === 'aisle');
-    
-    if (!isStandardRow && seatsInRow > 0) {
-      // Distribute seats evenly across the width
-      // Calculate total available width (excluding margins)
-      const totalWidth = (seatsPerRow * SEAT_WIDTH) + ((seatsPerRow - 1) * SEAT_SPACING) + (aisles * (AISLE_WIDTH - SEAT_SPACING));
-      
-      // Calculate spacing for this specific row
-      // We want to span the full width. 
-      // If we have N seats, we have N items and N-1 spaces.
-      // But we also want to align somewhat if possible. 
-      // Simple approach: Center them or Justify them.
-      // Let's try to justify them to fill the width.
-      
-      const rowWidth = (seatsInRow * SEAT_WIDTH);
-      const remainingSpace = totalWidth - rowWidth;
-      const spacePerGap = seatsInRow > 1 ? remainingSpace / (seatsInRow - 1) : 0;
-      
-      let currentX = MARGIN;
-      let seatCount = 0;
-      
-      row.forEach((item) => {
-        if (item.type === 'seat') {
-          positions.push({
-            ...item,
-            x: currentX,
-            y: y,
-            sectionIndex: 0 // Treat as one section
-          });
-          currentX += SEAT_WIDTH + spacePerGap;
-          seatCount++;
-        }
-      });
-    } else {
-      // Standard row processing
-      // The stored map from VehicleTypeController has explicit 'aisle' items.
-      // It looks like: [seat, seat, aisle, seat, seat]
-      
-      let currentX = MARGIN;
-      
-      row.forEach((item) => {
-        if (item.type === 'seat') {
-          positions.push({
-            ...item,
-            x: currentX,
-            y: y,
-            sectionIndex: 0
-          });
-          currentX += SEAT_WIDTH + SEAT_SPACING;
-        } else if (item.type === 'empty') {
-           currentX += SEAT_WIDTH + SEAT_SPACING;
-        } else if (item.type === 'aisle') {
-           currentX += (AISLE_WIDTH - SEAT_SPACING);
-        }
-      });
+  let currentY = MARGIN;
+  
+  decksData.value.forEach((deck, deckIndex) => {
+    if (decksData.value.length > 1) {
+      positions.push({ type: 'deck_label', label: deck.name, x: MARGIN, y: currentY + 30 });
+      currentY += 50;
     }
+    
+    const hasCabin = deckIndex === 0;
+    const deckStartY = currentY;
+    
+    deck.rows.forEach((row, rowIndex) => {
+      const seatsInRow = row.filter(s => s.type === 'seat').length;
+      let y;
+      if (hasCabin && rowIndex === 0) {
+         y = deckStartY + 10;
+      } else if (hasCabin) {
+         y = deckStartY + DRIVER_CABIN_HEIGHT + ((rowIndex - 1) * (SEAT_HEIGHT + ROW_SPACING));
+      } else {
+         y = deckStartY + (rowIndex * (SEAT_HEIGHT + ROW_SPACING));
+      }
+
+      const isStandardRow = row.some(s => s.type === 'aisle');
+      
+      if (!isStandardRow && seatsInRow > 0) {
+        const totalWidth = (seatsPerRow * SEAT_WIDTH) + ((seatsPerRow - 1) * SEAT_SPACING) + (aisles * (AISLE_WIDTH - SEAT_SPACING));
+        const rowWidth = (seatsInRow * SEAT_WIDTH);
+        const remainingSpace = totalWidth - rowWidth;
+        const spacePerGap = seatsInRow > 1 ? remainingSpace / (seatsInRow - 1) : 0;
+        
+        let currentX = MARGIN;
+        row.forEach((item) => {
+          if (item.type === 'seat') {
+            positions.push({ ...item, x: currentX, y: y, sectionIndex: 0 });
+            currentX += SEAT_WIDTH + spacePerGap;
+          }
+        });
+      } else {
+        let currentX = MARGIN;
+        row.forEach((item) => {
+          if (item.type === 'seat') {
+            positions.push({ ...item, x: currentX, y: y, sectionIndex: 0 });
+            currentX += SEAT_WIDTH + SEAT_SPACING;
+          } else if (item.type === 'empty') {
+            currentX += SEAT_WIDTH + SEAT_SPACING;
+          } else if (item.type === 'aisle') {
+            currentX += (AISLE_WIDTH - SEAT_SPACING);
+          }
+        });
+      }
+    });
+    
+    // Add to Y for next deck
+    const rowsCount = deck.rows.length;
+    const rowHeightMultiplier = hasCabin ? Math.max(0, rowsCount - 1) : rowsCount;
+    currentY += (hasCabin ? DRIVER_CABIN_HEIGHT : 0) + rowHeightMultiplier * (SEAT_HEIGHT + ROW_SPACING) + 60;
   });
   
   return positions;
 });
 
 const visibleSeats = computed(() => {
-  return seatPositions.value;
+  return seatPositions.value.filter(p => !p.type || p.type === 'seat');
+});
+
+const visibleLabels = computed(() => {
+  return seatPositions.value.filter(p => p.type === 'deck_label');
 });
 
 // Door positions
@@ -182,81 +191,65 @@ const doorPositions = computed(() => {
   const config = props.vehicleType.seat_configuration || '2+2';
   const parts = config.split('+').map(Number);
   const seatsPerRow = parts.reduce((a, b) => a + b, 0);
-  
-  // Get door positions from DB or default to [0]
   const dbDoorPositions = props.vehicleType.door_positions || [0];
   
-  // Sort and group consecutive seats
   const sortedPositions = [...dbDoorPositions].sort((a, b) => a - b);
   const groups = [];
   let currentGroup = [];
   
   sortedPositions.forEach((pos, index) => {
-    if (currentGroup.length === 0) {
-      currentGroup.push(pos);
-    } else {
+    if (currentGroup.length === 0) currentGroup.push(pos);
+    else {
       const lastPos = currentGroup[currentGroup.length - 1];
-      if (pos === lastPos + 1) {
-        currentGroup.push(pos);
-      } else {
+      if (pos === lastPos + 1) currentGroup.push(pos);
+      else {
         groups.push(currentGroup);
         currentGroup = [pos];
       }
     }
-    
-    if (index === sortedPositions.length - 1) {
-      groups.push(currentGroup);
-    }
+    if (index === sortedPositions.length - 1) groups.push(currentGroup);
   });
   
   let doorCount = 1;
+  const isMultiDeck = decksData.value.length > 1;
   
+  // Note: on double deckers, doors are strictly on the lower deck (index 0).
+  const deck0StartY = MARGIN + (isMultiDeck ? 50 : 0);
+
   groups.forEach(group => {
     const startSeat = group[0];
     const isFrontDoor = startSeat === 0;
     
     if (isFrontDoor) {
-      // Front door logic (aligned with driver)
-      // Position it on the far right edge
       const x = svgDimensions.value.width - MARGIN - SEAT_WIDTH;
-      
       doors.push({
         x: x,
-        y: MARGIN, // Aligned with the front edge
+        y: deck0StartY, 
         width: SEAT_WIDTH,
         height: SEAT_HEIGHT,
         label: `D${doorCount++}`,
         type: 'front'
       });
     } else {
-      // Middle/Rear door logic
-      // Calculate row index
       const rowIndex = Math.ceil(startSeat / seatsPerRow) - 1;
-      const y = MARGIN + DRIVER_CABIN_HEIGHT + (rowIndex * (SEAT_HEIGHT + ROW_SPACING));
+      const y = deck0StartY + DRIVER_CABIN_HEIGHT + (rowIndex * (SEAT_HEIGHT + ROW_SPACING));
       
-      // Calculate X based on column
-      // Col index (1-based)
       const colIndex = (startSeat - 1) % seatsPerRow + 1;
-      
       let x = MARGIN;
       let remainingCol = colIndex;
       
       for (let i = 0; i < parts.length; i++) {
         if (remainingCol <= parts[i]) {
-            // It's in this part
             x += (remainingCol - 1) * (SEAT_WIDTH + SEAT_SPACING);
             break;
         } else {
-            // Move to next part
-            x += parts[i] * (SEAT_WIDTH + SEAT_SPACING); // Width of this part
-            x += AISLE_WIDTH - SEAT_SPACING; // Add aisle
+            x += parts[i] * (SEAT_WIDTH + SEAT_SPACING);
+            x += AISLE_WIDTH - SEAT_SPACING;
             remainingCol -= parts[i];
         }
       }
       
-      // Calculate width based on group size
       const groupWidth = (group.length * SEAT_WIDTH) + ((group.length - 1) * SEAT_SPACING);
-      
       doors.push({
         x: x,
         y: y,
@@ -268,34 +261,23 @@ const doorPositions = computed(() => {
     }
   });
   
-  console.log('Door positions:', doors);
   return doors;
 });
 
-// Obtenir la couleur d'un siège
 const getSeatColor = (seat) => {
-  if (seat.isOccupied) {
-    return seat.color || '#EF4444';
-  }
-  if (isSelected(seat.number)) {
-    return props.selectedColor || '#A855F7';
-  }
+  if (seat.isOccupied) return seat.color || '#EF4444';
+  if (isSelected(seat.number)) return props.selectedColor || '#A855F7';
   return '#94A3B8';
 };
 
-// Vérifier si un siège est suggéré (only during active sales)
 const isSuggested = (seatNumber) => {
-  // Only show suggestions when showSuggestions is true (during active destination selection)
-  if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) {
-    return false;
-  }
+  if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) return false;
   return props.suggestedSeats.some(s => {
     const sNum = s.seat_number !== undefined ? s.seat_number : s;
     return Number(sNum) === Number(seatNumber);
   });
 };
 
-// Get the suggestion rank (1 = best, 2 = second best, etc.)
 const getSuggestionRank = (seatNumber) => {
   if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) return 0;
   const index = props.suggestedSeats.findIndex(s => {
@@ -305,18 +287,11 @@ const getSuggestionRank = (seatNumber) => {
   return index >= 0 ? index + 1 : 0;
 };
 
-// Vérifier si un siège est sélectionné
-const isSelected = (seatNumber) => {
-  return props.selectedSeat === seatNumber;
-};
+const isSelected = (seatNumber) => props.selectedSeat === seatNumber;
 
-// Gérer le clic sur un siège
 const handleSeatClick = (seat) => {
   if (!seat.isOccupied || props.allowOccupiedClick) {
-    console.log('[SVG] handleSeatClick:', seat.number);
     emit('seat-click', seat.number);
-  } else {
-    console.log('[SVG] handleSeatClick (Occupied - Blocked):', seat.number);
   }
 };
 </script>
@@ -376,11 +351,24 @@ const handleSeatClick = (seat) => {
           :y="MARGIN + DRIVER_CABIN_HEIGHT - 20" 
           text-anchor="middle" 
           class="text-xs font-bold fill-slate-700"
+          :transform="verticalMode ? `rotate(-90 ${MARGIN + SEAT_WIDTH + 10} ${MARGIN + DRIVER_CABIN_HEIGHT - 20})` : undefined"
         >
           AVANT
         </text>
       </g>
       
+      <!-- Deck Labels -->
+      <g v-for="(label, idx) in visibleLabels" :key="`label-${idx}`">
+        <text 
+          :x="label.x" 
+          :y="label.y" 
+          class="text-sm font-black fill-slate-800 uppercase tracking-widest"
+          :transform="verticalMode ? `rotate(-90 ${label.x} ${label.y})` : undefined"
+        >
+          {{ label.label }}
+        </text>
+      </g>
+
       <!-- Sièges -->
       <g v-for="seat in visibleSeats" :key="`seat-${seat.number}`">
         <!-- 1. VISUAL LAYER -->
@@ -454,6 +442,7 @@ const handleSeatClick = (seat) => {
             :y="seat.y + 6"
             text-anchor="middle"
             class="text-[10px] font-black fill-white select-none"
+            :transform="verticalMode ? `rotate(-90 ${seat.x + SEAT_WIDTH - 2} ${seat.y + 6})` : undefined"
           >
             {{ getSuggestionRank(seat.number) }}
           </text>
@@ -465,6 +454,7 @@ const handleSeatClick = (seat) => {
           :y="seat.y + SEAT_HEIGHT / 2 + 6" 
           text-anchor="middle" 
           class="text-lg font-black fill-white pointer-events-none select-none"
+          :transform="verticalMode ? `rotate(-90 ${seat.x + SEAT_WIDTH / 2} ${seat.y + SEAT_HEIGHT / 2 + 6})` : undefined"
         >
           {{ seat.number }}
         </text>
@@ -531,6 +521,7 @@ const handleSeatClick = (seat) => {
           :y="door.y + door.height / 2 + 5" 
           text-anchor="middle" 
           class="text-xs font-bold fill-green-700"
+          :transform="verticalMode ? `rotate(-90 ${door.x + door.width / 2} ${door.y + door.height / 2 + 5})` : undefined"
         >
           {{ door.label }}
         </text>

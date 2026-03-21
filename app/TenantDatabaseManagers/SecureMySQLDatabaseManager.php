@@ -72,22 +72,27 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
             \Log::info("✅ Database created successfully", ['database' => $name]);
 
             // Grant app user access to this specific tenant database
+            // Skip if app user = provisioner user (local dev: both are root)
             $appUser = config('database.connections.mysql.username');
-            $appHost = $this->getAppUserHost();
+            $provisionerUser = config('database.connections.tenant_provisioner.username');
 
-            \Log::info("🔐 Granting privileges to app user", [
-                'app_user' => $appUser,
-                'app_host' => $appHost,
-                'database' => $name,
-                'grant_sql' => "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'",
-            ]);
+            if ($appUser !== $provisionerUser) {
+                $appHost = $this->getAppUserHost();
 
-            // Grant all privileges on the new tenant database to app user
-            $provisioner->statement(
-                "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'"
-            );
+                \Log::info("🔐 Granting privileges to app user", [
+                    'app_user' => $appUser,
+                    'app_host' => $appHost,
+                    'database' => $name,
+                ]);
 
-            \Log::info("✅ Privileges granted successfully");
+                $provisioner->statement(
+                    "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'"
+                );
+
+                \Log::info("✅ Privileges granted successfully");
+            } else {
+                \Log::info("⏭️ Skipping GRANT (app user = provisioner user)");
+            }
 
             // Note: FLUSH PRIVILEGES not needed - grants take effect immediately
             // and provisioner user doesn't have RELOAD privilege

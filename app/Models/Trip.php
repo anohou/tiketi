@@ -50,7 +50,17 @@ class Trip extends Model
     public function getAvailableSeatsAttribute()
     {
         $total = $this->total_seats;
-        $occupied = $this->tickets()->where('status', '!=', 'cancelled')->count();
+
+        // Utiliser le compteur préchargé par withCount() s'il existe,
+        // sinon fallback sur une requête (évite les N+1 dans les listes)
+        if (isset($this->attributes['occupied_seats'])) {
+            $occupied = (int) $this->attributes['occupied_seats'];
+        } elseif ($this->relationLoaded('tripSeatOccupancies')) {
+            $occupied = $this->tripSeatOccupancies->count();
+        } else {
+            $occupied = $this->tripSeatOccupancies()->count();
+        }
+
         return max(0, $total - $occupied);
     }
 

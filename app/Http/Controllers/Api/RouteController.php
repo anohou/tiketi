@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Route;
+use App\Models\RouteFare;
 use Illuminate\Http\Request;
 
 class RouteController extends Controller
@@ -14,7 +15,7 @@ class RouteController extends Controller
      */
     public function index()
     {
-        $routes = Route::with(['originStation', 'destinationStation', 'routeStopOrders.stop.station'])
+        $routes = Route::with(['originStation', 'destinationStation', 'routeStopOrders.station'])
             ->where('active', true)
             ->get()
             ->map(function ($route) {
@@ -37,14 +38,10 @@ class RouteController extends Controller
                     ],
                     'stops' => $route->routeStopOrders->sortBy('stop_index')->map(function ($order) {
                         return [
-                            'id' => $order->stop->id,
-                            'name' => $order->stop->name,
-                            'station' => [
-                                'id' => $order->stop->station->id,
-                                'name' => $order->stop->station->name,
-                                'latitude' => $order->stop->station->latitude,
-                                'longitude' => $order->stop->station->longitude,
-                            ],
+                            'id' => $order->station->id,
+                            'name' => $order->station->name,
+                            'latitude' => $order->station->latitude,
+                            'longitude' => $order->station->longitude,
                             'index' => $order->stop_index,
                         ];
                     })->values(),
@@ -68,9 +65,15 @@ class RouteController extends Controller
         $route = Route::with([
             'originStation',
             'destinationStation',
-            'routeStopOrders.stop.station',
-            'routeFares'
+            'routeStopOrders.station',
         ])->findOrFail($id);
+
+        // Load fares for stations on this route
+        $stationIds = $route->routeStopOrders->pluck('station_id')->toArray();
+        $fares = RouteFare::where(function ($q) use ($stationIds) {
+            $q->whereIn('from_station_id', $stationIds)
+              ->whereIn('to_station_id', $stationIds);
+        })->get();
 
         return response()->json([
             'success' => true,
@@ -97,22 +100,18 @@ class RouteController extends Controller
                 ],
                 'stops' => $route->routeStopOrders->sortBy('stop_index')->map(function ($order) {
                     return [
-                        'id' => $order->stop->id,
-                        'name' => $order->stop->name,
-                        'station' => [
-                            'id' => $order->stop->station->id,
-                            'name' => $order->stop->station->name,
-                            'city' => $order->stop->station->city,
-                            'latitude' => $order->stop->station->latitude,
-                            'longitude' => $order->stop->station->longitude,
-                        ],
+                        'id' => $order->station->id,
+                        'name' => $order->station->name,
+                        'city' => $order->station->city,
+                        'latitude' => $order->station->latitude,
+                        'longitude' => $order->station->longitude,
                         'index' => $order->stop_index,
                     ];
                 })->values(),
-                'fares' => $route->routeFares->map(function ($fare) {
+                'fares' => $fares->map(function ($fare) {
                     return [
-                        'from_stop_id' => $fare->from_stop_id,
-                        'to_stop_id' => $fare->to_stop_id,
+                        'from_station_id' => $fare->from_station_id,
+                        'to_station_id' => $fare->to_station_id,
                         'amount' => $fare->amount,
                     ];
                 }),
