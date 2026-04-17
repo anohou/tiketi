@@ -12,8 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // MySQL: modify the enum to include the new roles
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'supervisor', 'seller', 'accountant', 'executive') DEFAULT 'seller'");
+        $this->setAllowedRoles(['admin', 'supervisor', 'seller', 'accountant', 'executive']);
     }
 
     /**
@@ -23,6 +22,36 @@ return new class extends Migration
     {
         // Note: This will fail if any users have 'accountant' or 'executive' role
         // You should first update those users to a valid role before rolling back
-        DB::statement("ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'supervisor', 'seller') DEFAULT 'seller'");
+        $this->setAllowedRoles(['admin', 'supervisor', 'seller']);
+    }
+
+    private function setAllowedRoles(array $roles): void
+    {
+        $driver = DB::getDriverName();
+        $quotedRoles = implode(', ', array_map(fn (string $role) => DB::getPdo()->quote($role), $roles));
+
+        if ($driver === 'mysql') {
+            DB::statement(sprintf(
+                'ALTER TABLE users MODIFY COLUMN role ENUM(%s) DEFAULT %s',
+                $quotedRoles,
+                DB::getPdo()->quote('seller'),
+            ));
+
+            return;
+        }
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(255)');
+            DB::statement('ALTER TABLE users ALTER COLUMN role SET DEFAULT ' . DB::getPdo()->quote('seller'));
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
+            DB::statement(sprintf(
+                'ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (%s))',
+                $quotedRoles,
+            ));
+
+            return;
+        }
+
+        // SQLite and other test drivers do not enforce Laravel enum checks here.
     }
 };
