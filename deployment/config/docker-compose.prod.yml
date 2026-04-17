@@ -1,0 +1,163 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  docker-compose.prod.yml — Production stack                                ║
+# ║  nginx + php-fpm + queue-worker + scheduler                                ║
+# ║  Traefik pre-installed on host — labels only, no Traefik service here      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+x-app-defaults: &app-defaults
+  image: "${DEPLOY_IMAGE_REFERENCE:-${APP_IMAGE}:${APP_VERSION:-latest}}"
+  build:
+    context: ../..
+    dockerfile: deployment/config/Dockerfile
+  restart: unless-stopped
+  env_file:
+    - ../.env
+  volumes:
+    - ../../storage:/var/www/html/storage
+    - ../runtime-public:/var/www/html/public
+  networks:
+    - app-network
+    - db-network
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+
+  # ─── Nginx ─────────────────────────────────────────────────────────────────
+  nginx:
+    image: "${NGINX_IMAGE:-nginxinc/nginx-unprivileged:1.27-alpine}"
+    restart: unless-stopped
+    depends_on:
+      php-fpm:
+        condition: service_healthy
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../runtime-public:/var/www/html/public:ro
+      - ../../storage:/var/www/html/storage:ro
+    networks:
+      - app-network
+      - traefik_swarm_network
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.server.port=8080"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.healthcheck.path=/readyz"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.healthcheck.interval=30s"
+
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.entrypoints=web"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http_insecure.middlewares=${COMPOSE_PROJECT_NAME}-https-redirect"
+
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.service=${COMPOSE_PROJECT_NAME}_http_service"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_http.middlewares=secure-headers@file"
+
+      - "traefik.http.middlewares.${COMPOSE_PROJECT_NAME}-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.rule=HostRegexp(`^[a-z0-9-]+\\.tiketi\\.ci$`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.tls.domains[0].main=${APP_DOMAIN}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.tls.domains[0].sans=*.tiketi.ci"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.service=${COMPOSE_PROJECT_NAME}_http_service"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.middlewares=secure-headers@file"
+
+  # ─── PHP-FPM ────────────────────────────────────────────────────────────────
+  php-fpm:
+    <<: *app-defaults
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ../../storage:/var/www/html/storage
+      - ../runtime-public:/var/www/html/public
+
+  # ─── Queue Worker ───────────────────────────────────────────────────────────
+  queue-worker:
+    profiles: ["with-queue"]
+    <<: *app-defaults
+    command: >
+      php artisan queue:work database
+        --sleep=${QUEUE_SLEEP:-3}
+        --tries=${QUEUE_TRIES:-3}
+        --timeout=${QUEUE_TIMEOUT:-300}
+        --max-jobs=${QUEUE_MAX_JOBS:-1000}
+        --max-time=${QUEUE_MAX_TIME:-3600}
+    healthcheck:
+      test: ["CMD", "php", "artisan", "queue:monitor", "database"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 60s
+
+  # ─── Scheduler ──────────────────────────────────────────────────────────────
+  scheduler:
+    profiles: ["with-scheduler"]
+    <<: *app-defaults
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "while true; do
+        php artisan schedule:run --no-ansi >> /dev/null 2>&1
+        sleep 60
+      done"
+
+  # ─── Reverb WebSocket Server ───────────────────────────────────────────────
+  reverb:
+    profiles: ["with-reverb"]
+    <<: *app-defaults
+    command: >
+      php artisan reverb:start
+        --host=0.0.0.0
+        --port=${REVERB_SERVER_PORT:-6001}
+    expose:
+      - "${REVERB_SERVER_PORT:-6001}"
+    networks:
+      - app-network
+      - db-network
+      - traefik_swarm_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+      - "traefik.http.services.${COMPOSE_PROJECT_NAME}_reverb_service.loadbalancer.server.port=${REVERB_PORT:-6001}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/app`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.service=${COMPOSE_PROJECT_NAME}_reverb_service"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.entrypoints=websecure"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.rule=HostRegexp(`^[a-z0-9-]+\\.tiketi\\.ci$`) && PathPrefix(`/app`)"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.tls=true"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.tls.domains[0].main=${APP_DOMAIN}"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.tls.domains[0].sans=*.tiketi.ci"
+      - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_reverb.service=${COMPOSE_PROJECT_NAME}_reverb_service"
+    stop_grace_period: 30s
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  app-network:
+    driver: bridge
+
+  # Isolated DB network (php-fpm / queue → postgres only)
+  db-network:
+    external: true
+    name: "${DB_NETWORK:-anohou-db-network}"
+
+  traefik_swarm_network:
+    external: true
+    name: ${TRAEFIK_SWARM_NETWORK}

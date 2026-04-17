@@ -1,524 +1,510 @@
 #!/usr/bin/env bash
-# Deploy script - handles deployment logic
-
-set -euo pipefail
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  deploy.sh — Steady-state production deploy for runtime-public releases    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEPLOYMENT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-source "${SCRIPT_DIR}/lib/utils.sh"
+DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+source "${SCRIPT_DIR}/deploy.config.sh"
 
-# Load feature system
-source "${DEPLOYMENT_ROOT}/features/loader.sh"
+VERSION="${1:-$(cat "${DEPLOY_DIR}/.last-built-version" 2>/dev/null || echo "latest")}"
+IMAGE_SOURCE_MODE="${DEPLOY_BUILD_SOURCE:-${IMAGE_SOURCE_MODE:-}}"
+ALLOW_LOCAL_BUILD="${DEPLOY_ALLOW_LOCAL_BUILD:-${ALLOW_LOCAL_BUILD:-${BUILD_ALLOW_LOCAL_BUILD:-false}}}"
+DEPLOY_IMAGE_REF="${DEPLOY_IMAGE_REF:-}"
+DEPLOY_IMAGE_DIGEST="${DEPLOY_IMAGE_DIGEST:-}"
+DEPLOY_REQUESTED_BY="${DEPLOY_REQUESTED_BY:-unknown}"
+DEPLOY_RUN_URL="${DEPLOY_RUN_URL:-}"
+DEPLOY_ACTUAL_IMAGE_REF=""
 
-#######################################
-# Validate required environment variables
-# Ensures all variables needed by docker-compose are set
-# Arguments:
-#   $1 - Environment (local, staging, production)
-#######################################
-validate_required_vars() {
-    local environment="$1"
+COMPOSE_FILE="${DEPLOY_DIR}/config/docker-compose.prod.yml"
+ENV_FILE="${DEPLOY_DIR}/.env"
+STATE_DIR="${DEPLOY_DIR}/.deploy-state/current"
+ROLLBACK_DIR="${DEPLOY_DIR}/.deploy-state/rollback-target"
+LOCK_DIR="${DEPLOY_DIR}/.deploy-lock"
+PERSISTENT_PUBLIC_ROOT="${DEPLOY_DIR}/persistent-public/root"
+RUNTIME_PUBLIC_ROOT="${DEPLOY_DIR}/runtime-public"
+STORAGE_ROOT="$(cd "${DEPLOY_DIR}/../storage" && pwd)"
+STORAGE_PUBLIC_DIR="${STORAGE_ROOT}/app/public"
+DEPLOY_GATE_DIR="${STORAGE_ROOT}/framework/deploy"
+READY_MARKER="${DEPLOY_GATE_DIR}/ready"
+SMOKE_PROBE_FILE="${STORAGE_PUBLIC_DIR}/.deploy-smoke.txt"
+RESTORED_URIS_FILE="${STATE_DIR}/restored-uris.txt"
+ROLLBACK_ATTEMPTED=false
+MUTATION_STARTED=false
+DEPLOY_SUCCEEDED=false
+CHECKSUM_BIN=""
+CHECKSUM_ARGS=()
 
-    local required_vars=(
-        "DOCKER_CONTAINER_NAME"
-        "DOCKER_IMAGE_NAME"
-        "COMPOSE_PROJECT_NAME"
-        "DOCKER_PROJECT"
-        "ENVIRONMENT"
-    )
+declare -a COMPOSE_PROFILE_ARGS=()
 
-    # Add URL vars for staging/production
-    if [[ "$environment" != "local" ]]; then
-        required_vars+=("APP_URL_DOMAIN" "APP_URL_PATH")
-    fi
+log() { echo "[deploy] $(date '+%H:%M:%S') $*"; }
+warn() { echo "[deploy] WARN: $*" >&2; }
+err() { echo "[deploy] ERROR: $*" >&2; exit 1; }
 
-    local missing_vars=()
-
-    for var in "${required_vars[@]}"; do
-        # Special case: APP_URL_PATH can be empty (for domain-based routing)
-        if [[ "$var" == "APP_URL_PATH" ]]; then
-            if [[ -z "${!var+x}" ]]; then
-                missing_vars+=("$var")
-            fi
-        else
-            if [[ -z "${!var:-}" ]]; then
-                missing_vars+=("$var")
-            fi
-        fi
-    done
-
-    if [[ ${#missing_vars[@]} -gt 0 ]]; then
-        log "ERROR" "Required environment variables not set:"
-        for var in "${missing_vars[@]}"; do
-            log "ERROR" "  - $var"
-        done
-        log "ERROR" "These variables must be exported before running docker-compose"
-        exit 1
-    fi
-
-    log "SUCCESS" "All required environment variables validated"
+compose() {
+    docker compose \
+        "${COMPOSE_PROFILE_ARGS[@]}" \
+        -f "${COMPOSE_FILE}" \
+        --env-file "${ENV_FILE}" \
+        "$@"
 }
 
-deploy() {
-    local environment="$1"
-    local start_time=$(date +%s)
-
-    log "INFO" "Starting deployment for: $environment"
-
-    # Initialize configuration
-    load_config "$environment"
-    setup_environment "$environment"
-
-    # === LOAD AND INITIALIZE FEATURES ===
-    load_features
-    init_features || exit 1
-
-    # Export variables for docker-compose and features
-    export ENVIRONMENT="$environment"
-    export ACTION="deploy"
-    export TRAEFIK_SWARM_NETWORK=$(get_config "infrastructure.traefik.network_name" "$environment")
-
-    # Build names from config patterns using placeholders
-    local container_pattern=$(get_config "docker.container_name_pattern" "$environment")
-    local image_pattern=$(get_config "docker.image_name_pattern" "$environment")
-    local compose_pattern=$(get_config "docker.compose_project_pattern" "$environment")
-
-    # Substitute placeholders: {project_name} and {env}
-    # Convert project name hyphens to underscores for Docker compatibility
-    local docker_project_name=$(echo "$PROJECT_NAME" | tr '-' '_')
-    log "INFO" "Docker project name (converted): $docker_project_name"
-    export COMPOSE_PROJECT_NAME=$(echo "$compose_pattern" | sed "s/{project_name}/${docker_project_name}/g" | sed "s/{env}/${environment}/g")
-    export DOCKER_IMAGE_NAME=$(echo "$image_pattern" | sed "s/{project_name}/${docker_project_name}/g" | sed "s/{env}/${environment}/g")
-    export DOCKER_CONTAINER_NAME=$(echo "$container_pattern" | sed "s/{project_name}/${docker_project_name}/g" | sed "s/{env}/${environment}/g")
-
-    # Export for docker-compose database/redis container names
-    export DOCKER_PROJECT="$docker_project_name"
-
-    export APP_URL_DOMAIN="$APP_DOMAIN"
-    export APP_URL_PATH="${APP_URL_PATH:-}"
-
-    # Validate all required environment variables are set
-    validate_required_vars "$environment"
-
-    # === HOOK: pre-validation ===
-    exec_hook "pre-validation" "$environment" "deploy"
-
-    # Validate features
-    validate_features || exit 1
-
-    # Verify secrets file(s) exists - support for multi-secrets
-    local secrets_missing=0
-    if [ -n "${SECRETS_FILES:-}" ]; then
-        # Multi-secrets mode
-        for secrets_file in $SECRETS_FILES; do
-            if [ ! -f "$secrets_file" ]; then
-                log "ERROR" "Secrets file not found: $secrets_file"
-                secrets_missing=1
-            fi
-        done
-    elif [ -n "${SECRETS_FILE:-}" ]; then
-        # Single secrets file mode (legacy)
-        if [ ! -f "$SECRETS_FILE" ]; then
-            log "ERROR" "Secrets file not found: $SECRETS_FILE"
-            secrets_missing=1
-        fi
-    else
-        log "ERROR" "No secrets file configured"
-        secrets_missing=1
-    fi
-
-    if [ $secrets_missing -eq 1 ]; then
-        log "INFO" "Please create the required secrets file(s) before deploying."
-        exit 1
-    fi
-
-    # Check Docker
-    check_docker || exit 1
-
-    # Prepare secrets file(s) for docker-compose
-    # If using multi-secrets (SECRETS_FILES), merge them into a single file
-    if [ -n "${SECRETS_FILES:-}" ]; then
-        log "INFO" "Merging multiple secrets files..."
-        MERGED_SECRETS="${DEPLOYMENT_ROOT}/.env.secrets.${environment}"
-        > "$MERGED_SECRETS"  # Create empty file
-        for secrets_file in $SECRETS_FILES; do
-            if [ -f "$secrets_file" ]; then
-                log "INFO" "  - Adding: $secrets_file"
-                cat "$secrets_file" >> "$MERGED_SECRETS"
-                echo "" >> "$MERGED_SECRETS"  # Add separator
-            else
-                log "WARNING" "Secrets file not found: $secrets_file"
-            fi
-        done
-        log "INFO" "Merged secrets file: $MERGED_SECRETS ($(wc -l < "$MERGED_SECRETS") lines)"
-        export SECRETS_MOUNT_FILE="$MERGED_SECRETS"
-    elif [ -n "${SECRETS_FILE:-}" ]; then
-        # Single secrets file
-        log "INFO" "Using single secrets file: $SECRETS_FILE"
-        export SECRETS_MOUNT_FILE="$SECRETS_FILE"
-    else
-        log "ERROR" "No secrets file available"
-        exit 1
-    fi
-
-    # Build or pull image
-    if [[ "$USE_REMOTE_IMAGE" == "true" ]]; then
-        # Login to registry if credentials are provided (for private repos)
-        if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_PAT:-}" ]; then
-            local registry_host=$(get_config "docker.registry.host" "$environment")
-            log "INFO" "Authenticating to Docker registry ($registry_host)..."
-            echo "$GHCR_PAT" | docker login "$registry_host" -u "$GHCR_USERNAME" --password-stdin > /dev/null 2>&1 || {
-                log "WARNING" "Registry authentication failed, attempting pull anyway..."
-            }
-        fi
-
-        log "INFO" "Removing old image to force latest pull..."
-        docker rmi "${FULL_REGISTRY_PATH}:${environment}" 2>/dev/null || true
-
-        log "INFO" "Pulling image from registry: ${FULL_REGISTRY_PATH}:${environment}"
-        docker pull "${FULL_REGISTRY_PATH}:${environment}" || {
-            log "ERROR" "Failed to pull image"
-            exit 1
-        }
-
-
-        # Export image name for docker-compose
-        export DOCKER_IMAGE_NAME="${FULL_REGISTRY_PATH}:${environment}"
-    elif [[ "$ALLOW_LOCAL_BUILD" == "true" ]]; then
-        log "INFO" "Building Docker image locally"
-
-        # Ensure composer dependencies are installed locally ONLY for local environment
-        # Local environment uses volume mounts, so it needs vendor/ on the host
-        # Staging/production use code baked into Docker image, so they don't need this
-        if [[ "$environment" == "local" ]]; then
-            log "INFO" "Installing Composer dependencies locally (required for volume mount)..."
-
-            # Navigate to project root
-            local project_root="${DEPLOYMENT_ROOT}/.."
-            cd "$project_root" || {
-                log "ERROR" "Failed to navigate to project root: $project_root"
-                exit 1
-            }
-
-            # Check if composer is available
-            if ! command -v composer &> /dev/null; then
-                log "ERROR" "Composer not found. Please install Composer: https://getcomposer.org"
-                exit 1
-            fi
-
-            # Run composer install with dev dependencies for local
-            log "INFO" "Running: composer install --no-interaction --no-scripts (with dev dependencies)"
-            composer install --no-interaction --no-scripts || {
-                log "ERROR" "Composer install failed"
-                exit 1
-            }
-
-            log "SUCCESS" "Composer dependencies installed for $environment environment"
+resolve_image_source_mode() {
+    if [[ -n "${USE_REMOTE_IMAGE:-}" ]]; then
+        if [[ "${USE_REMOTE_IMAGE}" == "true" ]]; then
+            echo "remote"
         else
-            log "INFO" "Skipping host composer install - using dependencies from Docker image"
+            echo "local"
         fi
-
-        # Install npm dependencies for local development (frontend rebuilding)
-        # Production/staging use pre-built assets from Docker image
-        if [[ "$environment" == "local" ]]; then
-            log "INFO" "Installing npm dependencies for local development..."
-
-            # Check if npm is available
-            if ! command -v npm &> /dev/null; then
-                log "WARNING" "npm not found. Frontend assets cannot be rebuilt locally."
-                log "WARNING" "Install Node.js from https://nodejs.org or use pre-built assets from Docker image"
-            else
-                log "INFO" "Running: npm install"
-                npm install || {
-                    log "WARNING" "npm install failed. Frontend may not rebuild correctly."
-                }
-                log "SUCCESS" "npm dependencies installed"
-            fi
-        fi
-
-        # Return to deployment root
-        cd "${DEPLOYMENT_ROOT}" || exit 1
-
-        # Extract base path from APP_URL_PATH for Vite builds
-        # For path-based routing, Vite needs the path + /build
-        # For domain-based routing (root /), Vite needs /build/ to resolve dynamic assets correctly
-        local base_path="/build/"
-        if [[ -n "${APP_URL_PATH}" ]] && [[ "${APP_URL_PATH}" != "/" ]]; then
-            # Laravel Vite plugin outputs to public/build/, so base path needs /build suffix
-            base_path="${APP_URL_PATH}/build/"
-        fi
-        log "INFO" "Using base path for assets: ${base_path}"
-
-        # Check if no-cache flag is requested
-        local build_flags=""
-        if [[ "${DOCKER_BUILD_NO_CACHE:-false}" == "true" ]]; then
-            build_flags="--no-cache"
-            log "INFO" "Building with --no-cache (fresh build, no layer caching)"
-        fi
-
-        # Pass VITE_ variables from secrets as build args
-        if [ -f "$SECRETS_MOUNT_FILE" ]; then
-            log "INFO" "Extracting VITE_ variables for frontend build..."
-            while IFS='=' read -r key value || [ -n "$key" ]; do
-                # Trim whitespace and quotes
-                key=$(echo "$key" | tr -d '[:space:]')
-                value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
-
-                if [[ $key == VITE_* ]] && [[ -n "$value" ]]; then
-                    log "INFO" "  -> Adding build arg: $key"
-                    build_flags+=" --build-arg $key=$value"
-                fi
-            done < <(grep "^VITE_" "$SECRETS_MOUNT_FILE")
-        fi
-
-        # Build with local tag only
-        local local_image="${DOCKER_IMAGE_NAME}"
-        docker build -t "${local_image}" \
-            -f "${DEPLOYMENT_ROOT}/docker/Dockerfile" \
-            --build-arg APP_ENV="$environment" \
-            --build-arg APP_BASE_PATH="${base_path}" \
-            ${build_flags} \
-            "${DEPLOYMENT_ROOT}/.." || {
-            log "ERROR" "Failed to build image"
-            exit 1
-        }
-
-        # Export image name for docker-compose
-        export DOCKER_IMAGE_NAME="${local_image}"
-        log "SUCCESS" "Local build complete: ${DOCKER_IMAGE_NAME}"
-    else
-        log "ERROR" "Neither remote image pull nor local build is enabled"
-        exit 1
+        return 0
     fi
 
-    log "INFO" "Setting up Laravel storage directories..."
-    cd "${DEPLOYMENT_ROOT}/.." || {
-        log "ERROR" "Failed to navigate to project root"
-        exit 1
-    }
-
-    # Create all required Laravel directories
-    mkdir -p bootstrap/cache \
-        storage/app/public \
-        storage/app/private \
-        storage/framework/cache \
-        storage/framework/sessions \
-        storage/framework/testing \
-        storage/framework/views \
-        storage/logs
-
-    # Fix ownership to deploying user (important for bind mounts)
-    # This ensures the container can write to these directories
-    chown -R $(whoami):$(whoami) storage bootstrap 2>/dev/null || true
-
-    # Set permissions (775 allows both user and web server to write)
-    chmod -R 775 storage bootstrap/cache 2>/dev/null || true
-
-    log "SUCCESS" "Storage directories configured with correct ownership"
-
-    # Clean up stale frontend build directory to force restoration from image backup
-    # This prevents volume-mounted old builds from overriding fresh builds in the Docker image
-    # Always do this to ensure we use the assets from the image we just built/pulled
-    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
-    if [ -d "$build_dir" ]; then
-        log "INFO" "Removing stale build directory to ensure fresh assets..."
-        rm -rf "$build_dir"
-        log "SUCCESS" "Stale build directory removed - container will restore fresh build from image"
+    if [[ -n "${IMAGE_SOURCE_MODE}" ]]; then
+        echo "${IMAGE_SOURCE_MODE}"
+        return 0
     fi
 
-    # === HOOK: post-validation ===
-    exec_hook "post-validation"
-
-    # Create empty .env file if it doesn't exist (prevents Docker from creating it as directory)
-    # The container will populate it from the template during startup
-    local env_file="${DEPLOYMENT_ROOT}/../.env"
-    if [ ! -f "$env_file" ]; then
-        log "INFO" "Creating empty .env file for container volume mount..."
-        touch "$env_file"
-        chmod 666 "$env_file"  # Allow container to write
-    fi
-
-    # Create public/build directory if it doesn't exist (prevents Docker from creating it as root-owned)
-    # The container will populate it from the image backup during startup
-    local build_dir="${DEPLOYMENT_ROOT}/../public/build"
-    if [ ! -d "$build_dir" ]; then
-        log "INFO" "Creating public/build directory for container volume mount..."
-        mkdir -p "$build_dir"
-        chown -R $(whoami):$(whoami) "$build_dir"
-        chmod -R 775 "$build_dir"
-    fi
-
-    # === HOOK: pre-deploy ===
-    exec_hook "pre-deploy"
-
-    # Start containers
-    log "INFO" "Starting containers with docker-compose"
-    ${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" up -d || {
-        log "ERROR" "Failed to start containers"
-        exit 1
-    }
-
-    # Wait for application to be healthy
-    log "INFO" "Waiting for application to be healthy..."
-    sleep 5
-
-    # Construct APP_URL from domain and path (add slash since it was removed above)
-    local app_url="https://${APP_URL_DOMAIN}/${APP_URL_PATH}"
-    local health_url="/api/health"
-    # Health check status (disabled by default in production due to queue workers)
-    local health_check_enabled="${HEALTH_CHECK_ENABLED:-false}"
-    if [ "$health_check_enabled" = "true" ]; then
-        log "INFO" "Health check is enabled, checking $health_url"
-    else
-        log "INFO" "Health check skipped - verify manually at: ${app_url}${health_url}"
-    fi
-
-    # Test database connection (wait for container to fully boot)
-    log "INFO" "Testing database connection..."
-    sleep 10  # Wait for Laravel to fully bootstrap before testing DB
-    # Service name from docker-compose
-    local service_name="app"
-    if ${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" \
-        exec -T "$service_name" php artisan db:show >/dev/null 2>&1; then
-        log "SUCCESS" "Database connection successful"
-    else
-        log "WARNING" "Database connection test failed (container may still be booting)"
-    fi
-
-    # Print health status
-    if docker exec "$DOCKER_CONTAINER_NAME" curl -f http://localhost/api/health &>/dev/null; then
-        log "SUCCESS" "Application is healthy!"
-    else
-        log "WARNING" "Health check returned non-200 status"
-    fi
-
-    # === HOOK: post-deploy ===
-    exec_hook "post-deploy"
-
-    # Calculate deployment duration
-    local end_time=$(date +%s)
-    export DEPLOYMENT_DURATION=$((end_time - start_time))
-
-    # === HOOK: on-success ===
-    exec_hook "on-success"
-
-    # Fix double slashes in URL
-    local app_url="https://${APP_URL_DOMAIN}/${APP_URL_PATH}"
-    app_url=$(echo "$app_url" | sed 's#//*#/#g' | sed 's#:/#://#')
-    export APP_URL="${app_url}"
-
-    # Check migration status and auto-run if configured
-    log "INFO" "Checking migration status..."
-    sleep 2
-    local migration_status=$(${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" \
-        exec -T "$service_name" php artisan migrate:status 2>&1 || echo "error")
-
-    local migrations_needed=false
-    local migration_message=""
-    local auto_migrate=$(get_config "deployment.database.auto_migrate_on_deploy" "$environment")
-
-    if echo "$migration_status" | grep -q "Migration table not found\|No migrations found\|error"; then
-        migrations_needed=true
-        migration_message="Database migrations have not been run yet"
-    elif echo "$migration_status" | grep -q "Pending"; then
-        migrations_needed=true
-        local pending_count=$(echo "$migration_status" | grep -c "Pending" || echo "0")
-        migration_message="$pending_count pending migration(s) detected"
-    fi
-
-    # Auto-run migrations if enabled and needed
-    if [ "$migrations_needed" = "true" ] && [ "$auto_migrate" = "true" ]; then
-        log "INFO" "Auto-running migrations ($environment environment)..."
-        if docker exec "$DOCKER_CONTAINER_NAME" php artisan migrate --force 2>&1; then
-            log "SUCCESS" "Migrations completed successfully"
-            migrations_needed=false
-        else
-            log "WARNING" "Migrations failed - manual intervention may be required"
-        fi
-    fi
-
-    # Clear view cache to ensure fresh assets are served
-    log "INFO" "Clearing view cache..."
-    if docker exec "$DOCKER_CONTAINER_NAME" php artisan view:clear >/dev/null 2>&1; then
-        log "SUCCESS" "View cache cleared"
-    else
-        log "WARNING" "Failed to clear view cache"
-    fi
-
-    # === DEPLOYMENT VERIFICATION ===
-    log "INFO" "Verifying application deployment..."
-
-    local verification_status="unknown"
-
-    if "${SCRIPT_DIR}/verify-deployment.sh" "$environment"; then
-        verification_status="success"
-        log "SUCCESS" "Deployment verified successfully"
-    else
-        verification_status="failure"
-        log "WARNING" "Deployment verification failed - check logs for details"
-        if [ "${STRICT_VERIFICATION:-false}" = "true" ]; then
-             exit 1
-        fi
-    fi
-
-    # ═══════════════════════════════════════════════════════════════
-    # FINAL DEPLOYMENT SUMMARY
-    # ═══════════════════════════════════════════════════════════════
-    echo ""
-    log "SUCCESS" "╔═══════════════════════════════════════════════════════════╗"
-    log "SUCCESS" "╔═══════════════════════════════════════════════════════════╗"
-    if [ "$migrations_needed" = "true" ] || [ "$verification_status" != "success" ]; then
-        log "WARNING" "║       DEPLOYMENT COMPLETE - ACTION REQUIRED               ║"
-    else
-        log "SUCCESS" "║       DEPLOYMENT COMPLETED SUCCESSFULLY                   ║"
-    fi
-    log "SUCCESS" "╚═══════════════════════════════════════════════════════════╝"
-    echo ""
-
-    # Status overview
-    log "INFO" "Environment:     $environment"
-    log "INFO" "Duration:        ${DEPLOYMENT_DURATION}s"
-    log "INFO" "Container:       $DOCKER_CONTAINER_NAME"
-    echo ""
-    log "INFO" "Status Overview:"
-    log "INFO" "  Container:     $(${DOCKER_COMPOSE_CMD} -f "$COMPOSE_FILE" -p "$DOCKER_COMPOSE_PROJECT" ps | grep -q "Up" && echo "✓ Running" || echo "✗ Stopped")"
-    log "INFO" "  Database:      $(docker exec "$DOCKER_CONTAINER_NAME" php artisan db:show &>/dev/null && echo "✓ Connected" || echo "✗ Not connected")"
-    log "INFO" "  Verification:  $([ "$verification_status" = "success" ] && echo "✓ Passed" || echo "⚠️  Failed/Warning")"
-    if [ "$migrations_needed" = "false" ]; then
-        log "INFO" "  Migrations:    ✓ Up to date"
-    else
-        log "INFO" "  Migrations:    ⚠️  Pending"
-    fi
-
-    # Actions required section
-    if [ "$migrations_needed" = "true" ]; then
-        echo ""
-        log "WARNING" "⚠️  ACTION REQUIRED:"
-        log "WARNING" "  → Run migrations: docker exec $DOCKER_CONTAINER_NAME php artisan migrate --force"
-        echo ""
-    fi
-
-    # URLs
-    echo ""
-    log "INFO" "🌐 Application URLs:"
-    log "INFO" "  → API:    ${app_url}"
-    echo ""
-
-    # Docker Image Info
-    log "INFO" "🐳 Docker Image:"
-    log "INFO" "  → Image:  ${DOCKER_IMAGE_NAME}"
-    local image_id=$(docker images -q "${DOCKER_IMAGE_NAME}" 2>/dev/null | head -1)
-    if [ -n "$image_id" ]; then
-        log "INFO" "  → ID:     ${image_id:0:12}"
-    fi
-    echo ""
-
-    # Quick commands
-    log "INFO" "💡 Quick Commands:"
-    log "INFO" "  → View logs:     docker logs $DOCKER_CONTAINER_NAME"
-    log "INFO" "  → Shell access:  docker exec -it $DOCKER_CONTAINER_NAME bash"
-    log "INFO" "  → Check status:  ./deployment/deploy.sh $environment ps"
-    echo ""
+    echo "${BUILD_DEFAULT_SOURCE:-remote}"
 }
 
-deploy "$@"
+resolve_image_reference() {
+    if [[ -n "${DEPLOY_IMAGE_REF}" ]]; then
+        echo "${DEPLOY_IMAGE_REF}"
+        return 0
+    fi
+
+    if [[ -n "${DEPLOY_IMAGE_DIGEST}" ]]; then
+        echo "${APP_IMAGE}@${DEPLOY_IMAGE_DIGEST}"
+        return 0
+    fi
+
+    echo "${APP_IMAGE}:${VERSION}"
+}
+
+resolve_pulled_digest_reference() {
+    local image_ref="$1"
+    local digest_ref=""
+
+    digest_ref="$(
+        docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "${image_ref}" 2>/dev/null \
+            | grep -E "^${APP_IMAGE}@sha256:" \
+            | head -n 1
+    )"
+
+    [[ -n "${digest_ref}" ]] || err "Immutable digest reference required, but no RepoDigest was found for ${image_ref}"
+    printf '%s\n' "${digest_ref}"
+}
+
+detect_host_tools() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        CHECKSUM_BIN="sha256sum"
+        CHECKSUM_ARGS=()
+    elif command -v shasum >/dev/null 2>&1; then
+        CHECKSUM_BIN="shasum"
+        CHECKSUM_ARGS=(-a 256)
+    else
+        err "sha256sum or shasum is required"
+    fi
+}
+
+checksum_file() {
+    "${CHECKSUM_BIN}" "${CHECKSUM_ARGS[@]}" "$1" | awk '{print $1}'
+}
+
+compose_profiles() {
+    local profiles=()
+    [[ "${QUEUE_WORKER_ENABLED:-true}" == "true" ]] && profiles+=(--profile with-queue)
+    [[ "${SCHEDULER_ENABLED:-true}" == "true" ]] && profiles+=(--profile with-scheduler)
+    [[ "${REVERB_ENABLED:-false}" == "true" ]] && profiles+=(--profile with-reverb)
+    printf '%s\n' "${profiles[@]}"
+}
+
+acquire_lock() {
+    mkdir -p "${DEPLOY_DIR}"
+    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+        err "Another deploy is already running (lock: ${LOCK_DIR})"
+    fi
+    printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+}
+
+release_lock() {
+    rm -rf "${LOCK_DIR}"
+}
+
+ensure_runtime_directories() {
+    mkdir -p \
+        "${STATE_DIR}" \
+        "${ROLLBACK_DIR}" \
+        "${PERSISTENT_PUBLIC_ROOT}" \
+        "${RUNTIME_PUBLIC_ROOT}" \
+        "${STORAGE_PUBLIC_DIR}" \
+        "${DEPLOY_GATE_DIR}"
+    : > "${RESTORED_URIS_FILE}"
+}
+
+preflight() {
+    command -v docker >/dev/null 2>&1 || err "docker is required"
+    docker compose version >/dev/null 2>&1 || err "docker compose is required"
+    command -v tar >/dev/null 2>&1 || err "tar is required"
+    command -v find >/dev/null 2>&1 || err "find is required"
+    command -v awk >/dev/null 2>&1 || err "awk is required"
+    command -v sed >/dev/null 2>&1 || err "sed is required"
+    command -v df >/dev/null 2>&1 || err "df is required"
+    command -v cp >/dev/null 2>&1 || err "cp is required"
+    command -v mv >/dev/null 2>&1 || err "mv is required"
+    command -v readlink >/dev/null 2>&1 || err "readlink is required"
+    [[ -f "${COMPOSE_FILE}" ]] || err "Compose file not found"
+    [[ -f "${DEPLOY_DIR}/config/config.yml" ]] || err "Deployment config file not found"
+    [[ -f "${DEPLOY_DIR}/config/template.env" ]] || err "Env template not found"
+    mkdir -p "${PERSISTENT_PUBLIC_ROOT}" || err "Failed to create persistent public root"
+    mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+}
+
+remove_ready_marker() {
+    rm -f "${READY_MARKER}"
+}
+
+promote_traffic() {
+    mkdir -p "${DEPLOY_GATE_DIR}"
+    printf '%s\n' "${DEPLOY_ACTUAL_IMAGE_REF}" > "${READY_MARKER}"
+    chmod 664 "${READY_MARKER}" || true
+    log "Traffic promotion result: ready marker written to ${READY_MARKER}"
+}
+
+write_storage_probe() {
+    mkdir -p "${STORAGE_PUBLIC_DIR}"
+    printf 'deploy=%s\nimage=%s\ntime=%s\n' \
+        "${VERSION}" \
+        "${DEPLOY_ACTUAL_IMAGE_REF}" \
+        "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "${SMOKE_PROBE_FILE}"
+    chmod 664 "${SMOKE_PROBE_FILE}" 2>/dev/null || true
+}
+
+verify_promoted_readiness() {
+    [[ -f "${READY_MARKER}" ]] || err "Traffic promotion marker was not written to ${READY_MARKER}"
+
+    log "Verifying promoted readiness through nginx ..."
+    DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" \
+    DEPLOY_ENV_FILE="${ENV_FILE}" \
+    HEALTH_URL="http://127.0.0.1/readyz" \
+    HEALTH_EXPECTED_STATUS="200" \
+        bash "${SCRIPT_DIR}/healthcheck.sh"
+}
+
+compose_checksum() {
+    checksum_file "${COMPOSE_FILE}"
+}
+
+write_release_manifest() {
+    local manifest="$1"
+    local image_ref="$2"
+    local version="$3"
+    local status="$4"
+    {
+        echo "APP_NAME=${APP_NAME}"
+        echo "APP_SLUG=${APP_SLUG}"
+        echo "DEPLOY_TIMESTAMP=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+        echo "DEPLOY_BUILD_SOURCE=${IMAGE_SOURCE_MODE}"
+        echo "DEPLOY_IMAGE_REF=${image_ref}"
+        echo "DEPLOY_VERSION=${version}"
+        echo "DEPLOY_REQUESTED_BY=${DEPLOY_REQUESTED_BY}"
+        echo "DEPLOY_RUN_URL=${DEPLOY_RUN_URL}"
+        echo "DEPLOY_HOST=$(hostname)"
+        echo "DEPLOY_COMPOSE_SHA256=$(compose_checksum)"
+        echo "DEPLOY_STATUS=${status}"
+    } > "${manifest}"
+    chmod 600 "${manifest}" || true
+}
+
+snapshot_rollback_target() {
+    mkdir -p "${ROLLBACK_DIR}"
+    if [[ -f "${ENV_FILE}" ]]; then
+        cp "${ENV_FILE}" "${ROLLBACK_DIR}/previous.env"
+    fi
+
+    local previous_manifest="${DEPLOY_DIR}/.last-known-good.env"
+    if [[ ! -f "${previous_manifest}" && -f "${DEPLOY_DIR}/.release-manifest.env" ]]; then
+        previous_manifest="${DEPLOY_DIR}/.release-manifest.env"
+    fi
+    if [[ -f "${previous_manifest}" ]]; then
+        cp "${previous_manifest}" "${ROLLBACK_DIR}/previous-release.env"
+    else
+        : > "${ROLLBACK_DIR}/previous-release.env"
+    fi
+
+    local previous_version previous_image_ref
+    previous_version="$(cat "${DEPLOY_DIR}/.last-deployed-version" 2>/dev/null || true)"
+    previous_image_ref="$(grep -m1 '^DEPLOY_IMAGE_REF=' "${ROLLBACK_DIR}/previous-release.env" | cut -d= -f2- || true)"
+    [[ -n "${previous_image_ref}" ]] || [[ -z "${previous_version}" ]] || previous_image_ref="${APP_IMAGE}:${previous_version}"
+    {
+        echo "PREVIOUS_VERSION=${previous_version}"
+        echo "PREVIOUS_IMAGE_REF=${previous_image_ref}"
+    } > "${ROLLBACK_DIR}/target.env"
+}
+
+append_unique_line() {
+    local file="$1"
+    local line="$2"
+    grep -Fx -- "${line}" "${file}" >/dev/null 2>&1 || printf '%s\n' "${line}" >> "${file}"
+}
+
+record_persistent_public_uris() {
+    local rel
+    : > "${RESTORED_URIS_FILE}"
+    [[ -d "${PERSISTENT_PUBLIC_ROOT}" ]] || return 0
+    while IFS= read -r rel; do
+        [[ -n "${rel}" ]] || continue
+        append_unique_line "${RESTORED_URIS_FILE}" "/${rel}"
+    done < <(cd "${PERSISTENT_PUBLIC_ROOT}" && find . -type f ! -name '.gitkeep' | sed 's#^\./##' | LC_ALL=C sort)
+}
+
+normalize_permissions() {
+    local host_uid host_gid
+    host_uid="$(id -u)"
+    host_gid="$(id -g)"
+
+    docker run --rm -v "${STORAGE_ROOT}:/storage" alpine sh -c \
+        "chown -R 1000:${host_gid} /storage && chmod -R 775 /storage" 2>/dev/null || true
+
+    if [[ -d "${PERSISTENT_PUBLIC_ROOT}" ]]; then
+        chown -R "${host_uid}:${host_gid}" "${PERSISTENT_PUBLIC_ROOT}" 2>/dev/null || true
+        find "${PERSISTENT_PUBLIC_ROOT}" -mindepth 1 -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "${PERSISTENT_PUBLIC_ROOT}" -mindepth 1 -type f -exec chmod 644 {} \; 2>/dev/null || true
+    fi
+
+    if [[ -d "${RUNTIME_PUBLIC_ROOT}" ]]; then
+        chown -R "${host_uid}:${host_gid}" "${RUNTIME_PUBLIC_ROOT}" 2>/dev/null || true
+        find "${RUNTIME_PUBLIC_ROOT}" -mindepth 1 -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "${RUNTIME_PUBLIC_ROOT}" -mindepth 1 -type f -exec chmod 644 {} \; 2>/dev/null || true
+    fi
+
+    if [[ "${DEPLOY_APPLY_SELINUX_LABELS:-auto}" == "false" ]]; then
+        return 0
+    fi
+
+    if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+        command -v chcon >/dev/null 2>&1 || err "SELinux is enabled but chcon is unavailable"
+        chcon -Rt svirt_sandbox_file_t "${STORAGE_ROOT}" "${PERSISTENT_PUBLIC_ROOT}" "${RUNTIME_PUBLIC_ROOT}" 2>/dev/null \
+            || warn "Failed to apply SELinux labels to restored paths; continuing with existing labels. Set DEPLOY_APPLY_SELINUX_LABELS=false to skip relabeling."
+    fi
+}
+
+prepare_runtime_public_from_image() {
+    local image_ref="$1"
+    mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+    find "${RUNTIME_PUBLIC_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+    log "Preparing runtime public directory from image ${image_ref} ..."
+    docker run --rm "${image_ref}" sh -lc '
+        cd /var/www/html/public
+        find . -mindepth 1 -maxdepth 1 -exec tar cpf - {} +
+    ' | tar xmf - -C "${RUNTIME_PUBLIC_ROOT}" --no-same-owner --no-same-permissions \
+        || err "Failed to extract public assets from image ${image_ref}"
+}
+
+overlay_persistent_public_into_runtime() {
+    mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+    if find "${PERSISTENT_PUBLIC_ROOT}" -mindepth 1 -print -quit | grep -q .; then
+        cp -R "${PERSISTENT_PUBLIC_ROOT}/." "${RUNTIME_PUBLIC_ROOT}/" \
+            || err "Failed to overlay persistent public artifacts into runtime public root"
+    fi
+}
+
+ensure_runtime_public_storage_link() {
+    mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+    rm -rf "${RUNTIME_PUBLIC_ROOT}/storage"
+    ln -s "../storage/app/public" "${RUNTIME_PUBLIC_ROOT}/storage" \
+        || err "Failed to create runtime public storage symlink"
+}
+
+resolve_image() {
+    IMAGE_SOURCE_MODE="$(resolve_image_source_mode)"
+    case "${IMAGE_SOURCE_MODE}" in
+        remote)
+            log "Step 2/8 — Pulling image ${DEPLOY_ACTUAL_IMAGE_REF} from registry ..."
+            docker pull "${DEPLOY_ACTUAL_IMAGE_REF}" \
+                || err "Failed to pull image ${DEPLOY_ACTUAL_IMAGE_REF} from registry."
+            if [[ "${REGISTRY_DEPLOY_BY_DIGEST:-false}" == "true" ]]; then
+                DEPLOY_ACTUAL_IMAGE_REF="$(resolve_pulled_digest_reference "${DEPLOY_ACTUAL_IMAGE_REF}")"
+                log "Resolved immutable remote image reference: ${DEPLOY_ACTUAL_IMAGE_REF}"
+            fi
+            ;;
+        local)
+            [[ "${DEPLOY_ALLOW_EMERGENCY_BUILD:-${BUILD_ALLOW_LOCAL_BUILD:-false}}" == "true" ]] \
+                || err "Emergency local builds are disabled by config."
+            if [[ "${BUILD_LOCAL_BUILD_REQUIRE_EXPLICIT_FLAG:-false}" == "true" && "${ALLOW_LOCAL_BUILD}" != "true" ]]; then
+                err "Local image builds require explicit DEPLOY_ALLOW_LOCAL_BUILD=true."
+            fi
+            [[ "${ALLOW_LOCAL_BUILD}" == "true" ]] \
+                || err "Local image builds are disabled. Set DEPLOY_ALLOW_LOCAL_BUILD=true to use emergency local builds."
+            log "Building or reusing the local image from the synced source tree ..."
+            BUILD_MODE=emergency-local bash "${SCRIPT_DIR}/build.sh" "${VERSION}"
+            ;;
+        *)
+            err "Unsupported image source mode: ${IMAGE_SOURCE_MODE}. Use 'remote' or 'local'."
+            ;;
+    esac
+}
+
+run_migrations() {
+    log "Step 4/8 — Running migrations ..."
+    source "${SCRIPT_DIR}/rbac.config.sh"
+    local runtime_user app_owner_role mig_user mig_pass
+    runtime_user="$(grep -m1 '^DB_USERNAME=' "${ENV_FILE}" | cut -d= -f2-)"
+    app_owner_role="$(derive_owner_role "${runtime_user}")" || err "Failed to derive owner role"
+    mig_user="$(grep -m1 '^DB_MIGRATOR_USERNAME=' "${ENV_FILE}" | cut -d= -f2-)"
+    mig_pass="$(grep -m1 '^DB_MIGRATOR_PASSWORD=' "${ENV_FILE}" | cut -d= -f2-)"
+
+    docker run --rm \
+        --env-file "${ENV_FILE}" \
+        --env "DB_USERNAME=${mig_user}" \
+        --env "DB_PASSWORD=${mig_pass}" \
+        --env "PGOPTIONS=-c role=${app_owner_role}" \
+        --network "${DB_NETWORK}" \
+        "${DEPLOY_ACTUAL_IMAGE_REF}" \
+        php artisan migrate --force --no-ansi \
+        || err "Migrations failed — aborting deploy."
+}
+
+automatic_rollback() {
+    [[ "${ROLLBACK_ATTEMPTED}" == false ]] || return 1
+    ROLLBACK_ATTEMPTED=true
+    [[ -f "${ROLLBACK_DIR}/target.env" ]] || {
+        warn "Automatic rollback skipped: no rollback target metadata found"
+        return 1
+    }
+
+    # shellcheck disable=SC1090
+    source "${ROLLBACK_DIR}/target.env"
+    [[ -n "${PREVIOUS_IMAGE_REF:-}" ]] || {
+        warn "Automatic rollback skipped: no previous image reference recorded"
+        return 1
+    }
+
+    log "Automatic rollback triggered ..."
+    if [[ -f "${ROLLBACK_DIR}/previous.env" ]]; then
+        cp "${ROLLBACK_DIR}/previous.env" "${ENV_FILE}"
+    else
+        bash "${SCRIPT_DIR}/generate-env.sh" \
+            "APP_VERSION=${PREVIOUS_VERSION}" \
+            "DEPLOY_IMAGE_REFERENCE=${PREVIOUS_IMAGE_REF}"
+    fi
+
+    prepare_runtime_public_from_image "${PREVIOUS_IMAGE_REF}"
+    overlay_persistent_public_into_runtime
+    ensure_runtime_public_storage_link
+    normalize_permissions
+    record_persistent_public_uris
+
+    remove_ready_marker
+    compose up -d --remove-orphans --force-recreate || {
+        warn "Automatic rollback failed while recreating containers"
+        return 1
+    }
+
+    DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
+        bash "${SCRIPT_DIR}/rebuild-cache.sh" || return 1
+    bash "${SCRIPT_DIR}/healthcheck.sh" || return 1
+    RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
+        bash "${SCRIPT_DIR}/smoke-check.sh" || return 1
+    promote_traffic
+    verify_promoted_readiness
+    RUN_EXTERNAL_SMOKE=true RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" \
+        DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
+        bash "${SCRIPT_DIR}/smoke-check.sh" || return 1
+
+    write_release_manifest "${DEPLOY_DIR}/.release-manifest.env" "${PREVIOUS_IMAGE_REF}" "${PREVIOUS_VERSION:-unknown}" "rolled-back"
+    [[ -n "${PREVIOUS_VERSION:-}" ]] && echo "${PREVIOUS_VERSION}" > "${DEPLOY_DIR}/.last-deployed-version"
+    log "Rollback status: success (${PREVIOUS_IMAGE_REF})"
+}
+
+on_exit() {
+    local status=$?
+    if [[ "${DEPLOY_SUCCEEDED}" != true && "${MUTATION_STARTED}" == true ]]; then
+        warn "Deployment failed after mutation; attempting automatic rollback ..."
+        automatic_rollback || warn "Automatic rollback did not complete cleanly"
+    fi
+    release_lock || true
+    exit "${status}"
+}
+
+trap on_exit EXIT
+
+while IFS= read -r profile; do
+    [[ -n "${profile}" ]] && COMPOSE_PROFILE_ARGS+=("${profile}")
+done < <(compose_profiles)
+
+detect_host_tools
+acquire_lock
+ensure_runtime_directories
+preflight
+DEPLOY_ACTUAL_IMAGE_REF="$(resolve_image_reference)"
+
+log "═══════════════════════════════════════════"
+log "  Deploying ${APP_NAME:-application} (${APP_SLUG:-app})"
+log "═══════════════════════════════════════════"
+
+snapshot_rollback_target
+
+log "Step 0/8 — Ensuring required Docker networks ..."
+ensure_docker_networks || err "Required Docker networks are not ready"
+
+log "Step 1/8 — Provisioning database ..."
+bash "${SCRIPT_DIR}/provision-db.sh"
+
+resolve_image
+log "Step 2.5/8 — Generating .env ..."
+bash "${SCRIPT_DIR}/generate-env.sh" "APP_VERSION=${VERSION}" "DEPLOY_IMAGE_REFERENCE=${DEPLOY_ACTUAL_IMAGE_REF}"
+
+log "Step 3/8 — Validating compose configuration ..."
+compose config > /dev/null || err "docker compose config validation failed"
+
+remove_ready_marker
+MUTATION_STARTED=true
+export APP_VERSION="${VERSION}"
+
+run_migrations
+prepare_runtime_public_from_image "${DEPLOY_ACTUAL_IMAGE_REF}"
+overlay_persistent_public_into_runtime
+ensure_runtime_public_storage_link
+normalize_permissions
+record_persistent_public_uris
+
+log "Step 5/8 — Starting services in validation mode ..."
+compose up -d --remove-orphans --force-recreate
+
+log "Step 5.1/8 — Linking storage ..."
+ensure_runtime_public_storage_link
+write_storage_probe
+
+log "Step 6/8 — Preparing persistent public overlay ..."
+overlay_persistent_public_into_runtime
+ensure_runtime_public_storage_link
+normalize_permissions
+record_persistent_public_uris
+
+log "Step 7/8 — Rebuilding caches ..."
+bash "${SCRIPT_DIR}/rebuild-cache.sh"
+
+log "Step 7.5/8 — Health and smoke validation ..."
+bash "${SCRIPT_DIR}/healthcheck.sh"
+RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" bash "${SCRIPT_DIR}/smoke-check.sh"
+
+log "Step 8/8 — Promoting validated release ..."
+promote_traffic
+verify_promoted_readiness
+RUN_EXTERNAL_SMOKE=true RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" \
+    DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
+    bash "${SCRIPT_DIR}/smoke-check.sh"
+echo "${VERSION}" > "${DEPLOY_DIR}/.last-deployed-version"
+write_release_manifest "${DEPLOY_DIR}/.release-manifest.env" "${DEPLOY_ACTUAL_IMAGE_REF}" "${VERSION}" "success"
+cp "${DEPLOY_DIR}/.release-manifest.env" "${DEPLOY_DIR}/.last-known-good.env"
+cp "${COMPOSE_FILE}" "${DEPLOY_DIR}/.last-known-good-compose.yml"
+
+DEPLOY_SUCCEEDED=true
+log "Persistent public root: ${PERSISTENT_PUBLIC_ROOT}"
+log "Runtime public root: ${RUNTIME_PUBLIC_ROOT}"
+log "Health-check results: success"
+log "Smoke-check results: success"
+log "Final deployment status: success"
+log "✓ Deploy complete — ${DEPLOY_ACTUAL_IMAGE_REF}"
