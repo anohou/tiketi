@@ -1,0 +1,100 @@
+template: laravel-deployment
+generated_at: 2026-04-17T12:08:24Z
+parameters:
+  project_slug: tiketi
+  project_name: Tiketi
+  app_image: ghcr.io/anohou/tiketi
+  compose_project: tiketi
+  app_domain: tiketi.ci
+  app_url: https://tiketi.ci
+  frontend_url: https://tiketi.ci
+  cors_allowed_origins: https://tiketi.ci,https://*.tiketi.ci
+  db_name: tiketi_prod
+  db_host: postgres
+  tenant_wildcard_domain: "*.tiketi.ci"
+  tenant_db_prefix: "app_tenant_tiketi_"
+  reverb_enabled: true
+  reverb_path: /app
+  reverb_port: 6001
+  traefik_cert_resolver: cloudflare
+  db_network: anohou-prod_db
+  postgres_container: anohou-prod-postgres-postgres-1
+  traefik_swarm_network: anohou-prod_ingress
+  toolkit_app_env_path: /srv/apps/anohou/prod/current/env/api.env
+  db_admin_env_path: /srv/platform/postgres-server/anohou/prod/current/.env
+  project_env_path: /srv/apps/anohou/prod/config/tiketi.env
+  repository_git_url: git@github.com:anohou/tiketi.git
+  repository_default_ref: main
+  deploy_runtime_root: /srv/apps/anohou/prod/source
+  deploy_ci_source_root: /srv/apps/anohou/prod/source
+  audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
+  backup_output_dir: /srv/apps/anohou/prod/backups/tiketi
+preserve_files:
+  - config/template.env
+managed_files:
+  README.md:
+    sha256: 462f4b6ee59ab58fe6aa4e644b28980981c906870e93233dba2be2111eb5ebeb
+  config/Dockerfile:
+    sha256: d8fe40d04cd2f826c4e918ce41dafae2f467819b13d6374c70bc8652d395025c
+  config/config.yml:
+    sha256: 5153d632d076dcdb2b85bbfea6f78040db8d84cb40248561b75acd3f0387ef45
+  config/docker-compose.prod.yml:
+    sha256: 85c47c627b2a1bed160ae0db7c2086a8d46310d23ce9cfb07b6ca71f14425bec
+  config/nginx.conf:
+    sha256: 54f4f0085a8b974b9f49522bf7bf7b684a3dc2eda96ccc928d1096adc5ce77d8
+  config/php.ini:
+    sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
+  config/rbac.yml:
+    sha256: 590d985b355919b9c957a89f79c9e79e641a07e0a0b0fe88c259e39d251712db
+  config/www.conf:
+    sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
+  lib/config.sh:
+    sha256: 3f303a5f5b66c2fda9f6a3f4d74c14eda323e6d69e8a86978f59e1d4758f410a
+  lib/postgres-app-db.sh:
+    sha256: fa777c380749abd113129eb5af29aa07578afeac441f044ee856b633a19de142
+  lib/rbac.sh:
+    sha256: 8518b234b71df303d52c48a019dcc286d4b00656653df8845b4571630dc0a6bc
+  persistent-public/root/.gitkeep:
+    sha256: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+  scripts/artisan.sh:
+    sha256: c7e11d07e663559484ff5764010cc3195c6134886f7a392920bfdc962cff85a1
+  scripts/build.sh:
+    sha256: ab3ca26160fe20bd8cb19ec8b0c5b745578123690351b3b4af9d6d65232b5dc8
+  scripts/cleanup.sh:
+    sha256: 9ab03691e08233a11afe508e76015822a7f97f7ab47e196b86253c696a20264e
+  scripts/clear-cache.sh:
+    sha256: ff264b990146cafb36b67feb88520516f35d08f464e7d50747f2c29cab1d15c4
+  scripts/compare-dbs.sh:
+    sha256: 7472882e83d7990e8f78cd6205b8a5cb8706cc42ec55a67f5f9c12e65206efa1
+  scripts/create-admin.sh:
+    sha256: 1e593e69c5942d054ff2d9fa5fde11197fbb5f1a3dc0057c5b833567a4f9903c
+  scripts/deploy-local.sh:
+    sha256: e19dd05b8df92c4d422c6b0179d7d07b6191b9e73bc627ad47a520f77037d6bc
+  scripts/deploy.config.sh:
+    sha256: 721c6091573728fb0ad69e346f7f0f723063e1454e6fd803e86ac8cf3410c5fe
+  scripts/deploy.sh:
+    sha256: 5ad71fb86fd353c79180753954e6a941f6eb8b0d8cf4fd78712170d2ef68f931
+  scripts/dump-db.sh:
+    sha256: 3f9d56d7df9493f1b06a20ad184f7bb15701ba6a4639b40aa5462d299fc6287c
+  scripts/generate-env.sh:
+    sha256: d7302117120309efad5f06b479102c2d28fcd6dee887d15d4a8dac2cea169aa1
+  scripts/healthcheck.sh:
+    sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
+  scripts/provision-db.sh:
+    sha256: 643aa523703ad230a512ad4528375b2da14ebe21dfb77dddf6a6c799722a4394
+  scripts/rbac.config.sh:
+    sha256: 34a897b065af2c7ba08d3d129ff55ab61dec5b4dedcef570fb10804f47f594b0
+  scripts/rebuild-cache.sh:
+    sha256: 1bc309346580609d6497f9e59ef78f1ce45219a34fe01471bd2ba4d0f906e4bd
+  scripts/restore-db.sh:
+    sha256: 70191432c64c54449ac4c18730d54973407aa394c5e979668a0c44e02d14f760
+  scripts/rollback.sh:
+    sha256: 9368f453d416a59596d01adb81fa1a7e27e07e349279c4c50dec2ee72f1a1a3d
+  scripts/seed-db.sh:
+    sha256: 2b2128326232140aa4d9d736ee9b5e8ed41ff415cf98405c482d5db849ef0f17
+  scripts/smoke-check.sh:
+    sha256: 768bbea6c9fab157545041b718b5a56458a462b7084bee957e5afb65e152216b
+  scripts/sync-from-git.sh:
+    sha256: 1f9a6ea80c003716ccec3db766d0c651f6516aeb7cf8536af3b5b2b7f3c5176b
+  scripts/versions.sh:
+    sha256: 088c80fda16d485f938c1be334b4de1f5a00e799db3a4d5c29ca888d7a960e6a

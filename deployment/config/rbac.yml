@@ -1,0 +1,46 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  rbac.yml — database role + privilege policy                               ║
+# ║  SAFE TO COMMIT — no secrets, only role/permission defaults                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+schema:
+  name: app
+
+owner_role:
+  # The provision-db script will check that DB_USERNAME ends with this suffix.
+  # If it does, it swaps it for the owner_suffix to derive the schema owner role.
+  # e.g., app_runtime -> app_owner
+  runtime_suffix: _runtime
+  owner_suffix: _owner
+
+role_env:
+  # Environment keys from project's .env to read passwords from
+  runtime_username: DB_USERNAME
+  runtime_password: DB_PASSWORD
+  migrator_username: DB_MIGRATOR_USERNAME
+  migrator_password: DB_MIGRATOR_PASSWORD
+  dba_username: DBA_ADMIN_USERNAME
+  dba_password: DBA_ADMIN_PASSWORD
+  backup_username: DB_BACKUP_USER
+  backup_password: DB_BACKUP_PASSWORD
+
+connection_limits:
+  runtime: 50
+  migrator: 5
+  dba: 3
+  backup: 2
+
+migrator_policy:
+  # Ensures the migrator cannot act as the owner by default, must explicitly SET ROLE
+  login_noinherit: true
+  owner_membership_inherit: false
+  owner_membership_set: true
+
+privileges:
+  runtime_tables: SELECT, INSERT, UPDATE, DELETE
+  runtime_sequences: USAGE, SELECT, UPDATE
+  backup_tables: SELECT
+  backup_sequences: SELECT
+  dba_schema: ALL PRIVILEGES
+  dba_tables: ALL PRIVILEGES
+  dba_sequences: ALL PRIVILEGES

@@ -1,0 +1,116 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  config.yml — reusable deployment-kit configuration                         ║
+# ║  SAFE TO COMMIT — no secrets, no passwords.                                 ║
+# ║                                                                             ║
+# ║  This is the single source of truth for all deployment knobs.               ║
+# ║  Loaded by deployment/lib/config.sh which is sourced by every script.       ║
+# ║                                                                             ║
+# ║  CI/CD override: any environment variable already set in the calling shell  ║
+# ║  wins over the value defined here (standard 12-factor priority).            ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# ── Project identity ──────────────────────────────────────────────────────────
+app:
+  name: Tiketi
+  slug: tiketi
+  url: https://tiketi.ci
+  domain: tiketi.ci
+  image: ghcr.io/anohou/tiketi
+  compose_project: tiketi
+  tenant_wildcard_domain: "*.tiketi.ci"
+  tenant_db_prefix: "app_tenant_tiketi_"
+
+# ── Image source policy ──────────────────────────────────────────────────────
+build:
+  # Default deploy behavior:
+  # - remote: pull image from registry
+  # - local: build image on the server
+  default_source: remote
+  # Emergency break-glass local builds are allowed when explicitly requested
+  allow_local_build: true
+  require_clean_git_for_local_build: true
+  local_build_require_explicit_flag: true
+
+# ── Registry / release policy ────────────────────────────────────────────────
+registry:
+  provider: ghcr
+  image: ghcr.io/anohou/tiketi
+  default_tag: production
+  deploy_by_digest: true
+
+# ── Source repository / server paths ────────────────────────────────────────
+repository:
+  git_url: git@github.com:anohou/tiketi.git
+  default_ref: main
+
+# ── Deployment runtime policy ────────────────────────────────────────────────
+deploy:
+  strategy: recreate
+  allow_emergency_build: true
+  audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
+  runtime_root: /srv/apps/anohou/prod/source
+  ci_source_root: /srv/apps/anohou/prod/source
+
+# ── Server-side secret file paths ────────────────────────────────────────────
+secrets:
+  # Shared server-wide secrets (SMTP credentials, shared tokens, etc.)
+  common_env_path: /srv/apps/anohou/prod/current/env/api.env
+  # Shared Postgres infra admin credentials — read by provision-db.sh ONLY
+  db_admin_env_path: /srv/platform/postgres-server/anohou/prod/current/.env
+  # Project-specific secrets (APP_KEY, DB role creds, Turnstile keys, agent key, etc.)
+  project_env_path: /srv/apps/anohou/prod/config/tiketi.env
+
+# ── Database ──────────────────────────────────────────────────────────────────
+database:
+  # Name of the running shared Postgres container to run provisioning against
+  postgres_container: anohou-prod-postgres-postgres-1
+  # Application database name — provisioned by provision-db.sh
+  db_name: tiketi_prod
+
+# ── Backup / Restore ─────────────────────────────────────────────────────────
+backup:
+  # Directory where dump-db.sh writes .dump/.sha256/.metadata.json artifacts.
+  output_dir: /srv/apps/anohou/prod/backups/tiketi
+
+# ── Docker networking ─────────────────────────────────────────────────────────
+networks:
+  # External Traefik network name (must pre-exist on the host).
+  traefik_swarm_network: anohou-prod_ingress
+  # Isolated DB network (created by the postgres infra kit).
+  db: anohou-prod_db
+
+# ── Traefik ───────────────────────────────────────────────────────────────────
+traefik:
+  cert_resolver: cloudflare
+
+# ── Services (third-party images) ───────────────────────────────────────────
+services:
+  nginx:
+    image: "nginxinc/nginx-unprivileged:1.27-alpine"
+  queue_worker:
+    enabled: true
+  scheduler:
+    enabled: true
+  reverb:
+    enabled: true
+    path: /app
+    port: 6001
+
+# ── Runtime knobs ────────────────────────────────────────────────────────────
+runtime:
+  queue:
+    sleep: 3
+    tries: 3
+    timeout: 300
+    max_jobs: 1000
+    max_time: 3600
+
+# ── Health check ──────────────────────────────────────────────────────────────
+healthcheck:
+  url: http://localhost/up
+  timeout: 60
+  expected_status: 200
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+cleanup:
+  orphan_pattern: "^tiketi-"

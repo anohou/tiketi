@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Tenant;
+use App\TenantDatabaseManagers\SecurePostgreSQLDatabaseManager;
 use Stancl\Tenancy\Database\Models\Domain;
 
 return [
@@ -45,16 +46,15 @@ return [
          * Connection used as a "template" for the dynamically created tenant database connection.
          * Note: don't name your template connection tenant. That name is reserved by package.
          */
-        'template_tenant_connection' => 'mysql',
+        'template_tenant_connection' => env('TENANT_TEMPLATE_CONNECTION', env('DB_CONNECTION', 'pgsql')),
 
         /**
          * Tenant database names are created like this:
          * prefix + tenant_id + suffix.
          *
-         * Example: app_tenant_bil_alpha, app_tenant_bil_beta
-         * Pattern matches app_% grant for svc_app_rw_stg_2025
+         * Example: app_tenant_tiketi_alpha, app_tenant_tiketi_beta.
          */
-        'prefix' => env('TENANT_DB_PREFIX', 'app_tenant_bil_'),
+        'prefix' => env('TENANT_DB_PREFIX', 'app_tenant_tiketi_'),
         'suffix' => '',
 
         /**
@@ -63,7 +63,7 @@ return [
         'managers' => [
             'sqlite' => Stancl\Tenancy\TenantDatabaseManagers\SQLiteDatabaseManager::class,
             'mysql' => App\TenantDatabaseManagers\SecureMySQLDatabaseManager::class,
-            'pgsql' => Stancl\Tenancy\TenantDatabaseManagers\PostgreSQLDatabaseManager::class,
+            'pgsql' => SecurePostgreSQLDatabaseManager::class,
 
         /**
          * Use this database manager for MySQL to have a DB user created for each tenant database.
