@@ -42,8 +42,13 @@ fi
 
 log "Running artisan command in php-fpm container: $*"
 
+exec_args=(exec)
+if [[ "${ARTISAN_TTY:-false}" != "true" ]]; then
+    exec_args+=(-T)
+fi
+
 docker compose \
     -f "${COMPOSE_FILE}" \
     --env-file "${ENV_FILE}" \
-    exec -T php-fpm \
+    "${exec_args[@]}" php-fpm \
     php artisan "$@"

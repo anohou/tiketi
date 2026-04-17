@@ -96,6 +96,23 @@ services:
     path: /app
     port: 6001
 
+# ── Operator utilities ───────────────────────────────────────────────────────
+create_admin:
+  mode: artisan_command
+  command: admin:create
+  sync_command: true
+  command_template: 'generic-admin-create'
+  model: 'App\Models\User'
+  default_role: 'superadmin'
+  default_active: true
+  columns:
+    name: 'name'
+    email: 'email'
+    password: 'password'
+    role: 'role'
+    active: 'active'
+    email_verified_at: 'email_verified_at'
+
 # ── Runtime knobs ────────────────────────────────────────────────────────────
 runtime:
   queue:

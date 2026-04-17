@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-04-17T12:08:24Z
+generated_at: 2026-04-17T14:29:22Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -29,6 +29,20 @@ parameters:
   deploy_ci_source_root: /srv/apps/anohou/prod/source
   audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
   backup_output_dir: /srv/apps/anohou/prod/backups/tiketi
+  create_admin_mode: artisan_command
+  create_admin_command: admin:create
+  create_admin_sync_command: true
+  create_admin_command_template: 'generic-admin-create'
+  create_admin_model: 'App\Models\User'
+  create_admin_default_role: 'superadmin'
+  create_admin_default_active: true
+  create_admin_columns:
+    name: 'name'
+    email: 'email'
+    password: 'password'
+    role: 'role'
+    active: 'active'
+    email_verified_at: 'email_verified_at'
 preserve_files:
   - config/template.env
 managed_files:
@@ -37,7 +51,7 @@ managed_files:
   config/Dockerfile:
     sha256: d8fe40d04cd2f826c4e918ce41dafae2f467819b13d6374c70bc8652d395025c
   config/config.yml:
-    sha256: 5153d632d076dcdb2b85bbfea6f78040db8d84cb40248561b75acd3f0387ef45
+    sha256: a5d2b6998089758b05a09cadafad4b62a076aed81c0a156d89e8e176db041af8
   config/docker-compose.prod.yml:
     sha256: 85c47c627b2a1bed160ae0db7c2086a8d46310d23ce9cfb07b6ca71f14425bec
   config/nginx.conf:
@@ -49,7 +63,7 @@ managed_files:
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/config.sh:
-    sha256: 3f303a5f5b66c2fda9f6a3f4d74c14eda323e6d69e8a86978f59e1d4758f410a
+    sha256: 9cdd23062cb600abdf5261a45bfd80588dce74fd63a7753a5c2598c55d4d2851
   lib/postgres-app-db.sh:
     sha256: fa777c380749abd113129eb5af29aa07578afeac441f044ee856b633a19de142
   lib/rbac.sh:
@@ -57,7 +71,7 @@ managed_files:
   persistent-public/root/.gitkeep:
     sha256: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
   scripts/artisan.sh:
-    sha256: c7e11d07e663559484ff5764010cc3195c6134886f7a392920bfdc962cff85a1
+    sha256: b870e76b7ddc9868e98cfbbc9c308229135f4b3c5bb5d34856eccf05f57d7f76
   scripts/build.sh:
     sha256: ab3ca26160fe20bd8cb19ec8b0c5b745578123690351b3b4af9d6d65232b5dc8
   scripts/cleanup.sh:
@@ -67,7 +81,7 @@ managed_files:
   scripts/compare-dbs.sh:
     sha256: 7472882e83d7990e8f78cd6205b8a5cb8706cc42ec55a67f5f9c12e65206efa1
   scripts/create-admin.sh:
-    sha256: 1e593e69c5942d054ff2d9fa5fde11197fbb5f1a3dc0057c5b833567a4f9903c
+    sha256: 551d31ce1b6d6f6f524c941de97e7e07720ed8ff88f6a233035cdc732a387ef2
   scripts/deploy-local.sh:
     sha256: e19dd05b8df92c4d422c6b0179d7d07b6191b9e73bc627ad47a520f77037d6bc
   scripts/deploy.config.sh:
@@ -98,3 +112,6 @@ managed_files:
     sha256: 1f9a6ea80c003716ccec3db766d0c651f6516aeb7cf8536af3b5b2b7f3c5176b
   scripts/versions.sh:
     sha256: 088c80fda16d485f938c1be334b4de1f5a00e799db3a4d5c29ca888d7a960e6a
+managed_app_files:
+  app/Console/Commands/CreateAdminUser.php:
+    sha256: b749601e42a67b8e8d2a5c82043e3e7bc171de7b9746e578109370ecdb588192
