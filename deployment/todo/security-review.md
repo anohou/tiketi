@@ -28,7 +28,7 @@ The wildcard `*` allows **any domain** to load these assets. While this is accep
 ### Option 1: Specific Tenant Pattern (Most Secure)
 ```nginx
 # Only allow tenant subdomains from your production domain
-add_header Access-Control-Allow-Origin "https://*.billeterie.anohou.dev";
+add_header Access-Control-Allow-Origin "https://*.tiketi.anohou.dev";
 ```
 
 ### Option 2: Multiple Specific Origins
@@ -36,8 +36,8 @@ add_header Access-Control-Allow-Origin "https://*.billeterie.anohou.dev";
 # If you have a known list of tenant domains
 map $http_origin $cors_origin {
     default "";
-    "~^https://[a-z0-9-]+\.billeterie\.anohou\.dev$" $http_origin;
-    "https://billeterie.anohou.dev" $http_origin;
+    "~^https://[a-z0-9-]+\.tiketi\.anohou\.dev$" $http_origin;
+    "https://tiketi.anohou.dev" $http_origin;
 }
 
 location /build/ {
@@ -56,7 +56,7 @@ If your compiled assets contain no sensitive information and are meant to be pub
 - [ ] Test multi-tenant asset loading after changes
 
 **Context**:
-This was added to fix `ERR_BLOCKED_BY_CLIENT` errors when tenant subdomains (`test.localhost`) load assets from the central domain (`billeterie.localhost`). CORS headers are required for cross-origin script execution.
+This was added to fix `ERR_BLOCKED_BY_CLIENT` errors when tenant subdomains (`test.localhost`) load assets from the central domain (`tiketi.localhost`). CORS headers are required for cross-origin script execution.
 
 **Severity**: 🔴 **MEDIUM-HIGH**
 - Risk: Potential for asset hotlinking or abuse if wildcard remains in production

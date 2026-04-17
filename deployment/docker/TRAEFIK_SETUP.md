@@ -14,22 +14,22 @@ The `docker-compose.local.yml` has been configured to use this existing Traefik 
 ## Quick Start
 
 ```bash
-# Deploy billeterie - it will automatically connect to existing Traefik
-cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie
+# Deploy tiketi - it will automatically connect to existing Traefik
+cd /Users/wyao/Workspace/1-anohou2/anohou-dev/tiketi
 ./deployment/deploy.sh local deploy
 ```
 
 ## Access URLs
 
 Once deployed, access via:
-- **Central domain**: http://billeterie.localhost
+- **Central domain**: http://tiketi.localhost
 - **Tenant subdomains**: http://alpha.localhost, http://beta.localhost, etc.
 
 No need to include port numbers - the existing Traefik handles routing on port 80!
 
 ## Why We Don't Need docker-compose.traefik.local.yml
 
-Your local environment already has Traefik configured via Docker Swarm. Other projects like `ekkou` are already using it. By connecting `billeterie` to the same `traefik_swarm_network`, all your projects share one Traefik instance.
+Your local environment already has Traefik configured via Docker Swarm. Other projects like `ekkou` are already using it. By connecting `tiketi` to the same `traefik_swarm_network`, all your projects share one Traefik instance.
 
 ## If You Want to See Traefik Dashboard
 

@@ -35,18 +35,18 @@ services:
       - "traefik.docker.network=traefik_swarm_network"
 
       # Central/Landlord domain router
-      - "traefik.http.routers.billeterie-central.rule=Host(`billeterie.localhost`)"
-      - "traefik.http.routers.billeterie-central.entrypoints=web"
-      - "traefik.http.routers.billeterie-central.service=billeterie-service"
+      - "traefik.http.routers.tiketi-central.rule=Host(`tiketi.localhost`)"
+      - "traefik.http.routers.tiketi-central.entrypoints=web"
+      - "traefik.http.routers.tiketi-central.service=tiketi-service"
 
       # Wildcard tenant subdomain router
       # Matches: alpha.localhost, beta.localhost, etc.
-      - 'traefik.http.routers.billeterie-tenants.rule=HostRegexp(`^[a-z0-9-]+\.localhost$`)'
-      - "traefik.http.routers.billeterie-tenants.entrypoints=web"
-      - "traefik.http.routers.billeterie-tenants.service=billeterie-service"
+      - 'traefik.http.routers.tiketi-tenants.rule=HostRegexp(`^[a-z0-9-]+\.localhost$`)'
+      - "traefik.http.routers.tiketi-tenants.entrypoints=web"
+      - "traefik.http.routers.tiketi-tenants.service=tiketi-service"
 
       # Service configuration (single service for both routers)
-      - "traefik.http.services.billeterie-service.loadbalancer.server.port=9000"
+      - "traefik.http.services.tiketi-service.loadbalancer.server.port=9000"
 
   db:
     image: mysql:8.0

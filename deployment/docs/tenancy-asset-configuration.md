@@ -36,7 +36,7 @@ Given a tenant with `id = "test"`:
 #### With `asset_helper_tenancy => true` (Default)
 ```php
 asset('build/assets/app.js')
-// Generates: http://billeterie.localhost/tenanttest/build/assets/app.js
+// Generates: http://tiketi.localhost/tenanttest/build/assets/app.js
 //                                        ^^^^^^^^^^^
 //                                        tenant prefix added
 ```
@@ -44,7 +44,7 @@ asset('build/assets/app.js')
 #### With `asset_helper_tenancy => false` (Our Configuration)
 ```php
 asset('build/assets/app.js')
-// Generates: http://billeterie.localhost/build/assets/app.js
+// Generates: http://tiketi.localhost/build/assets/app.js
 //                                        No prefix - global path
 ```
 
@@ -103,11 +103,11 @@ With `asset_helper_tenancy => false`, you can still serve tenant-specific assets
 ```php
 // Global assets (Vite builds, shared CSS/JS)
 asset('build/assets/app.js')
-// → http://billeterie.localhost/build/assets/app.js
+// → http://tiketi.localhost/build/assets/app.js
 
 // Tenant-specific assets
 tenant_asset('uploads/logo.png')
-// → http://billeterie.localhost/tenanttest/uploads/logo.png
+// → http://tiketi.localhost/tenanttest/uploads/logo.png
 ```
 
 This gives you **fine-grained control** over which assets are global vs. tenant-specific.
@@ -118,12 +118,12 @@ This gives you **fine-grained control** over which assets are global vs. tenant-
 
 This configuration is **critical** for the multi-tenant subdomain setup:
 
-- **Central Domain**: `http://billeterie.localhost` (landlord)
+- **Central Domain**: `http://tiketi.localhost` (landlord)
 - **Tenant Domains**: `http://test.localhost`, `http://alpha.localhost`, etc.
 
 When a user accesses a tenant domain (e.g., `http://test.localhost/login`):
 1. HTML page is served from tenant context
-2. JavaScript/CSS assets are loaded from the **central domain** (`billeterie.localhost`)
+2. JavaScript/CSS assets are loaded from the **central domain** (`tiketi.localhost`)
 3. Setting `asset_helper_tenancy => false` ensures correct URLs without tenant prefixes
 
 ---

@@ -1,6 +1,6 @@
 # Database Management Commands
 
-Quick reference for checking and managing the Billeterie database.
+Quick reference for checking and managing the Tiketi database.
 
 ---
 
@@ -8,19 +8,19 @@ Quick reference for checking and managing the Billeterie database.
 
 ```bash
 # Database overview (connection, tables, size)
-docker exec dc_billeterie_local php artisan db:show
+docker exec dc_tiketi_local php artisan db:show
 
 # Check migration status
-docker exec dc_billeterie_local php artisan migrate:status
+docker exec dc_tiketi_local php artisan migrate:status
 
 # List all tenants
-docker exec dc_billeterie_local php artisan tenants:list
+docker exec dc_tiketi_local php artisan tenants:list
 
 # Show all tables
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SHOW TABLES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SHOW TABLES;"
 
 # Show all databases (including tenant DBs)
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e "SHOW DATABASES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass -e "SHOW DATABASES;"
 ```
 
 ---
@@ -30,7 +30,7 @@ docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e
 ### General Database Overview
 ```bash
 # Complete database information
-docker exec dc_billeterie_local php artisan db:show
+docker exec dc_tiketi_local php artisan db:show
 
 # Output includes:
 # - MySQL version
@@ -46,10 +46,10 @@ docker exec dc_billeterie_local php artisan db:show
 ### Connection Test
 ```bash
 # Quick connection test
-docker exec dc_billeterie_local php artisan tinker --execute="DB::connection()->getPdo(); echo 'Connected!'"
+docker exec dc_tiketi_local php artisan tinker --execute="DB::connection()->getPdo(); echo 'Connected!'"
 
 # More detailed connection info
-docker exec dc_billeterie_local php artisan db:show --database=mysql
+docker exec dc_tiketi_local php artisan db:show --database=mysql
 ```
 
 ---
@@ -59,7 +59,7 @@ docker exec dc_billeterie_local php artisan db:show --database=mysql
 ### Check Migration Status
 ```bash
 # List all migrations and their status
-docker exec dc_billeterie_local php artisan migrate:status
+docker exec dc_tiketi_local php artisan migrate:status
 
 # Shows:
 # - Migration name
@@ -70,16 +70,16 @@ docker exec dc_billeterie_local php artisan migrate:status
 ### Run Migrations
 ```bash
 # Run pending migrations
-docker exec dc_billeterie_local php artisan migrate
+docker exec dc_tiketi_local php artisan migrate
 
 # Run with force flag (no confirmation)
-docker exec dc_billeterie_local php artisan migrate --force
+docker exec dc_tiketi_local php artisan migrate --force
 
 # Rollback last batch
-docker exec dc_billeterie_local php artisan migrate:rollback
+docker exec dc_tiketi_local php artisan migrate:rollback
 
 # Fresh migration (drops all tables and re-runs)
-docker exec dc_billeterie_local php artisan migrate:fresh --seed
+docker exec dc_tiketi_local php artisan migrate:fresh --seed
 ```
 
 ---
@@ -89,31 +89,31 @@ docker exec dc_billeterie_local php artisan migrate:fresh --seed
 ### Tenant Management
 ```bash
 # List all tenants
-docker exec dc_billeterie_local php artisan tenants:list
+docker exec dc_tiketi_local php artisan tenants:list
 
 # Create a new tenant
-docker exec dc_billeterie_local php artisan tenants:create <tenant-id>
+docker exec dc_tiketi_local php artisan tenants:create <tenant-id>
 
 # Delete a tenant
-docker exec dc_billeterie_local php artisan tenants:delete <tenant-id>
+docker exec dc_tiketi_local php artisan tenants:delete <tenant-id>
 
 # Run migrations for a specific tenant
-docker exec dc_billeterie_local php artisan tenants:migrate --tenants=<tenant-id>
+docker exec dc_tiketi_local php artisan tenants:migrate --tenants=<tenant-id>
 
 # Run migrations for all tenants
-docker exec dc_billeterie_local php artisan tenants:migrate
+docker exec dc_tiketi_local php artisan tenants:migrate
 ```
 
 ### Tenant Database Inspection
 ```bash
 # Show all databases (including tenant databases)
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e "SHOW DATABASES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass -e "SHOW DATABASES;"
 
 # Check tenant database structure
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass tenant<id> -e "SHOW TABLES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tenant<id> -e "SHOW TABLES;"
 
 # Example: Check tenant with id 'alpha'
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass tenantalpha -e "SHOW TABLES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tenantalpha -e "SHOW TABLES;"
 ```
 
 ---
@@ -123,37 +123,37 @@ docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass te
 ### List Tables
 ```bash
 # Using Laravel Artisan
-docker exec dc_billeterie_local php artisan db:show
+docker exec dc_tiketi_local php artisan db:show
 
 # Using MySQL directly
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SHOW TABLES;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SHOW TABLES;"
 
 # Show table with sizes
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SHOW TABLE STATUS;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SHOW TABLE STATUS;"
 ```
 
 ### View Table Structure
 ```bash
 # Describe table structure (Artisan)
-docker exec dc_billeterie_local php artisan db:table users
+docker exec dc_tiketi_local php artisan db:table users
 
 # Describe table structure (MySQL)
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "DESCRIBE users;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "DESCRIBE users;"
 
 # Show create statement
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SHOW CREATE TABLE users\G"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SHOW CREATE TABLE users\G"
 ```
 
 ### Query Table Data
 ```bash
 # Count records
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SELECT COUNT(*) FROM users;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SELECT COUNT(*) FROM users;"
 
 # View recent records
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SELECT * FROM users LIMIT 10;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SELECT * FROM users LIMIT 10;"
 
 # Check specific tenant
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SELECT * FROM tenants;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SELECT * FROM tenants;"
 ```
 
 ---
@@ -163,10 +163,10 @@ docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass bi
 ### Connect to MySQL
 ```bash
 # Connect to central database
-docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev
+docker exec -it tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev
 
 # Connect without database (for database-level commands)
-docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass
+docker exec -it tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass
 ```
 
 ### Common MySQL Commands (once connected)
@@ -175,7 +175,7 @@ docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pas
 SHOW DATABASES;
 
 -- Switch database
-USE billeterie_dev;
+USE tiketi_dev;
 
 -- Show tables
 SHOW TABLES;
@@ -200,31 +200,31 @@ EXIT;
 ### Clear Caches
 ```bash
 # Clear application cache
-docker exec dc_billeterie_local php artisan cache:clear
+docker exec dc_tiketi_local php artisan cache:clear
 
 # Clear config cache
-docker exec dc_billeterie_local php artisan config:clear
+docker exec dc_tiketi_local php artisan config:clear
 
 # Clear route cache
-docker exec dc_billeterie_local php artisan route:clear
+docker exec dc_tiketi_local php artisan route:clear
 
 # Clear view cache
-docker exec dc_billeterie_local php artisan view:clear
+docker exec dc_tiketi_local php artisan view:clear
 
 # Clear all caches
-docker exec dc_billeterie_local php artisan optimize:clear
+docker exec dc_tiketi_local php artisan optimize:clear
 ```
 
 ### Seed Database
 ```bash
 # Run all seeders
-docker exec dc_billeterie_local php artisan db:seed
+docker exec dc_tiketi_local php artisan db:seed
 
 # Run specific seeder
-docker exec dc_billeterie_local php artisan db:seed --class=UserSeeder
+docker exec dc_tiketi_local php artisan db:seed --class=UserSeeder
 
 # Fresh migration with seeding
-docker exec dc_billeterie_local php artisan migrate:fresh --seed
+docker exec dc_tiketi_local php artisan migrate:fresh --seed
 ```
 
 ---
@@ -234,25 +234,25 @@ docker exec dc_billeterie_local php artisan migrate:fresh --seed
 ### Connection Issues
 ```bash
 # Test database connection
-docker exec dc_billeterie_local php -r "new PDO('mysql:host=db;port=3306;dbname=billeterie_dev', 'billeterie_user', 'billeterie_pass');"
+docker exec dc_tiketi_local php -r "new PDO('mysql:host=db;port=3306;dbname=tiketi_dev', 'tiketi_user', 'tiketi_pass');"
 
 # Check .env database configuration
-docker exec dc_billeterie_local cat .env | grep DB_
+docker exec dc_tiketi_local cat .env | grep DB_
 
 # Verify MySQL is running
 docker ps | grep mysql
 
 # Check MySQL logs
-docker logs billeterie_mysql_local --tail 50
+docker logs tiketi_mysql_local --tail 50
 ```
 
 ### Performance Monitoring
 ```bash
 # Show running queries
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e "SHOW PROCESSLIST;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass -e "SHOW PROCESSLIST;"
 
 # Show database size
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e "SELECT table_schema AS 'Database', ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)' FROM information_schema.TABLES GROUP BY table_schema;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass -e "SELECT table_schema AS 'Database', ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS 'Size (MB)' FROM information_schema.TABLES GROUP BY table_schema;"
 ```
 
 ---
@@ -262,22 +262,22 @@ docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass -e
 ### Backup Database
 ```bash
 # Backup central database
-docker exec billeterie_mysql_local mysqldump -u billeterie_user -pbilleterie_pass billeterie_dev > backup_central.sql
+docker exec tiketi_mysql_local mysqldump -u tiketi_user -ptiketi_pass tiketi_dev > backup_central.sql
 
 # Backup specific tenant database
-docker exec billeterie_mysql_local mysqldump -u billeterie_user -pbilleterie_pass tenantalpha > backup_tenant_alpha.sql
+docker exec tiketi_mysql_local mysqldump -u tiketi_user -ptiketi_pass tenantalpha > backup_tenant_alpha.sql
 
 # Backup all databases
-docker exec billeterie_mysql_local mysqldump -u billeterie_user -pbilleterie_pass --all-databases > backup_all.sql
+docker exec tiketi_mysql_local mysqldump -u tiketi_user -ptiketi_pass --all-databases > backup_all.sql
 ```
 
 ### Restore Database
 ```bash
 # Restore central database
-docker exec -i billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev < backup_central.sql
+docker exec -i tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev < backup_central.sql
 
 # Restore tenant database
-docker exec -i billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass tenantalpha < backup_tenant_alpha.sql
+docker exec -i tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tenantalpha < backup_tenant_alpha.sql
 ```
 
 ---
@@ -286,23 +286,23 @@ docker exec -i billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass
 
 ### Scenario: Check if database is ready
 ```bash
-docker exec dc_billeterie_local php artisan db:show && echo "✅ Database is ready"
+docker exec dc_tiketi_local php artisan db:show && echo "✅ Database is ready"
 ```
 
 ### Scenario: Reset local database completely
 ```bash
 # WARNING: This deletes all data!
-docker exec dc_billeterie_local php artisan migrate:fresh --seed
+docker exec dc_tiketi_local php artisan migrate:fresh --seed
 ```
 
 ### Scenario: Count all tenants
 ```bash
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SELECT COUNT(*) as tenant_count FROM tenants;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SELECT COUNT(*) as tenant_count FROM tenants;"
 ```
 
 ### Scenario: Check tenant domains
 ```bash
-docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev -e "SELECT d.domain, t.id as tenant_id FROM domains d JOIN tenants t ON d.tenant_id = t.id;"
+docker exec tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev -e "SELECT d.domain, t.id as tenant_id FROM domains d JOIN tenants t ON d.tenant_id = t.id;"
 ```
 
 ---
@@ -312,17 +312,17 @@ docker exec billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass bi
 ### Local Environment
 - **Host**: `db` (from container) / `localhost` (from host)
 - **Port**: `3307` (from host) / `3306` (from container)
-- **Database**: `billeterie_dev`
-- **Username**: `billeterie_user`
-- **Password**: `billeterie_pass`
+- **Database**: `tiketi_dev`
+- **Username**: `tiketi_user`
+- **Password**: `tiketi_pass`
 
 ### Connection Strings
 ```bash
 # From host machine
-mysql -h 127.0.0.1 -P 3307 -u billeterie_user -pbilleterie_pass billeterie_dev
+mysql -h 127.0.0.1 -P 3307 -u tiketi_user -ptiketi_pass tiketi_dev
 
 # From container
-mysql -h db -P 3306 -u billeterie_user -pbilleterie_pass billeterie_dev
+mysql -h db -P 3306 -u tiketi_user -ptiketi_pass tiketi_dev
 ```
 
 ---

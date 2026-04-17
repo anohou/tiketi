@@ -2,14 +2,14 @@
 
 ## The Cloudflare Warning Explained
 
-When you added `*.stg-billeterie.anohou.dev` in Cloudflare, you saw:
+When you added `*.stg-tiketi.anohou.dev` in Cloudflare, you saw:
 > "This hostname is not covered by a certificate. To ensure full coverage, purchase Advanced Certificate Manager..."
 
 This message appears because:
 - **Cloudflare's Free Universal SSL** only covers:
-  - `stg-billeterie.anohou.dev` ✅
-  - `www.stg-billeterie.anohou.dev` ✅
-  - **NOT** `*.stg-billeterie.anohou.dev` ❌
+  - `stg-tiketi.anohou.dev` ✅
+  - `www.stg-tiketi.anohou.dev` ✅
+  - **NOT** `*.stg-tiketi.anohou.dev` ❌
 
 ## Solution: Disable Cloudflare Proxy for Wildcard
 
@@ -19,9 +19,9 @@ Since Cloudflare's free SSL doesn't cover wildcards, we have two options:
 
 **What to Do:**
 1. Go to Cloudflare DNS settings
-2. Find the `*.stg-billeterie` record
+2. Find the `*.stg-tiketi` record
 3. Click the **orange cloud** icon to turn it **gray** (DNS only)
-4. Repeat for `stg-billeterie` (main domain) if you want Traefik to handle all SSL
+4. Repeat for `stg-tiketi` (main domain) if you want Traefik to handle all SSL
 
 **Result:**
 - Traffic goes **directly to your server** (not through Cloudflare proxy)
@@ -49,7 +49,7 @@ If you **must** keep the orange cloud (proxied):
 1. Cloudflare Dashboard → SSL/TLS → Origin Server
 2. Click **"Create Certificate"**
 3. Choose:
-   - Hostnames: `*.stg-billeterie.anohou.dev, stg-billeterie.anohou.dev`
+   - Hostnames: `*.stg-tiketi.anohou.dev, stg-tiketi.anohou.dev`
    - Validity: 15 years
 4. Download:
    - Origin Certificate (`.pem`)
@@ -72,15 +72,15 @@ If you **must** keep the orange cloud (proxied):
 
 ```bash
 # In Cloudflare DNS settings:
-# 1. Click on *.stg-billeterie → Click orange cloud → Turns gray "DNS only"
-# 2. Click on stg-billeterie → Click orange cloud → Turns gray "DNS only"
+# 1. Click on *.stg-tiketi → Click orange cloud → Turns gray "DNS only"
+# 2. Click on stg-tiketi → Click orange cloud → Turns gray "DNS only"
 ```
 
 ### Step 2: Verify DNS Resolution
 
 Wait 1-2 minutes, then test:
 ```bash
-dig stg-billeterie.anohou.dev +short
+dig stg-tiketi.anohou.dev +short
 # Should show your SERVER IP (not Cloudflare IPs)
 ```
 
@@ -103,7 +103,7 @@ certificatesResolvers:
 
 Run the deploy script:
 ```bash
-cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie
+cd /Users/wyao/Workspace/1-anohou2/anohou-dev/tiketi
 ./deployment/deploy.sh staging deploy
 ```
 
@@ -117,8 +117,8 @@ docker logs -f <traefik-container-name>
 
 You should see:
 ```
-time="..." level=info msg="Certificates obtained for domains [stg-billeterie.anohou.dev]"
-time="..." level=info msg="Certificates obtained for domains [*.stg-billeterie.anohou.dev]"
+time="..." level=info msg="Certificates obtained for domains [stg-tiketi.anohou.dev]"
+time="..." level=info msg="Certificates obtained for domains [*.stg-tiketi.anohou.dev]"
 ```
 
 ---
@@ -139,7 +139,7 @@ Cannot obtain wildcard certificate with HTTP challenge
 1. Get Cloudflare API Token:
    - Cloudflare Dashboard → My Profile → API Tokens
    - Create Token → Use "Edit zone DNS" template
-   - Permissions: `Zone:DNS:Edit` for `stg-billeterie.anohou.dev`
+   - Permissions: `Zone:DNS:Edit` for `stg-tiketi.anohou.dev`
 
 2. Update Traefik config:
 ```yaml
@@ -170,20 +170,20 @@ environment:
 
 ### 1. Test Central Domain
 ```bash
-curl -I https://stg-billeterie.anohou.dev
+curl -I https://stg-tiketi.anohou.dev
 # Should return 200 OK with valid SSL
 ```
 
 ### 2. Test Wildcard Subdomain
 ```bash
-curl -I https://test.stg-billeterie.anohou.dev/login
+curl -I https://test.stg-tiketi.anohou.dev/login
 # Should return 200 OK with valid SSL
 ```
 
 ### 3. Browser Test
-- Go to `https://stg-billeterie.anohou.dev/landlord/tenants`
+- Go to `https://stg-tiketi.anohou.dev/landlord/tenants`
 - Create a tenant (e.g., `alpha`)
-- Access `https://alpha.stg-billeterie.anohou.dev/login`
+- Access `https://alpha.stg-tiketi.anohou.dev/login`
 - Check browser for SSL padlock ✅
 
 ---

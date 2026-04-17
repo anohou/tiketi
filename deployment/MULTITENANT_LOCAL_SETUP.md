@@ -1,6 +1,6 @@
 # Multi-Tenant Local Development Setup
 
-This guide explains how to set up and test the multi-tenant functionality of Billeterie in your local development environment using Traefik as a reverse proxy.
+This guide explains how to set up and test the multi-tenant functionality of Tiketi in your local development environment using Traefik as a reverse proxy.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -15,9 +15,9 @@ This guide explains how to set up and test the multi-tenant functionality of Bil
 
 ## Overview
 
-Billeterie uses `stancl/tenancy` for multi-tenancy with **separate databases** per tenant. This setup allows you to test multi-tenant subdomain routing locally:
+Tiketi uses `stancl/tenancy` for multi-tenancy with **separate databases** per tenant. This setup allows you to test multi-tenant subdomain routing locally:
 
-- **Central/Landlord Domain**: `http://billeterie.localhost` - Admin interface for managing tenants
+- **Central/Landlord Domain**: `http://tiketi.localhost` - Admin interface for managing tenants
 - **Tenant Subdomains**: `http://alpha.localhost`, `http://beta.localhost`, etc. - Individual tenant applications
 
 ## Prerequisites
@@ -45,7 +45,7 @@ Billeterie uses `stancl/tenancy` for multi-tenancy with **separate databases** p
    ```
 
 3. **Access the application**:
-   - Central domain: http://billeterie.localhost
+   - Central domain: http://tiketi.localhost
    - Traefik dashboard: http://localhost:8080
 
 4. **Create tenants** via the landlord interface and access them at `http://{tenant-id}.localhost`
@@ -59,7 +59,7 @@ Billeterie uses `stancl/tenancy` for multi-tenancy with **separate databases** p
 Traefik is configured to automatically route requests to the appropriate service based on the hostname.
 
 ```bash
-cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie/deployment/docker
+cd /Users/wyao/Workspace/1-anohou2/anohou-dev/tiketi/deployment/docker
 docker compose -f docker-compose.traefik.local.yml up -d
 ```
 
@@ -73,11 +73,11 @@ You should see the `traefik_local` container running.
 **Access the Traefik dashboard**: http://localhost:8080 or http://traefik.localhost
 
 The dashboard shows:
-- Active routers (billeterie-central, billeterie-tenants)
+- Active routers (tiketi-central, tiketi-tenants)
 - Services and their health status
 - Middleware configurations
 
-### Step 2: Deploy the Billeterie Application
+### Step 2: Deploy the Tiketi Application
 
 The deployment script will:
 - Build the Docker image
@@ -86,14 +86,14 @@ The deployment script will:
 - Configure Laravel environment
 
 ```bash
-cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie
+cd /Users/wyao/Workspace/1-anohou2/anohou-dev/tiketi
 ./deployment/deploy.sh local deploy
 ```
 
 **Expected output**:
 ```
 ✓ All required environment variables validated
-✓ Local build complete: billeterie_local
+✓ Local build complete: tiketi_local
 ✓ Storage directories configured with correct ownership
 ✓ Database connection successful
 ✓ Application is healthy!
@@ -107,15 +107,15 @@ cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie
    ```
    You should see:
    - `traefik_local`
-   - `dc_billeterie_local`
-   - `billeterie_mysql_local`
-   - `billeterie_redis_local`
+   - `dc_tiketi_local`
+   - `tiketi_mysql_local`
+   - `tiketi_redis_local`
 
-2. **Access central domain**: http://billeterie.localhost
+2. **Access central domain**: http://tiketi.localhost
 
    You should see the Laravel application landing page or login screen.
 
-3. **Check API health**: http://billeterie.localhost/api/health
+3. **Check API health**: http://tiketi.localhost/api/health
 
    Should return `{"status": "ok"}` or similar.
 
@@ -124,7 +124,7 @@ cd /Users/wyao/Workspace/1-anohou2/anohou-dev/billeterie
 The central database (landlord) manages tenants and their domains.
 
 ```bash
-docker exec dc_billeterie_local php artisan migrate --path=database/migrations/landlord --force
+docker exec dc_tiketi_local php artisan migrate --path=database/migrations/landlord --force
 ```
 
 This creates:
@@ -139,7 +139,7 @@ This creates:
 ### Create a Tenant via Artisan
 
 ```bash
-docker exec -it dc_billeterie_local php artisan tinker
+docker exec -it dc_tiketi_local php artisan tinker
 ```
 
 Then in the tinker shell:
@@ -165,7 +165,7 @@ Exit tinker with `exit` or `Ctrl+D`.
 
 ### Alternative: Create Tenant via Web Interface
 
-1. **Access landlord admin**: http://billeterie.localhost/landlord/tenants
+1. **Access landlord admin**: http://tiketi.localhost/landlord/tenants
 2. **Log in** with your admin credentials
 3. **Click "Create Tenant"**
 4. **Fill in the form**:
@@ -188,7 +188,7 @@ You should see the tenant-specific application. The URL will show the tenant's s
 ## Database Structure
 
 ### Central Database
-- **Name**: `billeterie_dev` (configured in `.env.secrets.local`)
+- **Name**: `tiketi_dev` (configured in `.env.secrets.local`)
 - **Contains**:
   - `tenants` - List of all tenants
   - `domains` - Domain mappings for tenants
@@ -206,12 +206,12 @@ You should see the tenant-specific application. The URL will show the tenant's s
 
 **Central database**:
 ```bash
-docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass billeterie_dev
+docker exec -it tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass tiketi_dev
 ```
 
 **Tenant database** (example: alpha):
 ```bash
-docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass t_alpha
+docker exec -it tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass t_alpha
 ```
 
 ---
@@ -241,7 +241,7 @@ sudo kill -9 <PID>
 **Possible causes**:
 1. **Tenant not created**: Verify tenant exists in central database
    ```bash
-   docker exec dc_billeterie_local php artisan tinker
+   docker exec dc_tiketi_local php artisan tinker
    >>> App\Models\Tenant::with('domains')->get()
    ```
 
@@ -262,7 +262,7 @@ sudo kill -9 <PID>
 1. Verify database credentials in `.env.secrets.local`
 2. Check central database connection:
    ```bash
-   docker exec dc_billeterie_local php artisan db:show
+   docker exec dc_tiketi_local php artisan db:show
    ```
 3. Ensure MySQL container is running and healthy
 
@@ -280,7 +280,7 @@ sudo kill -9 <PID>
    ```
    Add:
    ```
-   127.0.0.1 billeterie.localhost
+   127.0.0.1 tiketi.localhost
    127.0.0.1 alpha.localhost
    127.0.0.1 beta.localhost
    ```
@@ -312,7 +312,7 @@ sudo kill -9 <PID>
 
 2. **Verify app container labels**:
    ```bash
-   docker inspect dc_billeterie_local | grep -A 20 Labels
+   docker inspect dc_tiketi_local | grep -A 20 Labels
    ```
 
 3. **Check network connectivity**:
@@ -341,7 +341,7 @@ sudo kill -9 <PID>
 4. Verify the data from `alpha` is NOT visible in `beta`
 5. Check databases directly:
    ```bash
-   docker exec -it billeterie_mysql_local mysql -u billeterie_user -pbilleterie_pass
+   docker exec -it tiketi_mysql_local mysql -u tiketi_user -ptiketi_pass
    ```
    ```sql
    USE t_alpha;
@@ -389,7 +389,7 @@ sudo kill -9 <PID>
 4. Verify the file is NOT accessible
 5. Check storage paths:
    ```bash
-   docker exec dc_billeterie_local ls -la storage/app/public/
+   docker exec dc_tiketi_local ls -la storage/app/public/
    ```
    Should see tenant-specific subdirectories
 
@@ -397,7 +397,7 @@ sudo kill -9 <PID>
 
 **Test the complete tenant onboarding**:
 
-1. Access landlord admin: http://billeterie.localhost/landlord/tenants
+1. Access landlord admin: http://tiketi.localhost/landlord/tenants
 2. Create new tenant via web interface
 3. Verify:
    - Database `t_{tenant_id}` created
@@ -417,7 +417,7 @@ sudo kill -9 <PID>
 Create a seeder for generating test tenants:
 
 ```bash
-docker exec dc_billeterie_local php artisan make:seeder TenantTestSeeder
+docker exec dc_tiketi_local php artisan make:seeder TenantTestSeeder
 ```
 
 Edit the seeder:
@@ -439,8 +439,8 @@ public function run()
 
 Run the seeder:
 ```bash
-docker exec dc_billeterie_local php artisan db:seed --class=TenantTestSeeder
-docker exec dc_billeterie_local php artisan tenants:migrate
+docker exec dc_tiketi_local php artisan db:seed --class=TenantTestSeeder
+docker exec dc_tiketi_local php artisan tenants:migrate
 ```
 
 ---

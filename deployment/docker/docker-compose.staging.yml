@@ -1,8 +1,8 @@
 
 services:
   app:
-    image: ${DOCKER_IMAGE_NAME:-ghcr.io/anohou/billeterie:staging}
-    container_name: dc_billeterie_staging
+    image: ${DOCKER_IMAGE_NAME:-ghcr.io/anohou/tiketi:staging}
+    container_name: dc_tiketi_staging
 
     volumes:
       # Persist user uploads, logs, sessions (CRITICAL - data loss prevention)
@@ -29,7 +29,7 @@ services:
       - APP_ENV=staging
       - CONTAINER_ROLE=app
       - APP_TYPE=fullstack
-      - ASSET_URL=https://stg-billeterie.anohou.dev
+      - ASSET_URL=https://stg-tiketi.anohou.dev
 
     networks:
       - traefik_swarm_network
@@ -39,31 +39,31 @@ services:
       - "traefik.docker.network=traefik_swarm_network"
 
       # Central domain routing (landlord)
-      - "traefik.http.routers.billeterie-staging.rule=Host(`stg-billeterie.anohou.dev`)"
-      - "traefik.http.routers.billeterie-staging.entrypoints=websecure"
-      - "traefik.http.routers.billeterie-staging.tls=true"
-      - "traefik.http.routers.billeterie-staging.tls.certresolver=cloudflare"
-      - "traefik.http.routers.billeterie-staging.service=billeterie-staging-service"
+      - "traefik.http.routers.tiketi-staging.rule=Host(`stg-tiketi.anohou.dev`)"
+      - "traefik.http.routers.tiketi-staging.entrypoints=websecure"
+      - "traefik.http.routers.tiketi-staging.tls=true"
+      - "traefik.http.routers.tiketi-staging.tls.certresolver=cloudflare"
+      - "traefik.http.routers.tiketi-staging.service=tiketi-staging-service"
 
       # Wildcard tenant subdomain routing (using DNS challenge for wildcard certificate)
-      - "traefik.http.routers.billeterie-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\.stg-billeterie\\.anohou\\.dev$$`)"
-      - "traefik.http.routers.billeterie-staging-tenants.entrypoints=websecure"
-      - "traefik.http.routers.billeterie-staging-tenants.tls=true"
-      - "traefik.http.routers.billeterie-staging-tenants.tls.certresolver=cloudflare"
-      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].main=stg-billeterie.anohou.dev"
-      - "traefik.http.routers.billeterie-staging-tenants.tls.domains[0].sans=*.stg-billeterie.anohou.dev"
-      - "traefik.http.routers.billeterie-staging-tenants.service=billeterie-staging-service"
+      - "traefik.http.routers.tiketi-staging-tenants.rule=HostRegexp(`^[a-z0-9-]+\\.stg-tiketi\\.anohou\\.dev$$`)"
+      - "traefik.http.routers.tiketi-staging-tenants.entrypoints=websecure"
+      - "traefik.http.routers.tiketi-staging-tenants.tls=true"
+      - "traefik.http.routers.tiketi-staging-tenants.tls.certresolver=cloudflare"
+      - "traefik.http.routers.tiketi-staging-tenants.tls.domains[0].main=stg-tiketi.anohou.dev"
+      - "traefik.http.routers.tiketi-staging-tenants.tls.domains[0].sans=*.stg-tiketi.anohou.dev"
+      - "traefik.http.routers.tiketi-staging-tenants.service=tiketi-staging-service"
 
       # Service configuration (shared by both routers)
-      - "traefik.http.services.billeterie-staging-service.loadbalancer.server.port=9000"
+      - "traefik.http.services.tiketi-staging-service.loadbalancer.server.port=9000"
 
       # WebSocket routing for Laravel Reverb
-      - "traefik.http.routers.billeterie-reverb-staging.rule=Host(`stg-billeterie.anohou.dev`) && PathPrefix(`/app`)"
-      - "traefik.http.routers.billeterie-reverb-staging.entrypoints=websecure"
-      - "traefik.http.routers.billeterie-reverb-staging.tls=true"
-      - "traefik.http.routers.billeterie-reverb-staging.tls.certresolver=cloudflare"
-      - "traefik.http.routers.billeterie-reverb-staging.service=billeterie-reverb-service"
-      - "traefik.http.services.billeterie-reverb-service.loadbalancer.server.port=6001"
+      - "traefik.http.routers.tiketi-reverb-staging.rule=Host(`stg-tiketi.anohou.dev`) && PathPrefix(`/app`)"
+      - "traefik.http.routers.tiketi-reverb-staging.entrypoints=websecure"
+      - "traefik.http.routers.tiketi-reverb-staging.tls=true"
+      - "traefik.http.routers.tiketi-reverb-staging.tls.certresolver=cloudflare"
+      - "traefik.http.routers.tiketi-reverb-staging.service=tiketi-reverb-service"
+      - "traefik.http.services.tiketi-reverb-service.loadbalancer.server.port=6001"
 
     restart: unless-stopped
 

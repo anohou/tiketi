@@ -27,8 +27,8 @@ infrastructure:
     network_name: traefik_swarm_network
 
 project:
-  name: billeterie
-  display_name: "Billeterie - Vente de tickets"
+  name: tiketi
+  display_name: "Tiketi - Vente de tickets"
 
 # =============================================================================
 # 🎯 PROJECT CUSTOMIZATION - Edit these values for your deployment
@@ -39,13 +39,13 @@ project:
 
 # Local environment variables
 local_vars:
-  domain: &local_domain "billeterie.localhost"
-  url: &local_url "http://billeterie.localhost"
+  domain: &local_domain "tiketi.localhost"
+  url: &local_url "http://tiketi.localhost"
 
 # Common variables (shared across environments)
 common_vars:
-  repository: &repo_url "ghcr.io/anohou/billeterie"
-  image_name: &image_name "billeterie"
+  repository: &repo_url "ghcr.io/anohou/tiketi"
+  image_name: &image_name "tiketi"
   volumes: &default_volumes
     storage_path: "{base_path}/anohou-apps/{env}/{project_name}/storage"
     public_uploads_path: "{base_path}/anohou-apps/{env}/{project_name}/public-uploads"
@@ -56,30 +56,30 @@ common_vars:
 
 # Staging environment variables
 staging_vars:
-  app_name: &stg_app_name "Billeterie - Vente de tickets (Staging)"
-  domain: &stg_domain "stg-billeterie.anohou.dev"
+  app_name: &stg_app_name "Tiketi - Vente de tickets (Staging)"
+  domain: &stg_domain "stg-tiketi.anohou.dev"
   # Database name (DB_DATABASE) must be set in project secrets file:
-  # /srv/apps/.config/staging/laravel/billeterie.env
-  session_domain: &stg_session_domain ".stg-billeterie.anohou.dev"
-  origin: &stg_origin "https://stg-billeterie.anohou.dev,https://*.stg-billeterie.anohou.dev"
+  # /srv/apps/.config/staging/laravel/tiketi.env
+  session_domain: &stg_session_domain ".stg-tiketi.anohou.dev"
+  origin: &stg_origin "https://stg-tiketi.anohou.dev,https://*.stg-tiketi.anohou.dev"
   routing_type: &stg_routing_type "domain-based"
   url_path: &stg_url_path ""
-  url: &stg_url "https://stg-billeterie.anohou.dev"
+  url: &stg_url "https://stg-tiketi.anohou.dev"
 
 # Production environment variables
 production_vars:
-  app_name: &prod_app_name "Billeterie - Vente de tickets"
-  domain: &prod_domain "billeterie.anohou.dev"
+  app_name: &prod_app_name "Tiketi - Vente de tickets"
+  domain: &prod_domain "tiketi.anohou.dev"
   # Database name (DB_DATABASE) must be set in project secrets file:
-  # /srv/apps/.config/production/laravel/billeterie.env
-  origin: &prod_origin "https://billeterie.anohou.dev"
+  # /srv/apps/.config/production/laravel/tiketi.env
+  origin: &prod_origin "https://tiketi.anohou.dev"
   # Security: Explicit subdomain list (no wildcards)
-  cors_origins: &prod_cors_origins "https://billeterie.anohou.dev"
-  sanctum_domains: &prod_sanctum_domains "billeterie.anohou.dev"
-  session_domain: &prod_session_domain "billeterie.anohou.dev"
+  cors_origins: &prod_cors_origins "https://tiketi.anohou.dev"
+  sanctum_domains: &prod_sanctum_domains "tiketi.anohou.dev"
+  session_domain: &prod_session_domain "tiketi.anohou.dev"
   routing_type: &prod_routing_type "domain-based"
   url_path: &prod_url_path ""
-  url: &prod_url "https://billeterie.anohou.dev"
+  url: &prod_url "https://tiketi.anohou.dev"
 
 # =============================================================================
 # 🐳 DOCKER & RUNTIME CONFIGURATION
@@ -128,7 +128,7 @@ deployment:
 # Only values actively used in .env generation are included
 laravel:
   core:
-    name: "Billeterie - Vente de tickets"
+    name: "Tiketi - Vente de tickets"
     debug: false
     timezone: UTC
     locale: en
@@ -174,7 +174,7 @@ environments:
         auto_migrate_on_deploy: true  # Auto-run migrations in non-production
 
     docker:
-      url_domain: billeterie.localhost
+      url_domain: tiketi.localhost
       url_path: ""
       secrets_files: ['deployment/config/local-secrets.env']
 
@@ -184,11 +184,11 @@ environments:
 
     laravel:
       core:
-        name: "Billeterie - Vente de tickets Local"
+        name: "Tiketi - Vente de tickets Local"
         env: local
         debug: true
-        url: http://billeterie.localhost
-        asset_url: http://billeterie.localhost
+        url: http://tiketi.localhost
+        asset_url: http://tiketi.localhost
 
       session:
         domain: null
@@ -199,10 +199,10 @@ environments:
         level: debug
 
       cors:
-        allowed_origins: "http://localhost:3000,http://localhost,http://billeterie.localhost,http://*.localhost"
+        allowed_origins: "http://localhost:3000,http://localhost,http://tiketi.localhost,http://*.localhost"
 
       sanctum:
-        stateful_domains: "localhost,billeterie.localhost,.localhost,127.0.0.1"
+        stateful_domains: "localhost,tiketi.localhost,.localhost,127.0.0.1"
 
   staging:
     # Variables defined in PROJECT CUSTOMIZATION section above
