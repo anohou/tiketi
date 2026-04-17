@@ -9,7 +9,7 @@ Due to OrbStack using ports 80, 8080, and 8081, Traefik has been configured to u
 
 Since Traefik is on port 8888, you'll need to include the port in URLs:
 
-- **Central domain**: http://billeterie.localhost:8888
+- **Central domain**: http://tiketi.localhost:8888
 - **Tenant subdomains**: http://alpha.localhost:8888, http://beta.localhost:8888
 - **Traefik dashboard**: http://localhost:9999
 

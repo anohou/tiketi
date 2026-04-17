@@ -100,10 +100,15 @@ onMounted(() => {
     isMobile.value = window.innerWidth < 768;
   });
 
+  const echo = window.Echo;
+  if (!echo) {
+    return;
+  }
+
   // Listen for real-time trip additions
   if (page.props.auth.user.station_assignments) {
     page.props.auth.user.station_assignments.forEach(assignment => {
-      Echo.private(`station.${assignment.station_id}`)
+      echo.private(`station.${assignment.station_id}`)
           .listen('.TripCreated', (e) => {
               // Check if trip already exists
               if (!trips.value.find(t => t.id === e.trip.id)) {
@@ -117,7 +122,7 @@ onMounted(() => {
 
   // Listen for global updates if Admin or Executive
   if (['admin', 'executive'].includes(page.props.auth.user.role)) {
-      Echo.private('trips.global')
+      echo.private('trips.global')
           .listen('.TripCreated', (e) => {
                // Check if trip already exists
                if (!trips.value.find(t => t.id === e.trip.id)) {

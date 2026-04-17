@@ -28,7 +28,7 @@ open http://localhost:8080
 - **Network**: `traefik_local` (shared with app containers)
 - **Provider**: Docker (watches containers for routing labels)
 
-## Usage with Billeterie
+## Usage with Tiketi
 
 1. Start Traefik first:
    ```bash
@@ -42,7 +42,7 @@ open http://localhost:8080
    ```
 
 3. Access:
-   - Central: http://billeterie.localhost
+   - Central: http://tiketi.localhost
    - Tenants: http://{tenant-id}.localhost
    - Dashboard: http://localhost:8080
 
@@ -76,7 +76,7 @@ docker logs traefik_local
 1. Check Traefik dashboard: http://localhost:8080
 2. Verify app container has Traefik labels:
    ```bash
-   docker inspect dc_billeterie_local | grep -A 20 Labels
+   docker inspect dc_tiketi_local | grep -A 20 Labels
    ```
 3. Ensure both containers are on `traefik_local` network:
    ```bash
