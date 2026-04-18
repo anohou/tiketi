@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-04-17T14:29:22Z
+generated_at: 2026-04-18T09:16:59Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -55,7 +55,7 @@ managed_files:
   config/docker-compose.prod.yml:
     sha256: 85c47c627b2a1bed160ae0db7c2086a8d46310d23ce9cfb07b6ca71f14425bec
   config/nginx.conf:
-    sha256: 54f4f0085a8b974b9f49522bf7bf7b684a3dc2eda96ccc928d1096adc5ce77d8
+    sha256: a44125ad715ead80f509c21fd1a9008839fc8791c00c8b773d8d8db3f96465b8
   config/php.ini:
     sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
   config/rbac.yml:
@@ -91,7 +91,7 @@ managed_files:
   scripts/dump-db.sh:
     sha256: 3f9d56d7df9493f1b06a20ad184f7bb15701ba6a4639b40aa5462d299fc6287c
   scripts/generate-env.sh:
-    sha256: d7302117120309efad5f06b479102c2d28fcd6dee887d15d4a8dac2cea169aa1
+    sha256: a349a11350e066c93ffcb1fbc4bfc11244d379db0f2e4d60c8c2c2c811d863d6
   scripts/healthcheck.sh:
     sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
   scripts/provision-db.sh:

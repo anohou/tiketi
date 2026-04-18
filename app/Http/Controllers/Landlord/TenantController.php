@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Landlord;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
+use App\Rules\AllowedTenantDomain;
+use App\Support\TenantDomainPolicy;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Stancl\Tenancy\Database\Models\Domain;
@@ -22,6 +24,7 @@ class TenantController extends Controller
 
         return Inertia::render('Landlord/Tenants/Index', [
             'tenants' => $tenants,
+            'tenantDomainPolicy' => TenantDomainPolicy::toFrontendArray(),
         ]);
     }
 
@@ -38,12 +41,16 @@ class TenantController extends Controller
      */
     public function store(Request $request)
     {
+        $request->merge([
+            'domain' => AllowedTenantDomain::normalize($request->input('domain')),
+        ]);
+
         $validated = $request->validate([
             'id' => 'required|string|max:50|unique:tenants,id|alpha_dash',
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:50',
-            'domain' => 'required|string|max:255|unique:domains,domain',
+            'domain' => ['required', 'string', 'max:255', 'unique:domains,domain', new AllowedTenantDomain],
         ]);
 
         // Create the tenant (this triggers database creation and migrations)
@@ -137,8 +144,12 @@ class TenantController extends Controller
      */
     public function addDomain(Request $request, Tenant $tenant)
     {
+        $request->merge([
+            'domain' => AllowedTenantDomain::normalize($request->input('domain')),
+        ]);
+
         $validated = $request->validate([
-            'domain' => 'required|string|max:255|unique:domains,domain',
+            'domain' => ['required', 'string', 'max:255', 'unique:domains,domain', new AllowedTenantDomain],
         ]);
 
         $tenant->domains()->create([
