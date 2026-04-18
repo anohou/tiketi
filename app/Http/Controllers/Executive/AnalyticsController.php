@@ -179,20 +179,24 @@ class AnalyticsController extends Controller
      */
     private function getRevenueTrend($startDate, $endDate, $period)
     {
-        $groupBy = $period === 'year' ? 'WEEK' : 'DATE';
-        
-        return Ticket::query()
-            ->selectRaw("{$groupBy}(created_at) as period_key, DATE(MIN(created_at)) as date, SUM(price) as revenue, COUNT(*) as tickets")
+        $tickets = Ticket::query()
             ->whereBetween('created_at', [$startDate, $endDate])
-            ->groupBy('period_key')
-            ->orderBy('period_key')
-            ->get()
-            ->map(function ($item) {
+            ->orderBy('created_at')
+            ->get(['created_at', 'price']);
+
+        return $tickets
+            ->groupBy(function (Ticket $ticket) use ($period) {
+                return $period === 'year'
+                    ? $ticket->created_at->copy()->startOfWeek()->toDateString()
+                    : $ticket->created_at->toDateString();
+            })
+            ->map(function ($items, string $date) {
                 return [
-                    'date' => Carbon::parse($item->date)->format('d M'),
-                    'revenue' => $item->revenue,
-                    'tickets' => $item->tickets,
+                    'date' => Carbon::parse($date)->format('d M'),
+                    'revenue' => $items->sum('price'),
+                    'tickets' => $items->count(),
                 ];
-            });
+            })
+            ->values();
     }
 }
