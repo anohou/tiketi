@@ -22,6 +22,15 @@ const props = defineProps({
   tenants: {
     type: Array,
     default: () => []
+  },
+  tenantDomainPolicy: {
+    type: Object,
+    default: () => ({
+      platformDomain: 'tiketi.ci',
+      reservedLabels: [],
+      reservedPrefixes: [],
+      reservedMessage: "Ce sous-domaine n'est pas disponible."
+    })
   }
 });
 
@@ -45,6 +54,32 @@ const form = ref({
 const domainForm = ref({
   domain: ''
 });
+
+const reservedDomainMessage = computed(() => props.tenantDomainPolicy.reservedMessage || "Ce sous-domaine n'est pas disponible.");
+const platformDomain = computed(() => props.tenantDomainPolicy.platformDomain || 'tiketi.ci');
+const reservedTiketiLabels = computed(() => props.tenantDomainPolicy.reservedLabels || []);
+const reservedTiketiPrefixes = computed(() => props.tenantDomainPolicy.reservedPrefixes || []);
+
+const normalizeDomain = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/^https?:\/\//i, '')
+  .replace(/[/?#].*$/, '')
+  .replace(/^\.+|\.+$/g, '');
+
+const isReservedTiketiDomain = (value) => {
+  const domain = normalizeDomain(value);
+  if (domain === platformDomain.value) return true;
+  if (!domain.endsWith(`.${platformDomain.value}`)) return false;
+
+  const label = domain.slice(0, -(`.${platformDomain.value}`).length).split('.')[0] || '';
+  return reservedTiketiLabels.value.includes(label) || reservedTiketiPrefixes.value.some(prefix => label.startsWith(prefix));
+};
+
+const createDomainReservedError = computed(() => (!isEditing.value && isReservedTiketiDomain(form.value.domain)) ? reservedDomainMessage.value : '');
+const addDomainReservedError = computed(() => isReservedTiketiDomain(domainForm.value.domain) ? reservedDomainMessage.value : '');
+const createDomainErrorMessage = computed(() => createDomainReservedError.value || errors.value.domain);
+const addDomainErrorMessage = computed(() => addDomainReservedError.value || errors.value.domain);
 
 // Computed
 const filteredTenants = computed(() => {
@@ -102,6 +137,11 @@ const closeModal = () => {
 };
 
 const submit = () => {
+  if (createDomainReservedError.value) {
+    errors.value = { ...errors.value, domain: createDomainReservedError.value };
+    return;
+  }
+
   processing.value = true;
   errors.value = {};
 
@@ -150,6 +190,11 @@ const closeDomainModal = () => {
 
 const addDomain = () => {
   if (!selectedTenant.value) return;
+  if (addDomainReservedError.value) {
+    errors.value = { ...errors.value, domain: addDomainReservedError.value };
+    return;
+  }
+
   processing.value = true;
 
   router.post(route('landlord.tenants.domains.store', selectedTenant.value.id), domainForm.value, {
@@ -492,9 +537,9 @@ const closePasswordModal = () => {
                        id="domain"
                        type="text"
                        class="w-full mt-1"
-                       placeholder="alpha.transport.ci ou alpha-express.com" />
-            <p class="text-xs text-gray-500 mt-1">Sous-domaine (alpha.transport.ci) ou domaine personnalisé</p>
-            <InputError :message="errors.domain"
+                       placeholder="alpha.tiketi.ci ou alpha-express.com" />
+            <p class="text-xs text-gray-500 mt-1">Sous-domaine (alpha.tiketi.ci) ou domaine personnalisé</p>
+            <InputError :message="createDomainErrorMessage"
                         class="mt-1" />
           </div>
         </div>
@@ -502,7 +547,7 @@ const closePasswordModal = () => {
       <template #footer>
         <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
         <PrimaryButton @click="submit"
-                       :disabled="processing"
+                       :disabled="processing || Boolean(createDomainReservedError)"
                        class="ml-3">
           {{ isEditing ? 'Enregistrer' : 'Créer le Tenant' }}
         </PrimaryButton>
@@ -523,16 +568,16 @@ const closePasswordModal = () => {
                      id="new-domain"
                      type="text"
                      class="w-full mt-1"
-                     placeholder="beta.transport.ci" />
+                     placeholder="beta.tiketi.ci" />
           <p class="text-xs text-gray-500 mt-1">Sous-domaine ou domaine personnalisé</p>
-          <InputError :message="errors.domain"
+          <InputError :message="addDomainErrorMessage"
                       class="mt-1" />
         </div>
       </template>
       <template #footer>
         <SecondaryButton @click="closeDomainModal">Annuler</SecondaryButton>
         <PrimaryButton @click="addDomain"
-                       :disabled="processing"
+                       :disabled="processing || Boolean(addDomainReservedError)"
                        class="ml-3">
           Ajouter
         </PrimaryButton>
