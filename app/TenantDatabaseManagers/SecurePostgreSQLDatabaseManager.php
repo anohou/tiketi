@@ -120,7 +120,7 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             );
         }
 
-        $expectedPrefix = config('tenancy.database.prefix', 'app_tenant_tiketi_');
+        $expectedPrefix = config('tenancy.database.prefix', 'tiketi_tenant_');
         if (! str_starts_with($name, $expectedPrefix)) {
             throw new \InvalidArgumentException(
                 "Database name must start with prefix: {$expectedPrefix}",

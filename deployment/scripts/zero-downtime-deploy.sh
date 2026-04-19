@@ -153,6 +153,29 @@ prepare_runtime_public_from_image() {
         || err "Failed to create public storage symlink"
 }
 
+normalize_target_permissions() {
+    local color="$1"
+    local host_uid host_gid runtime_public_root
+    host_uid="$(id -u)"
+    host_gid="$(id -g)"
+    runtime_public_root="${DEPLOY_DIR}/runtime-public-${color}"
+
+    docker run --rm -v "${STORAGE_ROOT}:/storage" alpine sh -c \
+        "chown -R 1000:${host_gid} /storage && chmod -R 775 /storage" 2>/dev/null || true
+
+    if [[ -d "${PERSISTENT_PUBLIC_ROOT}" ]]; then
+        chown -R "${host_uid}:${host_gid}" "${PERSISTENT_PUBLIC_ROOT}" 2>/dev/null || true
+        find "${PERSISTENT_PUBLIC_ROOT}" -mindepth 1 -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "${PERSISTENT_PUBLIC_ROOT}" -mindepth 1 -type f -exec chmod 644 {} \; 2>/dev/null || true
+    fi
+
+    if [[ -d "${runtime_public_root}" ]]; then
+        chown -R "${host_uid}:${host_gid}" "${runtime_public_root}" 2>/dev/null || true
+        find "${runtime_public_root}" -mindepth 1 -type d -exec chmod 755 {} \; 2>/dev/null || true
+        find "${runtime_public_root}" -mindepth 1 -type f -exec chmod 644 {} \; 2>/dev/null || true
+    fi
+}
+
 run_artisan_in_image() {
     local command=("$@")
     source "${SCRIPT_DIR}/rbac.config.sh"
@@ -359,6 +382,7 @@ LOCK_FILE="${LOCK_DIR}/zero-downtime.lock"
 
     write_state STARTING_WEB
     prepare_runtime_public_from_image "${TARGET_COLOR}"
+    normalize_target_permissions "${TARGET_COLOR}"
     mark_ready
     compose_for "${TARGET_ENV_FILE}" "${TARGET_PROJECT}" up -d php-fpm nginx
     if [[ "${REVERB_ENABLED:-false}" == "true" ]]; then

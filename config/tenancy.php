@@ -50,9 +50,9 @@ return [
          * Tenant database names are created like this:
          * prefix + tenant_id + suffix.
          *
-         * Example: app_tenant_tiketi_alpha, app_tenant_tiketi_beta.
+         * Example: tiketi_tenant_alpha, tiketi_tenant_beta.
          */
-        'prefix' => env('TENANT_DB_PREFIX', 'app_tenant_tiketi_'),
+        'prefix' => env('TENANT_DB_PREFIX', 'tiketi_tenant_'),
         'suffix' => '',
 
         /**

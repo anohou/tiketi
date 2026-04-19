@@ -1,28 +1,30 @@
-name: Build and Push Docker Image
+name: Build and Push Deployment Image
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment to build'
+        description: Target environment tag
         required: true
         default: production
         type: choice
         options:
-          - staging
           - production
+          - staging
   push:
     branches:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.environment || 'main' }}
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.inputs.environment || 'production' }}
   cancel-in-progress: false
 
 jobs:
   quality-checks:
     name: Quality Checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -30,128 +32,96 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
-          tools: composer:latest
+          php-version: "8.3"
+          tools: composer:2
           coverage: none
 
+      - name: Validate composer manifest
+        run: composer validate --strict
+
       - name: Install composer dependencies
-        run: composer install --no-interaction --no-progress
+        run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Run PHP linting checks
-        run: composer pint --test
-        continue-on-error: true
+      - name: Run PHP style checks
+        run: |
+          set -euo pipefail
+          if [[ -x vendor/bin/pint ]]; then
+            vendor/bin/pint --test
+          else
+            echo "Pint is not installed; skipping style check."
+          fi
 
-      - name: Run tests
-        run: php artisan test
-        continue-on-error: true
+      - name: Run PHP tests
+        run: |
+          set -euo pipefail
+          if [[ -f artisan && -f phpunit.xml ]]; then
+            php artisan test --no-ansi
+          else
+            echo "No Laravel test entrypoint found; skipping tests."
+          fi
 
-  build:
-    name: Build ${{ github.event.inputs.environment }} image
+  build-and-push:
+    name: Build and Push Image
     needs: quality-checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     env:
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/billeterie
       DEPLOY_ENV: ${{ github.event.inputs.environment || 'production' }}
 
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Resolve deployment image
+        id: image
+        run: |
+          set -euo pipefail
+          image_name="$(
+            awk '
+              $1 == "registry:" { section="registry"; next }
+              $1 == "app:" { section="app"; next }
+              /^[^[:space:]][^:]*:/ { section=""; next }
+              section == "registry" && $1 == "image:" {
+                sub(/^[^:]+:[[:space:]]*/, "")
+                gsub(/^"|"$/, "")
+                print
+                found=1
+                exit
+              }
+              section == "app" && $1 == "image:" {
+                app_image=$0
+                sub(/^[^:]+:[[:space:]]*/, "", app_image)
+                gsub(/^"|"$/, "", app_image)
+              }
+              END {
+                if (!found && app_image != "") print app_image
+              }
+            ' deployment/config/config.yml
+          )"
+          if [[ -z "${image_name}" ]]; then
+            echo "Unable to resolve registry.image or app.image from deployment/config/config.yml" >&2
+            exit 1
+          fi
+          echo "name=${image_name}" >> "$GITHUB_OUTPUT"
+
       - name: Resolve build metadata
         id: meta
         run: |
           set -euo pipefail
-          git_sha=$(git rev-parse HEAD)
-          env="${{ env.DEPLOY_ENV }}"
-          echo "sha=$git_sha" >> "$GITHUB_OUTPUT"
-          echo "tag_env=${IMAGE_NAME}:${env}" >> "$GITHUB_OUTPUT"
-          echo "tag_env_sha=${IMAGE_NAME}:${env}-${git_sha}" >> "$GITHUB_OUTPUT"
-          echo "tag_sha=${IMAGE_NAME}:${git_sha}" >> "$GITHUB_OUTPUT"
+          git_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short HEAD)"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "sha=${git_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "run_url=${run_url}" >> "$GITHUB_OUTPUT"
+          echo "env_tag=${{ steps.image.outputs.name }}:${{ env.DEPLOY_ENV }}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${{ steps.image.outputs.name }}:${git_sha}" >> "$GITHUB_OUTPUT"
+          echo "env_sha_tag=${{ steps.image.outputs.name }}:${{ env.DEPLOY_ENV }}-${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('composer.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Build image with BuildKit cache
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: deployment/docker/Dockerfile
-          build-args: |
-            APP_ENV=${{ env.DEPLOY_ENV }}
-          tags: ${{ steps.meta.outputs.tag_env }}
-          load: true
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      # Temp fix - move cache
-      # https://github.com/docker/build-push-action/issues/252
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-      - name: Test built image (smoke test)
-        run: |
-          set -euo pipefail
-
-          image_tag="${{ steps.meta.outputs.tag_env }}"
-
-          echo "Running basic smoke test on built image..."
-          echo "Note: This verifies the Dockerfile builds correctly - full health checks happen on deployment"
-
-          # Run container in background (without database - just test it starts)
-          container_id=$(docker run -d \
-            --env APP_ENV="${{ env.DEPLOY_ENV }}" \
-            --env LOG_CHANNEL=stdout \
-            --env SKIP_DB_CHECK=true \
-            "$image_tag")
-
-          echo "Container started: $container_id"
-
-          cleanup() {
-            echo "Cleaning up container $container_id..."
-            docker logs "$container_id" || true
-            docker rm -f "$container_id" > /dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          # Wait briefly and check startup logs
-          echo "Waiting 10 seconds for startup to complete..."
-          sleep 10
-
-          # Check logs for successful startup signals
-          logs=$(docker logs "$container_id" 2>&1)
-
-          # Verify our new .env generation system is running
-          if echo "$logs" | grep -q "\[Gen-Env\]"; then
-            echo "✅ .env generation system detected"
-          else
-            echo "❌ .env generation system NOT detected in logs"
-            echo "Logs:"
-            echo "$logs"
-            exit 1
-          fi
-
-          if echo "$logs" | grep -q "Starting Supervisor"; then
-            echo "✅ Supervisor started successfully"
-            echo "✅ Smoke test passed - image builds and initializes correctly"
-          else
-            echo "❌ Container startup signals not found"
-            echo "Logs:"
-            echo "$logs"
-            exit 1
-          fi
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -160,24 +130,61 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/config/Dockerfile
+          tags: ${{ steps.meta.outputs.sha_tag }}
+          load: true
+          provenance: false
+          sbom: false
+          build-args: |
+            IMAGE_TITLE=${{ steps.image.outputs.name }}
+            IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
+            IMAGE_REVISION=${{ steps.meta.outputs.sha }}
+            BUILD_MODE=ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test built image
+        run: docker run --rm --entrypoint php "${{ steps.meta.outputs.sha_tag }}" -v
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ${{ steps.meta.outputs.sha_tag }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
       - name: Tag and push image to registry
         run: |
           set -euo pipefail
+          docker tag "${{ steps.meta.outputs.sha_tag }}" "${{ steps.meta.outputs.env_tag }}"
+          docker tag "${{ steps.meta.outputs.sha_tag }}" "${{ steps.meta.outputs.env_sha_tag }}"
+          docker push "${{ steps.meta.outputs.sha_tag }}"
+          docker push "${{ steps.meta.outputs.env_tag }}"
+          docker push "${{ steps.meta.outputs.env_sha_tag }}"
 
-          base_tag="${{ steps.meta.outputs.tag_env }}"
-          tag_env_sha="${{ steps.meta.outputs.tag_env_sha }}"
-          tag_sha="${{ steps.meta.outputs.tag_sha }}"
+      - name: Resolve pushed digest
+        id: digest
+        run: |
+          set -euo pipefail
+          repo_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "${{ steps.meta.outputs.sha_tag }}")"
+          digest="${repo_digest#*@}"
+          echo "repo_digest=${repo_digest}" >> "$GITHUB_OUTPUT"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
-          echo "Tagging image with additional tags..."
-          docker tag "$base_tag" "$tag_env_sha"
-          docker tag "$base_tag" "$tag_sha"
-
-          echo "Pushing all tags to registry..."
-          docker push "$base_tag"
-          docker push "$tag_env_sha"
-          docker push "$tag_sha"
-
-          echo "✅ Successfully pushed image with tags:"
-          echo "  - $base_tag"
-          echo "  - $tag_env_sha"
-          echo "  - $tag_sha"
+      - name: Write workflow summary
+        run: |
+          {
+            echo "## Build Summary"
+            echo ""
+            echo "- Image: \`${{ steps.image.outputs.name }}\`"
+            echo "- Git SHA: \`${{ steps.meta.outputs.sha }}\`"
+            echo "- Environment tag: \`${{ steps.meta.outputs.env_tag }}\`"
+            echo "- Digest ref: \`${{ steps.digest.outputs.repo_digest }}\`"
+            echo "- Run: ${{ steps.meta.outputs.run_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -18,7 +18,7 @@ app:
   image: ghcr.io/anohou/tiketi
   compose_project: tiketi
   tenant_wildcard_domain: "*.tiketi.ci"
-  tenant_db_prefix: "app_tenant_tiketi_"
+  tenant_db_prefix: "tiketi_tenant_"
 
 # ── Image source policy ──────────────────────────────────────────────────────
 build:
@@ -97,7 +97,7 @@ networks:
 
 # ── Traefik ───────────────────────────────────────────────────────────────────
 traefik:
-  cert_resolver: letsencrypt
+  cert_resolver: cloudflare
 
 # ── Services (third-party images) ───────────────────────────────────────────
 services:

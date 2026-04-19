@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-04-18T14:51:32Z
+generated_at: 2026-04-19T11:30:24Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -12,7 +12,7 @@ parameters:
   db_name: tiketi_prod
   db_host: postgres
   tenant_wildcard_domain: "*.tiketi.ci"
-  tenant_db_prefix: "app_tenant_tiketi_"
+  tenant_db_prefix: "tiketi_tenant_"
   reverb_enabled: true
   reverb_path: /app
   reverb_port: 6001
@@ -49,6 +49,9 @@ parameters:
   create_admin_model: 'App\Models\User'
   create_admin_default_role: 'superadmin'
   create_admin_default_active: true
+  github_actions_enabled: true
+  github_actions_php_version: 8.3
+  github_actions_deploy_script: deployment/scripts/zero-downtime-deploy.sh
   create_admin_columns:
     name: 'name'
     email: 'email'
@@ -64,9 +67,9 @@ managed_files:
   config/Dockerfile:
     sha256: d8fe40d04cd2f826c4e918ce41dafae2f467819b13d6374c70bc8652d395025c
   config/config.yml:
-    sha256: f0548689305930d7a8a53ec07012f8c87d1fdb63525720ed86d79858eca35361
+    sha256: 383da835970674928f086c20a3ef9f1f4ec883d11c232aa064f1eb54aab0ae5e
   config/docker-compose.prod.yml:
-    sha256: 5536e083cf52ec2a57037ebe5bc63bb967846dc3f1b44f494bcacd757bd72650
+    sha256: b4931785c575d87a460c8a660b06d90b34ccade7952d51c701ad393ecaa31d29
   config/nginx.conf:
     sha256: 3fe7538b9c02469880c11064c9e2745596994571982bb0a6b2aeda9cadb838ab
   config/php.ini:
@@ -76,7 +79,7 @@ managed_files:
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/config.sh:
-    sha256: 3fb835a4d20003a7ab9f4e5cec6be3ccba72d0c4503132a5b18a3a24bb53807b
+    sha256: cc9a93e802dad13a8871d3702e3e762ddd25c4ce745ed0d52b4415867142f5dc
   lib/postgres-app-db.sh:
     sha256: fa777c380749abd113129eb5af29aa07578afeac441f044ee856b633a19de142
   lib/rbac.sh:
@@ -122,7 +125,7 @@ managed_files:
   scripts/restart-workers.sh:
     sha256: 8aaa4a3ccb9e5cf6fc83b5e689b4f39eb2bf2ac945e434a0014581557e38863b
   scripts/resume-zero-downtime-deploy.sh:
-    sha256: 41e9729b54f8aaeae68fbc06e0e589a28d87ab271fbf5ffe89a17b9c75406de3
+    sha256: bf55dc3947fdaf2221146f6354717d196f1556dc1252b3a3e830d95a197ba5be
   scripts/rollback-zero-downtime.sh:
     sha256: 0f7ddf861435654a6d3c58a40dcbf2f0b2770c56cdddfca7323754c14fb804fd
   scripts/restore-db.sh:
@@ -134,13 +137,18 @@ managed_files:
   scripts/smoke-check.sh:
     sha256: 768bbea6c9fab157545041b718b5a56458a462b7084bee957e5afb65e152216b
   scripts/sync-from-git.sh:
-    sha256: 1f9a6ea80c003716ccec3db766d0c651f6516aeb7cf8536af3b5b2b7f3c5176b
+    sha256: 334187b5b0555c04adfbb528c067b7e2b7340db317a9eefda65092bdef7334c8
   scripts/traefik-switch.sh:
-    sha256: 4e855d72bbed36a2016d35391bb75b7d1cf1747f9fe392c9f35cc58dd6b57dc3
+    sha256: e0f1402387a1c1c7254744144e860c6fed30e37f1fa6baf57f527aee73626fbd
   scripts/versions.sh:
     sha256: 088c80fda16d485f938c1be334b4de1f5a00e799db3a4d5c29ca888d7a960e6a
   scripts/zero-downtime-deploy.sh:
-    sha256: eb983aaca76a60a54a8e685c10c19c29848bf42aee846cc4c48a03e896b3841e
+    sha256: 6f55a10e195f2716ee425e1c67403ed8f9d34856dd94480b1ea3187085f07567
 managed_app_files:
   app/Console/Commands/CreateAdminUser.php:
     sha256: b749601e42a67b8e8d2a5c82043e3e7bc171de7b9746e578109370ecdb588192
+managed_project_files:
+  .github/workflows/build-and-push.yml:
+    sha256: ce7eba1ce8d0e02798abee8b73d93ba2685a3eef7b135692f3c540a2991ca5b1
+  .github/workflows/deploy.yml:
+    sha256: b16827d77cf4691a0f414518f4a8cef46d9a701e3870bc5fbfa85a8e4ec21266

@@ -20,4 +20,8 @@ case "${state}" in
         ;;
 esac
 
-RESUME_AFTER_MIGRATION=true bash "${SCRIPT_DIR}/zero-downtime-deploy.sh" "$@"
+exec env \
+    DEPLOY_BUILD_SOURCE=local \
+    DEPLOY_ALLOW_LOCAL_BUILD=true \
+    RESUME_AFTER_MIGRATION=true \
+    "${SCRIPT_DIR}/zero-downtime-deploy.sh" "$@"

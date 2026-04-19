@@ -1,247 +1,302 @@
-name: Deploy to Environment
+name: Deploy to Server
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Deployment environment'
+        description: Deployment environment
         required: true
         default: production
         type: choice
         options:
-          - staging
           - production
-      action:
-        description: 'Deployment action'
+          - staging
+      operation:
+        description: Deployment operation
         required: true
         default: deploy
         type: choice
         options:
           - deploy
-          - stop
-          - logs
-          - ps
-          - test-db
-          - clean
-          - url
+          - resume-zero-downtime
+          - rollback-zero-downtime
       build_mode:
-        description: 'Image build mode'
+        description: Deployment image mode
         required: true
         default: remote
         type: choice
         options:
-          - remote   # Pull pre-built image from GitHub Container Registry
-          - local    # Build image on server (emergency/development)
+          - remote
+          - local-emergency
+      git_ref:
+        description: Git ref to deploy
+        required: false
+        default: main
+        type: string
+      image_ref:
+        description: Optional explicit image reference, preferably an immutable digest reference
+        required: false
+        default: ""
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.inputs.environment }}
+  group: deploy-${{ github.event.inputs.environment }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: ${{ github.event.inputs.action }} to ${{ github.event.inputs.environment }}
+    name: Deploy
     runs-on: ubuntu-latest
-
-    env:
-      DEPLOY_ENV: ${{ github.event.inputs.environment }}
-      DEPLOY_ACTION: ${{ github.event.inputs.action }}
+    environment: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: Resolve deployment metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          git_sha="$(git rev-parse HEAD)"
+          short_sha="$(git rev-parse --short HEAD)"
+          image_name="$(
+            awk '
+              $1 == "registry:" { section="registry"; next }
+              $1 == "app:" { section="app"; next }
+              /^[^[:space:]][^:]*:/ { section=""; next }
+              section == "registry" && $1 == "image:" {
+                sub(/^[^:]+:[[:space:]]*/, "")
+                gsub(/^"|"$/, "")
+                print
+                found=1
+                exit
+              }
+              section == "app" && $1 == "image:" {
+                app_image=$0
+                sub(/^[^:]+:[[:space:]]*/, "", app_image)
+                gsub(/^"|"$/, "", app_image)
+              }
+              END {
+                if (!found && app_image != "") print app_image
+              }
+            ' deployment/config/config.yml
+          )"
+          if [[ -z "${image_name}" ]]; then
+            echo "Unable to resolve registry.image or app.image from deployment/config/config.yml" >&2
+            exit 1
+          fi
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "sha=${git_sha}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
+          echo "run_url=${run_url}" >> "$GITHUB_OUTPUT"
 
       - name: Validate required secrets
         run: |
           set -euo pipefail
-
           missing=()
-
-          if [[ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]]; then
-            missing+=("SSH_PRIVATE_KEY")
+          [[ -z "${{ secrets.DEPLOY_HOST }}" ]] && missing+=("DEPLOY_HOST")
+          [[ -z "${{ secrets.DEPLOY_USER }}" ]] && missing+=("DEPLOY_USER")
+          [[ -z "${{ secrets.DEPLOY_PATH }}" ]] && missing+=("DEPLOY_PATH")
+          [[ -z "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" ]] && missing+=("DEPLOY_SSH_PRIVATE_KEY")
+          [[ -z "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" ]] && missing+=("DEPLOY_SSH_KNOWN_HOSTS")
+          if [[ "${{ github.event.inputs.operation }}" != "rollback-zero-downtime" && "${{ github.event.inputs.build_mode }}" == "remote" ]]; then
+            [[ -z "${{ secrets.GHCR_USERNAME }}" ]] && missing+=("GHCR_USERNAME")
+            [[ -z "${{ secrets.GHCR_READ_TOKEN }}" ]] && missing+=("GHCR_READ_TOKEN")
           fi
-
-          if [[ -z "${{ secrets.SERVER_USER }}" ]]; then
-            missing+=("SERVER_USER")
-          fi
-
-          if [[ -z "${{ secrets.SERVER_HOST }}" ]]; then
-            missing+=("SERVER_HOST")
-          fi
-
-          if [[ "${{ env.DEPLOY_ENV }}" == "staging" ]]; then
-            if [[ -z "${{ secrets.STAGING_DEPLOY_PATH }}" ]]; then
-              missing+=("STAGING_DEPLOY_PATH")
-            fi
-          elif [[ "${{ env.DEPLOY_ENV }}" == "production" ]]; then
-            if [[ -z "${{ secrets.PRODUCTION_DEPLOY_PATH }}" ]]; then
-              missing+=("PRODUCTION_DEPLOY_PATH")
-            fi
-          fi
-
           if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "❌ Missing required secrets: ${missing[*]}"
+            echo "Missing required secrets: ${missing[*]}" >&2
             exit 1
           fi
 
-          echo "✅ All required secrets are configured"
+      - name: Log in to GitHub Container Registry
+        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_READ_TOKEN }}
+
+      - name: Resolve remote image reference
+        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
+        id: image_ref
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ github.event.inputs.image_ref }}" ]]; then
+            echo "image_ref=${{ github.event.inputs.image_ref }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          image_name="${{ steps.meta.outputs.image_name }}"
+          full_sha_tag="${image_name}:${{ steps.meta.outputs.sha }}"
+          env_short_tag="${image_name}:${{ github.event.inputs.environment }}-${{ steps.meta.outputs.short_sha }}"
+
+          for candidate in "$full_sha_tag" "$env_short_tag"; do
+            if docker pull "$candidate"; then
+              repo_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$candidate")"
+              echo "image_ref=${repo_digest}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          echo "Unable to resolve a remote image for commit ${{ steps.meta.outputs.sha }}." >&2
+          echo "Run the build-and-push workflow first, or provide workflow_dispatch input image_ref." >&2
+          exit 1
 
       - name: Configure SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
-      - name: Add deployment host to known_hosts
+      - name: Configure known hosts
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
-      - name: Test SSH connection
+      - name: Test SSH connectivity
         run: |
           set -euo pipefail
-          echo "Testing SSH connection to ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}..."
-          if ssh -o ConnectTimeout=10 "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "echo 'SSH connection successful'"; then
-            echo "✅ SSH connection test passed"
-          else
-            echo "❌ SSH connection failed"
-            exit 1
-          fi
+          ssh -o BatchMode=yes "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "echo 'ssh ok'"
 
-      - name: Resolve deployment path
-        run: |
-          if [[ "${{ env.DEPLOY_ENV }}" == "staging" ]]; then
-            echo "DEPLOY_PATH=${{ secrets.STAGING_DEPLOY_PATH }}" >> "$GITHUB_ENV"
-          elif [[ "${{ env.DEPLOY_ENV }}" == "production" ]]; then
-            echo "DEPLOY_PATH=${{ secrets.PRODUCTION_DEPLOY_PATH }}" >> "$GITHUB_ENV"
-          else
-            echo "❌ Unsupported environment: ${{ env.DEPLOY_ENV }}"
-            exit 1
-          fi
-          echo "Using deployment directory: $DEPLOY_PATH"
-
-      - name: Clone or sync repository
+      - name: Prepare server source checkout and sync to live path
+        if: github.event.inputs.operation == 'deploy'
         run: |
           set -euo pipefail
+          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          deploy_path="${{ secrets.DEPLOY_PATH }}"
+          app_name="$(basename "${deploy_path}")"
+          ci_sources_root="$(dirname "${deploy_path}")/ci-sources"
+          source_path="${ci_sources_root}/${app_name}"
+          target_ref="${{ github.event.inputs.git_ref }}"
+          target_sha="${{ steps.meta.outputs.sha }}"
 
-          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
-          deploy_path="${{ env.DEPLOY_PATH }}"
-          target_branch="${{ github.ref_name }}"
-
-          # Check if repo exists
-          if ssh "$server" "test -d '$deploy_path/.git'"; then
-            echo "Repository exists, syncing deployment files..."
-            ssh "$server" "cd '$deploy_path' && \
-              git fetch origin && \
-              git reset --hard origin/$target_branch && \
-              git checkout $target_branch"
-          else
-            echo "Repository doesn't exist, cloning..."
-            ssh "$server" "git clone git@github.com:${{ github.repository }}.git $deploy_path && \
-              cd '$deploy_path' && \
-              git checkout $target_branch"
-          fi
-
-          current_sha=$(ssh "$server" "cd '$deploy_path' && git rev-parse HEAD")
-          echo "Repository at commit: $current_sha"
-          echo "✅ Repository synchronized"
-
-      - name: Validate secrets file
-        if: github.event.inputs.action == 'deploy'
-        run: |
+          ssh "$server" /bin/bash <<EOF
           set -euo pipefail
 
-          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
-          deploy_path="${{ env.DEPLOY_PATH }}"
-          env="${{ env.DEPLOY_ENV }}"
+          deploy_path='${deploy_path}'
+          ci_sources_root='${ci_sources_root}'
+          source_path='${source_path}'
+          target_ref='${target_ref}'
+          target_sha='${target_sha}'
+          repo_git='git@github.com:${{ github.repository }}.git'
 
-          echo "Validating secrets files for $env..."
+          mkdir -p "\$ci_sources_root"
+          mkdir -p "\$deploy_path"
 
-          # Check for common secrets
-          common_secrets="/srv/apps/.config/${env}/laravel/common-values.${env}.new.env"
-          if ssh "$server" "test -f '$common_secrets'"; then
-            echo "✅ Common secrets found: $common_secrets"
+          if [ -d "\$source_path/.git" ]; then
+            cd "\$source_path"
+            git fetch origin --prune
           else
-            echo "⚠️  Common secrets not found: $common_secrets"
+            rm -rf "\$source_path"
+            git clone "\$repo_git" "\$source_path"
+            cd "\$source_path"
           fi
 
-          # Check for app-specific secrets
-          app_secrets="/srv/apps/.config/${env}/laravel/billeterie.env"
-          if ssh "$server" "test -f '$app_secrets'"; then
-            echo "✅ App secrets found: $app_secrets"
-          else
-            echo "❌ App secrets not found: $app_secrets"
-            echo "Please create this file on the server before deploying"
-            exit 1
-          fi
+          git checkout --force "\$target_ref"
+          git reset --hard "\$target_sha"
 
-      - name: Configure image build mode
-        if: github.event.inputs.action == 'deploy'
+          rsync -rl --delete --omit-dir-times --no-perms \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='node_modules/' \
+            --exclude='vendor/' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='!.env.example' \
+            --exclude='storage/framework/cache/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/debugbar/' \
+            --exclude='bootstrap/cache/' \
+            --exclude='bootstrap/ssr/' \
+            --exclude='public/hot' \
+            --exclude='public/storage' \
+            --exclude='public/build' \
+            --exclude='.phpunit.result.cache' \
+            --exclude='.idea/' \
+            --exclude='.vscode/' \
+            --exclude='.DS_Store' \
+            --exclude='*.log' \
+            --exclude='*.log.*' \
+            --exclude='**/logs/' \
+            --exclude='__pycache__/' \
+            --exclude='*.pyc' \
+            --exclude='dist/' \
+            --exclude='build/' \
+            --exclude='coverage/' \
+            --exclude='storage/app/private/' \
+            --exclude='storage/app/public/' \
+            --exclude='storage/app/purifier/' \
+            --exclude='deployment/backups/' \
+            --exclude='deployment/.env' \
+            --exclude='deployment/.env.*' \
+            --exclude='deployment/.deploy/' \
+            --exclude='deployment/.deploy-lock/' \
+            --exclude='deployment/.deploy-state/' \
+            --exclude='deployment/.last-built-version' \
+            --exclude='deployment/.last-deployed-version' \
+            --exclude='deployment/.release-manifest.env' \
+            "\$source_path/" "\$deploy_path/"
+          EOF
+
+      - name: Authenticate server to GHCR
+        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
         run: |
           set -euo pipefail
+          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          ssh "$server" "printf '%s' '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io -u '${{ secrets.GHCR_USERNAME }}' --password-stdin"
 
-          build_mode="${{ github.event.inputs.build_mode }}"
-
-          echo "🔧 Configuring image build mode: $build_mode"
-
-          if [[ "$build_mode" == "remote" ]]; then
-            echo "📦 Mode: Pull pre-built image from GHCR"
-            echo "USE_REMOTE_IMAGE=true" >> "$GITHUB_ENV"
-            echo "ALLOW_LOCAL_BUILD=false" >> "$GITHUB_ENV"
-          elif [[ "$build_mode" == "local" ]]; then
-            echo "🔨 Mode: Build image on server (emergency/development)"
-            echo "USE_REMOTE_IMAGE=false" >> "$GITHUB_ENV"
-            echo "ALLOW_LOCAL_BUILD=true" >> "$GITHUB_ENV"
-          else
-            echo "❌ Invalid build mode: $build_mode"
-            exit 1
-          fi
-
-      - name: Execute deployment action
+      - name: Run deployment operation
         run: |
           set -euo pipefail
+          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
+          deploy_path="${{ secrets.DEPLOY_PATH }}"
+          target_sha="${{ steps.meta.outputs.sha }}"
+          run_url="${{ steps.meta.outputs.run_url }}"
+          operation="${{ github.event.inputs.operation }}"
 
-          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
-          deploy_path="${{ env.DEPLOY_PATH }}"
-          env="${{ env.DEPLOY_ENV }}"
-          action="${{ env.DEPLOY_ACTION }}"
-
-          # Build mode environment variables (if set)
-          use_remote="${{ env.USE_REMOTE_IMAGE }}"
-          allow_local="${{ env.ALLOW_LOCAL_BUILD }}"
-
-          echo "Executing action: $action for environment: $env"
-
-          # Construct SSH command with environment variables
-          ssh_cmd="cd '$deploy_path'"
-
-          if [[ -n "$use_remote" ]]; then
-            ssh_cmd="$ssh_cmd && USE_REMOTE_IMAGE=$use_remote ALLOW_LOCAL_BUILD=$allow_local ./deployment/deploy.sh $env $action"
-          else
-            ssh_cmd="$ssh_cmd && ./deployment/deploy.sh $env $action"
+          if [[ "$operation" == "rollback-zero-downtime" ]]; then
+            ssh "$server" "cd '$deploy_path' && ./deployment/scripts/rollback-zero-downtime.sh"
+            exit 0
           fi
 
-          ssh "$server" "$ssh_cmd"
+          if [[ "${{ github.event.inputs.build_mode }}" == "remote" ]]; then
+            image_env="DEPLOY_BUILD_SOURCE=remote DEPLOY_IMAGE_REF='${{ steps.image_ref.outputs.image_ref }}' DEPLOY_ALLOW_LOCAL_BUILD=false"
+          else
+            image_env="DEPLOY_BUILD_SOURCE=local DEPLOY_ALLOW_LOCAL_BUILD=true"
+          fi
 
-      - name: Verify deployment health
-        if: github.event.inputs.action == 'deploy'
+          if [[ "$operation" == "resume-zero-downtime" ]]; then
+            deploy_script="./deployment/scripts/resume-zero-downtime-deploy.sh"
+          else
+            deploy_script="./deployment/scripts/zero-downtime-deploy.sh"
+          fi
+
+          ssh "$server" "cd '$deploy_path' && \
+            DEPLOY_REQUESTED_BY='${{ github.actor }}' \
+            DEPLOY_RUN_URL='$run_url' \
+            $image_env \
+            $deploy_script '$target_sha'"
+
+      - name: Write workflow summary
+        if: always()
         run: |
-          set -euo pipefail
-
-          server="${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}"
-          deploy_path="${{ env.DEPLOY_PATH }}"
-          env="${{ env.DEPLOY_ENV }}"
-
-          echo "Verifying deployment health..."
-
-          # Give containers a moment to stabilize
-          sleep 5
-
-          # Check container status
-          echo "Checking container status..."
-          if ssh "$server" "cd '$deploy_path' && ./deployment/deploy.sh $env ps"; then
-            echo "✅ Containers are running"
-          else
-            echo "❌ Container status check failed"
-            exit 1
-          fi
-
-          echo "✅ Deployment health verification completed"
+          {
+            echo "## Deployment Summary"
+            echo ""
+            echo "- Project: \`Tiketi\`"
+            echo "- Operation: \`${{ github.event.inputs.operation }}\`"
+            echo "- Environment: \`${{ github.event.inputs.environment }}\`"
+            echo "- Git ref: \`${{ github.event.inputs.git_ref }}\`"
+            echo "- Git SHA: \`${{ steps.meta.outputs.sha }}\`"
+            echo "- Build mode: \`${{ github.event.inputs.build_mode }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
