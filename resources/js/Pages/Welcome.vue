@@ -8,7 +8,14 @@ defineProps({
     canLogin: {
         type: Boolean,
     },
-    // We don't need canRegister since we removed the register page/button
+    isTenant: {
+        type: Boolean,
+        default: false
+    },
+    tenant: {
+        type: Object,
+        default: null
+    }
 });
 </script>
 
@@ -20,11 +27,15 @@ defineProps({
         <!-- Navigation -->
         <header class="absolute inset-x-0 top-0 z-50">
             <nav class="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
-                <div class="flex lg:flex-1">
-                    <a href="#" class="-m-1.5 p-1.5 flex items-center gap-2">
+                <div class="flex lg:flex-1 items-center gap-3">
+                    <a :href="route('dashboard')" class="-m-1.5 p-1.5 flex items-center gap-2 group">
                         <span class="sr-only">TIKETI</span>
-                        <img class="h-20 sm:h-24 w-auto drop-shadow-sm transition-transform hover:scale-105" src="/images/logo-transparent.png" alt="Tiketi Logo" />
+                        <img class="h-16 sm:h-20 w-auto drop-shadow-sm transition-transform group-hover:scale-105" src="/images/logo-transparent.png" alt="Tiketi Logo" />
                     </a>
+                    <div v-if="isTenant && tenant" class="flex flex-col border-l border-gray-200 dark:border-gray-700 pl-4">
+                        <span class="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] leading-none mb-1">Portail Partenaire</span>
+                        <span class="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight leading-none">{{ tenant.name }}</span>
+                    </div>
                 </div>
                 
                 <div v-if="canLogin" class="flex flex-1 justify-end gap-x-4 h-full items-center">
@@ -38,11 +49,18 @@ defineProps({
 
                     <template v-else>
                         <a
+                            v-if="!isTenant"
                             href="#contact"
                             class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-0.5"
                         >
                             Contactez-nous
                         </a>
+                        <Link
+                            :href="route('login')"
+                            class="rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-900 dark:text-white shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300"
+                        >
+                            Se connecter
+                        </Link>
                     </template>
                 </div>
             </nav>
@@ -60,18 +78,28 @@ defineProps({
                     <div class="grid lg:grid-cols-2 gap-12 items-center">
                         <!-- Hero Text -->
                         <div class="max-w-2xl text-center lg:text-left">
-                            <h1 class="text-4xl font-extrabold tracking-tight sm:text-6xl text-gray-900 dark:text-white">
+                            <h1 v-if="!isTenant" class="text-4xl font-extrabold tracking-tight sm:text-6xl text-gray-900 dark:text-white">
                                 Le Futur de la <br />
                                 <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500">Gestion de Transport</span>
                             </h1>
-                            <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
+                            <h1 v-else class="text-4xl font-extrabold tracking-tight sm:text-6xl text-gray-900 dark:text-white">
+                                Bienvenue chez <br />
+                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500">{{ tenant.name }}</span>
+                            </h1>
+                            <p v-if="!isTenant" class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
                                 L'outil ultime pour vos agents de billetterie, conçu pour la rapidité et la précision. Prenez le contrôle total de votre infrastructure de transport et optimisez vos revenus avec l'attribution intelligente des sièges.
                             </p>
+                            <p v-else class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
+                                Portail d'administration et de vente. Accédez à vos outils de billetterie, gestion de flotte et rapports financiers en toute sécurité.
+                            </p>
                             <div class="mt-10 flex items-center justify-center lg:justify-start gap-x-6">
-                                <a href="#contact" class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-1">
+                                <Link v-if="isTenant" :href="route('login')" class="rounded-full bg-gradient-to-r from-green-600 to-emerald-600 px-10 py-4 text-sm font-black text-white shadow-lg shadow-green-500/30 hover:from-green-500 hover:to-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-1 uppercase tracking-widest">
+                                    Accéder au Guichet
+                                </Link>
+                                <a v-else href="#contact" class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-1">
                                     Demander une Démo
                                 </a>
-                                <a href="#features" class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition group flex items-center gap-2">
+                                <a v-if="!isTenant" href="#features" class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition group flex items-center gap-2">
                                     Découvrir <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-y-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg></span>
                                 </a>
                             </div>
@@ -113,8 +141,9 @@ defineProps({
             </div>
         </div>
 
-        <!-- Features Section -->
-        <div id="features" class="py-24 sm:py-32 bg-white dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
+        <template v-if="!isTenant">
+            <!-- Features Section -->
+            <div id="features" class="py-24 sm:py-32 bg-white dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
             <div class="mx-auto max-w-7xl px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl lg:text-center">
                     <h2 class="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">Tout-en-un</h2>
@@ -445,6 +474,7 @@ defineProps({
                 </form>
              </div>
         </div>
+        </template>
 
         <!-- Footer -->
         <footer class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800" aria-labelledby="footer-heading">

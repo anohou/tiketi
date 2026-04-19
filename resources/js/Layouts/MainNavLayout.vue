@@ -5,12 +5,25 @@
       <div class="flex-1 flex flex-col min-w-0 h-full">
         <!-- Top Header -->
         <header id="MainNav"
-          class="h-[70px] bg-white shadow-sm border-b border-orange-200 flex items-center justify-between px-4 shrink-0 transition-all">
+          :class="[
+            'h-[70px] flex items-center justify-between px-4 shrink-0 transition-all shadow-sm border-b',
+            isLandlord 
+              ? 'bg-slate-900 border-slate-800 text-white' 
+              : 'bg-white border-orange-200'
+          ]">
 
           <!-- Left: Logo & Context Title -->
           <div id="NavLeft" class="flex items-center gap-4 h-full">
-            <Link :href="route('dashboard')" class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full py-2">
+            <Link :href="route('dashboard')" :class="['flex items-center gap-2 pr-4 lg:border-r h-full py-2', isLandlord ? 'border-slate-800' : 'border-orange-100']">
               <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-10 w-auto object-contain" />
+              <div v-if="isLandlord" class="hidden sm:flex flex-col ml-1">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Portail</span>
+                <span class="text-xs font-black text-white uppercase tracking-wider leading-none">Central</span>
+              </div>
+              <div v-else-if="$page.props.tenant" class="hidden sm:flex flex-col ml-1">
+                <span class="text-[10px] font-black text-orange-400 uppercase tracking-[0.2em] leading-none mb-1">Partenaire</span>
+                <span class="text-xs font-black text-green-800 uppercase tracking-wider leading-none">{{ $page.props.tenant.name }}</span>
+              </div>
             </Link>
 
             <!-- Mobile Hamburger Menu (Main Nav) -->
@@ -38,9 +51,9 @@
           </div>
 
           <!-- Right: Utilities & User Profile -->
-          <div class="flex items-center gap-2 lg:gap-4 h-full lg:pl-4 lg:border-l border-orange-100">
+          <div :class="['flex items-center gap-2 lg:gap-4 h-full lg:pl-4 lg:border-l', isLandlord ? 'border-slate-800' : 'border-orange-100']">
             <!-- Utility Area (Grouped) -->
-            <div class="flex items-center gap-2 pr-4 lg:border-r border-orange-100 h-full">
+            <div :class="['flex items-center gap-2 pr-4 lg:border-r h-full', isLandlord ? 'border-slate-800' : 'border-orange-100']">
                 <!-- Optional Header Actions Slot -->
                 <slot name="header-actions" />
 
@@ -231,6 +244,8 @@ const isNavOpen = ref(false);
 
 const page = usePage();
 const user = page.props.auth.user || {};
+
+const isLandlord = computed(() => user.role === 'superadmin');
 
 // Get assigned stations from page props (populated by HandleInertiaRequests middleware)
 const assignedStations = computed(() => page.props.assignedStations || []);

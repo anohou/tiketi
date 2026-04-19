@@ -54,6 +54,11 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user ? ($isTenant ? $user->load('stationAssignments') : $user) : null,
             ],
+            'isTenant' => $isTenant,
+            'tenant' => $isTenant ? [
+                'id' => tenant('id'),
+                'name' => tenant('name'),
+            ] : null,
             'assignedStations' => $assignedStations,
             'flash' => [
                 'message' => fn () => $request->session()->get('message'),
