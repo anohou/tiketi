@@ -17,15 +17,15 @@ class TicketingController extends Controller
 {
     public function index()
     {
-        return Inertia::render('Seller/Ticketing', $this->getTicketingData());
+        return Inertia::render('Seller/Ticketing', $this->getTicketingData(request('trip_id')));
     }
 
     public function horizontal()
     {
-        return Inertia::render('Seller/TicketingHorizontal', $this->getTicketingData());
+        return Inertia::render('Seller/TicketingHorizontal', $this->getTicketingData(request('trip_id')));
     }
 
-    private function getTicketingData(): array
+    private function getTicketingData(?string $selectedTripId = null): array
     {
         $user = auth()->user();
         $isAdmin = $user->role === 'admin';
@@ -40,7 +40,7 @@ class TicketingController extends Controller
             ? Station::find($assignedStationIds[0])?->name
             : null;
 
-        $trips = $this->loadTrips($isAdmin, $assignedStationIds);
+        $trips = $this->loadTrips($isAdmin, $assignedStationIds, $selectedTripId);
         $routeFares = $this->loadFares($isAdmin, $assignedStationIds);
         $routes = $this->loadRoutes($isAdmin, $assignedStationIds);
 
@@ -59,41 +59,72 @@ class TicketingController extends Controller
         ];
     }
 
-    private function loadTrips(bool $isAdmin, array $assignedStationIds)
+    private function loadTrips(bool $isAdmin, array $assignedStationIds, ?string $selectedTripId = null)
     {
+        $showHistory = request()->boolean('show_history');
+        
         $baseQuery = Trip::withCount('tripSeatOccupancies as occupied_seats')
-            ->where('departure_at', '>=', now())
-            ->orderBy('departure_at');
+            ->orderBy('departure_at', $showHistory ? 'desc' : 'asc');
 
-        if ($isAdmin) {
-            return $baseQuery
-                ->with(['route.originStation', 'route.routeStopOrders', 'vehicle.vehicleType'])
-                ->get();
+        if ($showHistory) {
+             // Unlimited past trips for history
+             $tripsQuery = (clone $baseQuery)->where('departure_at', '<', now()->subHours(1));
+        } else {
+             // Standard active trips
+             $hours = (in_array(auth()->user()->role, ['admin', 'supervisor', 'superadmin'])) ? 48 : 1;
+             $tripsQuery = (clone $baseQuery)->where('departure_at', '>=', now()->subHours($hours));
         }
 
-        $assignedRouteIds = Route::where(function ($query) use ($assignedStationIds) {
-            $query->whereIn('origin_station_id', $assignedStationIds)
-                  ->orWhereHas('routeStopOrders', function ($q) use ($assignedStationIds) {
-                      $q->whereIn('station_id', $assignedStationIds);
-                  });
-        })
-        ->where('active', true)
-        ->pluck('id')
-        ->toArray();
+        $withRelations = [
+            'route.originStation', 
+            'route.routeStopOrders.station', 
+            'vehicle.vehicleType'
+        ];
 
-        return $baseQuery
-            ->with([
-                'route.originDestination',
-                'route.targetDestination',
-                'route.originStation.destination',
-                'route.destinationStation.destination',
-                'route.routeStopOrders.station.destination',
-                'vehicle.vehicleType',
-                'originStation.destination',
-                'destinationStation.destination',
-            ])
-            ->whereIn('route_id', $assignedRouteIds)
-            ->get();
+        if ($isAdmin) {
+            $finalQuery = $baseQuery->with($withRelations);
+        } else {
+            $assignedRouteIds = Route::where(function ($query) use ($assignedStationIds) {
+                $query->whereIn('origin_station_id', $assignedStationIds)
+                      ->orWhereHas('routeStopOrders', function ($q) use ($assignedStationIds) {
+                          $q->whereIn('station_id', $assignedStationIds);
+                      });
+            })
+            ->where('active', true)
+            ->pluck('id')
+            ->toArray();
+
+            $finalQuery = $tripsQuery->whereIn('route_id', $assignedRouteIds)->with($withRelations);
+        }
+
+        // Apply pagination if history is requested
+        if ($showHistory) {
+            return $finalQuery->paginate(15)->withQueryString();
+        }
+
+        $trips = $finalQuery->get();
+
+        // If a specific trip was requested and it's not in the list (e.g. it passed more than 1h ago), fetch and add it
+        if ($selectedTripId && !$trips->contains('id', $selectedTripId)) {
+            $requestedTrip = Trip::withCount('tripSeatOccupancies as occupied_seats')
+                ->with([
+                    'route.originDestination',
+                    'route.targetDestination',
+                    'route.originStation.destination',
+                    'route.destinationStation.destination',
+                    'route.routeStopOrders.station.destination',
+                    'vehicle.vehicleType',
+                    'originStation.destination',
+                    'destinationStation.destination',
+                ])
+                ->find($selectedTripId);
+            
+            if ($requestedTrip) {
+                $trips->push($requestedTrip);
+            }
+        }
+
+        return $trips;
     }
 
     private function loadFares(bool $isAdmin, array $assignedStationIds)
@@ -147,9 +178,11 @@ class TicketingController extends Controller
 
     private function enrichTripsWithSeatCounts($trips): void
     {
+        $items = ($trips instanceof \Illuminate\Pagination\LengthAwarePaginator) ? $trips->items() : $trips;
+        
         $seatMapService = app(SeatMapService::class);
 
-        foreach ($trips as $trip) {
+        foreach ($items as $trip) {
             $vehicleType = $trip->vehicle?->vehicleType;
             if (!$vehicleType) {
                 $trip->total_seats = 0;

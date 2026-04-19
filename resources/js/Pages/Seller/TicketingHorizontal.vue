@@ -38,7 +38,6 @@ const trips = ref([...props.trips]);
 const selectedTripId = ref(null);
 const selectedFare = ref(null);
 const ticketQuantity = ref(1);
-const searchQuery = ref('');
 const selectedDestinationId = ref('');
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
@@ -162,15 +161,7 @@ const filteredTrips = computed(() => {
       return stops.some(stop => stop.station?.destination_id === selectedDestinationId.value);
     });
   }
-
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(trip =>
-      trip.display_name?.toLowerCase().includes(query) ||
-      trip.vehicle?.identifier?.toLowerCase().includes(query)
-    );
-  }
-
+  
   return filtered;
 });
 

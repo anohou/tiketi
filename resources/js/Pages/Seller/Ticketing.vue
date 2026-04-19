@@ -20,11 +20,12 @@ import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
 import Account from 'vue-material-design-icons/Account.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
+import History from 'vue-material-design-icons/History.vue';
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 
 const props = defineProps({
-  trips: Array,
+  trips: [Array, Object],
   routeFares: Array,
   routes: Array,
   vehicles: Array,
@@ -40,15 +41,62 @@ const props = defineProps({
 const page = usePage();
 
 // State
-const trips = ref([...props.trips]); // Reactive copy for real-time updates
+const trips = ref(Array.isArray(props.trips) ? [...props.trips] : [...props.trips.data]);
+const pagination = ref(Array.isArray(props.trips) ? null : props.trips);
+const loadingMore = ref(false);
 const selectedTripId = ref(null);
 const selectedFare = ref(null);
 const ticketQuantity = ref(1);
-const searchQuery = ref('');
+const showHistory = ref(false);
 const selectedDestinationId = computed({
   get: () => ticketingStore.selectedDestinationId,
   set: (val) => ticketingStore.setDestinationFilter(val)
 }); // Bound to global store for Sidebar filtering
+
+// Watch for prop changes (Inertia reloads)
+watch(() => props.trips, (newVal) => {
+  if (Array.isArray(newVal)) {
+    trips.value = [...newVal];
+    pagination.value = null;
+  } else {
+    if (loadingMore.value) {
+       const existingIds = new Set(trips.value.map(t => t.id));
+       const newItems = newVal.data.filter(t => !existingIds.has(t.id));
+       trips.value = [...trips.value, ...newItems];
+    } else {
+       trips.value = [...newVal.data];
+    }
+    pagination.value = newVal;
+    loadingMore.value = false;
+  }
+}, { deep: true });
+
+// Toggle history effect
+watch(showHistory, (val) => {
+    loadingMore.value = false;
+    router.get(window.location.pathname, {
+        show_history: val,
+        trip_id: selectedTripId.value
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['trips']
+    });
+});
+
+const loadMore = () => {
+    if (!pagination.value?.next_page_url || loadingMore.value) return;
+    
+    loadingMore.value = true;
+    router.get(pagination.value.next_page_url, {
+        show_history: showHistory.value,
+        trip_id: selectedTripId.value
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        only: ['trips']
+    });
+};
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
 const suggestedSeats = ref([]);
@@ -215,9 +263,22 @@ const currentTrip = computed(() => {
   return trips.value.find(trip => trip.id === selectedTripId.value);
 });
 
+const isTripPassed = computed(() => {
+  if (!currentTrip.value) return false;
+  return new Date(currentTrip.value.departure_at) < new Date();
+});
+
 const filteredTrips = computed(() => {
   let filtered = trips.value;
   
+  // Filter by History toggle
+  if (!showHistory.value) {
+    const nowInstance = new Date();
+    // Keep trips in the future OR departed within the last hour
+    const limit = new Date(nowInstance.getTime() - 60 * 60 * 1000); 
+    filtered = filtered.filter(trip => new Date(trip.departure_at) >= limit);
+  }
+
   // 1. Filter by Destination (City) if selected
   if (selectedDestinationId.value) {
       filtered = filtered.filter(trip => {
@@ -228,15 +289,6 @@ const filteredTrips = computed(() => {
           const stops = trip.route?.route_stop_orders || trip.route?.routeStopOrders || [];
           return stops.some(stop => stop.station?.city === selectedDestinationId.value);
       });
-  }
-
-  // 2. Filter by Search Query
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(trip => 
-      trip.display_name?.toLowerCase().includes(query) ||
-      trip.vehicle?.identifier?.toLowerCase().includes(query)
-    );
   }
   
   return filtered;
@@ -360,7 +412,8 @@ const totalAmount = computed(() => {
 const canBookTickets = computed(() => {
   return selectedTripId.value && 
          selectedFare.value && 
-         !processing.value;
+         !processing.value &&
+         !isTripPassed.value;
 });
 
 // Watch for prop updates (e.g. inertia navigation)
@@ -445,7 +498,7 @@ const initiateBookingFlow = (seatNumber) => {
 };
 
 const handleSeatClick = (seatNumber) => {
-  if (!seatMap.value) return;
+  if (!seatMap.value || isTripPassed.value) return;
 
   let seatObj = null;
   const mapData = seatMap.value.seat_map;
@@ -1002,7 +1055,7 @@ onUnmounted(() => {
                     <div class="flex items-center justify-between w-full md:w-auto">
                       <h2 class="text-base font-semibold text-green-700 flex items-center shrink-0">
                         <Bus class="mr-2 w-5 h-5" />
-                        Voyage
+                        Voyages
                       </h2>
                       <!-- Badges on Mobile -->
                       <div class="flex items-center gap-2 md:hidden">
@@ -1014,15 +1067,28 @@ onUnmounted(() => {
                     
                     <!-- Destination Filter + Changer on Mobile & Desktop -->
                     <div class="flex items-center gap-2 w-full md:w-auto">
-                       <select v-model="selectedDestinationId" class="flex-1 md:w-64 border-green-200 text-green-800 rounded-lg text-sm px-3 py-1.5 focus:border-green-500 focus:ring-green-500 bg-white shadow-sm font-semibold">
+                       <select v-model="selectedDestinationId" class="flex-1 md:w-48 border-green-200 text-green-800 rounded-lg text-sm px-3 py-1.5 focus:border-green-500 focus:ring-green-500 bg-white shadow-sm font-semibold">
                           <option value="">Toutes les destinations</option>
                           <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
                       </select>
+                      
+                      <!-- History Toggle -->
+
+                      <!-- History Toggle -->
+                      <button 
+                        v-if="['admin', 'supervisor', 'superadmin'].includes(page.props.auth.user.role)"
+                        @click="showHistory = !showHistory"
+                        :class="['p-1.5 rounded-lg border transition-all flex items-center justify-center gap-1 shadow-sm', showHistory ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']"
+                        :title="showHistory ? 'Masquer l\'historique' : 'Voir l\'historique (48h)'"
+                      >
+                        <History :size="20" />
+                      </button>
+
                       <button 
                         @click="showTripSelectionModal = true"
                         class="px-3 py-1.5 bg-white border border-green-500 text-green-700 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap active:bg-green-50 flex items-center justify-center gap-1.5 hover:bg-green-50 transition-colors"
                       >
-                        <Magnify :size="18" />
+                        <Magnify v-if="!isMobile" :size="18" />
                         <span>Tous les voyages</span>
                       </button>
                     </div>
@@ -1040,8 +1106,10 @@ onUnmounted(() => {
                     <div class="flex items-start justify-between mb-2">
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-1">
-                          <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse shrink-0"></div>
-                          <div class="text-[10px] uppercase font-bold text-green-600 tracking-wider">En cours</div>
+                          <div :class="['w-2 h-2 rounded-full shrink-0', new Date(currentTrip.departure_at) < new Date() ? 'bg-gray-400' : 'bg-green-500 animate-pulse']"></div>
+                          <div :class="['text-[10px] uppercase font-bold tracking-wider', new Date(currentTrip.departure_at) < new Date() ? 'text-gray-500' : 'text-green-600']">
+                            {{ new Date(currentTrip.departure_at) < new Date() ? 'Voyage Passé' : 'En cours' }}
+                          </div>
                         </div>
                         <div class="text-base font-black text-gray-900 leading-tight truncate">{{ currentTrip.display_name }}</div>
                       </div>
@@ -1088,8 +1156,11 @@ onUnmounted(() => {
                           </div>
                           <div class="min-w-0">
                             <div class="flex items-center gap-2">
-                              <div v-if="selectedTripId === trip.id" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                              <div class="font-bold text-gray-900 truncate tracking-tight">{{ trip.display_name }}</div>
+                              <div v-if="selectedTripId === trip.id" :class="['w-2 h-2 rounded-full', new Date(trip.departure_at) < new Date() ? 'bg-gray-400' : 'bg-green-500 animate-pulse']"></div>
+                              <div :class="['font-bold truncate tracking-tight', new Date(trip.departure_at) < new Date() ? 'text-gray-500 italic' : 'text-gray-900']">
+                                {{ trip.display_name }}
+                                <span v-if="new Date(trip.departure_at) < new Date()" class="ml-2 text-[10px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase">Passé</span>
+                              </div>
                               <span
                                 :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
                                 class="text-xs shrink-0"
@@ -1104,8 +1175,8 @@ onUnmounted(() => {
                           <div class="text-xl font-black text-gray-900">
                             {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
                           </div>
-                          <div class="text-[10px] text-gray-500 font-bold">
-                            {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) }}
+                          <div class="text-[10px] text-gray-500 font-bold capitalize">
+                            {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }}
                           </div>
                         </div>
                       </div>
@@ -1187,12 +1258,13 @@ onUnmounted(() => {
                 <div class="flex-1 overflow-y-auto p-2">
                   <div v-if="currentTrip" class="space-y-2">
                     <div v-for="fare in availableFares" :key="fare.id"
-                         @click="selectedFare = fare"
+                         @click="!isTripPassed && (selectedFare = fare)"
                          :class="[
-                           'relative overflow-hidden rounded-2xl cursor-pointer transition-all duration-300 active:scale-[0.98] border-2 shadow-sm',
+                           'relative overflow-hidden rounded-2xl transition-all duration-300 border-2 shadow-sm',
+                           isTripPassed ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer active:scale-[0.98]',
                            selectedFare?.id === fare.id 
                              ? 'ring-2 ring-offset-2 scale-[1.02] shadow-xl border-red-500 ring-red-500' 
-                             : 'border-transparent hover:shadow-lg hover:scale-[1.01]'
+                             : 'border-transparent hover:shadow-lg'
                          ]"
                          :style="{
                            backgroundColor: fare.color || '#4F46E5',
@@ -1226,6 +1298,15 @@ onUnmounted(() => {
                   </div>
                   <div v-else class="p-8 text-center text-gray-400">
                     <p>Sélectionnez un voyage pour voir les destinations.</p>
+                  </div>
+
+                  <!-- Passed Trip Message -->
+                  <div v-if="currentTrip && isTripPassed" class="mx-3 mt-4 p-4 bg-gray-100 border border-gray-200 rounded-2xl flex flex-col items-center text-center">
+                    <div class="p-2 bg-gray-200 rounded-full mb-3">
+                      <Clock :size="20" class="text-gray-500" />
+                    </div>
+                    <div class="text-xs font-black text-gray-900 uppercase tracking-widest mb-1">Ventes Fermées</div>
+                    <p class="text-[10px] text-gray-500 font-medium">Ce voyage est déjà parti le {{ new Date(currentTrip.departure_at).toLocaleDateString('fr-FR') }} à {{ new Date(currentTrip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}. Les réservations ne sont plus possibles.</p>
                   </div>
                 </div>
                 
@@ -1560,56 +1641,87 @@ onUnmounted(() => {
 
         <!-- Destination Filter -->
         <div class="p-4 border-b border-gray-100 bg-white">
-          <div class="relative">
-            <select 
-              v-model="selectedDestinationId"
-              class="w-full pl-10 py-3 bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 rounded-xl text-sm transition-all font-bold text-gray-800 cursor-pointer"
-            >
-              <option value="">Toutes les destinations</option>
-              <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
-            </select>
-            <div class="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-600 pointer-events-none">
-               <Routes class="w-5 h-5" />
+          <div class="flex flex-col md:flex-row gap-3">
+            <!-- Destination Filter -->
+            <div class="relative flex-1">
+              <select 
+                v-model="selectedDestinationId"
+                class="w-full pl-10 py-3 bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 rounded-xl text-sm transition-all font-bold text-gray-800 cursor-pointer"
+              >
+                <option value="">Toutes les destinations</option>
+                <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
+              </select>
+              <div class="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-600 pointer-events-none">
+                 <Routes class="w-5 h-5" />
+              </div>
             </div>
+            
+            <!-- History Toggle -->
+
+            <!-- History Toggle -->
+            <button 
+               v-if="['admin', 'supervisor', 'superadmin'].includes(page.props.auth.user.role)"
+               @click="showHistory = !showHistory"
+               :class="['px-4 py-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2 font-bold text-sm shadow-sm', showHistory ? 'bg-orange-600 border-orange-600 text-white' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50']"
+               :title="showHistory ? 'Masquer l\'historique' : 'Voir l\'historique (48h)'"
+            >
+               <History :size="20" />
+               <span v-if="!isMobile">{{ showHistory ? 'Masquer historique' : 'Historique' }}</span>
+            </button>
           </div>
         </div>
 
         <!-- Trip List -->
         <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
-          <div v-if="filteredTrips.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-for="trip in filteredTrips" :key="trip.id"
-                 @click="selectTrip(trip.id)"
-                 :class="[
-                   'group p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 bg-white hover:shadow-lg',
-                   selectedTripId === trip.id 
-                     ? 'border-green-500 bg-green-50 shadow-md ring-4 ring-green-500/10' 
-                     : 'border-transparent hover:border-green-200'
-                 ]">
-              <div class="flex items-start justify-between mb-3">
-                <div class="bg-green-100 p-2 rounded-lg group-hover:bg-green-200 transition-colors">
-                  <Bus class="w-6 h-6 text-green-600" />
+          <div v-if="filteredTrips.length > 0">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div v-for="trip in filteredTrips" :key="trip.id"
+                   @click="selectTrip(trip.id)"
+                   :class="[
+                     'group p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 bg-white hover:shadow-lg',
+                     selectedTripId === trip.id 
+                       ? 'border-green-500 bg-green-50 shadow-md ring-4 ring-green-500/10' 
+                       : 'border-transparent hover:border-green-200'
+                   ]">
+                <div class="flex items-start justify-between mb-3">
+                  <div class="bg-green-100 p-2 rounded-lg group-hover:bg-green-200 transition-colors">
+                    <Bus class="w-6 h-6 text-green-600" />
+                  </div>
+                  <div v-if="selectedTripId === trip.id" class="bg-green-500 text-white p-1 rounded-full">
+                    <Check class="w-4 h-4" />
+                  </div>
+                  <div v-else-if="new Date(trip.departure_at) < new Date()" class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                    Passé
+                  </div>
                 </div>
-                <div v-if="selectedTripId === trip.id" class="bg-green-500 text-white p-1 rounded-full">
-                  <Check class="w-4 h-4" />
+                
+                <div class="font-bold text-gray-900 text-base mb-2 leading-tight">
+                  {{ trip.display_name }}
+                </div>
+                
+                <div class="space-y-2">
+                  <div class="flex items-center text-sm text-gray-600">
+                    <Clock class="w-4 h-4 mr-2 text-green-500" />
+                    <span class="capitalize">{{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }} - {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</span>
+                  </div>
+                  <div class="flex items-center text-sm text-gray-600">
+                    <OfficeBuilding class="w-4 h-4 mr-2 text-green-500" />
+                    <span>Bus: {{ trip.vehicle?.identifier }}</span>
+                  </div>
                 </div>
               </div>
-              
-              <div class="font-bold text-gray-900 text-base mb-2 leading-tight">
-                {{ trip.display_name }}
-              </div>
-              
-              <div class="space-y-2">
-                <div class="flex items-center text-sm text-gray-600">
-                  <Clock class="w-4 h-4 mr-2 text-green-500" />
-                  <span>{{ new Date(trip.departure_at).toLocaleString('fr-FR', {
-                    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-                  }) }}</span>
-                </div>
-                <div class="flex items-center text-sm text-gray-600">
-                  <OfficeBuilding class="w-4 h-4 mr-2 text-green-500" />
-                  <span>Bus: {{ trip.vehicle?.identifier }}</span>
-                </div>
-              </div>
+            </div>
+
+            <!-- Pagination / Load More -->
+            <div v-if="pagination?.next_page_url" class="mt-8 flex justify-center pb-4">
+              <button 
+                @click="loadMore"
+                :disabled="loadingMore"
+                class="px-8 py-3 bg-white border-2 border-green-500 text-green-700 font-bold rounded-xl hover:bg-green-50 transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-2"
+              >
+                <Refresh v-if="loadingMore" class="animate-spin" />
+                <span>{{ loadingMore ? 'Chargement...' : 'Afficher plus de voyages' }}</span>
+              </button>
             </div>
           </div>
           <div v-else class="h-64 flex flex-col items-center justify-center text-gray-400">

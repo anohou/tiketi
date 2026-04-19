@@ -108,7 +108,7 @@ onMounted(() => {
             preserveScroll: true,
             preserveState: true,
         });
-    }, 30000); // 30 seconds
+    }, 300000); // 5 minutes
 });
 
 onUnmounted(() => {

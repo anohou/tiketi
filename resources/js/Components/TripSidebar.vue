@@ -204,10 +204,10 @@ watch(() => {
     }
 }, { immediate: true });
 
-// Refresh every 30 seconds for real-time-ish feel
+// Refresh every 5 minutes to save data
 let refreshInterval;
 onMounted(() => {
-    refreshInterval = setInterval(fetchTrips, 30000);
+    refreshInterval = setInterval(fetchTrips, 300000);
 });
 
 import { onUnmounted } from 'vue';
