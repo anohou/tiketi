@@ -117,6 +117,7 @@ sync_into_live_root() {
         --exclude='.env.example' \
         --exclude='.env.secrets.*' \
         --exclude='storage/framework/cache/**' \
+        --exclude='storage/framework/deploy/**' \
         --exclude='storage/framework/sessions/**' \
         --exclude='storage/framework/views/**' \
         --exclude='storage/logs/**' \

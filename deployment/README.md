@@ -38,11 +38,18 @@ deployment/
     ├── provision-db.sh
     ├── rbac.config.sh
     ├── rebuild-cache.sh
+    ├── check-migration-safety.sh
+    ├── check-traefik-active-color.sh
+    ├── restart-workers.sh
+    ├── resume-zero-downtime-deploy.sh
+    ├── rollback-zero-downtime.sh
     ├── restore-db.sh
     ├── rollback.sh
     ├── seed-db.sh
     ├── smoke-check.sh
     ├── sync-from-git.sh
+    ├── traefik-switch.sh
+    ├── zero-downtime-deploy.sh
     └── versions.sh
 ```
 
@@ -52,6 +59,15 @@ deployment/
 - `config/template.env` is the allowlist for runtime env keys; only keys listed there are emitted into `.env`.
 - `scripts/provision-db.sh` provisions the app database and roles against the shared Postgres service.
 - `scripts/deploy.sh` is the standard recreate-style deployment entrypoint for apps scaffolded from this kit.
+- `scripts/zero-downtime-deploy.sh` is the opt-in Laravel blue/green entrypoint. It is guarded by `zero_downtime.enabled=true` in rendered `config/config.yml`.
+
+## Zero-Downtime Notes
+
+- Blue/green deploys use color-specific Compose projects, env files, runtime public directories, and readiness markers.
+- Public traffic is switched by writing Traefik file-provider config into the host-side rendered dynamic directory, normally `<app-root>/current/config/traefik/dynamic/dynamic-<app>.yml`, which Traefik mounts under `/etc/traefik/dynamic`.
+- Queue workers and scheduler are owned by one color at a time. The old color is drained before migrations; the new color starts workers only after the Traefik switch succeeds.
+- Nginx injects `X-Deploy-Color` for deploy verification. Strip it at Cloudflare or another public edge layer if it should not be visible to end users.
+- `sync-laravel-deployment` only refreshes this local deployment kit. It does not run Ansible and does not deploy to the target host by itself.
 
 ## Notes
 

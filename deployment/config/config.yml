@@ -51,6 +51,22 @@ deploy:
   runtime_root: /srv/apps/anohou/prod/source
   ci_source_root: /srv/apps/anohou/prod/source
 
+# ── Zero-downtime blue/green policy ─────────────────────────────────────────
+zero_downtime:
+  enabled: true
+  keep_previous_color: true
+  deploy_drain_seconds: 30
+  queue_drain_seconds: 60
+  queue_drain_timeout_action: abort
+  healthcheck_attempts: 30
+  healthcheck_interval_seconds: 5
+  healthcheck_timeout_seconds: 3
+  traefik_file_reload_max_seconds: 15
+  allow_unsafe_migrations: false
+  direct_origin_ip: "62.84.186.8"
+  tenant_smoke_hosts: "at.tiketi.ci,alpha.tiketi.ci"
+  cloudflare_cache_purge_paths: ""
+
 # ── Server-side secret file paths ────────────────────────────────────────────
 secrets:
   # Shared server-wide secrets (SMTP credentials, shared tokens, etc.)
@@ -81,7 +97,7 @@ networks:
 
 # ── Traefik ───────────────────────────────────────────────────────────────────
 traefik:
-  cert_resolver: cloudflare
+  cert_resolver: letsencrypt
 
 # ── Services (third-party images) ───────────────────────────────────────────
 services:
