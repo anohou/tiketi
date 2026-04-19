@@ -8,18 +8,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COMPOSE_FILE="${DEPLOY_COMPOSE_FILE:-${DEPLOY_DIR}/config/docker-compose.prod.yml}"
 ENV_FILE="${DEPLOY_ENV_FILE:-${DEPLOY_DIR}/.env}"
+COMPOSE_PROJECT_NAME="${DEPLOY_COMPOSE_PROJECT_NAME:-}"
 
 log() { echo "[cache-rebuild] $(date '+%H:%M:%S') $*"; }
 err() { echo "[cache-rebuild] ERROR: $*" >&2; exit 1; }
 
 [[ -f "${COMPOSE_FILE}" ]] || err "Compose file not found: ${COMPOSE_FILE}"
 [[ -f "${ENV_FILE}" ]] || err "Generated env file not found: ${ENV_FILE}"
+[[ -n "${COMPOSE_PROJECT_NAME}" ]] || err "DEPLOY_COMPOSE_PROJECT_NAME is required for cache rebuild"
 
 run_artisan() {
     local label="$1"
     shift
     log "${label}: php artisan $*"
     docker compose \
+        -p "${COMPOSE_PROJECT_NAME}" \
         -f "${COMPOSE_FILE}" \
         --env-file "${ENV_FILE}" \
         exec -T php-fpm \
