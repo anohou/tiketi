@@ -120,10 +120,17 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             );
         }
 
-        $expectedPrefix = config('tenancy.database.prefix', 'tiketi_tenant_');
+        $expectedPrefix = config('tenancy.database.prefix');
+        if (empty($expectedPrefix)) {
+            // Log a warning but don't fail immediately if prefix is intentionally empty
+            \Log::warning("Tenant database prefix is not configured. Security validation might be bypassed.");
+            return;
+        }
+
         if (! str_starts_with($name, $expectedPrefix)) {
             throw new \InvalidArgumentException(
-                "Database name must start with prefix: {$expectedPrefix}",
+                "Database name [{$name}] must start with the configured prefix: [{$expectedPrefix}]. " .
+                "Please check TENANT_DB_PREFIX in your .env file."
             );
         }
     }

@@ -15,7 +15,7 @@
           <!-- Left: Logo & Context Title -->
           <div id="NavLeft" class="flex items-center gap-4 h-full">
             <Link :href="route('dashboard')" :class="['flex items-center gap-2 pr-4 lg:border-r h-full py-2', isLandlord ? 'border-slate-800' : 'border-orange-100']">
-              <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-10 w-auto object-contain" />
+              <img :src="$page.props.tenant?.logo_url || '/images/logo.png'" alt="TIKÊTI Logo" class="h-10 w-auto object-contain" />
               <div v-if="isLandlord" class="hidden sm:flex flex-col ml-1">
                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Portail</span>
                 <span class="text-xs font-black text-white uppercase tracking-wider leading-none">Central</span>

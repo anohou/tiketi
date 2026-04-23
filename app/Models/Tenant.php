@@ -17,6 +17,8 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
 
+    protected $guarded = [];
+
     /**
      * Custom columns stored in the tenants table (not in JSON 'data' column)
      */

@@ -18,7 +18,7 @@ class VehicleTypeSeeder extends Seeder
                 'seat_count' => 15,
                 'seat_configuration' => '2+1',
                 'door_count' => 1,
-                'door_positions' => [1], // Porte à l'avant
+                'door_positions' => [0], // Porte à l'avant
                 'svg_template_path' => 'minibus_15',
                 'seat_map' => $this->generateSeatMap(15, '2+1'),
             ],
@@ -27,16 +27,16 @@ class VehicleTypeSeeder extends Seeder
                 'seat_count' => 30,
                 'seat_configuration' => '2+2',
                 'door_count' => 2,
-                'door_positions' => [1, 16], // Portes avant et milieu
+                'door_positions' => [0, 13, 14], // Portes avant et milieu
                 'svg_template_path' => 'bus_30',
                 'seat_map' => $this->generateSeatMap(30, '2+2'),
             ],
             [
                 'name' => 'Bus 50 places',
-                'seat_count' => 41,
+                'seat_count' => 47,
                 'seat_configuration' => '2+2',
                 'door_count' => 2,
-                'door_positions' => [1, 23], // Porte avant (1) et porte milieu (23-24 combined)
+                'door_positions' => [0, 26, 27], // Porte avant (1) et porte milieu (23-24 combined)
                 'svg_template_path' => 'bus_50',
                 'seat_map' => (function() {
                     $map = [];
@@ -60,10 +60,10 @@ class VehicleTypeSeeder extends Seeder
             ],
             [
                 'name' => 'Bus Double-Étage 80 places',
-                'seat_count' => 80,
+                'seat_count' => 67,
                 'seat_configuration' => '2+2',
                 'door_count' => 2,
-                'door_positions' => [1, 20], // Portes en bas
+                'door_positions' => [0, 29, 30, 54, 55], // Portes en bas
                 'svg_template_path' => 'bus_double_echap_80',
                 'seat_map' => (function() {
                     // Lower deck: 30 seats (rows of 4 + some spaces for stairs)

@@ -58,8 +58,14 @@ const configSections = [
     category: 'Utilisateurs',
     items: [
       { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes' },
-      { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares' },
+      { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares' },
       { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
+    ]
+  },
+  {
+    category: 'Entreprise',
+    items: [
+      { name: 'Identité & Logo', route: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Gérer le logo et les infos' },
     ]
   }
 ];

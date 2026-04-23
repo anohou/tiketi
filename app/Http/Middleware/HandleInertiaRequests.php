@@ -58,6 +58,7 @@ class HandleInertiaRequests extends Middleware
             'tenant' => $isTenant ? [
                 'id' => tenant('id'),
                 'name' => tenant('name'),
+                'logo_url' => tenant('logo_url'),
             ] : null,
             'assignedStations' => $assignedStations,
             'flash' => [

@@ -928,27 +928,7 @@ onMounted(async () => {
     subscribeTripChannel(selectedTripId.value);
   }
 
-  // Auto-select trip from query param or closest trip
-  const urlParams = new URLSearchParams(window.location.search);
-  const tripIdFromUrl = urlParams.get('trip_id');
-  
-  if (tripIdFromUrl && props.trips.find(t => t.id === tripIdFromUrl)) {
-    selectTrip(tripIdFromUrl);
-  } else if (!selectedTripId.value && props.trips.length > 0) {
-    const now = new Date();
-    const sortedTrips = [...props.trips].sort((a, b) => {
-      const diffA = new Date(a.departure_at) - now;
-      const diffB = new Date(b.departure_at) - now;
-      // Prefer future trips, closest first
-      if (diffA >= 0 && diffB >= 0) return diffA - diffB;
-      // If one is past and one is future, future wins
-      if (diffA >= 0 && diffB < 0) return -1;
-      if (diffA < 0 && diffB >= 0) return 1;
-      // Both are past, most recent first
-      return diffB - diffA;
-    });
-    selectTrip(sortedTrips[0].id);
-  }
+  /* Auto-selection disabled as requested for a clean workspace */
 });
 
 // Nettoyage : quitter le canal WebSocket du voyage au démontage

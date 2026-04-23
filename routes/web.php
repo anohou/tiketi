@@ -9,10 +9,22 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
+    $isTenant = function_exists('tenancy') && tenancy()->initialized;
+    $data = [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
-    ]);
+    ];
+
+    if ($isTenant) {
+        $data['users'] = \App\Models\User::where('active', true)
+            ->select(['id', 'name', 'email', 'role'])
+            ->orderBy('name')
+            ->get();
+        $data['canResetPassword'] = Route::has('password.request');
+        $data['status'] = session('status');
+    }
+
+    return Inertia::render('Welcome', $data);
 });
 
 Route::get('/dashboard', function () {
@@ -36,6 +48,8 @@ Route::middleware('auth')->group(function () {
         
         // Settings Landing Page
         Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings.index');
+        Route::get('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'enterprise'])->name('settings.enterprise');
+        Route::post('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
         
         // CRUDs
         Route::resource('destinations', \App\Http\Controllers\Admin\DestinationController::class);
