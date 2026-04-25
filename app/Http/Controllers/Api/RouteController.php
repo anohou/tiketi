@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Route;
 use App\Models\RouteFare;
-use Illuminate\Http\Request;
 
 class RouteController extends Controller
 {
@@ -52,7 +51,7 @@ class RouteController extends Controller
         return response()->json([
             'success' => true,
             'data' => $routes,
-            'message' => 'Trajets récupérés avec succès'
+            'message' => 'Trajets récupérés avec succès',
         ]);
     }
 
@@ -72,7 +71,7 @@ class RouteController extends Controller
         $stationIds = $route->routeStopOrders->pluck('station_id')->toArray();
         $fares = RouteFare::where(function ($q) use ($stationIds) {
             $q->whereIn('from_station_id', $stationIds)
-              ->whereIn('to_station_id', $stationIds);
+                ->whereIn('to_station_id', $stationIds);
         })->get();
 
         return response()->json([
@@ -117,7 +116,7 @@ class RouteController extends Controller
                 }),
                 'active' => $route->active,
             ],
-            'message' => 'Trajet récupéré avec succès'
+            'message' => 'Trajet récupéré avec succès',
         ]);
     }
 }

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->uuid('to_stop_id')->index();
             $table->unsignedInteger('amount'); // FCFA
             $table->timestamps();
-            $table->unique(['route_id','from_stop_id','to_stop_id']);
+            $table->unique(['route_id', 'from_stop_id', 'to_stop_id']);
         });
     }
 

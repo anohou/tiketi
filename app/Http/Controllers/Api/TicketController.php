@@ -8,10 +8,10 @@ use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Cache;
 
 class TicketController extends Controller
 {
@@ -63,21 +63,21 @@ class TicketController extends Controller
         if ($user->role === 'seller') {
             $assignedStationIds = $user->stationAssignments()->where('active', true)->pluck('station_id')->toArray();
 
-            if (!in_array($fromStationId, $assignedStationIds)) {
+            if (! in_array($fromStationId, $assignedStationIds)) {
                 return $this->errorResponse($request, 'Vous n\'êtes pas autorisé à vendre des tickets au départ de cette station.', 403);
             }
 
             $isAtOriginStation = in_array($trip->route->origin_station_id, $assignedStationIds);
 
-            if (!$isAtOriginStation && $trip->isSalesClosed()) {
+            if (! $isAtOriginStation && $trip->isSalesClosed()) {
                 $seatsFreedAtThisStation = $trip->tripSeatOccupancies
-                    ->filter(fn($occ) => $occ->ticket && $occ->ticket->to_station_id === $fromStationId)
+                    ->filter(fn ($occ) => $occ->ticket && $occ->ticket->to_station_id === $fromStationId)
                     ->pluck('seat_number')
                     ->toArray();
 
                 $seatsNotFreed = array_diff($validated['seats'], $seatsFreedAtThisStation);
 
-                if (!empty($seatsNotFreed)) {
+                if (! empty($seatsNotFreed)) {
                     return $this->errorResponse($request, 'Ce voyage est fermé aux ventes intermédiaires. Vous ne pouvez vendre que les places libérées à votre gare.', 403);
                 }
             }
@@ -85,19 +85,23 @@ class TicketController extends Controller
 
         // Segment overlap check
         $occupiedSeats = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
-            if (!$occupancy->ticket) return false;
+            if (! $occupancy->ticket) {
+                return false;
+            }
 
             $ticketFromIdx = $stationIndices[$occupancy->ticket->from_station_id] ?? null;
             $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
 
-            if ($ticketFromIdx === null || $ticketToIdx === null) return true;
+            if ($ticketFromIdx === null || $ticketToIdx === null) {
+                return true;
+            }
 
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
         })->pluck('seat_number')->toArray();
 
         $conflictingSeats = array_intersect($validated['seats'], $occupiedSeats);
-        if (!empty($conflictingSeats)) {
-            return $this->errorResponse($request, 'Certaines places sont déjà occupées pour ce segment: ' . implode(', ', $conflictingSeats), 422);
+        if (! empty($conflictingSeats)) {
+            return $this->errorResponse($request, 'Certaines places sont déjà occupées pour ce segment: '.implode(', ', $conflictingSeats), 422);
         }
 
         if (max($validated['seats']) > $trip->vehicle->seat_count) {
@@ -105,27 +109,28 @@ class TicketController extends Controller
         }
 
         // Redis lock to prevent double bookings
-        $lock = Cache::lock('booking_trip_' . $trip->id, 5);
+        $lock = Cache::lock('booking_trip_'.$trip->id, 5);
 
-        if (!$lock->block(3)) {
+        if (! $lock->block(3)) {
             return $this->errorResponse($request, 'Le système est actuellement très sollicité pour ce voyage. Veuillez réessayer dans un instant.', 409);
         }
 
         try {
             DB::beginTransaction();
 
-                // Double check occupied seats
-                $lockedOccupancies = TripSeatOccupancy::where('trip_id', $trip->id)
-                    ->whereIn('seat_number', $validated['seats'])
-                    ->pluck('seat_number')
-                    ->toArray();
+            // Double check occupied seats
+            $lockedOccupancies = TripSeatOccupancy::where('trip_id', $trip->id)
+                ->whereIn('seat_number', $validated['seats'])
+                ->pluck('seat_number')
+                ->toArray();
 
-                if (!empty($lockedOccupancies)) {
-                    DB::rollBack();
-                    return $this->errorResponse($request, 'Ces places viennent d\'être réservées par un autre agent: ' . implode(', ', $lockedOccupancies), 409);
-                }
+            if (! empty($lockedOccupancies)) {
+                DB::rollBack();
 
-                $sellerStationId = auth()->user()->stationAssignments()->where('active', true)->first()?->station_id;
+                return $this->errorResponse($request, 'Ces places viennent d\'être réservées par un autre agent: '.implode(', ', $lockedOccupancies), 409);
+            }
+
+            $sellerStationId = auth()->user()->stationAssignments()->where('active', true)->first()?->station_id;
             $pricePerSeat = $validated['amount'] / count($validated['seats']);
 
             $optService = app(\App\Services\OptimisationService::class);
@@ -136,7 +141,7 @@ class TicketController extends Controller
                 $boardingGroup = $optService->computeBoardingGroup($vehicleType, $seatNumber);
 
                 $ticket = Ticket::create([
-                    'ticket_number' => 'TKT-' . strtoupper(Str::random(8)),
+                    'ticket_number' => 'TKT-'.strtoupper(Str::random(8)),
                     'trip_id' => $trip->id,
                     'vehicle_id' => $trip->vehicle_id,
                     'from_station_id' => $fromStationId,
@@ -147,7 +152,7 @@ class TicketController extends Controller
                     'price' => $pricePerSeat,
                     'seller_id' => auth()->id(),
                     'station_id' => $sellerStationId,
-                    'qr_code' => 'QR-' . strtoupper(Str::random(12)),
+                    'qr_code' => 'QR-'.strtoupper(Str::random(12)),
                     'boarding_group' => $boardingGroup,
                 ]);
 
@@ -164,7 +169,7 @@ class TicketController extends Controller
 
             // Broadcast seat map update
             try {
-                $changedSeats = array_map(fn($t) => [
+                $changedSeats = array_map(fn ($t) => [
                     'seat_number' => $t->seat_number,
                     'status' => 'occupied',
                     'ticket_id' => $t->id,
@@ -172,7 +177,7 @@ class TicketController extends Controller
                 ], $tickets);
                 event(new SeatMapUpdated($trip->id, $changedSeats));
             } catch (\Exception $e) {
-                Log::warning('Échec broadcast SeatMapUpdated: ' . $e->getMessage());
+                Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
             }
 
             if ($request->expectsJson()) {
@@ -203,7 +208,8 @@ class TicketController extends Controller
                 return $this->errorResponse($request, 'Une ou plusieurs places viennent d\'être réservées par un autre agent. Veuillez rafraîchir le plan.', 409);
             }
 
-            Log::error('Erreur DB création ticket: ' . $e->getMessage());
+            Log::error('Erreur DB création ticket: '.$e->getMessage());
+
             return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
 
         } catch (\Exception $e) {
@@ -211,7 +217,8 @@ class TicketController extends Controller
                 $lock->release();
             }
             DB::rollBack();
-            Log::error('Erreur création ticket: ' . $e->getMessage());
+            Log::error('Erreur création ticket: '.$e->getMessage());
+
             return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
         } finally {
             if (isset($lock)) {
@@ -227,7 +234,7 @@ class TicketController extends Controller
         try {
             $settings = \App\Models\TicketSetting::getSettings();
         } catch (\Exception $e) {
-            Log::warning('Failed to get ticket settings: ' . $e->getMessage());
+            Log::warning('Failed to get ticket settings: '.$e->getMessage());
             $settings = [
                 'company_name' => 'TSR CI',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
@@ -263,12 +270,13 @@ class TicketController extends Controller
                     ['seat_number' => $seatNumber, 'status' => 'available'],
                 ]));
             } catch (\Exception $e) {
-                Log::warning('Échec broadcast SeatMapUpdated: ' . $e->getMessage());
+                Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
             }
 
             return response()->json(['message' => 'Ticket annulé avec succès']);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json(['message' => 'Erreur lors de l\'annulation'], 500);
         }
     }

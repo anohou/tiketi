@@ -21,10 +21,10 @@ class StationController extends Controller
             'originRoutes.originStation',
             // ... (rest of eager loads might fail if relations changed on Route model, let's simplify for now)
         ])
-        ->withCount(['userAssignments'])
-        ->orderBy('name')
-        ->paginate(50);
-        
+            ->withCount(['userAssignments'])
+            ->orderBy('name')
+            ->paginate(50);
+
         $destinations = \App\Models\Destination::orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Admin/Stations/Index', [
@@ -46,7 +46,7 @@ class StationController extends Controller
             'phone' => 'nullable|string',
             'active' => 'boolean',
         ]);
-        
+
         // Auto-fill city name from destination if empty?
         if (empty($data['city'])) {
             $dest = \App\Models\Destination::find($data['destination_id']);
@@ -54,6 +54,7 @@ class StationController extends Controller
         }
 
         Station::create($data);
+
         return back()->with('success', 'Gare créée avec succès.'); // Redirect back better for modals
     }
 
@@ -70,13 +71,14 @@ class StationController extends Controller
             'phone' => 'nullable|string',
             'active' => 'boolean',
         ]);
-        
+
         if (empty($data['city'])) {
             $dest = \App\Models\Destination::find($data['destination_id']);
             $data['city'] = $dest->name;
         }
 
         $station->update($data);
+
         return back()->with('success', 'Gare mise à jour avec succès.');
     }
 
@@ -86,6 +88,7 @@ class StationController extends Controller
     public function destroy(Station $station)
     {
         $station->delete();
+
         return back();
     }
 }

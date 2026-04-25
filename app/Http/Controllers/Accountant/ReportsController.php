@@ -3,13 +3,12 @@
 namespace App\Http\Controllers\Accountant;
 
 use App\Http\Controllers\Controller;
-use App\Models\Ticket;
-use App\Models\Trip;
-use App\Models\User;
 use App\Models\Station;
+use App\Models\Ticket;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Carbon\Carbon;
 
 class ReportsController extends Controller
 {
@@ -62,6 +61,7 @@ class ReportsController extends Controller
             ->get()
             ->map(function ($item) {
                 $station = Station::find($item->station_id);
+
                 return [
                     'station_id' => $item->station_id,
                     'station_name' => $station?->name ?? 'Unknown',
@@ -113,18 +113,18 @@ class ReportsController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $filename = 'rapport_ventes_' . $startDate . '_' . $endDate . '.csv';
-        
+        $filename = 'rapport_ventes_'.$startDate.'_'.$endDate.'.csv';
+
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
         ];
 
         $callback = function () use ($tickets) {
             $file = fopen('php://output', 'w');
             // BOM for Excel UTF-8
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-            
+
             // Header row
             fputcsv($file, [
                 'N° Ticket',

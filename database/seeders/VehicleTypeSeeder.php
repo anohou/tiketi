@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class VehicleTypeSeeder extends Seeder
@@ -38,7 +37,7 @@ class VehicleTypeSeeder extends Seeder
                 'door_count' => 2,
                 'door_positions' => [0, 26, 27], // Porte avant (1) et porte milieu (23-24 combined)
                 'svg_template_path' => 'bus_50',
-                'seat_map' => (function() {
+                'seat_map' => (function () {
                     $map = [];
                     $seatNum = 1;
                     // 9 rows of 4 seats
@@ -55,6 +54,7 @@ class VehicleTypeSeeder extends Seeder
                         $lastRow[] = ['number' => $seatNum++, 'row' => 10, 'col' => $col];
                     }
                     $map[] = $lastRow;
+
                     return $map;
                 })(),
             ],
@@ -65,7 +65,7 @@ class VehicleTypeSeeder extends Seeder
                 'door_count' => 2,
                 'door_positions' => [0, 29, 30, 54, 55], // Portes en bas
                 'svg_template_path' => 'bus_double_echap_80',
-                'seat_map' => (function() {
+                'seat_map' => (function () {
                     // Lower deck: 30 seats (rows of 4 + some spaces for stairs)
                     $lowerDeck = [];
                     $seatNum = 1;
@@ -75,7 +75,7 @@ class VehicleTypeSeeder extends Seeder
                             ['type' => 'seat', 'number' => $seatNum++],
                             ['type' => 'aisle'],
                             ['type' => 'seat', 'number' => $seatNum++],
-                            ['type' => 'seat', 'number' => $seatNum++]
+                            ['type' => 'seat', 'number' => $seatNum++],
                         ];
                     }
                     $lowerDeck[] = [
@@ -83,9 +83,9 @@ class VehicleTypeSeeder extends Seeder
                         ['type' => 'seat', 'number' => $seatNum++],
                         ['type' => 'aisle'],
                         ['type' => 'empty'], // Escalier
-                        ['type' => 'empty']
+                        ['type' => 'empty'],
                     ];
-                    
+
                     // Upper deck: 50 seats
                     $upperDeck = [];
                     for ($row = 1; $row <= 12; $row++) {
@@ -94,7 +94,7 @@ class VehicleTypeSeeder extends Seeder
                             ['type' => 'seat', 'number' => $seatNum++],
                             ['type' => 'aisle'],
                             ['type' => 'seat', 'number' => $seatNum++],
-                            ['type' => 'seat', 'number' => $seatNum++]
+                            ['type' => 'seat', 'number' => $seatNum++],
                         ];
                     }
                     $upperDeck[] = [
@@ -102,12 +102,12 @@ class VehicleTypeSeeder extends Seeder
                         ['type' => 'seat', 'number' => $seatNum++],
                         ['type' => 'empty'], // Escalier
                         ['type' => 'empty'],
-                        ['type' => 'empty']
+                        ['type' => 'empty'],
                     ];
-                    
+
                     return [
                         'lower_deck' => $lowerDeck,
-                        'upper_deck' => $upperDeck
+                        'upper_deck' => $upperDeck,
                     ];
                 })(),
             ],
@@ -141,7 +141,7 @@ class VehicleTypeSeeder extends Seeder
                 ];
                 $seatNumber++;
             }
-            if (!empty($rowSeats)) {
+            if (! empty($rowSeats)) {
                 $seatMap[] = $rowSeats;
             }
         }

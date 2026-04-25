@@ -1,10 +1,9 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AdminDashboardController;
-use App\Http\Controllers\SupervisorDashboardController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerDashboardController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\SupervisorDashboardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -45,12 +44,12 @@ Route::middleware('auth')->group(function () {
     // =========================================
     Route::prefix('admin')->middleware('role:admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-        
+
         // Settings Landing Page
         Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings.index');
         Route::get('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'enterprise'])->name('settings.enterprise');
         Route::post('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
-        
+
         // CRUDs
         Route::resource('destinations', \App\Http\Controllers\Admin\DestinationController::class);
         Route::resource('stations', \App\Http\Controllers\Admin\StationController::class);
@@ -58,7 +57,7 @@ Route::middleware('auth')->group(function () {
         Route::resource('vehicle-types', \App\Http\Controllers\Admin\VehicleTypeController::class);
         Route::resource('vehicles', \App\Http\Controllers\Admin\VehicleController::class);
         Route::resource('routes', \App\Http\Controllers\Admin\RouteController::class);
-        
+
         // Route Stops Management
         Route::get('routes/{route}/stops', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'index'])->name('routes.stops.index');
         Route::post('routes/{route}/stops', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'store'])->name('routes.stops.store');
@@ -69,8 +68,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('route-fares', \App\Http\Controllers\Admin\RouteFareController::class);
         Route::resource('users', \App\Http\Controllers\Admin\UserController::class);
         Route::put('users/{user}/toggle-active', [\App\Http\Controllers\Admin\UserController::class, 'toggleActive'])->name('users.toggle-active');
-        Route::resource('assignments', \App\Http\Controllers\Admin\UserAssignmentController::class)->only(['index','store','update','destroy']);
-        
+        Route::resource('assignments', \App\Http\Controllers\Admin\UserAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
+
         // Ticket Settings
         Route::get('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'index'])->name('ticket-settings.index');
         Route::put('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'update'])->name('ticket-settings.update');
@@ -93,18 +92,18 @@ Route::middleware('auth')->group(function () {
     Route::prefix('seller')->middleware('role:admin,supervisor,seller')->name('seller.')->group(function () {
         // Dashboard
         Route::get('/dashboard', [SellerDashboardController::class, 'index'])->name('dashboard');
-        
+
         // Ticketing (POS Interface)
         Route::get('/ticketing', [\App\Http\Controllers\Seller\TicketingController::class, 'index'])->name('ticketing');
         Route::get('/ticketing-horizontal', [\App\Http\Controllers\Seller\TicketingController::class, 'horizontal'])->name('ticketing.horizontal');
         Route::get('/tickets', [\App\Http\Controllers\Seller\TicketController::class, 'index'])->name('tickets.index');
-        
+
         // API-like endpoints for ticketing
         Route::post('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
         Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
         Route::get('/trips/{trip}/seat-map', [\App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
         Route::get('/trips/{trip}/suggest-seats', [\App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
-        
+
         // Trip creation (for sellers)
         Route::post('/trips', [\App\Http\Controllers\Admin\TripController::class, 'store'])->name('trips.store');
     });
@@ -131,7 +130,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/trips', [\App\Http\Controllers\Api\TripController::class, 'index'])->name('trips.index');
         Route::get('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'index'])->name('tickets.index');
     });
-    
+
     // Printing routes
     Route::get('/tickets/{ticket}/print', [\App\Http\Controllers\TicketPrintController::class, 'print'])->name('tickets.print');
     Route::post('/tickets/print-multiple', [\App\Http\Controllers\TicketPrintController::class, 'printMultiple'])->name('tickets.print-multiple');

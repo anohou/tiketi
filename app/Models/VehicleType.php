@@ -2,26 +2,27 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class VehicleType extends Model
 {
     use HasUuids;
-    
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
-        'name', 
-        'seat_map', 
+        'name',
+        'seat_map',
         'seat_count',
         'svg_template_path',
         'seat_configuration',
         'last_row_seats',
         'door_count',
-        'door_positions'
+        'door_positions',
     ];
 
     protected $casts = [

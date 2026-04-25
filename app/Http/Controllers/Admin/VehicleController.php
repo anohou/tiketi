@@ -20,6 +20,7 @@ class VehicleController extends Controller
             ->orderBy('identifier')
             ->paginate(50);
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
+
         return Inertia::render('Admin/Vehicles/Index', [
             'vehicles' => $vehicles,
             'vehicleTypes' => $vehicleTypes,
@@ -32,7 +33,7 @@ class VehicleController extends Controller
     public function create()
     {
         return Inertia::render('Admin/Vehicles/Form', [
-            'vehicleTypes' => VehicleType::orderBy('name')->get(['id', 'name', 'seat_count'])
+            'vehicleTypes' => VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']),
         ]);
     }
 
@@ -50,6 +51,7 @@ class VehicleController extends Controller
             'inactive_reason' => 'nullable|string|required_if:active,false',
         ]);
         Vehicle::create($data);
+
         return redirect()->route('admin.vehicles.index');
     }
 
@@ -68,7 +70,7 @@ class VehicleController extends Controller
     {
         return Inertia::render('Admin/Vehicles/Form', [
             'vehicle' => $vehicle,
-            'vehicleTypes' => VehicleType::orderBy('name')->get(['id', 'name', 'seat_count'])
+            'vehicleTypes' => VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']),
         ]);
     }
 
@@ -78,7 +80,7 @@ class VehicleController extends Controller
     public function update(Request $request, Vehicle $vehicle)
     {
         $data = $request->validate([
-            'identifier' => 'required|string|max:255|unique:vehicles,identifier,' . ($vehicle->id ?? ''),
+            'identifier' => 'required|string|max:255|unique:vehicles,identifier,'.($vehicle->id ?? ''),
             'maker' => 'nullable|string|max:255',
             'vehicle_type_id' => 'required|exists:vehicle_types,id',
             'seat_count' => 'required|integer|min:1',
@@ -86,6 +88,7 @@ class VehicleController extends Controller
             'inactive_reason' => 'nullable|string|required_if:active,false',
         ]);
         $vehicle->update($data);
+
         return redirect()->route('admin.vehicles.index');
     }
 
@@ -95,6 +98,7 @@ class VehicleController extends Controller
     public function destroy(Vehicle $vehicle)
     {
         $vehicle->delete();
+
         return back();
     }
 }

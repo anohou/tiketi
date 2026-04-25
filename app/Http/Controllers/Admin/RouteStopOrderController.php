@@ -40,7 +40,7 @@ class RouteStopOrderController extends Controller
                     'stop_index' => $order->stop_index,
                 ];
             }),
-            'availableStops' => $allStations
+            'availableStops' => $allStations,
         ]);
     }
 
@@ -66,7 +66,7 @@ class RouteStopOrderController extends Controller
 
         $route->routeStopOrders()->create([
             'station_id' => $validated['station_id'],
-            'stop_index' => $validated['stop_index']
+            'stop_index' => $validated['stop_index'],
         ]);
 
         return back()->with('success', 'Arrêt ajouté avec succès.');

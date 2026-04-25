@@ -1,11 +1,11 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\RouteController;
-use App\Http\Controllers\Api\TripController;
-use App\Http\Controllers\Api\TicketController;
-use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\OptimisationController;
+use App\Http\Controllers\Api\RouteController;
+use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\TripController;
+use App\Http\Controllers\Api\VehicleController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -53,7 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 'total_revenue_today' => \App\Models\Ticket::whereDate('created_at', today())->sum('price'),
                 'occupancy_rate' => 0, // À implémenter
             ],
-            'message' => 'Statistiques récupérées avec succès'
+            'message' => 'Statistiques récupérées avec succès',
         ]);
     });
 });

@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Station extends Model
 {
     use HasUuids;
-    
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -30,8 +31,6 @@ class Station extends Model
     {
         return $this->belongsTo(Destination::class);
     }
-
-
 
     public function users()
     {

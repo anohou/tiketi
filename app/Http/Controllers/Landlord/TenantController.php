@@ -71,12 +71,12 @@ class TenantController extends Controller
 
         // Create Tenant Admin
         $tenant->run(function () use ($validated, $password) {
-             \App\Models\User::create([
-                'name' => 'Admin ' . $validated['name'],
-                'email' => $validated['email'] ?? ('admin@' . $validated['id'] . '.com'),
+            \App\Models\User::create([
+                'name' => 'Admin '.$validated['name'],
+                'email' => $validated['email'] ?? ('admin@'.$validated['id'].'.com'),
                 'password' => \Illuminate\Support\Facades\Hash::make($password),
                 'role' => 'admin',
-             ]);
+            ]);
         });
 
         return redirect()->route('landlord.tenants.index')
@@ -131,7 +131,7 @@ class TenantController extends Controller
     public function destroy(Tenant $tenant)
     {
         $name = $tenant->name;
-        
+
         // This will also delete the tenant's database
         $tenant->delete();
 

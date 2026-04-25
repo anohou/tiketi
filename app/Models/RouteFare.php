@@ -11,13 +11,14 @@ class RouteFare extends Model
     use HasUuids;
 
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
         'from_station_id',
         'to_station_id',
         'amount',
-        'is_bidirectional'
+        'is_bidirectional',
     ];
 
     protected $casts = [
@@ -73,7 +74,7 @@ class RouteFare extends Model
             return [
                 'fare' => $fare,
                 'amount' => $fare->amount,
-                'is_reversed' => false
+                'is_reversed' => false,
             ];
         }
 
@@ -87,7 +88,7 @@ class RouteFare extends Model
             return [
                 'fare' => $reverseFare,
                 'amount' => $reverseFare->amount,
-                'is_reversed' => true
+                'is_reversed' => true,
             ];
         }
 

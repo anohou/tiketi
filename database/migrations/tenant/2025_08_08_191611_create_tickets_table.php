@@ -24,7 +24,7 @@ return new class extends Migration
             $table->unsignedInteger('price');
             $table->uuid('seller_id')->index();
             $table->uuid('station_id')->nullable()->index();
-            $table->enum('status', ['issued','cancelled','refunded'])->default('issued')->index();
+            $table->enum('status', ['issued', 'cancelled', 'refunded'])->default('issued')->index();
             $table->json('qr_payload')->nullable();
             $table->string('qr_code')->nullable();
             $table->timestamps();

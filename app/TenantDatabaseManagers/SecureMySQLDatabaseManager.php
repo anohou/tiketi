@@ -38,7 +38,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
     {
         $name = $tenant->database()->getName();
 
-        \Log::info("🔧 Starting tenant database creation", [
+        \Log::info('🔧 Starting tenant database creation', [
             'tenant_id' => $tenant->id,
             'database_name' => $name,
         ]);
@@ -49,7 +49,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
         // Use provisioner connection for database creation
         $provisioner = $this->getProvisionerConnection();
 
-        \Log::info("🔌 Using provisioner connection", [
+        \Log::info('🔌 Using provisioner connection', [
             'connection' => 'tenant_provisioner',
             'username' => config('database.connections.tenant_provisioner.username'),
         ]);
@@ -59,7 +59,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
         $collation = config('database.connections.mysql.collation', 'utf8mb4_unicode_ci');
 
         try {
-            \Log::info("📦 Creating database", [
+            \Log::info('📦 Creating database', [
                 'database' => $name,
                 'charset' => $charset,
                 'collation' => $collation,
@@ -69,7 +69,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
                 "CREATE DATABASE `{$name}` CHARACTER SET {$charset} COLLATE {$collation}"
             );
 
-            \Log::info("✅ Database created successfully", ['database' => $name]);
+            \Log::info('✅ Database created successfully', ['database' => $name]);
 
             // Grant app user access to this specific tenant database
             // Skip if app user = provisioner user (local dev: both are root)
@@ -79,7 +79,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
             if ($appUser !== $provisionerUser) {
                 $appHost = $this->getAppUserHost();
 
-                \Log::info("🔐 Granting privileges to app user", [
+                \Log::info('🔐 Granting privileges to app user', [
                     'app_user' => $appUser,
                     'app_host' => $appHost,
                     'database' => $name,
@@ -89,19 +89,19 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
                     "GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$appUser}'@'{$appHost}'"
                 );
 
-                \Log::info("✅ Privileges granted successfully");
+                \Log::info('✅ Privileges granted successfully');
             } else {
-                \Log::info("⏭️ Skipping GRANT (app user = provisioner user)");
+                \Log::info('⏭️ Skipping GRANT (app user = provisioner user)');
             }
 
             // Note: FLUSH PRIVILEGES not needed - grants take effect immediately
             // and provisioner user doesn't have RELOAD privilege
 
-            \Log::info("🎉 Tenant database creation completed", ['database' => $name]);
+            \Log::info('🎉 Tenant database creation completed', ['database' => $name]);
 
             return true;
         } catch (\Exception $e) {
-            \Log::error("❌ Tenant database creation failed", [
+            \Log::error('❌ Tenant database creation failed', [
                 'database' => $name,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -131,7 +131,7 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
     protected function validateDatabaseName(string $name): void
     {
         // Check for valid characters (alphanumeric + underscore)
-        if (!preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
+        if (! preg_match('/^[a-zA-Z0-9_]+$/', $name)) {
             throw new \InvalidArgumentException(
                 "Invalid database name: {$name}. Only alphanumeric and underscore allowed."
             );
@@ -148,14 +148,15 @@ class SecureMySQLDatabaseManager extends MySQLDatabaseManager
         $expectedPrefix = config('tenancy.database.prefix');
         if (empty($expectedPrefix)) {
             // Log a warning but don't fail immediately if prefix is intentionally empty
-            \Log::warning("Tenant database prefix is not configured. Security validation might be bypassed.");
+            \Log::warning('Tenant database prefix is not configured. Security validation might be bypassed.');
+
             return;
         }
 
         if (! str_starts_with($name, $expectedPrefix)) {
             throw new \InvalidArgumentException(
-                "Database name [{$name}] must start with the configured prefix: [{$expectedPrefix}]. " .
-                "Please check TENANT_DB_PREFIX in your .env file."
+                "Database name [{$name}] must start with the configured prefix: [{$expectedPrefix}]. ".
+                'Please check TENANT_DB_PREFIX in your .env file.'
             );
         }
     }

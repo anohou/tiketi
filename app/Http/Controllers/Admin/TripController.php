@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Trip;
 use App\Models\Route;
+use App\Models\Trip;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,15 +21,15 @@ class TripController extends Controller
         $user = auth()->user();
 
         if ($user->role === 'admin') {
-             return Route::query();
+            return Route::query();
         }
 
         $stationIds = $user->stationAssignments()->pluck('station_id');
 
         // Allow access to routes where the user's station is origin OR destination
-        return Route::where(function($query) use ($stationIds) {
+        return Route::where(function ($query) use ($stationIds) {
             $query->whereIn('origin_station_id', $stationIds)
-                  ->orWhereIn('destination_station_id', $stationIds);
+                ->orWhereIn('destination_station_id', $stationIds);
         });
     }
 
@@ -42,13 +42,14 @@ class TripController extends Controller
             ->withCount(['tickets', 'tripSeatOccupancies as occupied_seats'])
             ->orderBy('departure_at', 'desc')
             ->paginate(20);
-        
+
         $routes = $this->getAccessibleRoutesQuery()
             ->with(['originStation', 'destinationStation'])
             ->orderBy('name')
             ->get();
-            
+
         $vehicles = Vehicle::orderBy('identifier')->get(['id', 'identifier']);
+
         return Inertia::render('Admin/Trips/Index', [
             'trips' => $trips,
             'routes' => $routes,
@@ -67,7 +68,7 @@ class TripController extends Controller
 
         return Inertia::render('Admin/Trips/Form', [
             'routes' => $routes,
-            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier'])
+            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier']),
         ]);
     }
 
@@ -77,33 +78,33 @@ class TripController extends Controller
     public function store(Request $request)
     {
         $user = auth()->user();
-        
+
         $data = $request->validate([
             'route_id' => [
-                'required', 
-                'uuid', 
+                'required',
+                'uuid',
                 'exists:routes,id',
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this route
                     $exists = $this->getAccessibleRoutesQuery()->where('id', $value)->exists();
-                    if (!$exists) {
+                    if (! $exists) {
                         $fail('Vous n\'avez pas accès à cet itinéraire (station non assignée).');
                     }
-                }
+                },
             ],
             'vehicle_id' => 'required|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'nullable|in:scheduled,boarding,departed,arrived,cancelled',
             'sales_control' => 'nullable|in:open,closed',
         ]);
-        
+
         // Set default status if not provided
         $data['status'] = $data['status'] ?? 'scheduled';
         $data['sales_control'] = $data['sales_control'] ?? 'closed';
-        
+
         // Determine trip origin and destination based on seller's station
         $route = Route::find($data['route_id']);
-        
+
         if ($user->role === 'admin') {
             // Admins create trips in the route's default direction
             $data['origin_station_id'] = $route->origin_station_id;
@@ -114,11 +115,11 @@ class TripController extends Controller
                 ->where('active', true)
                 ->pluck('station_id')
                 ->toArray();
-            
+
             // If seller's station is the route's destination (but not origin), reverse the direction
-            $isReversed = in_array($route->destination_station_id, $assignedStationIds) 
-                && !in_array($route->origin_station_id, $assignedStationIds);
-            
+            $isReversed = in_array($route->destination_station_id, $assignedStationIds)
+                && ! in_array($route->origin_station_id, $assignedStationIds);
+
             if ($isReversed) {
                 // Seller is at destination, so trip goes: destination -> origin
                 $data['origin_station_id'] = $route->destination_station_id;
@@ -129,7 +130,7 @@ class TripController extends Controller
                 $data['destination_station_id'] = $route->destination_station_id;
             }
         }
-        
+
         $trip = Trip::create($data);
 
         \App\Events\TripCreated::dispatch($trip);
@@ -138,7 +139,7 @@ class TripController extends Controller
         if ($user->role === 'admin') {
             return redirect()->route('admin.trips.index')->with('success', 'Voyage créé avec succès!');
         }
-        
+
         // Sellers and supervisors go back to ticketing with the new trip selected
         return redirect()->route('seller.ticketing', ['trip_id' => $trip->id])->with('success', 'Voyage créé avec succès!');
     }
@@ -159,7 +160,7 @@ class TripController extends Controller
         return Inertia::render('Admin/Trips/Form', [
             'trip' => $trip,
             'routes' => Route::orderBy('name')->get(['id', 'name']),
-            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier'])
+            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier']),
         ]);
     }
 
@@ -175,6 +176,7 @@ class TripController extends Controller
             'status' => 'required|in:scheduled,boarding,departed,arrived,cancelled',
         ]);
         $trip->update($data);
+
         return redirect()->route('admin.trips.index');
     }
 
@@ -184,6 +186,7 @@ class TripController extends Controller
     public function destroy(Trip $trip)
     {
         $trip->delete();
+
         return back();
     }
 }

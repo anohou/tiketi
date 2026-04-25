@@ -18,8 +18,8 @@ return new class extends Migration
             $table->unsignedInteger('stop_index'); // 0..n
             $table->timestamps();
 
-            $table->unique(['route_id','stop_index']);
-            $table->unique(['route_id','stop_id']);
+            $table->unique(['route_id', 'stop_index']);
+            $table->unique(['route_id', 'stop_id']);
         });
     }
 

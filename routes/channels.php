@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('trip.{tripId}', function ($user, $tripId) {
-    return !is_null($user);
+    return ! is_null($user);
 });
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
@@ -11,7 +11,10 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('station.{stationId}', function ($user, $stationId) {
-    if ($user->role === 'admin' || $user->role === 'executive') return true;
+    if ($user->role === 'admin' || $user->role === 'executive') {
+        return true;
+    }
+
     // Check if user is assigned to this station
     return $user->stationAssignments()->where('station_id', $stationId)->exists();
 });

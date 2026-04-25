@@ -16,7 +16,7 @@ return new class extends Migration
             // We assume standard naming: tickets_from_stop_id_foreign
             $table->dropForeign(['from_stop_id']);
             $table->dropForeign(['to_stop_id']);
-            
+
             // Rename columns
             $table->renameColumn('from_stop_id', 'from_station_id');
             $table->renameColumn('to_stop_id', 'to_station_id');

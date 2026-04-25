@@ -88,7 +88,7 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
 
         $connection = $this->getProvisionerConnection();
         $connection->statement(sprintf(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()",
+            'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()',
             $connection->getPdo()->quote($name),
         ));
         $connection->statement(sprintf('DROP DATABASE IF EXISTS %s', $this->quoteIdentifier($name)));
@@ -123,21 +123,22 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
         $expectedPrefix = config('tenancy.database.prefix');
         if (empty($expectedPrefix)) {
             // Log a warning but don't fail immediately if prefix is intentionally empty
-            \Log::warning("Tenant database prefix is not configured. Security validation might be bypassed.");
+            \Log::warning('Tenant database prefix is not configured. Security validation might be bypassed.');
+
             return;
         }
 
         if (! str_starts_with($name, $expectedPrefix)) {
             throw new \InvalidArgumentException(
-                "Database name [{$name}] must start with the configured prefix: [{$expectedPrefix}]. " .
-                "Please check TENANT_DB_PREFIX in your .env file."
+                "Database name [{$name}] must start with the configured prefix: [{$expectedPrefix}]. ".
+                'Please check TENANT_DB_PREFIX in your .env file.'
             );
         }
     }
 
     protected function quoteIdentifier(string $identifier): string
     {
-        return '"' . str_replace('"', '""', $identifier) . '"';
+        return '"'.str_replace('"', '""', $identifier).'"';
     }
 
     protected function tenantProvisionerConnection(string $database): ConnectionInterface

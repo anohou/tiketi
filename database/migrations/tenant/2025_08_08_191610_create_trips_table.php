@@ -16,7 +16,7 @@ return new class extends Migration
             $table->uuid('route_id')->index();
             $table->uuid('vehicle_id')->index();
             $table->dateTime('departure_at');
-            $table->enum('status', ['scheduled','boarding','departed','arrived','cancelled'])->index();
+            $table->enum('status', ['scheduled', 'boarding', 'departed', 'arrived', 'cancelled'])->index();
             $table->timestamps();
         });
     }

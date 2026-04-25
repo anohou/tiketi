@@ -29,4 +29,3 @@ Route::middleware([
     // require base_path('routes/web.php');
     // Note: web.php is now loaded globally in bootstrap/app.php with universal tenancy middleware
 });
-

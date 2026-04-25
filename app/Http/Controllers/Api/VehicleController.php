@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
-use Illuminate\Http\Request;
 
 class VehicleController extends Controller
 {
@@ -34,7 +33,7 @@ class VehicleController extends Controller
         return response()->json([
             'success' => true,
             'data' => $vehicles,
-            'message' => 'Véhicules récupérés avec succès'
+            'message' => 'Véhicules récupérés avec succès',
         ]);
     }
 
@@ -64,7 +63,7 @@ class VehicleController extends Controller
                     'svg_template_path' => $vehicleType->svg_template_path,
                 ],
             ],
-            'message' => 'Plan du véhicule récupéré avec succès'
+            'message' => 'Plan du véhicule récupéré avec succès',
         ]);
     }
 
@@ -90,7 +89,7 @@ class VehicleController extends Controller
         return response()->json([
             'success' => true,
             'data' => $types,
-            'message' => 'Types de véhicules récupérés avec succès'
+            'message' => 'Types de véhicules récupérés avec succès',
         ]);
     }
 }

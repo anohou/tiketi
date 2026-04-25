@@ -2,19 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Ticket extends Model
 {
     use HasUuids;
-    
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
-        'ticket_number','trip_id','vehicle_id','seat_number','from_station_id','to_station_id','price','seller_id','station_id','status','boarding_group','qr_payload','passenger_name','passenger_phone','qr_code'
+        'ticket_number', 'trip_id', 'vehicle_id', 'seat_number', 'from_station_id', 'to_station_id', 'price', 'seller_id', 'station_id', 'status', 'boarding_group', 'qr_payload', 'passenger_name', 'passenger_phone', 'qr_code',
     ];
 
     protected $casts = [
@@ -49,8 +50,6 @@ class Ticket extends Model
     {
         return $this->belongsTo(Station::class, 'to_station_id');
     }
-
-
 
     public function seller()
     {

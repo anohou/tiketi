@@ -16,7 +16,7 @@ return new class extends Migration
             // This allows a trip on "Abidjan -> Bondoukou" route to be created as "Bondoukou -> Abidjan"
             $table->uuid('origin_station_id')->nullable()->after('route_id');
             $table->uuid('destination_station_id')->nullable()->after('origin_station_id');
-            
+
             $table->foreign('origin_station_id')->references('id')->on('stations')->onDelete('set null');
             $table->foreign('destination_station_id')->references('id')->on('stations')->onDelete('set null');
         });

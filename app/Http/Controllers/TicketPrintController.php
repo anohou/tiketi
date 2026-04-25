@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ticket;
-use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class TicketPrintController extends Controller
@@ -16,7 +16,7 @@ class TicketPrintController extends Controller
             'trip.vehicle',
             'fromStation',
             'toStation',
-            'seller'
+            'seller',
         ])->findOrFail($ticketId);
 
         // Générer le QR code
@@ -29,13 +29,13 @@ class TicketPrintController extends Controller
             'seat_number' => $ticket->seat_number,
             'passenger_name' => $ticket->passenger_name,
             'amount' => $ticket->amount,
-            'timestamp' => $ticket->created_at->timestamp
+            'timestamp' => $ticket->created_at->timestamp,
         ]));
 
         // Retourner la vue directement pour impression HTML
         return view('tickets.print', [
             'ticket' => $ticket,
-            'qrCode' => $qrCode
+            'qrCode' => $qrCode,
         ]);
     }
 
@@ -43,7 +43,7 @@ class TicketPrintController extends Controller
     {
         $ticketIds = $request->validate([
             'ticket_ids' => 'required|array',
-            'ticket_ids.*' => 'uuid|exists:tickets,id'
+            'ticket_ids.*' => 'uuid|exists:tickets,id',
         ])['ticket_ids'];
 
         $tickets = Ticket::with([
@@ -51,7 +51,7 @@ class TicketPrintController extends Controller
             'trip.vehicle',
             'fromStation',
             'toStation',
-            'seller'
+            'seller',
         ])->whereIn('id', $ticketIds)->get();
 
         $qrCodes = [];
@@ -65,16 +65,15 @@ class TicketPrintController extends Controller
                 'seat_number' => $ticket->seat_number,
                 'passenger_name' => $ticket->passenger_name,
                 'amount' => $ticket->amount,
-                'timestamp' => $ticket->created_at->timestamp
+                'timestamp' => $ticket->created_at->timestamp,
             ]));
         }
 
         $pdf = PDF::loadView('tickets.print-multiple', [
             'tickets' => $tickets,
-            'qrCodes' => $qrCodes
+            'qrCodes' => $qrCodes,
         ]);
 
-        return $pdf->stream("tickets-" . now()->format('Y-m-d-H-i-s') . ".pdf");
+        return $pdf->stream('tickets-'.now()->format('Y-m-d-H-i-s').'.pdf');
     }
 }
-

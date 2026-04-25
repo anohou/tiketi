@@ -22,13 +22,21 @@ class CreateAdminUser extends Command
     protected $description = 'Create a central application admin account';
 
     private const MODEL_CLASS = 'App\Models\User';
+
     private const NAME_COLUMN = 'name';
+
     private const EMAIL_COLUMN = 'email';
+
     private const PASSWORD_COLUMN = 'password';
+
     private const ROLE_COLUMN = 'role';
+
     private const ACTIVE_COLUMN = 'active';
+
     private const EMAIL_VERIFIED_COLUMN = 'email_verified_at';
+
     private const DEFAULT_ROLE = 'superadmin';
+
     private const DEFAULT_ACTIVE = true;
 
     public function handle(): int
@@ -37,6 +45,7 @@ class CreateAdminUser extends Command
 
         if (! class_exists($modelClass) || ! is_subclass_of($modelClass, Model::class)) {
             $this->error("Configured admin model [{$modelClass}] is not an Eloquent model.");
+
             return self::FAILURE;
         }
 
@@ -49,6 +58,7 @@ class CreateAdminUser extends Command
             $confirmation = (string) $this->secret('Confirm admin password');
             if (! hash_equals($password, $confirmation)) {
                 $this->error('Password confirmation does not match.');
+
                 return self::FAILURE;
             }
         }
@@ -69,11 +79,13 @@ class CreateAdminUser extends Command
             foreach ($validator->errors()->all() as $error) {
                 $this->error($error);
             }
+
             return self::FAILURE;
         }
 
         if (! $this->emailIsAllowed($email)) {
             $this->error("Email [{$email}] is not allowed by ADMIN_EMAIL_WHITELIST.");
+
             return self::FAILURE;
         }
 
@@ -81,6 +93,7 @@ class CreateAdminUser extends Command
         $existing = $modelClass::query()->where(self::EMAIL_COLUMN, $email)->first();
         if ($existing && ! $this->option('update')) {
             $this->error("A user with email [{$email}] already exists. Re-run with --update to update it.");
+
             return self::FAILURE;
         }
 
@@ -93,6 +106,7 @@ class CreateAdminUser extends Command
             $this->line("Role: {$role}");
             if (! $this->confirm('Continue?', true)) {
                 $this->warn('No changes made.');
+
                 return self::SUCCESS;
             }
         }
@@ -119,17 +133,20 @@ class CreateAdminUser extends Command
             if ($existing) {
                 $existing->forceFill($attributes)->save();
                 $this->info("Admin account updated: {$email}");
+
                 return self::SUCCESS;
             }
 
             /** @var Model $user */
-            $user = new $modelClass();
+            $user = new $modelClass;
             $user->forceFill($attributes)->save();
             $this->info("Admin account created: {$email}");
+
             return self::SUCCESS;
         } catch (\Throwable $exception) {
             report($exception);
             $this->error('Admin account creation failed: '.$exception->getMessage());
+
             return self::FAILURE;
         }
     }

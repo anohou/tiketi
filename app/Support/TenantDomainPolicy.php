@@ -230,7 +230,7 @@ class TenantDomainPolicy
             return true;
         }
 
-        $suffix = '.' . self::PLATFORM_DOMAIN;
+        $suffix = '.'.self::PLATFORM_DOMAIN;
 
         if (! str_ends_with($domain, $suffix)) {
             return false;

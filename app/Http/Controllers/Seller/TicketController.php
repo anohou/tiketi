@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Seller;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class TicketController extends Controller
@@ -17,7 +16,7 @@ class TicketController extends Controller
             ->paginate(20);
 
         return Inertia::render('Seller/Tickets/Index', [
-            'tickets' => $tickets
+            'tickets' => $tickets,
         ]);
     }
 }

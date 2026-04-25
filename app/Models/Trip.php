@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class Trip extends Model
 {
     use HasUuids;
-    
+
     public $incrementing = false;
+
     protected $keyType = 'string';
 
     protected $fillable = [
@@ -21,7 +22,7 @@ class Trip extends Model
         'booking_type',
         'sales_control',
         'origin_station_id',
-        'destination_station_id'
+        'destination_station_id',
     ];
 
     protected $casts = [
@@ -36,8 +37,9 @@ class Trip extends Model
     public function getDisplayNameAttribute()
     {
         if ($this->originStation && $this->destinationStation) {
-            return $this->originStation->name . ' -> ' . $this->destinationStation->name;
+            return $this->originStation->name.' -> '.$this->destinationStation->name;
         }
+
         // Fallback to route name if stations not set
         return $this->route?->name ?? 'Unknown';
     }

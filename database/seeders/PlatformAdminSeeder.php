@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 /**
  * Platform Admin Seeder
- * 
+ *
  * Creates a superadmin user for the central (landlord) database.
  * This user can log in to the central domain and manage tenants.
  */
@@ -25,7 +25,7 @@ class PlatformAdminSeeder extends Seeder
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        
+
         $this->command->info('Platform admin created:');
         $this->command->info('  Email: admin@transport.ci');
         $this->command->info('  Password: password');

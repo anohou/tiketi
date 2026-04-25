@@ -5,13 +5,13 @@ namespace App\Services;
 class SeatMapService
 {
     /**
-     * Ensures the seat map is a 2D grid. 
+     * Ensures the seat map is a 2D grid.
      * If metadata is provided, it generates the grid.
      */
     public function ensureGrid(array $seatMap, array $context = []): array
     {
         // Check if it's already a 2D grid (array of arrays where first element is an array)
-        if (!empty($seatMap) && isset($seatMap[0]) && is_array($seatMap[0])) {
+        if (! empty($seatMap) && isset($seatMap[0]) && is_array($seatMap[0])) {
             return $seatMap;
         }
 
@@ -46,11 +46,11 @@ class SeatMapService
         $seatsToFill = $seatCount - $lastRowSeats;
         $filledSeats = 0;
         $slotsPerRow = $leftCount + $rightCount;
-        
+
         // Keep generating rows until we have filled all seats
         while ($filledSeats < $seatsToFill) {
             $row = [];
-            
+
             // Row 0 is often considered the driver row in this app's logic
             // Calculate start slot for this row (1-based)
             $rowStartSlot = ($rowIndex - 1) * $slotsPerRow + 1;
@@ -67,8 +67,8 @@ class SeatMapService
                     $currentSlot = $rowStartSlot + $i;
                     if (in_array($currentSlot, $doorPositions)) {
                         $row[] = ['type' => 'door'];
-                    } else if ($filledSeats < $seatsToFill) {
-                        $row[] = ['type' => 'seat', 'number' => (string)$currentSeatNum++];
+                    } elseif ($filledSeats < $seatsToFill) {
+                        $row[] = ['type' => 'seat', 'number' => (string) $currentSeatNum++];
                         $filledSeats++;
                     } else {
                         $row[] = ['type' => 'empty'];
@@ -81,29 +81,29 @@ class SeatMapService
 
             // Right Side
             if ($rowIndex === 0) {
-                 if (in_array(0, $doorPositions)) {
-                     // Place empty cells first, then door at outer edge
-                     for ($i = 1; $i < $rightCount; $i++) {
-                         $row[] = ['type' => 'empty'];
-                     }
-                     $row[] = ['type' => 'door', 'label' => 'Porte'];
-                 } else {
-                     for ($i = 0; $i < $rightCount; $i++) {
+                if (in_array(0, $doorPositions)) {
+                    // Place empty cells first, then door at outer edge
+                    for ($i = 1; $i < $rightCount; $i++) {
+                        $row[] = ['type' => 'empty'];
+                    }
+                    $row[] = ['type' => 'door', 'label' => 'Porte'];
+                } else {
+                    for ($i = 0; $i < $rightCount; $i++) {
                         if ($filledSeats < $seatsToFill) {
-                            $row[] = ['type' => 'seat', 'number' => (string)$currentSeatNum++];
+                            $row[] = ['type' => 'seat', 'number' => (string) $currentSeatNum++];
                             $filledSeats++;
                         } else {
                             $row[] = ['type' => 'empty'];
                         }
-                     }
-                 }
+                    }
+                }
             } else {
                 for ($i = 0; $i < $rightCount; $i++) {
                     $currentSlot = $rowStartSlot + $leftCount + $i;
                     if (in_array($currentSlot, $doorPositions)) {
                         $row[] = ['type' => 'door'];
-                    } else if ($filledSeats < $seatsToFill) {
-                        $row[] = ['type' => 'seat', 'number' => (string)$currentSeatNum++];
+                    } elseif ($filledSeats < $seatsToFill) {
+                        $row[] = ['type' => 'seat', 'number' => (string) $currentSeatNum++];
                         $filledSeats++;
                     } else {
                         $row[] = ['type' => 'empty'];
@@ -120,7 +120,7 @@ class SeatMapService
         if ($remainingSeats > 0) {
             $lastRow = [];
             for ($i = 0; $i < $remainingSeats; $i++) {
-                $lastRow[] = ['type' => 'seat', 'number' => (string)$currentSeatNum++];
+                $lastRow[] = ['type' => 'seat', 'number' => (string) $currentSeatNum++];
             }
             $seatMap[] = $lastRow;
         }

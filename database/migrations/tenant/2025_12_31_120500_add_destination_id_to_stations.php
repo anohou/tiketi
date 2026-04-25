@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::table('stations', function (Blueprint $table) {
             $table->foreignUuid('destination_id')
-                  ->nullable() // Initially nullable for migration
-                  ->after('name')
-                  ->constrained('destinations')
-                  ->nullOnDelete();
+                ->nullable() // Initially nullable for migration
+                ->after('name')
+                ->constrained('destinations')
+                ->nullOnDelete();
         });
     }
 

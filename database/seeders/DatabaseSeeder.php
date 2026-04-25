@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -33,7 +33,6 @@ class DatabaseSeeder extends Seeder
             $existingTenant->delete();
         }
 
-
         // Ensure DB is gone (handled by model deletion usually)
         // \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
 
@@ -50,7 +49,7 @@ class DatabaseSeeder extends Seeder
 
         // Initialize Seeding for Test Tenant
         $tenant->run(function () {
-             $this->call(TenantSeeder::class);
+            $this->call(TenantSeeder::class);
         });
     }
 }

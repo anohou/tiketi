@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::table('trips', function (Blueprint $table) {
             $table->enum('booking_type', ['seat_assignment', 'bulk'])
-                  ->default('seat_assignment')
-                  ->after('status')
-                  ->index()
-                  ->comment('Type de réservation: seat_assignment (placement intelligent) ou bulk (en vrac)');
+                ->default('seat_assignment')
+                ->after('status')
+                ->index()
+                ->comment('Type de réservation: seat_assignment (placement intelligent) ou bulk (en vrac)');
         });
     }
 

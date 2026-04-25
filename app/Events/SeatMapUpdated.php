@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -13,8 +12,7 @@ class SeatMapUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public string $tripId, public array $changedSeats)
-    {}
+    public function __construct(public string $tripId, public array $changedSeats) {}
 
     /**
      * Get the channels the event should broadcast on.

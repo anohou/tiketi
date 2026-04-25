@@ -44,7 +44,7 @@ class DestinationController extends Controller
     public function update(Request $request, Destination $destination)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:destinations,name,' . $destination->id,
+            'name' => 'required|string|max:255|unique:destinations,name,'.$destination->id,
             'city' => 'nullable|string|max:255',
             'region' => 'nullable|string|max:255',
             'is_active' => 'boolean',
@@ -63,7 +63,7 @@ class DestinationController extends Controller
         }
 
         if ($destination->originRoutes()->exists() || $destination->targetRoutes()->exists()) {
-             return back()->with('error', 'Impossible de supprimer cette destination car elle est liée à des routes.');
+            return back()->with('error', 'Impossible de supprimer cette destination car elle est liée à des routes.');
         }
 
         $destination->delete();

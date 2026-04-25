@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\TicketSetting;
+use Illuminate\Database\Seeder;
 
 class TicketSettingSeeder extends Seeder
 {

@@ -48,9 +48,10 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($response->getStatusCode() === 403 && request()->inertia()) {
                 return \Inertia\Inertia::render('Error', [
                     'status' => 403,
-                    'message' => $response->exception->getMessage() ?: "Accès refusé.",
+                    'message' => $response->exception->getMessage() ?: 'Accès refusé.',
                 ])->toResponse(request())->setStatusCode(403);
             }
+
             return $response;
         });
     })->create();

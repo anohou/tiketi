@@ -30,7 +30,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        
+
         // Get assigned stations for the current user (only if tenancy is initialized)
         $assignedStations = [];
         $isTenant = function_exists('tenancy') && tenancy()->initialized;
@@ -40,7 +40,7 @@ class HandleInertiaRequests extends Middleware
                 ->where('active', true)
                 ->with('station')
                 ->get()
-                ->map(function($assignment) {
+                ->map(function ($assignment) {
                     return [
                         'id' => $assignment->station->id,
                         'name' => $assignment->station->name,

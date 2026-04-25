@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Executive;
 
 use App\Http\Controllers\Controller;
+use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
-use App\Models\User;
-use App\Models\Station;
-use App\Models\Route;
 use App\Models\Vehicle;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Carbon\Carbon;
 
 class AnalyticsController extends Controller
 {
@@ -21,7 +19,7 @@ class AnalyticsController extends Controller
     public function index(Request $request)
     {
         $period = $request->get('period', 'month'); // day, week, month, quarter, year
-        
+
         // Determine date range based on period
         $now = Carbon::now();
         switch ($period) {
@@ -62,11 +60,11 @@ class AnalyticsController extends Controller
         $previousTickets = Ticket::whereBetween('created_at', [$compareStart, $compareEnd])->count();
 
         // Calculate growth percentages
-        $revenueGrowth = $previousRevenue > 0 
-            ? round((($currentRevenue - $previousRevenue) / $previousRevenue) * 100, 1) 
+        $revenueGrowth = $previousRevenue > 0
+            ? round((($currentRevenue - $previousRevenue) / $previousRevenue) * 100, 1)
             : 0;
-        $ticketGrowth = $previousTickets > 0 
-            ? round((($currentTickets - $previousTickets) / $previousTickets) * 100, 1) 
+        $ticketGrowth = $previousTickets > 0
+            ? round((($currentTickets - $previousTickets) / $previousTickets) * 100, 1)
             : 0;
 
         // KPIs

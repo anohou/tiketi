@@ -16,9 +16,9 @@ class UserController extends Controller
         $users = User::with(['stationAssignments.station'])
             ->orderBy('name')
             ->paginate(20);
-            
+
         $stations = \App\Models\Station::orderBy('name')->get(['id', 'name', 'city']);
-        
+
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
             'stations' => $stations,
@@ -67,7 +67,7 @@ class UserController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
             'telephone' => 'required|string|max:20',
             'role' => 'required|in:admin,supervisor,seller',
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
@@ -93,7 +93,8 @@ class UserController extends Controller
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre compte.');
         }
 
-        $user->update(['active' => !$user->active]);
+        $user->update(['active' => ! $user->active]);
+
         return back()->with('success', $user->active ? 'Utilisateur activé.' : 'Utilisateur désactivé.');
     }
 
@@ -104,6 +105,7 @@ class UserController extends Controller
         }
 
         $user->delete();
+
         return back()->with('success', 'Utilisateur supprimé avec succès.');
     }
 }

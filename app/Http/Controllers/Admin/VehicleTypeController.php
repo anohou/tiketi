@@ -22,6 +22,7 @@ class VehicleTypeController extends Controller
     public function index()
     {
         $vehicleTypes = VehicleType::orderBy('name')->paginate(20);
+
         return Inertia::render('Admin/VehicleTypes/Index', [
             'vehicleTypes' => $vehicleTypes,
         ]);
@@ -50,6 +51,7 @@ class VehicleTypeController extends Controller
         ]);
         $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
         VehicleType::create($data);
+
         return redirect()->route('admin.vehicle-types.index');
     }
 
@@ -86,6 +88,7 @@ class VehicleTypeController extends Controller
         ]);
         $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
         $vehicleType->update($data);
+
         return redirect()->route('admin.vehicle-types.index');
     }
 
@@ -95,6 +98,7 @@ class VehicleTypeController extends Controller
     public function destroy(VehicleType $vehicleType)
     {
         $vehicleType->delete();
+
         return back();
     }
 }

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->uuid('ticket_id')->nullable()->index();
             $table->timestamps();
 
-            $table->unique(['trip_id','seat_number'], 'uniq_trip_seat');
+            $table->unique(['trip_id', 'seat_number'], 'uniq_trip_seat');
         });
     }
 

@@ -17,11 +17,11 @@ class RoleMiddleware
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             abort(401);
         }
 
-        if (!empty($roles) && !in_array($user->role, $roles, true)) {
+        if (! empty($roles) && ! in_array($user->role, $roles, true)) {
             abort(403, "Accès refusé. Vous n'avez pas les droits nécessaires pour accéder à cette page.");
         }
 

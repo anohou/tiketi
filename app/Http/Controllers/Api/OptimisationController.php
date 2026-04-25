@@ -19,7 +19,7 @@ class OptimisationController extends Controller
     /**
      * Obtient les suggestions de sièges pour un voyage
      * POST /api/trips/{tripId}/suggest-seats
-     * 
+     *
      * Body: {
      *   "destination_stop_id": "uuid"
      * }
@@ -36,7 +36,7 @@ class OptimisationController extends Controller
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors(),
-                'message' => 'Données invalides'
+                'message' => 'Données invalides',
             ], 422);
         }
 
@@ -63,14 +63,14 @@ class OptimisationController extends Controller
                         'occupancy_rate' => $stats['occupancy_rate'],
                     ],
                 ],
-                'message' => count($suggestions) > 0 
-                    ? 'Suggestions de sièges générées avec succès' 
-                    : 'Aucune suggestion (mode en vrac ou véhicule complet)'
+                'message' => count($suggestions) > 0
+                    ? 'Suggestions de sièges générées avec succès'
+                    : 'Aucune suggestion (mode en vrac ou véhicule complet)',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la génération des suggestions: ' . $e->getMessage()
+                'message' => 'Erreur lors de la génération des suggestions: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -87,12 +87,12 @@ class OptimisationController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => $stats,
-                'message' => 'Statistiques d\'occupation récupérées avec succès'
+                'message' => 'Statistiques d\'occupation récupérées avec succès',
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des statistiques: ' . $e->getMessage()
+                'message' => 'Erreur lors de la récupération des statistiques: '.$e->getMessage(),
             ], 500);
         }
     }

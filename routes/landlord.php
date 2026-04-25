@@ -22,7 +22,7 @@ Route::middleware(['web', 'auth'])->prefix('landlord')->name('landlord.')->group
     Route::get('/tenants/{tenant}/edit', [\App\Http\Controllers\Landlord\TenantController::class, 'edit'])->name('tenants.edit');
     Route::put('/tenants/{tenant}', [\App\Http\Controllers\Landlord\TenantController::class, 'update'])->name('tenants.update');
     Route::delete('/tenants/{tenant}', [\App\Http\Controllers\Landlord\TenantController::class, 'destroy'])->name('tenants.destroy');
-    
+
     // Domain Management for a tenant
     Route::post('/tenants/{tenant}/domains', [\App\Http\Controllers\Landlord\TenantController::class, 'addDomain'])->name('tenants.domains.store');
     Route::delete('/tenants/{tenant}/domains/{domain}', [\App\Http\Controllers\Landlord\TenantController::class, 'removeDomain'])->name('tenants.domains.destroy');

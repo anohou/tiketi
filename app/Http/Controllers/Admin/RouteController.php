@@ -16,38 +16,38 @@ class RouteController extends Controller
     public function index()
     {
         $routes = BusRoute::with([
-            'originDestination', 
+            'originDestination',
             'targetDestination',
             'originStation', // Optional
             'destinationStation', // Optional
             'routeStopOrders.station', // Changed from stop.station
-            'trips.vehicle'
+            'trips.vehicle',
         ])
-        ->withCount(['trips', 'routeStopOrders'])
-        ->orderBy('name')
-        ->paginate(50);
-            
+            ->withCount(['trips', 'routeStopOrders'])
+            ->orderBy('name')
+            ->paginate(50);
+
         $destinations = \App\Models\Destination::orderBy('name')->get(['id', 'name']);
-        
+
         // Provide all stations for intermediate stops selection
         $stations = Station::with('destination')->orderBy('name')->get()->map(function ($station) {
             return [
                 'id' => $station->id,
                 'name' => $station->name,
                 'city' => $station->destination ? $station->destination->name : $station->city,
-                'destination_id' => $station->destination_id
+                'destination_id' => $station->destination_id,
             ];
         });
-        
+
         // Get all fares
         $fares = \App\Models\RouteFare::with(['fromStation', 'toStation'])->get(); // Changed relations
-        
-        return Inertia::render('Admin/Routes/Index', [ 
+
+        return Inertia::render('Admin/Routes/Index', [
             'routes' => $routes,
             'destinations' => $destinations,
             'stations' => $stations,
             // 'stops' removed as concept
-            'fares' => $fares
+            'fares' => $fares,
         ]);
     }
 
@@ -55,7 +55,7 @@ class RouteController extends Controller
     {
         return Inertia::render('Admin/Routes/Form', [
             'destinations' => \App\Models\Destination::orderBy('name')->get(),
-            'stations' => Station::orderBy('name')->get()
+            'stations' => Station::orderBy('name')->get(),
         ]);
     }
 
@@ -67,8 +67,9 @@ class RouteController extends Controller
             'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
         ]);
-        
+
         BusRoute::create($data);
+
         return redirect()->route('admin.routes.index');
     }
 
@@ -82,7 +83,7 @@ class RouteController extends Controller
         return Inertia::render('Admin/Routes/Form', [
             'routeItem' => $route,
             'destinations' => \App\Models\Destination::orderBy('name')->get(),
-            'stations' => Station::orderBy('name')->get()
+            'stations' => Station::orderBy('name')->get(),
         ]);
     }
 
@@ -94,14 +95,16 @@ class RouteController extends Controller
             'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
         ]);
-        
+
         $route->update($data);
+
         return redirect()->route('admin.routes.index');
     }
 
     public function destroy(BusRoute $route)
     {
         $route->delete();
+
         return back();
     }
 }

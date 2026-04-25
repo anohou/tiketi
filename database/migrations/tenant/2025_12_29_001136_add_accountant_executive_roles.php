@@ -7,7 +7,7 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     * 
+     *
      * Add 'accountant' and 'executive' roles to the users table enum.
      */
     public function up(): void
@@ -42,7 +42,7 @@ return new class extends Migration
 
         if ($driver === 'pgsql') {
             DB::statement('ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(255)');
-            DB::statement('ALTER TABLE users ALTER COLUMN role SET DEFAULT ' . DB::getPdo()->quote('seller'));
+            DB::statement('ALTER TABLE users ALTER COLUMN role SET DEFAULT '.DB::getPdo()->quote('seller'));
             DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
             DB::statement(sprintf(
                 'ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN (%s))',

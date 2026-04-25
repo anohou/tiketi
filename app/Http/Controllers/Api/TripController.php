@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
 use App\Models\Trip;
 use App\Services\OptimisationService;
 use Illuminate\Http\Request;
@@ -22,10 +21,10 @@ class TripController extends Controller
         $user = auth()->user();
         $query = Trip::withCount('tripSeatOccupancies as occupied_seats')
             ->with([
-                'route.originStation', 
-                'route.destinationStation', 
+                'route.originStation',
+                'route.destinationStation',
                 'route.routeStopOrders.station',
-                'vehicle.vehicleType'
+                'vehicle.vehicleType',
             ])
             ->where('departure_at', '>=', now())
             ->orderBy('departure_at');
@@ -38,11 +37,11 @@ class TripController extends Controller
 
             // Filtrer par route - tous les voyages passant par les stations assignées sont visibles
             // Le contrôle sales_control s'applique uniquement au moment de la vente
-            $query->whereHas('route', function($q) use ($assignedStationIds) {
+            $query->whereHas('route', function ($q) use ($assignedStationIds) {
                 $q->whereIn('origin_station_id', $assignedStationIds)
-                  ->orWhereHas('routeStopOrders', function($sq) use ($assignedStationIds) {
-                      $sq->whereIn('station_id', $assignedStationIds);
-                  });
+                    ->orWhereHas('routeStopOrders', function ($sq) use ($assignedStationIds) {
+                        $sq->whereIn('station_id', $assignedStationIds);
+                    });
             });
         }
 
@@ -63,8 +62,8 @@ class TripController extends Controller
 
         // Utiliser le service d'optimisation
         $suggestions = $this->optimisationService->getSuggestedSeats(
-            $trip->id, 
-            $destinationStationId, 
+            $trip->id,
+            $destinationStationId,
             $quantity,
             $boardingStationId
         );
@@ -78,17 +77,17 @@ class TripController extends Controller
                 'occupied_seats' => $stats['occupied_seats'],
                 'available_seats' => $stats['available_seats'],
                 'occupancy_rate' => $stats['occupancy_rate'],
-            ]
+            ],
         ]);
     }
-    
+
     public function seatMap(Trip $trip, Request $request)
     {
         $validated = $request->validate([
             'from_station_id' => 'nullable|uuid',
             'to_station_id' => 'nullable|uuid',
         ]);
-        
+
         $reqFromId = $validated['from_station_id'] ?? null;
         $reqToId = $validated['to_station_id'] ?? null;
 
@@ -98,46 +97,48 @@ class TripController extends Controller
         $seatCount = $vehicleType->seat_count;
         $config = $vehicleType->seat_configuration ?? '2+2';
         $parts = array_map('intval', explode('+', $config));
-        
+
         // Map station_id => stop_index using routeStopOrders
         $stationIndices = $trip->route?->routeStopOrders?->pluck('stop_index', 'station_id')?->toArray() ?? [];
         $totalStops = count($stationIndices);
-        
+
         // Determine requested segment indices (default to full route if not provided)
         $reqStartIndex = 0;
-        $reqEndIndex = max(0, $totalStops - 1); 
-        
+        $reqEndIndex = max(0, $totalStops - 1);
+
         if ($reqFromId && isset($stationIndices[$reqFromId])) {
-             $reqStartIndex = $stationIndices[$reqFromId];
+            $reqStartIndex = $stationIndices[$reqFromId];
         }
         if ($reqToId && isset($stationIndices[$reqToId])) {
-             $reqEndIndex = $stationIndices[$reqToId];
+            $reqEndIndex = $stationIndices[$reqToId];
         }
 
         $occupiedSeatsLookup = $trip->tripSeatOccupancies->keyBy('seat_number')->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
-            if (!$occupancy->ticket) {
-                return false; 
+            if (! $occupancy->ticket) {
+                return false;
             }
-            
+
             // Get Ticket Segment Indices
             $ticketFromIdx = $stationIndices[$occupancy->ticket->from_station_id] ?? null;
             $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
-            
+
             // Safety fallback: if stations not found in current route, assume occupied to be safe
-            if ($ticketFromIdx === null || $ticketToIdx === null) return true;
-            
+            if ($ticketFromIdx === null || $ticketToIdx === null) {
+                return true;
+            }
+
             // Check Overlap: [TicketStart, TicketEnd) vs [ReqStart, ReqEnd)
             // Overlap condition: Start1 < End2 && Start2 < End1
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
-            
+
         })->map(function ($occupancy) use ($stationIndices, $totalStops) {
             $ticketToStation = $occupancy->ticket->toStation;
             $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
             $stopOrder = $ticketToIdx !== null ? $ticketToIdx + 1 : $totalStops;
-            
+
             return [
                 'destination_name' => $ticketToStation->name ?? 'Inconnu',
-                'color' => $this->getStopColor($stopOrder, $totalStops)
+                'color' => $this->getStopColor($stopOrder, $totalStops),
             ];
         });
 
@@ -145,22 +146,22 @@ class TripController extends Controller
         // '0' represents the front door aligned with driver (doesn't consume a seat)
         // Any other number represents a seat replaced by a door
         $dbDoorPositions = $vehicleType->door_positions ?? [];
-        $doorPositions = array_filter($dbDoorPositions, function($pos) {
+        $doorPositions = array_filter($dbDoorPositions, function ($pos) {
             return $pos > 0;
         });
-        
+
         // Use SeatMapService to ensure we have a valid 2D grid
         $seatMapService = app(\App\Services\SeatMapService::class);
         $storedSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
             'seat_count' => $seatCount,
             'seat_configuration' => $config,
             'door_positions' => $dbDoorPositions,
-            'last_row_seats' => $vehicleType->last_row_seats ?? 5
+            'last_row_seats' => $vehicleType->last_row_seats ?? 5,
         ]);
-        
+
         $seatMap = [];
         $processedSeatsCount = 0;
-        
+
         foreach ($storedSeatMap as $row) {
             $processedRow = [];
             foreach ($row as $seat) {
@@ -169,7 +170,7 @@ class TripController extends Controller
                     $seatNumber = (int) $seat['number'];
                     $isOccupied = $occupiedSeatsLookup->has($seatNumber);
                     $seatData = $occupiedSeatsLookup->get($seatNumber);
-                    
+
                     $processedRow[] = array_merge($seat, [
                         'isOccupied' => $isOccupied,
                         'destination_name' => $isOccupied ? $seatData['destination_name'] : null,
@@ -183,7 +184,7 @@ class TripController extends Controller
             }
             $seatMap[] = $processedRow;
         }
-        
+
         return response()->json([
             'seat_map' => $seatMap,
             'total_seats' => $seatCount, // Total capacity
@@ -199,18 +200,20 @@ class TripController extends Controller
      */
     private function getStopColor(int $stopOrder, int $totalStops): string
     {
-        if ($totalStops <= 1) return '#3B82F6'; // Blue-500 default
+        if ($totalStops <= 1) {
+            return '#3B82F6';
+        } // Blue-500 default
 
         // Normalize the order between 0 and 1
         $ratio = ($stopOrder - 1) / ($totalStops - 1); // 0 = first stop, 1 = last stop
-        
+
         // Blue gradient
         // HSL: 220 (Blue)
         // Saturation: 100%
         // Lightness: From 85% (very very light/close) to 30% (dark/far)
-        
+
         $lightness = 85 - ($ratio * 55); // 85 -> 30
-        
+
         return "hsl(220, 100%, {$lightness}%)";
     }
 }

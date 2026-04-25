@@ -18,7 +18,7 @@ return new class extends Migration
             $table->uuid('station_id')->nullable()->index();
             $table->boolean('active')->default(true);
             $table->timestamps();
-            $table->unique(['user_id','route_id','station_id']);
+            $table->unique(['user_id', 'route_id', 'station_id']);
         });
     }
 

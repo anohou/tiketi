@@ -12,9 +12,9 @@ class TicketSettingController extends Controller
     public function index()
     {
         $settings = TicketSetting::getSettings();
-        
+
         return Inertia::render('Admin/TicketSettings/Index', [
-            'settings' => $settings
+            'settings' => $settings,
         ]);
     }
 

@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class UserRouteAssignment extends Model
 {
     use HasUuids;
-    
+
     public $incrementing = false;
+
     protected $keyType = 'string';
-    protected $fillable = ['user_id','route_id','station_id','active'];
+
+    protected $fillable = ['user_id', 'route_id', 'station_id', 'active'];
 
     protected static function booted(): void
     {
@@ -38,5 +40,3 @@ class UserRouteAssignment extends Model
         return $this->belongsTo(Station::class);
     }
 }
-
-

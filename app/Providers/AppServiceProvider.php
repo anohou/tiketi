@@ -20,10 +20,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../../database/landlord_migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../../database/landlord_migrations');
 
         Vite::prefetch(concurrency: 3);
-
 
         // Removed forced root URL to allow multi-tenancy to detect correct domain
     }
