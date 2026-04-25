@@ -90,10 +90,23 @@ jobs:
             echo "Unable to resolve registry.image or app.image from deployment/config/config.yml" >&2
             exit 1
           fi
+          ci_source_root="$(
+            awk '
+              $1 == "deploy:" { section="deploy"; next }
+              /^[^[:space:]][^:]*:/ { section=""; next }
+              section == "deploy" && $1 == "ci_source_root:" {
+                sub(/^[^:]+:[[:space:]]*/, "")
+                gsub(/^"|"$/, "")
+                print
+                exit
+              }
+            ' deployment/config/config.yml
+          )"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "sha=${git_sha}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
           echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
+          echo "ci_source_root=${ci_source_root}" >> "$GITHUB_OUTPUT"
           echo "run_url=${run_url}" >> "$GITHUB_OUTPUT"
 
       - name: Validate required secrets
@@ -173,7 +186,10 @@ jobs:
           server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
           deploy_path="${{ secrets.DEPLOY_PATH }}"
           app_name="$(basename "${deploy_path}")"
-          ci_sources_root="$(dirname "${deploy_path}")/ci-sources"
+          ci_sources_root="${{ steps.meta.outputs.ci_source_root }}"
+          if [[ -z "${ci_sources_root}" ]]; then
+            ci_sources_root="$(dirname "${deploy_path}")/ci-sources"
+          fi
           source_path="${ci_sources_root}/${app_name}"
           target_ref="${{ github.event.inputs.git_ref }}"
           target_sha="${{ steps.meta.outputs.sha }}"

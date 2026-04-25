@@ -49,7 +49,7 @@ deploy:
   allow_emergency_build: true
   audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
   runtime_root: /srv/apps/anohou/prod/source
-  ci_source_root: /srv/apps/anohou/prod/source
+  ci_source_root: /srv/apps/anohou/prod/ci-sources
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
 zero_downtime:
