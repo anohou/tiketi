@@ -1,6 +1,6 @@
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  Dockerfile — Multi-stage production build                                  ║
-# ║  PHP 8.3-FPM Alpine — hardened, non-root, minimal attack surface           ║
+# ║  PHP 8.4-FPM Alpine — hardened, non-root, minimal attack surface           ║
 # ║  PostgreSQL + Filament + Livewire variant                                   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
@@ -49,7 +49,7 @@ COPY . .
 RUN npm run build
 
 # ─── Stage 3: Production runtime ─────────────────────────────────────────────
-FROM php:8.3-fpm-alpine AS production
+FROM php:8.4-fpm-alpine AS production
 
 ARG IMAGE_TITLE="laravel-app"
 ARG IMAGE_SOURCE=""
