@@ -6,6 +6,7 @@
         "build": "vite build",
         "dev": "vite",
         "prepare": "husky",
+        "quality:ci": "./scripts/quality-checks-ci.sh",
         "quality:php": "composer validate --strict && ./vendor/bin/pint --test",
         "quality:test": "php artisan test --no-ansi",
         "quality": "npm run quality:php && npm run quality:test"
