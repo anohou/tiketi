@@ -14,6 +14,7 @@ COPY composer.json composer.lock ./
 RUN composer install \
     --ignore-platform-reqs \
     --no-interaction \
+    --no-dev \
     --no-progress \
     --no-scripts \
     --prefer-dist \
