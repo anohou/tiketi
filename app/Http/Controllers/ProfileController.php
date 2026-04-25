@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\UserStationAssignment;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,19 +21,24 @@ class ProfileController extends Controller
     public function edit(Request $request): Response
     {
         $user = $request->user();
+        $isTenant = function_exists('tenancy') && tenancy()->initialized;
 
-        // Get assigned stations for the current user
-        $assignedStations = \App\Models\UserStationAssignment::where('user_id', $user->id)
-            ->where('active', true)
-            ->with('station')
-            ->get()
-            ->map(function ($assignment) {
-                return [
-                    'id' => $assignment->station->id,
-                    'name' => $assignment->station->name,
-                    'assigned_at' => $assignment->created_at->format('d/m/Y'),
-                ];
-            });
+        // Only read tenant-owned station assignments when tenancy is active
+        // and the table exists in the current connection.
+        $assignedStations = collect();
+        if ($user && $isTenant && Schema::hasTable('user_station_assignments')) {
+            $assignedStations = UserStationAssignment::where('user_id', $user->id)
+                ->where('active', true)
+                ->with('station')
+                ->get()
+                ->map(function ($assignment) {
+                    return [
+                        'id' => $assignment->station->id,
+                        'name' => $assignment->station->name,
+                        'assigned_at' => $assignment->created_at->format('d/m/Y'),
+                    ];
+                });
+        }
 
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,

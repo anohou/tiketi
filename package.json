@@ -4,7 +4,11 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "prepare": "husky",
+        "quality:php": "composer validate --strict && ./vendor/bin/pint --test",
+        "quality:test": "php artisan test --no-ansi",
+        "quality": "npm run quality:php && npm run quality:test"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",
@@ -20,6 +24,7 @@
         "autoprefixer": "^10.4.12",
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",
+        "husky": "^9.1.7",
         "laravel-echo": "^2.2.6",
         "laravel-vite-plugin": "^2.0.0",
         "postcss": "^8.4.31",
