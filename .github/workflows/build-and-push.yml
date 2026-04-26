@@ -177,8 +177,66 @@ jobs:
           echo "repo_digest=${repo_digest}" >> "$GITHUB_OUTPUT"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
 
+      - name: Validate deployment-state token
+        if: env.DEPLOY_ENV == 'production'
+        env:
+          DEPLOYMENT_STATE_TOKEN: ${{ secrets.DEPLOYMENT_STATE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEPLOYMENT_STATE_TOKEN}" ]]; then
+            echo "Missing DEPLOYMENT_STATE_TOKEN secret for deployment-state repo updates." >&2
+            exit 1
+          fi
+
+      - name: Checkout deployment-state
+        if: env.DEPLOY_ENV == 'production'
+        uses: actions/checkout@v5
+        with:
+          repository: anohou/deployment-state
+          token: ${{ secrets.DEPLOYMENT_STATE_TOKEN }}
+          path: deployment-state
+
+      - name: Update production deployment-state
+        if: env.DEPLOY_ENV == 'production'
+        working-directory: deployment-state
+        run: |
+          set -euo pipefail
+
+          mkdir -p prod
+          jq -n \
+            --arg app "tiketi" \
+            --arg environment "production" \
+            --arg image "${{ steps.digest.outputs.repo_digest }}" \
+            --arg commit "${{ steps.meta.outputs.sha }}" \
+            --arg updated_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg run_url "${{ steps.meta.outputs.run_url }}" \
+            '{
+              app: $app,
+              environment: $environment,
+              image: $image,
+              commit: $commit,
+              updated_at: $updated_at,
+              run_url: $run_url
+            }' > prod/tiketi.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prod/tiketi.json
+          if git diff --cached --quiet; then
+            echo "Deployment-state is already up to date."
+            exit 0
+          fi
+          git commit -m "Deploy tiketi ${{ steps.meta.outputs.short_sha }} to production"
+          git push
+
       - name: Write workflow summary
         run: |
+          if [[ "${DEPLOY_ENV}" == "production" ]]; then
+            deployment_state="anohou/deployment-state:prod/tiketi.json"
+          else
+            deployment_state="not updated for non-production build"
+          fi
+
           {
             echo "## Build Summary"
             echo ""
@@ -186,5 +244,6 @@ jobs:
             echo "- Git SHA: \`${{ steps.meta.outputs.sha }}\`"
             echo "- Environment tag: \`${{ steps.meta.outputs.env_tag }}\`"
             echo "- Digest ref: \`${{ steps.digest.outputs.repo_digest }}\`"
+            echo "- Deployment state: \`${deployment_state}\`"
             echo "- Run: ${{ steps.meta.outputs.run_url }}"
           } >> "$GITHUB_STEP_SUMMARY"

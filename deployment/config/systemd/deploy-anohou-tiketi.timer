@@ -1,0 +1,12 @@
+[Unit]
+Description=Check deployment-state for Tiketi
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=20s
+Persistent=true
+Unit=deploy-anohou-tiketi.service
+
+[Install]
+WantedBy=timers.target

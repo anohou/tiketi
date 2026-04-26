@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+log() { printf '[with-deploy-locks] %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+err() { printf '[with-deploy-locks] ERROR: %s\n' "$*" >&2; exit 1; }
+
+[[ $# -ge 2 ]] || err "Usage: with-deploy-locks <app> <command> [args...]"
+app="$1"
+shift
+
+case "${app}" in
+    *[!a-zA-Z0-9_.-]*|"") err "Invalid app name: ${app}" ;;
+esac
+
+lock_root="${DEPLOY_LOCK_ROOT:-/srv/apps/anohou/prod/locks}"
+global_lock="${lock_root}/deploy-global.lock"
+app_lock="${lock_root}/${app}.lock"
+command_path="${1:-}"
+
+mkdir -p "${lock_root}"
+
+exec 9>"${global_lock}"
+if ! flock -n 9; then
+    log "Deployment skipped: global deployment lock is held (${global_lock})"
+    exit 0
+fi
+
+exec 8>"${app_lock}"
+if ! flock -n 8; then
+    log "Deployment skipped: per-app deployment lock is held for ${app} (${app_lock})"
+    exit 0
+fi
+
+log "Acquired deployment locks for ${app}"
+if [[ -f "${command_path}" ]]; then
+    exec /usr/bin/bash "$@"
+fi
+
+exec "$@"
