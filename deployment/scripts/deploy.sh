@@ -402,7 +402,7 @@ automatic_rollback() {
         return 1
     }
 
-    DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
+    DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" DEPLOY_COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_BASE}" \
         bash "${SCRIPT_DIR}/rebuild-cache.sh" || return 1
     bash "${SCRIPT_DIR}/healthcheck.sh" || return 1
     RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
@@ -484,7 +484,8 @@ normalize_permissions
 record_persistent_public_uris
 
 log "Step 7/8 — Rebuilding caches ..."
-bash "${SCRIPT_DIR}/rebuild-cache.sh"
+DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" DEPLOY_COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_BASE}" \
+    bash "${SCRIPT_DIR}/rebuild-cache.sh"
 
 log "Step 7.5/8 — Health and smoke validation ..."
 bash "${SCRIPT_DIR}/healthcheck.sh"
