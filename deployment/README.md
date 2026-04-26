@@ -69,6 +69,39 @@ deployment/
 - Nginx injects `X-Deploy-Color` for deploy verification. Strip it at Cloudflare or another public edge layer if it should not be visible to end users.
 - `sync-laravel-deployment` only refreshes this local deployment kit. It does not run Ansible and does not deploy to the target host by itself.
 
+## Tiketi Production Pull Deploy
+
+Tiketi production also has a timer-only pull entrypoint:
+
+- `scripts/pull-deploy.sh`
+- `scripts/with-deploy-locks`
+- `config/systemd/deploy-anohou-tiketi.service`
+- `config/systemd/deploy-anohou-tiketi.timer`
+
+The service fetches `anohou/deployment-state/prod/tiketi.json`, validates the exact image digest, compares it against the locally recorded current image, and exits immediately when unchanged.
+
+Important runtime expectations on the server:
+
+- `/srv/apps/anohou/prod/locks` is group-writable for trusted deploy actors
+- `/srv/apps/anohou/prod/current/config/traefik/dynamic` is group-writable for trusted deploy actors
+- `opsadmin` has Docker auth for GHCR in `/home/opsadmin/.docker/config.json`
+
+Useful manual commands:
+
+```bash
+sudo systemctl start deploy-anohou-tiketi.service
+journalctl -u deploy-anohou-tiketi.service -n 100 --no-pager
+journalctl -u deploy-anohou-tiketi.service -f
+```
+
+Expected no-change behavior:
+
+```text
+[pull-deploy] No change detected: desired image already deployed (...)
+```
+
+That is the normal steady-state behavior once the timer is enabled.
+
 ## Notes
 
 - This template is intended for new Laravel app scaffolds from `server-setup-toolkit`.
