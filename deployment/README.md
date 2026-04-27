@@ -75,8 +75,8 @@ Tiketi production also has a timer-only pull entrypoint:
 
 - `scripts/pull-deploy.sh`
 - `scripts/with-deploy-locks`
-- `config/systemd/deploy-anohou-tiketi.service`
-- `config/systemd/deploy-anohou-tiketi.timer`
+- `config/systemd/pull-deploy.service`
+- `config/systemd/pull-deploy.timer`
 
 The service fetches `anohou/deployment-state/prod/tiketi.json`, validates the exact image digest, compares it against the locally recorded current image, and exits immediately when unchanged.
 
