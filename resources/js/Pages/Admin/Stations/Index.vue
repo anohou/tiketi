@@ -309,11 +309,19 @@ const stationColumns = {
 };
 
 const handleExport = () => {
-  exportToExcel(filteredStations.value, stationColumns, 'stations');
+  const data = filteredStations.value.map(s => ({
+    ...s,
+    active: s.active ? 'Actif' : 'Inactif'
+  }));
+  exportToExcel(data, stationColumns, 'stations');
 };
 
 const handlePrint = () => {
-  printList(filteredStations.value, stationColumns, 'Liste des Stations');
+  const data = filteredStations.value.map(s => ({
+    ...s,
+    active: s.active ? 'Actif' : 'Inactif'
+  }));
+  printList(data, stationColumns, 'Liste des Stations');
 };
 </script>
 
@@ -355,7 +363,7 @@ const handlePrint = () => {
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
-              <div class="flex justify-end">
+              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredStations.length === 0"
                   small

@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -17,6 +19,8 @@ import Plus from 'vue-material-design-icons/Plus.vue';
 import CashMultiple from 'vue-material-design-icons/CashMultiple.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   fares: {
@@ -189,6 +193,31 @@ const getStationLabel = (station) => {
   }
   return station.name;
 };
+
+// Export/Print configuration
+const fareColumns = {
+  'from_station.name': 'Départ',
+  'to_station.name': 'Arrivée',
+  'amount': 'Montant',
+  'is_bidirectional': 'Aller-Retour',
+  'active': 'Statut'
+};
+
+const handleExport = () => {
+  const data = filteredFares.value.map(f => ({
+    ...f,
+    active: f.active ? 'Actif' : 'Inactif'
+  }));
+  exportToExcel(data, fareColumns, 'tarifs');
+};
+
+const handlePrint = () => {
+  const data = filteredFares.value.map(f => ({
+    ...f,
+    active: f.active ? 'Actif' : 'Inactif'
+  }));
+  printList(data, fareColumns, 'Liste des Tarifs');
+};
 </script>
 
 <template>
@@ -219,7 +248,7 @@ const getStationLabel = (station) => {
           <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
             <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
-              <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
@@ -228,6 +257,14 @@ const getStationLabel = (station) => {
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Tarif">
                   <Plus class="h-5 w-5" />
                 </button>
+              </div>
+              <div class="flex justify-end mt-2">
+                <ExportPrintButtons 
+                  :disabled="filteredFares.length === 0"
+                  small
+                  @export="handleExport" 
+                  @print="handlePrint" 
+                />
               </div>
             </div>
 

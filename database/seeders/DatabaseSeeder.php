@@ -27,17 +27,19 @@ class DatabaseSeeder extends Seeder
         $this->command->info('✅ Landlord Admin created.');
 
         // 2. Create Test Tenant (Fully Seeded)
-        // Clean up previous runs if they exist
-        $existingTenant = Tenant::find('test');
-        if ($existingTenant) {
-            $existingTenant->delete();
+        $tenantId = 'test';
+        $dbName = config('tenancy.database.prefix') . $tenantId . config('tenancy.database.suffix');
+
+        // Drop the database if it exists (since migrate:fresh only clears central DB)
+        try {
+            \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\"");
+            $this->command->info("🗑️ Existing tenant database $dbName dropped.");
+        } catch (\Exception $e) {
+            $this->command->warn("Could not drop database $dbName: " . $e->getMessage());
         }
 
-        // Ensure DB is gone (handled by model deletion usually)
-        // \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS t_test");
-
         $tenant = Tenant::create([
-            'id' => 'test',
+            'id' => $tenantId,
             'name' => 'Transport CI (Test)',
             'email' => 'admin@test.com',
             'phone' => '+225 0101010101',

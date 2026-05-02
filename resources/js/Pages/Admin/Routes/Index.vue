@@ -430,7 +430,7 @@ const handlePrint = () => {
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
-              <div class="flex justify-end">
+              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredRoutes.length === 0"
                   small

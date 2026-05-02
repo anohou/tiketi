@@ -198,15 +198,24 @@ const vehicleColumns = {
   maker: 'Fabricant',
   'vehicle_type.name': 'Type',
   seat_count: 'Places',
-  trips_count: 'Voyages'
+  trips_count: 'Voyages',
+  active: 'Statut'
 };
 
 const handleExport = () => {
-  exportToExcel(filteredVehicles.value, vehicleColumns, 'vehicules');
+  const data = filteredVehicles.value.map(v => ({
+    ...v,
+    active: v.active ? 'Actif' : 'Inactif'
+  }));
+  exportToExcel(data, vehicleColumns, 'vehicules');
 };
 
 const handlePrint = () => {
-  printList(filteredVehicles.value, vehicleColumns, 'Liste des Véhicules');
+  const data = filteredVehicles.value.map(v => ({
+    ...v,
+    active: v.active ? 'Actif' : 'Inactif'
+  }));
+  printList(data, vehicleColumns, 'Liste des Véhicules');
 };
 
 const getTripStatus = (trip) => {
@@ -258,7 +267,7 @@ const getTripStatus = (trip) => {
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
-              <div class="flex justify-end">
+              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredVehicles.length === 0"
                   small

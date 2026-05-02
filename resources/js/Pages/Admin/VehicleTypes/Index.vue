@@ -274,15 +274,24 @@ const typeColumns = {
   name: 'Nom',
   seat_count: 'Places',
   seat_configuration: 'Configuration',
-  last_row_seats: 'Dernière Rangée'
+  last_row_seats: 'Dernière Rangée',
+  active: 'Statut'
 };
 
 const handleExport = () => {
-  exportToExcel(filteredVehicleTypes.value, typeColumns, 'types-vehicules');
+  const data = filteredVehicleTypes.value.map(t => ({
+    ...t,
+    active: t.active ? 'Actif' : 'Inactif'
+  }));
+  exportToExcel(data, typeColumns, 'types-vehicules');
 };
 
 const handlePrint = () => {
-  printList(filteredVehicleTypes.value, typeColumns, 'Liste des Types de Véhicules');
+  const data = filteredVehicleTypes.value.map(t => ({
+    ...t,
+    active: t.active ? 'Actif' : 'Inactif'
+  }));
+  printList(data, typeColumns, 'Liste des Types de Véhicules');
 };
 </script>
 
