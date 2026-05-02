@@ -13,7 +13,7 @@ class DestinationSeeder extends Seeder
     public function run(): void
     {
         $villesConfig = config('transport.villes', []);
-        
+
         foreach ($villesConfig as $ville) {
             Destination::updateOrCreate(
                 ['name' => $ville['name']],

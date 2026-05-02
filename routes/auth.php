@@ -21,6 +21,7 @@ Route::middleware('guest')->group(function () {
         if (function_exists('tenancy') && tenancy()->initialized) {
             return redirect('/');
         }
+
         return app(AuthenticatedSessionController::class)->create();
     })->name('login');
 

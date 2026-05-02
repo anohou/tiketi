@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\VehicleType;
 use App\Services\SeatMapService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Arr;
 
 class VehicleTypeSeeder extends Seeder
 {
@@ -15,13 +14,13 @@ class VehicleTypeSeeder extends Seeder
     public function run(): void
     {
         $vehicleTypes = config('transport.vehicle_types', []);
-        $seatMapService = new SeatMapService();
+        $seatMapService = new SeatMapService;
 
         foreach ($vehicleTypes as $typeData) {
             // Generate metadata and seat map using the service
             $metadata = $seatMapService->calculateMetadata($typeData);
             $seatMap = $seatMapService->generateSeatMap(array_merge($typeData, $metadata));
-            
+
             VehicleType::updateOrCreate(
                 ['name' => $typeData['name']],
                 [

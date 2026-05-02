@@ -12,9 +12,9 @@ WORKDIR /app
 COPY composer.json composer.lock ./
 
 RUN composer install \
-    --ignore-platform-reqs \
+    --ignore-platform-req=ext-gd \
+    --ignore-platform-req=ext-intl \
     --no-interaction \
-    --no-dev \
     --no-progress \
     --no-scripts \
     --prefer-dist \
@@ -42,7 +42,11 @@ WORKDIR /app
 COPY --from=composer /app/vendor/ /app/vendor/
 
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+RUN if [ -f package-lock.json ]; then \
+        npm ci --ignore-scripts; \
+    else \
+        npm install --ignore-scripts; \
+    fi
 
 COPY . .
 

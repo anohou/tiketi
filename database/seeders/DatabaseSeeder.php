@@ -28,14 +28,14 @@ class DatabaseSeeder extends Seeder
 
         // 2. Create Test Tenant (Fully Seeded)
         $tenantId = 'test';
-        $dbName = config('tenancy.database.prefix') . $tenantId . config('tenancy.database.suffix');
+        $dbName = config('tenancy.database.prefix').$tenantId.config('tenancy.database.suffix');
 
         // Drop the database if it exists (since migrate:fresh only clears central DB)
         try {
             \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\"");
             $this->command->info("🗑️ Existing tenant database $dbName dropped.");
         } catch (\Exception $e) {
-            $this->command->warn("Could not drop database $dbName: " . $e->getMessage());
+            $this->command->warn("Could not drop database $dbName: ".$e->getMessage());
         }
 
         $tenant = Tenant::create([

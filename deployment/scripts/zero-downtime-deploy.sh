@@ -9,6 +9,7 @@ VERSION="${1:-$(cat "${DEPLOY_DIR}/.last-built-version" 2>/dev/null || echo "lat
 COMPOSE_FILE="${DEPLOY_DIR}/config/docker-compose.prod.yml"
 STATE_ROOT="${DEPLOY_DIR}/.deploy"
 LOG_ROOT="${STATE_ROOT}/logs"
+PUBLIC_SNAPSHOT_ROOT="${DEPLOY_DIR}/.deploy-state/public-snapshots"
 ACTIVE_COLOR_FILE="${STATE_ROOT}/active-color"
 PREVIOUS_COLOR_FILE="${STATE_ROOT}/previous-color"
 CURRENT_STATE_FILE="${STATE_ROOT}/current-state"
@@ -137,6 +138,7 @@ prepare_runtime_public_from_image() {
     local color="$1"
     local runtime_public_root="${DEPLOY_DIR}/runtime-public-${color}"
     mkdir -p "${runtime_public_root}" "${STORAGE_PUBLIC_DIR}"
+    snapshot_runtime_public_before_replace "${color}" "${runtime_public_root}"
     find "${runtime_public_root}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
     docker run --rm "${DEPLOY_ACTUAL_IMAGE_REF}" sh -lc '
         cd /var/www/html/public
@@ -151,6 +153,31 @@ prepare_runtime_public_from_image() {
     rm -rf "${runtime_public_root}/storage"
     ln -s "../storage/app/public" "${runtime_public_root}/storage" \
         || err "Failed to create public storage symlink"
+}
+
+snapshot_runtime_public_before_replace() {
+    local color="$1"
+    local runtime_public_root="$2"
+    local snapshot_dir snapshot_id
+
+    [[ -d "${runtime_public_root}" ]] || return 0
+    find "${runtime_public_root}" -mindepth 1 -maxdepth 1 -print -quit | grep -q . || return 0
+
+    mkdir -p "${PUBLIC_SNAPSHOT_ROOT}" || err "Failed to create public snapshot root"
+    snapshot_id="$(date -u +%Y%m%dT%H%M%SZ)-${color}-${VERSION}"
+    snapshot_dir="${PUBLIC_SNAPSHOT_ROOT}/${snapshot_id}"
+    if [[ -e "${snapshot_dir}" ]]; then
+        snapshot_dir="${snapshot_dir}-$$"
+    fi
+
+    mkdir -p "${snapshot_dir}" || err "Failed to create public snapshot ${snapshot_dir}"
+    (
+        cd "${runtime_public_root}"
+        tar cpf - --exclude='./storage' .
+    ) | tar xpf - -C "${snapshot_dir}" --no-same-owner --no-same-permissions \
+        || err "Failed to snapshot runtime public directory before replacement"
+
+    log "Runtime public snapshot saved to ${snapshot_dir}"
 }
 
 normalize_target_permissions() {
@@ -344,8 +371,20 @@ trap on_error ERR
 command -v flock >/dev/null 2>&1 || err "flock is required"
 command -v docker >/dev/null 2>&1 || err "docker is required"
 command -v curl >/dev/null 2>&1 || err "curl is required"
+command -v tar >/dev/null 2>&1 || err "tar is required"
+command -v find >/dev/null 2>&1 || err "find is required"
 
-mkdir -p "${STATE_ROOT}" "${LOG_ROOT}" "${DEPLOY_GATE_DIR}" "${PERSISTENT_PUBLIC_ROOT}" "${STORAGE_PUBLIC_DIR}"
+mkdir -p \
+    "${STATE_ROOT}" \
+    "${LOG_ROOT}" \
+    "${DEPLOY_GATE_DIR}" \
+    "${PERSISTENT_PUBLIC_ROOT}" \
+    "${STORAGE_PUBLIC_DIR}" \
+    "${STORAGE_ROOT}/framework/cache/data" \
+    "${STORAGE_ROOT}/framework/sessions" \
+    "${STORAGE_ROOT}/framework/testing" \
+    "${STORAGE_ROOT}/framework/views" \
+    "${STORAGE_ROOT}/logs"
 LOCK_DIR="${DEPLOY_DIR}/.deploy-lock"
 mkdir -p "${LOCK_DIR}"
 LOCK_FILE="${LOCK_DIR}/zero-downtime.lock"

@@ -14,7 +14,7 @@ x-app-defaults: &app-defaults
     - ../${DEPLOY_ENV_FILE_NAME:-.env}
   volumes:
     - ../../storage:/var/www/html/storage
-    - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public
+    - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public:ro
   networks:
     - app-network
     - db-network
@@ -87,7 +87,7 @@ services:
       start_period: 20s
     volumes:
       - ../../storage:/var/www/html/storage
-      - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public
+      - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public:ro
 
   # ─── Queue Worker ───────────────────────────────────────────────────────────
   queue-worker:

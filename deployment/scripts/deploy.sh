@@ -21,6 +21,7 @@ COMPOSE_FILE="${DEPLOY_DIR}/config/docker-compose.prod.yml"
 ENV_FILE="${DEPLOY_DIR}/.env"
 STATE_DIR="${DEPLOY_DIR}/.deploy-state/current"
 ROLLBACK_DIR="${DEPLOY_DIR}/.deploy-state/rollback-target"
+PUBLIC_SNAPSHOT_ROOT="${DEPLOY_DIR}/.deploy-state/public-snapshots"
 LOCK_DIR="${DEPLOY_DIR}/.deploy-lock"
 PERSISTENT_PUBLIC_ROOT="${DEPLOY_DIR}/persistent-public/root"
 RUNTIME_PUBLIC_ROOT="${DEPLOY_DIR}/runtime-public"
@@ -136,9 +137,15 @@ ensure_runtime_directories() {
     mkdir -p \
         "${STATE_DIR}" \
         "${ROLLBACK_DIR}" \
+        "${PUBLIC_SNAPSHOT_ROOT}" \
         "${PERSISTENT_PUBLIC_ROOT}" \
         "${RUNTIME_PUBLIC_ROOT}" \
         "${STORAGE_PUBLIC_DIR}" \
+        "${STORAGE_ROOT}/framework/cache/data" \
+        "${STORAGE_ROOT}/framework/sessions" \
+        "${STORAGE_ROOT}/framework/testing" \
+        "${STORAGE_ROOT}/framework/views" \
+        "${STORAGE_ROOT}/logs" \
         "${DEPLOY_GATE_DIR}"
     : > "${RESTORED_URIS_FILE}"
 }
@@ -159,6 +166,7 @@ preflight() {
     [[ -f "${DEPLOY_DIR}/config/template.env" ]] || err "Env template not found"
     mkdir -p "${PERSISTENT_PUBLIC_ROOT}" || err "Failed to create persistent public root"
     mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+    mkdir -p "${PUBLIC_SNAPSHOT_ROOT}" || err "Failed to create public snapshot root"
 }
 
 remove_ready_marker() {
@@ -293,6 +301,7 @@ normalize_permissions() {
 prepare_runtime_public_from_image() {
     local image_ref="$1"
     mkdir -p "${RUNTIME_PUBLIC_ROOT}" || err "Failed to create runtime public root"
+    snapshot_runtime_public_before_replace
     find "${RUNTIME_PUBLIC_ROOT}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
     log "Preparing runtime public directory from image ${image_ref} ..."
     docker run --rm "${image_ref}" sh -lc '
@@ -300,6 +309,29 @@ prepare_runtime_public_from_image() {
         find . -mindepth 1 -maxdepth 1 -exec tar cpf - {} +
     ' | tar xmf - -C "${RUNTIME_PUBLIC_ROOT}" --no-same-owner --no-same-permissions \
         || err "Failed to extract public assets from image ${image_ref}"
+}
+
+snapshot_runtime_public_before_replace() {
+    local snapshot_dir snapshot_id
+
+    [[ -d "${RUNTIME_PUBLIC_ROOT}" ]] || return 0
+    find "${RUNTIME_PUBLIC_ROOT}" -mindepth 1 -maxdepth 1 -print -quit | grep -q . || return 0
+
+    mkdir -p "${PUBLIC_SNAPSHOT_ROOT}" || err "Failed to create public snapshot root"
+    snapshot_id="$(date -u +%Y%m%dT%H%M%SZ)-${VERSION}"
+    snapshot_dir="${PUBLIC_SNAPSHOT_ROOT}/${snapshot_id}"
+    if [[ -e "${snapshot_dir}" ]]; then
+        snapshot_dir="${snapshot_dir}-$$"
+    fi
+
+    mkdir -p "${snapshot_dir}" || err "Failed to create public snapshot ${snapshot_dir}"
+    (
+        cd "${RUNTIME_PUBLIC_ROOT}"
+        tar cpf - --exclude='./storage' .
+    ) | tar xpf - -C "${snapshot_dir}" --no-same-owner --no-same-permissions \
+        || err "Failed to snapshot runtime public directory before replacement"
+
+    log "Runtime public snapshot saved to ${snapshot_dir}"
 }
 
 overlay_persistent_public_into_runtime() {

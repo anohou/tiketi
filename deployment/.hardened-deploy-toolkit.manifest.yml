@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-04-25T14:22:16Z
+generated_at: 2026-05-02T15:00:46Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -63,19 +63,23 @@ preserve_files:
   - config/template.env
 managed_files:
   README.md:
-    sha256: eacbf550e3f3c985508cf1472a0e0174326641ffde296171f589bbc0e0617111
+    sha256: 55cfd8262be473b8b12dabd0334b4ac8cb552c9b76036e6230bf18ca4c1e767a
   config/Dockerfile:
-    sha256: d8fe40d04cd2f826c4e918ce41dafae2f467819b13d6374c70bc8652d395025c
+    sha256: 894f6a34acda2aca69040daeef2e224f94e17eced081793eb7d90f180ffbab7a
   config/config.yml:
     sha256: 6475935a1f444fa9754f96ad60e14ac68909a0a23f32cdc1c6a5a49a6f6ed6bb
   config/docker-compose.prod.yml:
-    sha256: b4931785c575d87a460c8a660b06d90b34ccade7952d51c701ad393ecaa31d29
+    sha256: a3d1cd35ab18aaf4ce66aea08b644d4d6d4bf332543b3f98f55fd0e9ea1c1345
   config/nginx.conf:
     sha256: 3fe7538b9c02469880c11064c9e2745596994571982bb0a6b2aeda9cadb838ab
   config/php.ini:
     sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
   config/rbac.yml:
     sha256: 590d985b355919b9c957a89f79c9e79e641a07e0a0b0fe88c259e39d251712db
+  config/systemd/pull-deploy.service:
+    sha256: dd8cbbde69c6a97bcc5865ae710ab98be14bb91993663ff3a12672eaa2b87623
+  config/systemd/pull-deploy.timer:
+    sha256: fc32ce3382febb07e7c298dfabd7c2c7bdbe7e67d481883321b3402711f3fbef
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/config.sh:
@@ -87,7 +91,7 @@ managed_files:
   persistent-public/root/.gitkeep:
     sha256: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
   scripts/artisan.sh:
-    sha256: b870e76b7ddc9868e98cfbbc9c308229135f4b3c5bb5d34856eccf05f57d7f76
+    sha256: 7dd7d26d9e5cc1689f81ee293b5cdad9f35d208ed965a3a32e646f4cae0f8003
   scripts/build.sh:
     sha256: ab3ca26160fe20bd8cb19ec8b0c5b745578123690351b3b4af9d6d65232b5dc8
   scripts/cleanup.sh:
@@ -105,11 +109,11 @@ managed_files:
   scripts/deploy.config.sh:
     sha256: 721c6091573728fb0ad69e346f7f0f723063e1454e6fd803e86ac8cf3410c5fe
   scripts/deploy.sh:
-    sha256: 5ad71fb86fd353c79180753954e6a941f6eb8b0d8cf4fd78712170d2ef68f931
+    sha256: a4686c97c53b7d61f4baf9b4e245dc4ead0e7d1d7d7cd10f5b300f16495a7079
   scripts/dump-db.sh:
     sha256: 3f9d56d7df9493f1b06a20ad184f7bb15701ba6a4639b40aa5462d299fc6287c
   scripts/generate-env.sh:
-    sha256: c608a63b48cf5f18a87d69494d95271bce2218398c3f1d74d6c0cfd84de46743
+    sha256: a29df5c3828eddf93a055afe82b470ea347ee69b64f09502e9c7858c61448a05
   scripts/healthcheck.sh:
     sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
   scripts/provision-db.sh:
@@ -121,7 +125,7 @@ managed_files:
   scripts/check-migration-safety.sh:
     sha256: 973610e8c18dd0835873fe93218e14e37864174598aab8c28a359e4be6c83cd4
   scripts/check-traefik-active-color.sh:
-    sha256: 1d0d0cc523c6fd92d69ab2a173236225fb11a42f7cabb39a1770e3318acd512c
+    sha256: 88ea31db0a509c07736e59cd241c19e56ed2437a1aa2b8f8f850832a60a4af69
   scripts/restart-workers.sh:
     sha256: 8aaa4a3ccb9e5cf6fc83b5e689b4f39eb2bf2ac945e434a0014581557e38863b
   scripts/resume-zero-downtime-deploy.sh:
@@ -131,22 +135,22 @@ managed_files:
   scripts/restore-db.sh:
     sha256: 70191432c64c54449ac4c18730d54973407aa394c5e979668a0c44e02d14f760
   scripts/rollback.sh:
-    sha256: 9368f453d416a59596d01adb81fa1a7e27e07e349279c4c50dec2ee72f1a1a3d
+    sha256: e7d6408430d2d51d844c77895b9a515256cfd90e16f6dc50216decf4333c19a5
   scripts/seed-db.sh:
     sha256: 2b2128326232140aa4d9d736ee9b5e8ed41ff415cf98405c482d5db849ef0f17
   scripts/smoke-check.sh:
     sha256: 768bbea6c9fab157545041b718b5a56458a462b7084bee957e5afb65e152216b
   scripts/sync-from-git.sh:
-    sha256: 334187b5b0555c04adfbb528c067b7e2b7340db317a9eefda65092bdef7334c8
+    sha256: f813589b0f5ebbedfc8c1bee84082cc3ec13626dcdaec75e05d672506a46a846
   scripts/traefik-switch.sh:
     sha256: e0f1402387a1c1c7254744144e860c6fed30e37f1fa6baf57f527aee73626fbd
   scripts/versions.sh:
     sha256: 088c80fda16d485f938c1be334b4de1f5a00e799db3a4d5c29ca888d7a960e6a
   scripts/zero-downtime-deploy.sh:
-    sha256: 6f55a10e195f2716ee425e1c67403ed8f9d34856dd94480b1ea3187085f07567
+    sha256: 8a58096f760e35db565aa690c8ce2e4e2d2f5eaae6c81daa49deeeae75f98331
 managed_app_files:
   app/Console/Commands/CreateAdminUser.php:
-    sha256: b749601e42a67b8e8d2a5c82043e3e7bc171de7b9746e578109370ecdb588192
+    sha256: 8f0aecb6eb0427674e4281cd75f1f55ca06b8167b352f2f844c7965c2671ec0e
 managed_project_files:
   .github/workflows/build-and-push.yml:
     sha256: ce7eba1ce8d0e02798abee8b73d93ba2685a3eef7b135692f3c540a2991ca5b1

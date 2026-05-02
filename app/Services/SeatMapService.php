@@ -29,7 +29,7 @@ class SeatMapService
     public function generateSeatMap(array $data): array
     {
         // If door_positions and seat_count are missing, calculate them
-        if (isset($data['total_capacity']) && (!isset($data['door_positions']) || !isset($data['seat_count']))) {
+        if (isset($data['total_capacity']) && (! isset($data['door_positions']) || ! isset($data['seat_count']))) {
             $metadata = $this->calculateMetadata($data);
             $data = array_merge($data, $metadata);
         }
@@ -117,9 +117,11 @@ class SeatMapService
 
             $seatMap[] = $row;
             $rowIndex++;
-            
+
             // Safety break to prevent infinite loops if something goes wrong
-            if ($rowIndex > 100) break;
+            if ($rowIndex > 100) {
+                break;
+            }
         }
 
         // Last Row
@@ -144,7 +146,7 @@ class SeatMapService
         $doorCount = (int) ($data['door_count'] ?? 1);
         $doorSide = $data['door_side'] ?? 'right';
         $doorWidth = (int) ($data['door_width'] ?? 2);
-        
+
         $configStr = $data['seat_configuration'] ?? '2+2';
         $parts = explode('+', $configStr);
         $leftCount = (int) ($parts[0] ?? 2);
@@ -159,7 +161,7 @@ class SeatMapService
             // Middle door: around middle row
             $middleRow = floor($approxRows / 2);
             $rowStartSlot = ($middleRow - 1) * $slotsPerRow + 1;
-            
+
             if ($doorSide === 'right') {
                 for ($i = 0; $i < min($doorWidth, $rightCount); $i++) {
                     $doorPositions[] = $rowStartSlot + $leftCount + $i;
@@ -176,7 +178,7 @@ class SeatMapService
             $backRow = $approxRows - 4;
             if ($backRow > floor($approxRows / 2)) {
                 $rowStartSlot = ($backRow - 1) * $slotsPerRow + 1;
-                
+
                 if ($doorSide === 'right') {
                     for ($i = 0; $i < min($doorWidth, $rightCount); $i++) {
                         $doorPositions[] = $rowStartSlot + $leftCount + $i;

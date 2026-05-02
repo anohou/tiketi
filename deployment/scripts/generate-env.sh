@@ -160,7 +160,10 @@ while IFS= read -r line; do
     fi
 done < "$TEMPLATE" >> "$OUTPUT_ENV"
 
-chmod 600 "$OUTPUT_ENV"
+# Keep secrets private to the deployment owner while allowing trusted
+# deploy-group operators (for example opsadmin) to run read-only helpers
+# like artisan.sh against the generated compose env file.
+chmod 640 "$OUTPUT_ENV"
 
 # ── 3. Validate required keys are non-empty ───────────────────────────────────
 REQUIRED_KEYS=(

@@ -14,6 +14,9 @@ deployment/
 │   ├── nginx.conf
 │   ├── php.ini
 │   ├── rbac.yml
+│   ├── systemd/
+│   │   ├── pull-deploy.service
+│   │   └── pull-deploy.timer
 │   ├── template.env
 │   └── www.conf
 ├── lib/
@@ -60,6 +63,7 @@ deployment/
 - `scripts/provision-db.sh` provisions the app database and roles against the shared Postgres service.
 - `scripts/deploy.sh` is the standard recreate-style deployment entrypoint for apps scaffolded from this kit.
 - `scripts/zero-downtime-deploy.sh` is the opt-in Laravel blue/green entrypoint. It is guarded by `zero_downtime.enabled=true` in rendered `config/config.yml`.
+- `config/systemd/pull-deploy.service` and `config/systemd/pull-deploy.timer` are generic pull-deploy unit sources that the toolkit installer maps onto app-specific systemd unit names on the server.
 
 ## Zero-Downtime Notes
 
@@ -68,39 +72,6 @@ deployment/
 - Queue workers and scheduler are owned by one color at a time. The old color is drained before migrations; the new color starts workers only after the Traefik switch succeeds.
 - Nginx injects `X-Deploy-Color` for deploy verification. Strip it at Cloudflare or another public edge layer if it should not be visible to end users.
 - `sync-laravel-deployment` only refreshes this local deployment kit. It does not run Ansible and does not deploy to the target host by itself.
-
-## Tiketi Production Pull Deploy
-
-Tiketi production also has a timer-only pull entrypoint:
-
-- `scripts/pull-deploy.sh`
-- `scripts/with-deploy-locks`
-- `config/systemd/pull-deploy.service`
-- `config/systemd/pull-deploy.timer`
-
-The service fetches `anohou/deployment-state/prod/tiketi.json`, validates the exact image digest, compares it against the locally recorded current image, and exits immediately when unchanged.
-
-Important runtime expectations on the server:
-
-- `/srv/apps/anohou/prod/locks` is group-writable for trusted deploy actors
-- `/srv/apps/anohou/prod/current/config/traefik/dynamic` is group-writable for trusted deploy actors
-- `opsadmin` has Docker auth for GHCR in `/home/opsadmin/.docker/config.json`
-
-Useful manual commands:
-
-```bash
-sudo systemctl start deploy-anohou-tiketi.service
-journalctl -u deploy-anohou-tiketi.service -n 100 --no-pager
-journalctl -u deploy-anohou-tiketi.service -f
-```
-
-Expected no-change behavior:
-
-```text
-[pull-deploy] No change detected: desired image already deployed (...)
-```
-
-That is the normal steady-state behavior once the timer is enabled.
 
 ## Notes
 

@@ -42,7 +42,9 @@ class TenantSeeder extends Seeder
         $createdStations = [];
         foreach ($garesConfig as $villeName => $gares) {
             $destination = Destination::where('name', $villeName)->first();
-            if (!$destination) continue;
+            if (! $destination) {
+                continue;
+            }
 
             foreach ($gares as $gare) {
                 $createdStations[$gare['code']] = Station::updateOrCreate(
@@ -63,7 +65,9 @@ class TenantSeeder extends Seeder
             $origin = $createdStations[$routeData['origin']] ?? null;
             $dest = $createdStations[$routeData['destination']] ?? null;
 
-            if (!$origin || !$dest) continue;
+            if (! $origin || ! $dest) {
+                continue;
+            }
 
             $route = Route::updateOrCreate(
                 ['name' => $routeData['name']],
