@@ -47,7 +47,10 @@ class VehicleTypeController extends Controller
             'seat_configuration' => 'required|string', // e.g., "2+2"
             'door_positions' => 'nullable|array', // e.g., [1, 23, 24]
             'door_positions.*' => 'integer',
+            'door_side' => 'nullable|string|in:left,right',
+            'door_width' => 'nullable|integer|min:1|max:3',
             'last_row_seats' => 'nullable|integer|min:1',
+            'active' => 'nullable|boolean',
         ]);
         $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
         VehicleType::create($data);
@@ -84,7 +87,10 @@ class VehicleTypeController extends Controller
             'seat_configuration' => 'required|string',
             'door_positions' => 'nullable|array',
             'door_positions.*' => 'integer',
+            'door_side' => 'nullable|string|in:left,right',
+            'door_width' => 'nullable|integer|min:1|max:3',
             'last_row_seats' => 'nullable|integer|min:1',
+            'active' => 'nullable|boolean',
         ]);
         $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
         $vehicleType->update($data);

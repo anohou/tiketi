@@ -35,24 +35,13 @@ class TenantSeeder extends Seeder
         );
 
         // 3. Seed Villes (Destinations)
-        $villesConfig = config('transport.villes', []);
-        $createdVilles = [];
-        foreach ($villesConfig as $ville) {
-            $createdVilles[$ville['name']] = Destination::updateOrCreate(
-                ['name' => $ville['name']],
-                [
-                    'city' => $ville['name'],
-                    'region' => $ville['region'],
-                    'is_active' => true,
-                ]
-            );
-        }
+        $this->call(DestinationSeeder::class);
 
         // 4. Seed Gares (Stations)
         $garesConfig = config('transport.gares_par_ville', []);
         $createdStations = [];
         foreach ($garesConfig as $villeName => $gares) {
-            $destination = $createdVilles[$villeName] ?? null;
+            $destination = Destination::where('name', $villeName)->first();
             if (!$destination) continue;
 
             foreach ($gares as $gare) {

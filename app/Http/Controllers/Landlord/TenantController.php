@@ -69,8 +69,18 @@ class TenantController extends Controller
         // Generate strong password (10 chars)
         $password = \Illuminate\Support\Str::password(10, true, true, false, false);
 
-        // Create Tenant Admin
+        // Initialize Tenant Data and Create Admin
         $tenant->run(function () use ($validated, $password) {
+            // Seed base data
+            \Illuminate\Support\Facades\Artisan::call('db:seed', [
+                '--class' => \Database\Seeders\DestinationSeeder::class,
+                '--force' => true,
+            ]);
+            \Illuminate\Support\Facades\Artisan::call('db:seed', [
+                '--class' => \Database\Seeders\VehicleTypeSeeder::class,
+                '--force' => true,
+            ]);
+
             \App\Models\User::create([
                 'name' => 'Admin '.$validated['name'],
                 'email' => $validated['email'] ?? ('admin@'.$validated['id'].'.com'),

@@ -43,6 +43,8 @@ const form = ref({
   seat_count: '',
   seat_configuration: '2+2',
   door_positions_text: '',
+  door_side: 'right',
+  door_width: 2,
   last_row_seats: '',
   active: true
 });
@@ -85,6 +87,8 @@ const openCreateModal = () => {
     seat_count: '',
     seat_configuration: '2+2',
     door_positions_text: '',
+    door_side: 'right',
+    door_width: 2,
     last_row_seats: '',
     active: true
   };
@@ -100,6 +104,8 @@ const openEditModal = () => {
     seat_count: selectedVehicleType.value.seat_count.toString(),
     seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
     door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
+    door_side: selectedVehicleType.value.door_side || 'right',
+    door_width: selectedVehicleType.value.door_width || 2,
     last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
     active: selectedVehicleType.value.active !== undefined ? Boolean(selectedVehicleType.value.active) : true
   };
@@ -115,6 +121,8 @@ const duplicateVehicleType = () => {
     seat_count: selectedVehicleType.value.seat_count.toString(),
     seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
     door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
+    door_side: selectedVehicleType.value.door_side || 'right',
+    door_width: selectedVehicleType.value.door_width || 2,
     last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
     active: true
   };
@@ -129,6 +137,8 @@ const closeModal = () => {
     seat_count: '',
     seat_configuration: '2+2',
     door_positions_text: '',
+    door_side: 'right',
+    door_width: 2,
     last_row_seats: '',
     active: true
   };
@@ -165,93 +175,67 @@ const submit = () => {
   });
 };
 
-// Live Preview Logic (Ported from SeatMapService.php)
-const liveSeatMap = computed(() => {
+const recalculateMetadata = () => {
   const seatCount = parseInt(form.value.seat_count) || 0;
-  if (seatCount <= 0) return [];
-
   const configStr = form.value.seat_configuration || '2+2';
-  const doorPositions = form.value.door_positions_text 
-    ? form.value.door_positions_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-    : [];
+  const doorSide = form.value.door_side || 'right';
+  const doorWidth = parseInt(form.value.door_width) || 2;
   const lastRowSeats = parseInt(form.value.last_row_seats) || 5;
 
   const parts = configStr.split('+').map(Number);
   const leftCount = parts[0] || 2;
   const rightCount = parts[1] || 2;
-
-  const seatMap = [];
-  let currentSeatNum = 1;
-  let rowIndex = 0;
-  const seatsToFill = seatCount - lastRowSeats;
-  let filledSeats = 0;
   const slotsPerRow = leftCount + rightCount;
 
-  while (filledSeats < seatsToFill) {
-    const row = [];
-    const rowStartSlot = (rowIndex - 1) * slotsPerRow + 1;
+  // Approximate rows for calculation
+  const approxRows = Math.ceil((seatCount + 5) / slotsPerRow);
+  const doorPositions = [0];
 
-    if (rowIndex === 0) {
-      row.push({ type: 'driver', label: 'Chauffeur' });
-      for (let i = 1; i < leftCount; i++) row.push({ type: 'empty' });
-    } else {
-      for (let i = 0; i < leftCount; i++) {
-        const currentSlot = rowStartSlot + i;
-        if (doorPositions.includes(currentSlot)) {
-          row.push({ type: 'door' });
-        } else if (filledSeats < seatsToFill) {
-          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-          filledSeats++;
-        } else {
-          row.push({ type: 'empty' });
-        }
-      }
-    }
-
-    row.push({ type: 'aisle' });
-
-    if (rowIndex === 0) {
-      if (doorPositions.includes(0)) {
-        // Place empty cells first, then door at outer edge
-        for (let i = 1; i < rightCount; i++) row.push({ type: 'empty' });
-        row.push({ type: 'door', label: 'Porte' });
-      } else {
-        for (let i = 0; i < rightCount; i++) {
-          if (filledSeats < seatsToFill) {
-            row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-            filledSeats++;
-          } else {
-            row.push({ type: 'empty' });
-          }
-        }
-      }
-    } else {
-      for (let i = 0; i < rightCount; i++) {
-        const currentSlot = rowStartSlot + leftCount + i;
-        if (doorPositions.includes(currentSlot)) {
-          row.push({ type: 'door' });
-        } else if (filledSeats < seatsToFill) {
-          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-          filledSeats++;
-        } else {
-          row.push({ type: 'empty' });
-        }
-      }
-    }
-    seatMap.push(row);
-    rowIndex++;
+  // Middle door
+  const middleRow = Math.floor(approxRows / 2);
+  const mStart = (middleRow - 1) * slotsPerRow + 1;
+  if (doorSide === 'right') {
+    for (let i = 0; i < Math.min(doorWidth, rightCount); i++) doorPositions.push(mStart + leftCount + i);
+  } else {
+    for (let i = 0; i < Math.min(doorWidth, leftCount); i++) doorPositions.push(mStart + i);
   }
 
-  const remaining = seatCount - filledSeats;
-  if (remaining > 0) {
-    const lastRow = [];
-    for (let i = 0; i < remaining; i++) {
-      lastRow.push({ type: 'seat', number: (currentSeatNum++).toString() });
+  // Back door: moved forward by 2 rows
+  const backRow = approxRows - 4;
+  if (backRow > middleRow) {
+    const bStart = (backRow - 1) * slotsPerRow + 1;
+    if (doorSide === 'right') {
+      for (let i = 0; i < Math.min(doorWidth, rightCount); i++) doorPositions.push(bStart + leftCount + i);
+    } else {
+      for (let i = 0; i < Math.min(doorWidth, leftCount); i++) doorPositions.push(bStart + i);
     }
-    seatMap.push(lastRow);
   }
 
-  return seatMap;
+  const finalDoorPositions = [...new Set(doorPositions)].sort((a, b) => a - b);
+  form.value.door_positions_text = finalDoorPositions.join(', ');
+
+  // Harmony Logic: Adjust seatCount to fill rows perfectly
+  const doorSlotsInStandardRows = finalDoorPositions.filter(p => p !== 0).length;
+  // We want: (N * slotsPerRow) - doorSlotsInStandardRows + lastRowSeats = seatCount
+  // Find N that gives a seatCount close to the original one
+  const currentTotalSlots = (seatCount - lastRowSeats) + doorSlotsInStandardRows;
+  const N = Math.round(currentTotalSlots / slotsPerRow);
+  const adjustedSeatCount = (N * slotsPerRow) - doorSlotsInStandardRows + lastRowSeats;
+  
+  if (adjustedSeatCount !== seatCount && adjustedSeatCount > 0) {
+    form.value.seat_count = adjustedSeatCount.toString();
+  }
+};
+
+// Watch for changes to trigger sync
+watch([
+  () => form.value.seat_configuration,
+  () => form.value.door_side,
+  () => form.value.door_width,
+  () => form.value.last_row_seats
+], () => {
+  if (!showModal.value) return;
+  recalculateMetadata();
 });
 
 const deleteVehicleType = (id) => {
@@ -268,6 +252,94 @@ const deleteVehicleType = (id) => {
     });
   }
 };
+
+// Live Preview Logic (Purely from form values)
+const liveSeatMap = computed(() => {
+  const seatCount = parseInt(form.value.seat_count) || 0;
+  const configStr = form.value.seat_configuration || '2+2';
+  const doorPositions = form.value.door_positions_text 
+    ? form.value.door_positions_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+    : [];
+  const lastRowSeats = parseInt(form.value.last_row_seats) || 5;
+
+  const parts = configStr.split('+').map(Number);
+  const leftCount = parts[0] || 2;
+  const rightCount = parts[1] || 2;
+  const slotsPerRow = leftCount + rightCount;
+
+  const seatMap = [];
+  let currentSeatNum = 1;
+  let rowIndex = 0;
+  let filledSeats = 0;
+  const targetSeats = seatCount;
+  const seatsBeforeLast = targetSeats - lastRowSeats;
+
+  while (filledSeats < seatsBeforeLast) {
+    const row = [];
+    const rowStartSlot = (rowIndex - 1) * slotsPerRow + 1;
+
+    if (rowIndex === 0) {
+      row.push({ type: 'driver', label: 'Chauffeur' });
+      for (let i = 1; i < leftCount; i++) row.push({ type: 'empty' });
+    } else {
+      for (let i = 0; i < leftCount; i++) {
+        const currentSlot = rowStartSlot + i;
+        if (doorPositions.includes(currentSlot)) {
+          row.push({ type: 'door' });
+        } else if (filledSeats < seatsBeforeLast) {
+          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
+          filledSeats++;
+        } else {
+          row.push({ type: 'empty' });
+        }
+      }
+    }
+
+    row.push({ type: 'aisle' });
+
+    if (rowIndex === 0) {
+      if (doorPositions.includes(0)) {
+        for (let i = 1; i < rightCount; i++) row.push({ type: 'empty' });
+        row.push({ type: 'door', label: 'Porte' });
+      } else {
+        for (let i = 0; i < rightCount; i++) {
+          if (filledSeats < seatsBeforeLast) {
+            row.push({ type: 'seat', number: (currentSeatNum++).toString() });
+            filledSeats++;
+          } else {
+            row.push({ type: 'empty' });
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < rightCount; i++) {
+        const currentSlot = rowStartSlot + leftCount + i;
+        if (doorPositions.includes(currentSlot)) {
+          row.push({ type: 'door' });
+        } else if (filledSeats < seatsBeforeLast) {
+          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
+          filledSeats++;
+        } else {
+          row.push({ type: 'empty' });
+        }
+      }
+    }
+    seatMap.push(row);
+    rowIndex++;
+    if (rowIndex > 100) break; // Safety
+  }
+
+  const remaining = targetSeats - filledSeats;
+  if (remaining > 0) {
+    const lastRow = [];
+    for (let i = 0; i < remaining; i++) {
+      lastRow.push({ type: 'seat', number: (currentSeatNum++).toString() });
+    }
+    seatMap.push(lastRow);
+  }
+
+  return seatMap;
+});
 
 // Export/Print configuration
 const typeColumns = {
@@ -426,10 +498,22 @@ const handlePrint = () => {
                     {{ selectedVehicleType.last_row_seats || 'Standard' }}
                   </div>
                 </div>
-                <div class="col-span-6">
+                <div class="col-span-4">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">PORTES</span>
                   <div class="text-xl font-bold text-gray-900 leading-tight">
                     {{ selectedVehicleType.door_positions?.join(', ') || 'Aucune' }}
+                  </div>
+                </div>
+                <div class="col-span-4">
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">CÔTÉ</span>
+                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                    {{ selectedVehicleType.door_side === 'left' ? 'Gauche' : 'Droite' }}
+                  </div>
+                </div>
+                <div class="col-span-4">
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">LARGEUR</span>
+                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                    {{ selectedVehicleType.door_width || 2 }} slots
                   </div>
                 </div>
               </div>
@@ -454,42 +538,62 @@ const handlePrint = () => {
       <template #content>
         <div class="space-y-6">
           <!-- Top Section: Form Fields -->
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-            <div class="md:col-span-1">
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+            <div class="md:col-span-2">
               <InputLabel for="name" value="Nom du Type" />
               <TextInput v-model="form.name" id="name" class="w-full text-sm" placeholder="Ex: Autocar Standard" />
               <InputError :message="errors.name" />
             </div>
 
-            <div class="grid grid-cols-2 gap-4 md:col-span-1">
-              <div>
-                <InputLabel for="seat_count" value="Places" />
-                <TextInput v-model="form.seat_count" id="seat_count" type="number" min="1" class="w-full text-sm" />
-                <InputError :message="errors.seat_count" />
-              </div>
-              <div>
-                <InputLabel for="seat_configuration" value="Config" />
-                <TextInput v-model="form.seat_configuration" id="seat_configuration" class="w-full text-sm" placeholder="2+2" />
-                <InputError :message="errors.seat_configuration" />
-              </div>
+            <div>
+              <InputLabel for="seat_count" value="Places" />
+              <TextInput v-model="form.seat_count" id="seat_count" type="number" min="1" class="w-full text-sm" />
+              <InputError :message="errors.seat_count" />
             </div>
 
-            <div class="grid grid-cols-2 gap-4 md:col-span-1">
-              <div>
-                <InputLabel for="door_positions" value="Portes" />
-                <TextInput v-model="form.door_positions_text" id="door_positions" class="w-full text-sm" placeholder="1, 23" />
-                <InputError :message="errors.door_positions" />
-              </div>
-              <div>
-                <InputLabel for="last_row_seats" value="Dernière R." />
-                <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" class="w-full text-sm" placeholder="5" />
-                <InputError :message="errors.last_row_seats" />
-              </div>
+            <div>
+              <InputLabel for="seat_configuration" value="Config" />
+              <TextInput v-model="form.seat_configuration" id="seat_configuration" class="w-full text-sm" placeholder="2+2" />
+              <InputError :message="errors.seat_configuration" />
             </div>
 
-            <div class="flex items-center">
+            <div>
+              <InputLabel for="door_side" value="Côté Portes" />
+              <select v-model="form.door_side" id="door_side" class="w-full text-sm border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-md shadow-sm">
+                <option value="right">Droite</option>
+                <option value="left">Gauche</option>
+              </select>
+              <InputError :message="errors.door_side" />
+            </div>
+
+            <div>
+              <InputLabel for="door_width" value="Largeur P." />
+              <TextInput v-model="form.door_width" id="door_width" type="number" min="1" max="3" class="w-full text-sm" />
+              <InputError :message="errors.door_width" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-4">
+            <div class="md:col-span-1">
+              <div class="flex items-center justify-between mb-1">
+                <InputLabel for="door_positions" value="Positions Manuelles" />
+                <button @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-bold flex items-center gap-1" title="Synchroniser et Harmoniser">
+                  <span class="rotate-180">↺</span> SYNC
+                </button>
+              </div>
+              <TextInput v-model="form.door_positions_text" id="door_positions" class="w-full text-sm" placeholder="1, 23" />
+              <InputError :message="errors.door_positions" />
+            </div>
+
+            <div class="md:col-span-1">
+              <InputLabel for="last_row_seats" value="Dernière Rangée" />
+              <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" class="w-full text-sm" placeholder="5" />
+              <InputError :message="errors.last_row_seats" />
+            </div>
+
+            <div class="md:col-span-1 flex items-center h-full pt-6">
               <input type="checkbox" v-model="form.active" id="type_active" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
-              <label for="type_active" class="ml-2 text-sm text-gray-600">Type de Véhicule Actif</label>
+              <label for="type_active" class="ml-2 text-sm text-gray-600 font-medium">Type Actif</label>
             </div>
           </div>
 

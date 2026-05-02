@@ -18,41 +18,20 @@ class VehicleTypeSeeder extends Seeder
         $seatMapService = new SeatMapService();
 
         foreach ($vehicleTypes as $typeData) {
-            // Calculate door positions and seat count based on total_capacity
-            $config = $typeData['seat_configuration'] ?? '2+2';
-            $parts = explode('+', $config);
-            $slotsPerRow = array_sum($parts);
+            // Generate metadata and seat map using the service
+            $metadata = $seatMapService->calculateMetadata($typeData);
+            $seatMap = $seatMapService->generateSeatMap(array_merge($typeData, $metadata));
             
-            // Generate the seat map using the service
-            $seatMap = $seatMapService->generateSeatMap($typeData);
-            
-            // Extract door positions for the DB
-            $doorPositions = [0]; // Driver door is always 0
-            if (($typeData['door_count'] ?? 1) >= 2) {
-                // Middle door
-                $approxRows = ceil(($typeData['total_capacity'] ?? 30) / $slotsPerRow);
-                $mRow = floor($approxRows / 2);
-                $start = ($mRow - 1) * $slotsPerRow + 1;
-                $doorPositions[] = $start + $parts[0];
-            }
-            if (($typeData['door_count'] ?? 1) >= 3) {
-                // Back door
-                $approxRows = ceil(($typeData['total_capacity'] ?? 30) / $slotsPerRow);
-                $bRow = $approxRows - 1;
-                $start = ($bRow - 1) * $slotsPerRow + 1;
-                $doorPositions[] = $start + $parts[0];
-            }
-
-            $seatCount = ($typeData['total_capacity'] ?? 30) - count($doorPositions);
-
             VehicleType::updateOrCreate(
                 ['name' => $typeData['name']],
                 [
-                    'seat_count' => $seatCount,
-                    'seat_configuration' => $config,
+                    'seat_count' => $metadata['seat_count'],
+                    'seat_configuration' => $typeData['seat_configuration'] ?? '2+2',
                     'door_count' => $typeData['door_count'] ?? 1,
-                    'door_positions' => $doorPositions,
-                    'last_row_seats' => ($config === '3+2') ? 6 : 5,
+                    'door_positions' => $metadata['door_positions'],
+                    'door_side' => $typeData['door_side'] ?? 'right',
+                    'door_width' => $typeData['door_width'] ?? 2,
+                    'last_row_seats' => $metadata['last_row_seats'],
                     'svg_template_path' => $typeData['svg_template_path'] ?? 'bus',
                     'seat_map' => $seatMap,
                     'active' => true,

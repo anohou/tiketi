@@ -286,6 +286,9 @@ const generateSeatMapJSON = () => {
   while (currentSeatNum <= seatsToFill) {
     const row = [];
     
+    // Calculate start slot for this row (1-based)
+    const rowStartSlot = (rowIndex - 1) * (leftCount + rightCount) + 1;
+    
     // Left Side
     if (rowIndex === 0) {
       row.push({ type: 'driver', label: 'Chauffeur' });
@@ -294,7 +297,10 @@ const generateSeatMapJSON = () => {
       }
     } else {
       for (let i = 0; i < leftCount; i++) {
-        if (currentSeatNum <= seatsToFill) {
+        const currentSlot = rowStartSlot + i;
+        if (doorPositions.includes(currentSlot)) {
+          row.push({ type: 'door' });
+        } else if (currentSeatNum <= seatsToFill) {
           row.push({ type: 'seat', number: currentSeatNum.toString() });
           currentSeatNum++;
         } else {
@@ -307,14 +313,28 @@ const generateSeatMapJSON = () => {
     row.push({ type: 'aisle' });
     
     // Right Side
-    if (doorPositions.includes(rowIndex)) {
-      row.push({ type: 'door', label: 'Porte' });
-      for (let i = 1; i < rightCount; i++) {
-        row.push({ type: 'empty' });
+    if (rowIndex === 0) {
+      if (doorPositions.includes(0)) {
+        for (let i = 1; i < rightCount; i++) {
+          row.push({ type: 'empty' });
+        }
+        row.push({ type: 'door', label: 'Porte' });
+      } else {
+        for (let i = 0; i < rightCount; i++) {
+          if (currentSeatNum <= seatsToFill) {
+            row.push({ type: 'seat', number: currentSeatNum.toString() });
+            currentSeatNum++;
+          } else {
+            row.push({ type: 'empty' });
+          }
+        }
       }
     } else {
       for (let i = 0; i < rightCount; i++) {
-        if (currentSeatNum <= seatsToFill) {
+        const currentSlot = rowStartSlot + leftCount + i;
+        if (doorPositions.includes(currentSlot)) {
+          row.push({ type: 'door' });
+        } else if (currentSeatNum <= seatsToFill) {
           row.push({ type: 'seat', number: currentSeatNum.toString() });
           currentSeatNum++;
         } else {
@@ -325,6 +345,9 @@ const generateSeatMapJSON = () => {
     
     seatMap.push(row);
     rowIndex++;
+
+    // Safety break
+    if (rowIndex > 100) break;
   }
   
   // Last Row

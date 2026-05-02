@@ -28,47 +28,17 @@ class SeatMapService
      */
     public function generateSeatMap(array $data): array
     {
+        // If door_positions and seat_count are missing, calculate them
+        if (isset($data['total_capacity']) && (!isset($data['door_positions']) || !isset($data['seat_count']))) {
+            $metadata = $this->calculateMetadata($data);
+            $data = array_merge($data, $metadata);
+        }
+
         $configStr = $data['seat_configuration'] ?? '2+2';
         $parts = explode('+', $configStr);
         $leftCount = (int) ($parts[0] ?? 2);
         $rightCount = (int) ($parts[1] ?? 2);
         $slotsPerRow = $leftCount + $rightCount;
-
-        // Smart parameter calculation if total_capacity is provided instead of seat_count
-        if (isset($data['total_capacity']) && !isset($data['seat_count'])) {
-            $totalCapacity = (int)$data['total_capacity'];
-            $doorCount = (int)($data['door_count'] ?? 2);
-            
-            // Calculate approximate number of rows to find door positions
-            $approxRows = ceil($totalCapacity / $slotsPerRow);
-            $doorPositions = [0]; // Front door always at 0
-            
-            if ($doorCount >= 2) {
-                // Middle door: around middle row, right side
-                $middleRow = floor($approxRows / 2);
-                $rowStartSlot = ($middleRow - 1) * $slotsPerRow + 1;
-                $doorPositions[] = $rowStartSlot + $leftCount; // Inner right
-                $doorPositions[] = $rowStartSlot + $leftCount + 1; // Outer right
-            }
-            
-            if ($doorCount >= 3) {
-                // Back door: 2 rows before last row, right side
-                $backRow = $approxRows - 2;
-                if ($backRow > floor($approxRows / 2)) {
-                    $rowStartSlot = ($backRow - 1) * $slotsPerRow + 1;
-                    $doorPositions[] = $rowStartSlot + $leftCount;
-                    $doorPositions[] = $rowStartSlot + $leftCount + 1;
-                }
-            }
-            
-            $data['door_positions'] = array_unique($doorPositions);
-            $data['seat_count'] = $totalCapacity - count($data['door_positions']);
-            
-            // Special case for last row seats based on configuration
-            if (!isset($data['last_row_seats'])) {
-                $data['last_row_seats'] = ($configStr === '3+2') ? 6 : 5;
-            }
-        }
 
         $seatCount = (int) ($data['seat_count'] ?? 0);
         $doorPositions = $data['door_positions'] ?? [];
@@ -149,7 +119,7 @@ class SeatMapService
             $rowIndex++;
             
             // Safety break to prevent infinite loops if something goes wrong
-            if ($rowIndex > 50) break;
+            if ($rowIndex > 100) break;
         }
 
         // Last Row
@@ -163,5 +133,69 @@ class SeatMapService
         }
 
         return $seatMap;
+    }
+
+    /**
+     * Calculates door positions and seat count based on total capacity and configuration.
+     */
+    public function calculateMetadata(array $data): array
+    {
+        $totalCapacity = (int) ($data['total_capacity'] ?? 0);
+        $doorCount = (int) ($data['door_count'] ?? 1);
+        $doorSide = $data['door_side'] ?? 'right';
+        $doorWidth = (int) ($data['door_width'] ?? 2);
+        
+        $configStr = $data['seat_configuration'] ?? '2+2';
+        $parts = explode('+', $configStr);
+        $leftCount = (int) ($parts[0] ?? 2);
+        $rightCount = (int) ($parts[1] ?? 2);
+        $slotsPerRow = $leftCount + $rightCount;
+
+        // Approximate number of rows (including row 0 which is handled specially)
+        $approxRows = ceil($totalCapacity / $slotsPerRow);
+        $doorPositions = [0]; // Front door always at 0
+
+        if ($doorCount >= 2) {
+            // Middle door: around middle row
+            $middleRow = floor($approxRows / 2);
+            $rowStartSlot = ($middleRow - 1) * $slotsPerRow + 1;
+            
+            if ($doorSide === 'right') {
+                for ($i = 0; $i < min($doorWidth, $rightCount); $i++) {
+                    $doorPositions[] = $rowStartSlot + $leftCount + $i;
+                }
+            } else {
+                for ($i = 0; $i < min($doorWidth, $leftCount); $i++) {
+                    $doorPositions[] = $rowStartSlot + $i;
+                }
+            }
+        }
+
+        if ($doorCount >= 3) {
+            // Back door: moved forward by 2 rows (now -4 from the end)
+            $backRow = $approxRows - 4;
+            if ($backRow > floor($approxRows / 2)) {
+                $rowStartSlot = ($backRow - 1) * $slotsPerRow + 1;
+                
+                if ($doorSide === 'right') {
+                    for ($i = 0; $i < min($doorWidth, $rightCount); $i++) {
+                        $doorPositions[] = $rowStartSlot + $leftCount + $i;
+                    }
+                } else {
+                    for ($i = 0; $i < min($doorWidth, $leftCount); $i++) {
+                        $doorPositions[] = $rowStartSlot + $i;
+                    }
+                }
+            }
+        }
+
+        $doorPositions = array_values(array_unique($doorPositions));
+        sort($doorPositions);
+
+        return [
+            'door_positions' => $doorPositions,
+            'seat_count' => $totalCapacity - count($doorPositions),
+            'last_row_seats' => ($configStr === '3+2') ? 6 : 5,
+        ];
     }
 }
