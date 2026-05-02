@@ -23,6 +23,7 @@ class VehicleType extends Model
         'last_row_seats',
         'door_count',
         'door_positions',
+        'active',
     ];
 
     protected $casts = [

@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -16,7 +18,10 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Car from 'vue-material-design-icons/Car.vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import SeatMapPreview from '@/Components/SeatMapPreview.vue';
+
+const { exportToExcel, printList } = useExportPrint();
 
 const props = defineProps({
   vehicleTypes: {
@@ -38,7 +43,8 @@ const form = ref({
   seat_count: '',
   seat_configuration: '2+2',
   door_positions_text: '',
-  last_row_seats: ''
+  last_row_seats: '',
+  active: true
 });
 
 // Computed
@@ -79,7 +85,8 @@ const openCreateModal = () => {
     seat_count: '',
     seat_configuration: '2+2',
     door_positions_text: '',
-    last_row_seats: ''
+    last_row_seats: '',
+    active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -93,7 +100,23 @@ const openEditModal = () => {
     seat_count: selectedVehicleType.value.seat_count.toString(),
     seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
     door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
-    last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : ''
+    last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
+    active: selectedVehicleType.value.active !== undefined ? Boolean(selectedVehicleType.value.active) : true
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
+const duplicateVehicleType = () => {
+  if (!selectedVehicleType.value) return;
+  isEditing.value = false; // It's a new creation
+  form.value = {
+    name: selectedVehicleType.value.name + ' (Copie)',
+    seat_count: selectedVehicleType.value.seat_count.toString(),
+    seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
+    door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
+    last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
+    active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -106,7 +129,8 @@ const closeModal = () => {
     seat_count: '',
     seat_configuration: '2+2',
     door_positions_text: '',
-    last_row_seats: ''
+    last_row_seats: '',
+    active: true
   };
   errors.value = {};
 };
@@ -244,6 +268,22 @@ const deleteVehicleType = (id) => {
     });
   }
 };
+
+// Export/Print configuration
+const typeColumns = {
+  name: 'Nom',
+  seat_count: 'Places',
+  seat_configuration: 'Configuration',
+  last_row_seats: 'Dernière Rangée'
+};
+
+const handleExport = () => {
+  exportToExcel(filteredVehicleTypes.value, typeColumns, 'types-vehicules');
+};
+
+const handlePrint = () => {
+  printList(filteredVehicleTypes.value, typeColumns, 'Liste des Types de Véhicules');
+};
 </script>
 
 <template>
@@ -283,6 +323,14 @@ const deleteVehicleType = (id) => {
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Type">
                   <Plus class="h-5 w-5" />
                 </button>
+              </div>
+              <div class="flex justify-end mt-2">
+                <ExportPrintButtons 
+                  :disabled="filteredVehicleTypes.length === 0"
+                  small
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
             </div>
 
@@ -330,7 +378,16 @@ const deleteVehicleType = (id) => {
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800">{{ selectedVehicleType.name }}</h2>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                    selectedVehicleType.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  ]">
+                    {{ selectedVehicleType.active ? 'Actif' : 'Inactif' }}
+                  </span>
+                  <button @click="duplicateVehicleType" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                    <ContentCopy class="h-5 w-5" />
+                  </button>
                   <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
@@ -421,10 +478,9 @@ const deleteVehicleType = (id) => {
               </div>
             </div>
 
-            <div class="p-3 bg-blue-50/50 rounded-lg border border-blue-100 md:col-span-1">
-               <p class="text-[10px] text-blue-600 leading-tight">
-                 💡 Les modifications sont visibles en temps réel ci-dessous.
-               </p>
+            <div class="flex items-center">
+              <input type="checkbox" v-model="form.active" id="type_active" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
+              <label for="type_active" class="ml-2 text-sm text-gray-600">Type de Véhicule Actif</label>
             </div>
           </div>
 

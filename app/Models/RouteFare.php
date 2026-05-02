@@ -19,6 +19,7 @@ class RouteFare extends Model
         'to_station_id',
         'amount',
         'is_bidirectional',
+        'active',
     ];
 
     protected $casts = [

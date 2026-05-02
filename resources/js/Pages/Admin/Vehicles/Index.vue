@@ -21,6 +21,7 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -76,6 +77,16 @@ watch(() => props.vehicles, (newVehicles) => {
   }
 }, { deep: true });
 
+// Watch for vehicle type change to update seat count
+watch(() => form.value.vehicle_type_id, (newTypeId) => {
+  if (newTypeId) {
+    const selectedType = props.vehicleTypes.find(t => t.id === newTypeId);
+    if (selectedType) {
+      form.value.seat_count = selectedType.seat_count.toString();
+    }
+  }
+});
+
 // Methods
 const isSelected = (vehicle) => {
   if (!selectedVehicle.value) return false;
@@ -111,6 +122,21 @@ const openEditModal = () => {
     seat_count: selectedVehicle.value.seat_count.toString(),
     active: selectedVehicle.value.active !== false,
     inactive_reason: selectedVehicle.value.inactive_reason || ''
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
+const duplicateVehicle = () => {
+  if (!selectedVehicle.value) return;
+  isEditing.value = false;
+  form.value = {
+    identifier: selectedVehicle.value.identifier + ' (Copie)',
+    maker: selectedVehicle.value.maker,
+    vehicle_type_id: selectedVehicle.value.vehicle_type_id,
+    seat_count: selectedVehicle.value.seat_count.toString(),
+    active: true,
+    inactive_reason: ''
   };
   errors.value = {};
   showModal.value = true;
@@ -266,7 +292,7 @@ const getTripStatus = (trip) => {
                         'px-2 py-0.5 rounded-full text-[10px] font-medium',
                         vehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                       ]">
-                        {{ vehicle.active ? 'Active' : 'Inactive' }}
+                        {{ vehicle.active ? 'Actif' : 'Inactif' }}
                       </span>
                       <span class="text-[10px] text-gray-400">
                         {{ vehicle.trips_count || 0 }} voyages
@@ -297,7 +323,16 @@ const getTripStatus = (trip) => {
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800">{{ selectedVehicle.identifier }}</h2>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                    selectedVehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  ]">
+                    {{ selectedVehicle.active ? 'Actif' : 'Inactif' }}
+                  </span>
+                  <button @click="duplicateVehicle" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                    <ContentCopy class="h-5 w-5" />
+                  </button>
                   <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
@@ -431,7 +466,14 @@ const getTripStatus = (trip) => {
             </div>
             <div>
               <InputLabel for="seat_count" value="Nombre de Places" />
-              <TextInput v-model="form.seat_count" id="seat_count" type="number" min="1" class="w-full" />
+              <TextInput 
+                v-model="form.seat_count" 
+                id="seat_count" 
+                type="number" 
+                class="w-full bg-gray-100 font-bold cursor-not-allowed" 
+                readonly
+                placeholder="Dérivé du type..."
+              />
               <InputError :message="errors.seat_count" />
             </div>
           </div>

@@ -24,6 +24,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue'
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue'
 import { useExportPrint } from '@/Composables/useExportPrint'
 import Router from 'vue-material-design-icons/Router.vue'
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -161,6 +162,19 @@ const openEditRouteModal = () => {
     origin_destination_id: selectedRoute.value.origin_destination_id,
     target_destination_id: selectedRoute.value.target_destination_id,
     active: selectedRoute.value.active
+  };
+  errors.value = {};
+  showRouteModal.value = true;
+};
+
+const duplicateRoute = () => {
+  if (!selectedRoute.value) return;
+  isEditingRoute.value = false;
+  routeForm.value = {
+    name: selectedRoute.value.name + ' (Copie)',
+    origin_destination_id: selectedRoute.value.origin_destination_id,
+    target_destination_id: selectedRoute.value.target_destination_id,
+    active: true
   };
   errors.value = {};
   showRouteModal.value = true;
@@ -452,7 +466,7 @@ const handlePrint = () => {
                           'px-2 py-0.5 rounded-full text-[10px] font-medium',
                           routeItem.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         ]">
-                          {{ routeItem.active ? 'Active' : 'Inactive' }}
+                          {{ routeItem.active ? 'Actif' : 'Inactif' }}
                         </span>
                         <span class="text-[10px] text-gray-400">
                           {{ routeItem.trips_count || 0 }} voyages
@@ -483,7 +497,16 @@ const handlePrint = () => {
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800">{{ selectedRoute.name }}</h2>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                    selectedRoute.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  ]">
+                    {{ selectedRoute.active ? 'Actif' : 'Inactif' }}
+                  </span>
+                  <button @click="duplicateRoute" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                    <ContentCopy class="h-5 w-5" />
+                  </button>
                   <button @click="openEditRouteModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
@@ -509,15 +532,6 @@ const handlePrint = () => {
                 </div>
               </div>
 
-              <!-- Footer Row -->
-              <div>
-                 <span :class="[
-                  'px-3 py-1 rounded-full text-xs font-semibold',
-                  selectedRoute.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                ]">
-                  {{ selectedRoute.active ? 'Active' : 'Inactive' }}
-                </span>
-              </div>
             </div>
 
             <!-- Stops Section -->

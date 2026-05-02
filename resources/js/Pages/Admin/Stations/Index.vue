@@ -21,6 +21,7 @@ import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
 import Account from 'vue-material-design-icons/Account.vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -226,6 +227,21 @@ const openEditModal = () => {
   showModal.value = true;
 };
 
+const duplicateStation = () => {
+  if (!selectedStation.value) return;
+  isEditing.value = false;
+  form.value = {
+    code: selectedStation.value.code + '-COPY',
+    name: selectedStation.value.name + ' (Copie)',
+    destination_id: selectedStation.value.destination_id,
+    city: selectedStation.value.city,
+    address: selectedStation.value.address || '',
+    active: true
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
 const closeModal = () => {
   showModal.value = false;
   form.value = {
@@ -311,9 +327,9 @@ const handlePrint = () => {
             <div class="p-2 bg-green-100 rounded-xl">
               <OfficeBuilding class="text-green-600" :size="28" />
             </div>
-            Gestion des Stations
+            Gestion des Gares / Destinations
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-gray-500 mt-1">Paramètres des lieux de prise en charge et dépose</p>
         </div>
       </div>
 
@@ -407,29 +423,38 @@ const handlePrint = () => {
                   <p class="text-sm text-gray-500">{{ selectedStation.city }} - {{ selectedStation.code }}</p>
                 </div>
                 <div class="flex gap-2">
-                  <span :class="[
-                    'px-3 py-1 rounded-full text-xs font-semibold',
-                    selectedStation.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  ]">
-                    {{ selectedStation.active ? 'Active' : 'Inactive' }}
-                  </span>
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
-                    <Pencil class="h-5 w-5" />
-                  </button>
-                  <button @click="deleteStation(selectedStation.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
-                    <Trash2 class="h-5 w-5" />
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <span :class="[
+                      'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                      selectedStation.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    ]">
+                      {{ selectedStation.active ? 'Active' : 'Inactive' }}
+                    </span>
+                    <button @click="duplicateStation" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                      <ContentCopy class="h-5 w-5" />
+                    </button>
+                    <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                      <Pencil class="h-5 w-5" />
+                    </button>
+                    <button @click="deleteStation(selectedStation.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                      <Trash2 class="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               
               <!-- Details Grid -->
               <div class="grid grid-cols-12 gap-4 pt-2 border-t border-gray-100">
                 <div class="col-span-6">
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">VILLE</span>
+                  <div class="text-lg font-medium text-gray-900">{{ selectedStation.destination?.name || 'Non liée' }}</div>
+                </div>
+                <div class="col-span-6">
                   <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">CODE</span>
                   <div class="text-lg font-medium text-gray-900">{{ selectedStation.code }}</div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">VILLE</span>
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">QUARTIER / NOM PRÉCIS</span>
                   <div class="text-lg font-medium text-gray-900">{{ selectedStation.city }}</div>
                 </div>
                 <div class="col-span-12">
@@ -557,13 +582,13 @@ const handlePrint = () => {
     <!-- Modal -->
     <DialogModal :show="showModal" @close="closeModal">
       <template #title>
-        {{ isEditing ? 'Modifier la Station' : 'Nouvelle Station' }}
+        {{ isEditing ? 'Modifier la Gare / Destination' : 'Nouvelle Gare / Destination' }}
       </template>
       <template #content>
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <InputLabel for="destination" value="Ville / Destination*" />
+              <InputLabel for="destination" value="Ville*" />
               <select id="destination" v-model="form.destination_id" class="w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-md shadow-sm">
                 <option value="">Sélectionner...</option>
                 <option v-for="dest in destinations" :key="dest.id" :value="dest.id">
@@ -587,7 +612,7 @@ const handlePrint = () => {
 
           <!-- Hidden city field, as it is derived from destination now, but kept if user wants custom display city -->
           <!-- <div>
-              <InputLabel for="city" value="Ville (Affichage)" />
+              <InputLabel for="city" value="Quartier / Nom précis (Optionnel)" />
               <TextInput v-model="form.city" id="city" class="w-full" placeholder="Ex: Abidjan" />
               <InputError :message="errors.city" />
             </div> -->

@@ -16,6 +16,7 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import CashMultiple from 'vue-material-design-icons/CashMultiple.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 
 const props = defineProps({
   fares: {
@@ -40,7 +41,8 @@ const form = ref({
   from_station_id: '',
   to_station_id: '',
   amount: '',
-  is_bidirectional: true
+  is_bidirectional: true,
+  active: true
 });
 
 // Computed
@@ -91,10 +93,9 @@ const selectFare = (fare) => {
 const openCreateModal = () => {
   isEditing.value = false;
   form.value = {
-    from_station_id: '',
-    to_station_id: '',
     amount: '',
-    is_bidirectional: true
+    is_bidirectional: true,
+    active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -107,7 +108,22 @@ const openEditModal = () => {
     from_station_id: selectedFare.value.from_station_id,
     to_station_id: selectedFare.value.to_station_id,
     amount: selectedFare.value.amount,
-    is_bidirectional: selectedFare.value.is_bidirectional ?? true
+    is_bidirectional: selectedFare.value.is_bidirectional ?? true,
+    active: selectedFare.value.active !== undefined ? Boolean(selectedFare.value.active) : true
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
+const duplicateFare = () => {
+  if (!selectedFare.value) return;
+  isEditing.value = false;
+  form.value = {
+    from_station_id: selectedFare.value.from_station_id,
+    to_station_id: selectedFare.value.to_station_id,
+    amount: selectedFare.value.amount,
+    is_bidirectional: selectedFare.value.is_bidirectional ?? true,
+    active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -116,10 +132,9 @@ const openEditModal = () => {
 const closeModal = () => {
   showModal.value = false;
   form.value = {
-    from_station_id: '',
-    to_station_id: '',
     amount: '',
-    is_bidirectional: true
+    is_bidirectional: true,
+    active: true
   };
   errors.value = {};
 };
@@ -271,7 +286,16 @@ const getStationLabel = (station) => {
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800">Détails du Tarif</h2>
-                <div class="flex gap-2">
+                <div class="flex items-center gap-2">
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+                    selectedFare.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  ]">
+                    {{ selectedFare.active ? 'Actif' : 'Inactif' }}
+                  </span>
+                  <button @click="duplicateFare" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                    <ContentCopy class="h-5 w-5" />
+                  </button>
                   <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
@@ -376,6 +400,11 @@ const getStationLabel = (station) => {
               <input type="checkbox" v-model="form.is_bidirectional" class="sr-only peer" />
               <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
             </label>
+          </div>
+
+          <div class="flex items-center">
+            <input type="checkbox" v-model="form.active" id="fare_active" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
+            <label for="fare_active" class="ml-2 text-sm text-gray-600">Tarif Actif</label>
           </div>
         </div>
       </template>

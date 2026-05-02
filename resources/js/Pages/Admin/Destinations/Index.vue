@@ -18,6 +18,7 @@ import Plus from 'vue-material-design-icons/Plus.vue';
 import City from 'vue-material-design-icons/City.vue'; // Using City icon or MapMarker
 import TrainCar from 'vue-material-design-icons/TrainCar.vue'; // Icon for stations
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 
 const props = defineProps({
   destinations: {
@@ -34,6 +35,7 @@ const { exportToExcel, printList } = useExportPrint();
 
 const destinationColumns = {
   name: 'Nom',
+  city: 'Ville',
   region: 'Région',
   is_active: 'Statut',
   stations_count: 'Gares'
@@ -109,6 +111,19 @@ const openEditModal = (destination) => {
     city: destination.city || '',
     region: destination.region || '',
     is_active: Boolean(destination.is_active)
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
+const duplicateDestination = () => {
+  if (!selectedDestination.value) return;
+  isEditing.value = false;
+  form.value = {
+    name: selectedDestination.value.name + ' (Copie)',
+    city: selectedDestination.value.city || '',
+    region: selectedDestination.value.region || '',
+    is_active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -249,9 +264,9 @@ onMounted(() => {
             <div class="p-2 bg-blue-100 rounded-xl">
               <City class="text-blue-600" :size="28" />
             </div>
-            Gestion des Destinations
+            Gestion des Villes
           </h1>
-          <p class="text-gray-500 mt-1">Gérez les destinations desservies</p>
+          <p class="text-gray-500 mt-1">Gérez les villes desservies</p>
         </div>
       </div>
 
@@ -305,7 +320,7 @@ onMounted(() => {
                             <div class="flex-1 min-w-0">
                                  <h3 :class="['font-semibold truncate', selectedDestination?.id === dest.id ? 'text-green-800' : 'text-gray-800']">{{ dest.name }}</h3>
                                  <p class="text-xs text-gray-500 mt-1">
-                                     {{ dest.region || 'Région non définie' }}
+                                     {{ dest.city ? dest.city + ' - ' : '' }}{{ dest.region || 'Région non définie' }}
                                  </p>
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
@@ -352,13 +367,16 @@ onMounted(() => {
                         <div>
                             <h2 class="text-2xl font-bold text-gray-800">{{ selectedDestination.name }}</h2>
                             <p class="text-sm text-gray-500 flex items-center gap-1">
-                                <MapMarkerRadius :size="14"/> {{ selectedDestination.region || 'Région non définie' }}
+                                <MapMarkerRadius :size="14"/> {{ selectedDestination.city }}{{ selectedDestination.region ? ' (' + selectedDestination.region + ')' : '' }}
                             </p>
                         </div>
-                        <div class="flex gap-2">
-                             <span :class="['px-3 py-1 rounded-full text-xs font-semibold', selectedDestination.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
+                        <div class="flex items-center gap-2">
+                             <span :class="['px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide', selectedDestination.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800']">
                                 {{ selectedDestination.is_active ? 'Active' : 'Inactive' }}
                              </span>
+                             <button @click="duplicateDestination" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                                <ContentCopy class="h-5 w-5" />
+                             </button>
                              <button @click="openEditModal(selectedDestination)" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
                                 <Pencil class="h-5 w-5" />
                              </button>
@@ -430,14 +448,20 @@ onMounted(() => {
            
            <div class="grid grid-cols-2 gap-4">
                <div>
+                 <InputLabel for="city" value="Ville" />
+                 <TextInput v-model="form.city" id="city" class="w-full" placeholder="Ex: Abidjan" />
+                 <InputError :message="errors.city" />
+               </div>
+               <div>
                  <InputLabel for="region" value="Région (Optionnel)" />
                  <TextInput v-model="form.region" id="region" class="w-full" placeholder="Ex: Lagunes" />
                  <InputError :message="errors.region" />
                </div>
-               <div class="flex items-center pt-6">
-                 <input type="checkbox" v-model="form.is_active" id="active" class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500">
-                 <label for="active" class="ml-2 text-sm text-gray-600">Destination Active</label>
-               </div>
+           </div>
+
+           <div class="flex items-center">
+                  <input type="checkbox" v-model="form.is_active" id="active" class="rounded border-gray-300 text-blue-600 shadow-sm focus:ring-blue-500">
+                  <label for="active" class="ml-2 text-sm text-gray-600">Destination Active</label>
            </div>
         </div>
       </template>
