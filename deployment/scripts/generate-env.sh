@@ -21,6 +21,8 @@ source "${SCRIPT_DIR}/deploy.config.sh"
 
 TEMPLATE="${DEPLOY_DIR}/config/template.env"
 OUTPUT_ENV="${DEPLOY_OUTPUT_ENV:-${DEPLOY_DIR}/.env}"
+OUTPUT_DIR="$(dirname "${OUTPUT_ENV}")"
+OUTPUT_TMP=""
 
 linfo() { echo -e "\033[0;34m[generate-env]\033[0m $1" >&2; }
 warn()  { echo -e "\033[0;33m[generate-env]\033[0m WARN: $1" >&2; }
@@ -29,7 +31,7 @@ error() { echo -e "\033[0;31m[generate-env]\033[0m ERROR: $1" >&2; exit 1; }
 [[ -f "$TEMPLATE" ]] || error "template.env not found at ${TEMPLATE}"
 
 LOOKUP_FILE="$(mktemp)"
-trap 'rm -f "$LOOKUP_FILE"' EXIT
+trap 'rm -f "$LOOKUP_FILE" "${OUTPUT_TMP:-}"' EXIT
 
 _set() {
     local key="$1" val="$2"
@@ -139,6 +141,8 @@ done
 
 # ── 2. Generate .env by walking template line-by-line ─────────────────────────
 linfo "Building ${OUTPUT_ENV} ..."
+mkdir -p "${OUTPUT_DIR}"
+OUTPUT_TMP="$(mktemp "${OUTPUT_DIR}/.env.tmp.XXXXXX")"
 
 {
     echo "# ┌──────────────────────────────────────────────────────────────────────────┐"
@@ -146,7 +150,7 @@ linfo "Building ${OUTPUT_ENV} ..."
     echo "# │  DO NOT EDIT MANUALLY. Source of truth: deployment/config/template.env"
     echo "# └──────────────────────────────────────────────────────────────────────────┘"
     echo ""
-} > "$OUTPUT_ENV"
+} > "$OUTPUT_TMP"
 
 while IFS= read -r line; do
     if [[ -z "$line" ]]; then echo ""; continue; fi
@@ -158,12 +162,12 @@ while IFS= read -r line; do
     else
         echo "${key}=${template_val}"
     fi
-done < "$TEMPLATE" >> "$OUTPUT_ENV"
+done < "$TEMPLATE" >> "$OUTPUT_TMP"
 
 # Keep secrets private to the deployment owner while allowing trusted
 # deploy-group operators (for example opsadmin) to run read-only helpers
 # like artisan.sh against the generated compose env file.
-chmod 640 "$OUTPUT_ENV"
+chmod 640 "$OUTPUT_TMP"
 
 # ── 3. Validate required keys are non-empty ───────────────────────────────────
 REQUIRED_KEYS=(
@@ -180,13 +184,16 @@ REQUIRED_KEYS=(
 
 missing=()
 for key in "${REQUIRED_KEYS[@]}"; do
-    value=$(grep -E "^${key}=" "$OUTPUT_ENV" | tail -1 | cut -d= -f2-)
+    value=$(grep -E "^${key}=" "$OUTPUT_TMP" | tail -1 | cut -d= -f2-)
     [[ -z "$value" ]] && missing+=("$key")
 done
 
 if [[ ${#missing[@]} -gt 0 ]]; then
     error "Required keys are missing or empty: ${missing[*]}"
 fi
+
+mv -f "$OUTPUT_TMP" "$OUTPUT_ENV"
+OUTPUT_TMP=""
 
 total_keys=$(grep -c "^[^#]" "$OUTPUT_ENV" 2>/dev/null || echo "?")
 echo -e "\033[0;32m[generate-env]\033[0m ✓ .env generated — ${total_keys} keys → ${OUTPUT_ENV}" >&2

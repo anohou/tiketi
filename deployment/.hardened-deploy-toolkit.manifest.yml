@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-05-02T15:00:46Z
+generated_at: 2026-05-03T01:34:39Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -113,7 +113,7 @@ managed_files:
   scripts/dump-db.sh:
     sha256: 3f9d56d7df9493f1b06a20ad184f7bb15701ba6a4639b40aa5462d299fc6287c
   scripts/generate-env.sh:
-    sha256: a29df5c3828eddf93a055afe82b470ea347ee69b64f09502e9c7858c61448a05
+    sha256: 43b5d7e7058d415f4a0e60f8c9d2b57750632439f95b31ebb7fa4fc1bf01aab4
   scripts/healthcheck.sh:
     sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
   scripts/provision-db.sh:
