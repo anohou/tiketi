@@ -16,6 +16,7 @@ return new class extends Migration
             $table->uuid('trip_id')->index();
             $table->unsignedInteger('seat_number');
             $table->uuid('ticket_id')->nullable()->index();
+            $table->json('settings')->nullable();
             $table->timestamps();
 
             $table->unique(['trip_id', 'seat_number'], 'uniq_trip_seat');

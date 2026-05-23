@@ -68,8 +68,10 @@ const statusOptions = [
 const uniqueDepartures = computed(() => {
   const stations = new Map();
   props.routes.forEach(r => {
-    if (r.origin_station) {
-      stations.set(r.origin_station.id, r.origin_station);
+    const routeStops = r.route_stop_orders || r.routeStopOrders || [];
+    const origin = r.origin_station || r.originStation || routeStops[0]?.station;
+    if (origin) {
+      stations.set(origin.id, origin);
     }
   });
   return Array.from(stations.values());
@@ -78,8 +80,10 @@ const uniqueDepartures = computed(() => {
 const uniqueArrivals = computed(() => {
   const stations = new Map();
   props.routes.forEach(r => {
-    if (r.destination_station) {
-      stations.set(r.destination_station.id, r.destination_station);
+    const routeStops = r.route_stop_orders || r.routeStopOrders || [];
+    const destination = r.destination_station || r.destinationStation || routeStops[routeStops.length - 1]?.station;
+    if (destination) {
+      stations.set(destination.id, destination);
     }
   });
   return Array.from(stations.values());
@@ -109,14 +113,14 @@ const filteredTrips = computed(() => {
   // Filter by departure station
   if (departureFilter.value) {
     trips = trips.filter(trip => 
-      trip.route?.origin_station?.id === departureFilter.value
+      (trip.origin_station?.id || trip.originStation?.id || trip.route?.origin_station?.id || trip.route?.originStation?.id) === departureFilter.value
     );
   }
   
   // Filter by arrival station
   if (arrivalFilter.value) {
     trips = trips.filter(trip => 
-      trip.route?.destination_station?.id === arrivalFilter.value
+      (trip.destination_station?.id || trip.destinationStation?.id || trip.route?.destination_station?.id || trip.route?.destinationStation?.id) === arrivalFilter.value
     );
   }
   
@@ -177,7 +181,7 @@ const orderedTickets = computed(() => {
   
   stopOrders.forEach(order => {
     // Map both possible field names
-    const stopId = order.stop_id || order.stopId;
+    const stopId = order.station_id || order.stationId || order.station?.id || order.stop_id || order.stopId;
     const stopIndex = order.stop_index ?? order.stopIndex ?? 999;
     if (stopId) {
       stopIndexMap.set(stopId, stopIndex);
@@ -191,7 +195,7 @@ const orderedTickets = computed(() => {
       case 'distance':
         // Try getting the stop_id from both the direct field and the loaded relation
         const stopIdA = a.to_station_id || a.toStationId || a.to_station?.id || a.toStation?.id;
-        const stopIdB = b.to_station_id || b.toStationId || b.to_station?.id || a.toStation?.id;
+        const stopIdB = b.to_station_id || b.toStationId || b.to_station?.id || b.toStation?.id;
         const indexA = stopIndexMap.get(stopIdA) ?? 999;
         const indexB = stopIndexMap.get(stopIdB) ?? 999;
         comparison = indexA - indexB;
@@ -681,7 +685,7 @@ const handlePrint = () => {
                 :key="r.id"
                 :value="r.id"
               >
-                {{ r.name }} ({{ r.origin_station?.name }} → {{ r.destination_station?.name }})
+                {{ r.name }} ({{ r.origin_station?.name || r.originStation?.name || r.route_stop_orders?.[0]?.station?.name || r.routeStopOrders?.[0]?.station?.name || 'Départ' }} → {{ r.destination_station?.name || r.destinationStation?.name || r.route_stop_orders?.[r.route_stop_orders.length - 1]?.station?.name || r.routeStopOrders?.[r.routeStopOrders.length - 1]?.station?.name || 'Arrivée' }})
               </option>
             </select>
             <InputError :message="errors.route_id" />

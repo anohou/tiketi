@@ -269,6 +269,7 @@ const fetchSeatSuggestions = async () => {
         }), {
             params: {
                 destination_station_id: selectedFare.value.to_station_id,
+                boarding_station_id: selectedFare.value.from_station_id,
                 quantity: ticketQuantity.value
             }
         });
@@ -507,7 +508,7 @@ const toggleBluetoothPrinter = () => {
 const printWithBluetooth = async (ticketId) => {
   try {
     // Fetch ticket data
-    const response = await axios.get(route('api.tickets.show', ticketId));
+    const response = await axios.get(route('seller.tickets.show-data', { ticket: ticketId }));
     const ticket = response.data;
     
     // Extract settings from response
@@ -515,7 +516,7 @@ const printWithBluetooth = async (ticketId) => {
       company_name: 'TSR CI',
       phone_numbers: ['+225 XX XX XX XX XX'],
       footer_messages: ['Valable pour ce voyage', 'Non remboursable'],
-      print_qr_code: false,
+      print_qr_code: true,
       qr_code_base_url: null
     };
     
@@ -529,9 +530,10 @@ const printWithBluetooth = async (ticketId) => {
       time: ticket.trip?.departure_at ? new Date(ticket.trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'N/A',
       class: ticket.trip?.vehicle?.vehicle_type?.name || 'Standard',
       seat_number: ticket.seat_number || 'N/A',
+      boarding_group: ticket.boarding_group || '1',
       price: String(ticket.price || 0),
-      vehicle_number: ticket.trip?.vehicle?.registration_number || 'N/A',
-      qr_code: ticket.qr_code || null,
+      vehicle_number: ticket.trip?.vehicle?.identifier || 'N/A',
+      qr_code: ticket.qr_payload_string || ticket.qr_code || null,
       timestamp: new Date().toLocaleString('fr-FR')
     };
     

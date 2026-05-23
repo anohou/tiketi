@@ -51,13 +51,13 @@ class AnalyticsController extends Controller
         $endDate = $now->copy()->endOfDay();
 
         // Current period statistics
-        $currentRevenue = Ticket::whereBetween('created_at', [$startDate, $endDate])->sum('price');
-        $currentTickets = Ticket::whereBetween('created_at', [$startDate, $endDate])->count();
+        $currentRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->sum('price');
+        $currentTickets = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->count();
         $currentTrips = Trip::whereBetween('departure_at', [$startDate, $endDate])->count();
 
         // Previous period for comparison
-        $previousRevenue = Ticket::whereBetween('created_at', [$compareStart, $compareEnd])->sum('price');
-        $previousTickets = Ticket::whereBetween('created_at', [$compareStart, $compareEnd])->count();
+        $previousRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$compareStart, $compareEnd])->sum('price');
+        $previousTickets = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$compareStart, $compareEnd])->count();
 
         // Calculate growth percentages
         $revenueGrowth = $previousRevenue > 0
@@ -82,7 +82,7 @@ class AnalyticsController extends Controller
             'trips' => [
                 'current' => $currentTrips,
             ],
-            'avg_ticket_price' => Ticket::whereBetween('created_at', [$startDate, $endDate])->avg('price') ?? 0,
+            'avg_ticket_price' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->avg('price') ?? 0,
             'avg_occupancy' => $this->calculateAverageOccupancy($startDate, $endDate),
         ];
 
@@ -94,6 +94,7 @@ class AnalyticsController extends Controller
             ->join('trips', 'tickets.trip_id', '=', 'trips.id')
             ->join('routes', 'trips.route_id', '=', 'routes.id')
             ->selectRaw('routes.id, routes.name, SUM(tickets.price) as revenue, COUNT(*) as ticket_count')
+            ->where('tickets.status', '!=', 'cancelled')
             ->whereBetween('tickets.created_at', [$startDate, $endDate])
             ->groupBy('routes.id', 'routes.name')
             ->orderByDesc('revenue')
@@ -104,6 +105,7 @@ class AnalyticsController extends Controller
         $revenueByStation = Ticket::query()
             ->join('stations', 'tickets.from_station_id', '=', 'stations.id')
             ->selectRaw('stations.id, stations.name, SUM(tickets.price) as revenue, COUNT(*) as ticket_count')
+            ->where('tickets.status', '!=', 'cancelled')
             ->whereBetween('tickets.created_at', [$startDate, $endDate])
             ->groupBy('stations.id', 'stations.name')
             ->orderByDesc('revenue')
@@ -124,7 +126,7 @@ class AnalyticsController extends Controller
                 $monthEnd = $monthStart->copy()->endOfMonth();
                 $monthlyRevenue[] = [
                     'month' => $monthStart->format('M'),
-                    'revenue' => Ticket::whereBetween('created_at', [$monthStart, $monthEnd])->sum('price'),
+                    'revenue' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$monthStart, $monthEnd])->sum('price'),
                 ];
             }
         }
@@ -149,7 +151,7 @@ class AnalyticsController extends Controller
      */
     private function calculateAverageOccupancy($startDate, $endDate)
     {
-        $trips = Trip::with(['vehicle', 'tripSeatOccupancies'])
+        $trips = Trip::with(['vehicle', 'tripSeatOccupancies.ticket'])
             ->whereBetween('departure_at', [$startDate, $endDate])
             ->get();
 
@@ -163,7 +165,11 @@ class AnalyticsController extends Controller
         foreach ($trips as $trip) {
             $seatCount = $trip->vehicle?->seat_count ?? 0;
             if ($seatCount > 0) {
-                $occupied = $trip->tripSeatOccupancies->count();
+                $occupied = $trip->tripSeatOccupancies
+                    ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status !== 'cancelled')
+                    ->pluck('seat_number')
+                    ->unique()
+                    ->count();
                 $totalOccupancy += ($occupied / $seatCount) * 100;
                 $tripCount++;
             }
@@ -178,6 +184,7 @@ class AnalyticsController extends Controller
     private function getRevenueTrend($startDate, $endDate, $period)
     {
         $tickets = Ticket::query()
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderBy('created_at')
             ->get(['created_at', 'price']);

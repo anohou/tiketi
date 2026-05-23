@@ -18,6 +18,11 @@ class RouteStopOrder extends Model
         'route_id',
         'station_id',
         'stop_index',
+        'settings',
+    ];
+
+    protected $casts = [
+        'settings' => 'array',
     ];
 
     public function route(): BelongsTo

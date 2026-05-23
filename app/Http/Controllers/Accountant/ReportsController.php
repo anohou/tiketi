@@ -26,6 +26,7 @@ class ReportsController extends Controller
         // Build tickets query with filters
         $ticketsQuery = Ticket::query()
             ->with(['trip.route', 'trip.vehicle', 'seller', 'fromStation', 'toStation'])
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()]);
 
         if ($stationId) {
@@ -48,6 +49,7 @@ class ReportsController extends Controller
         // Revenue by seller
         $revenueBySeller = Ticket::query()
             ->selectRaw('seller_id, SUM(price) as total, COUNT(*) as count')
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('seller_id')
             ->with('seller:id,name')
@@ -56,6 +58,7 @@ class ReportsController extends Controller
         // Revenue by station
         $revenueByStation = Ticket::query()
             ->selectRaw('from_station_id as station_id, SUM(price) as total, COUNT(*) as count')
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('from_station_id')
             ->get()
@@ -73,6 +76,7 @@ class ReportsController extends Controller
         // Daily revenue trend
         $dailyRevenue = Ticket::query()
             ->selectRaw('DATE(created_at) as date, SUM(price) as total, COUNT(*) as count')
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('date')
             ->orderBy('date')
@@ -109,6 +113,7 @@ class ReportsController extends Controller
 
         $tickets = Ticket::query()
             ->with(['trip.route', 'seller', 'fromStation', 'toStation'])
+            ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->orderBy('created_at', 'desc')
             ->get();

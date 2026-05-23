@@ -23,10 +23,12 @@ class Trip extends Model
         'sales_control',
         'origin_station_id',
         'destination_station_id',
+        'settings',
     ];
 
     protected $casts = [
         'departure_at' => 'datetime',
+        'settings' => 'array',
     ];
 
     protected $appends = ['total_seats', 'available_seats', 'display_name'];
@@ -46,7 +48,7 @@ class Trip extends Model
 
     public function getTotalSeatsAttribute()
     {
-        return $this->vehicle?->vehicleType?->seat_count ?? 0;
+        return $this->vehicle?->vehicleType?->seat_count ?? $this->vehicle?->seat_count ?? 0;
     }
 
     public function getAvailableSeatsAttribute()
@@ -55,12 +57,17 @@ class Trip extends Model
 
         // Utiliser le compteur préchargé par withCount() s'il existe,
         // sinon fallback sur une requête (évite les N+1 dans les listes)
-        if (isset($this->attributes['occupied_seats'])) {
-            $occupied = (int) $this->attributes['occupied_seats'];
-        } elseif ($this->relationLoaded('tripSeatOccupancies')) {
-            $occupied = $this->tripSeatOccupancies->count();
+        if ($this->relationLoaded('tripSeatOccupancies')) {
+            $occupied = $this->tripSeatOccupancies
+                ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status !== 'cancelled')
+                ->pluck('seat_number')
+                ->unique()
+                ->count();
         } else {
-            $occupied = $this->tripSeatOccupancies()->count();
+            $occupied = Ticket::where('trip_id', $this->id)
+                ->where('status', '!=', 'cancelled')
+                ->distinct('seat_number')
+                ->count('seat_number');
         }
 
         return max(0, $total - $occupied);

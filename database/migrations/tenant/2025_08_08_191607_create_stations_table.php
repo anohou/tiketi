@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->string('phone')->nullable();
             $table->boolean('active')->default(true);
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

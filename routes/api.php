@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\OptimisationController;
+use App\Http\Controllers\Api\OkohiVerificationController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\TripController;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 // Routes publiques (trajets et véhicules)
+Route::get('/okohi/verify', OkohiVerificationController::class)->name('okohi.verify');
+
 Route::prefix('routes')->group(function () {
     Route::get('/', [RouteController::class, 'index']); // GET /api/routes
     Route::get('/{id}', [RouteController::class, 'show']); // GET /api/routes/{id}
@@ -34,23 +37,23 @@ Route::prefix('trips')->group(function () {
     Route::get('/{tripId}/occupancy', [OptimisationController::class, 'occupancy']); // GET /api/trips/{id}/occupancy
 });
 
-// Routes pour les billets/réservations
-Route::prefix('tickets')->name('api.tickets.')->group(function () {
-    Route::post('/', [TicketController::class, 'store'])->name('store'); // POST /api/tickets
-    Route::get('/{ticket}', [TicketController::class, 'show'])->name('show'); // GET /api/tickets/{ticket}
-    Route::patch('/{ticket}/cancel', [TicketController::class, 'cancel'])->name('cancel'); // PATCH /api/tickets/{ticket}/cancel
-});
-
 // Routes protégées (nécessitent authentification)
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('tickets')->name('api.tickets.')->group(function () {
+        Route::post('/', [TicketController::class, 'store'])->name('store'); // POST /api/tickets
+        Route::get('/export', [TicketController::class, 'export'])->name('export'); // GET /api/tickets/export
+        Route::get('/{ticket}', [TicketController::class, 'show'])->name('show'); // GET /api/tickets/{ticket}
+        Route::patch('/{ticket}/cancel', [TicketController::class, 'cancel'])->name('cancel'); // PATCH /api/tickets/{ticket}/cancel
+    });
+
     // Dashboard stats
     Route::get('/dashboard/stats', function () {
         return response()->json([
             'success' => true,
             'data' => [
                 'total_trips_today' => \App\Models\Trip::whereDate('departure_at', today())->count(),
-                'total_tickets_today' => \App\Models\Ticket::whereDate('created_at', today())->count(),
-                'total_revenue_today' => \App\Models\Ticket::whereDate('created_at', today())->sum('price'),
+                'total_tickets_today' => \App\Models\Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->count(),
+                'total_revenue_today' => \App\Models\Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->sum('price'),
                 'occupancy_rate' => 0, // À implémenter
             ],
             'message' => 'Statistiques récupérées avec succès',

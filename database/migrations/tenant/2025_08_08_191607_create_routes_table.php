@@ -17,6 +17,7 @@ return new class extends Migration
             $table->uuid('origin_station_id')->index();
             $table->uuid('destination_station_id')->index();
             $table->boolean('active')->default(true);
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

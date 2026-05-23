@@ -21,13 +21,14 @@ class OptimisationController extends Controller
      * POST /api/trips/{tripId}/suggest-seats
      *
      * Body: {
-     *   "destination_stop_id": "uuid"
+     *   "destination_station_id": "uuid"
      * }
      */
     public function suggestSeats(Request $request, string $tripId)
     {
         $validator = Validator::make($request->all(), [
-            'destination_stop_id' => 'required|exists:stations,id',
+            'destination_station_id' => 'required_without:destination_stop_id|exists:stations,id',
+            'destination_stop_id' => 'required_without:destination_station_id|exists:stations,id',
             'boarding_station_id' => 'nullable|exists:stations,id',
             'quantity' => 'sometimes|integer|min:1',
         ]);
@@ -41,9 +42,11 @@ class OptimisationController extends Controller
         }
 
         try {
+            $destinationStationId = $request->input('destination_station_id', $request->input('destination_stop_id'));
+
             $suggestions = $this->optimisationService->getSuggestedSeats(
                 $tripId,
-                $request->destination_stop_id,
+                $destinationStationId,
                 (int) ($request->quantity ?? 1),
                 $request->boarding_station_id
             );

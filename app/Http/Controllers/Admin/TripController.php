@@ -21,15 +21,18 @@ class TripController extends Controller
         $user = auth()->user();
 
         if ($user->role === 'admin') {
-            return Route::query();
+            return Route::where('active', true);
         }
 
-        $stationIds = $user->stationAssignments()->pluck('station_id');
+        $stationIds = $user->stationAssignments()->where('active', true)->pluck('station_id');
 
         // Allow access to routes where the user's station is origin OR destination
-        return Route::where(function ($query) use ($stationIds) {
+        return Route::where('active', true)->where(function ($query) use ($stationIds) {
             $query->whereIn('origin_station_id', $stationIds)
-                ->orWhereIn('destination_station_id', $stationIds);
+                ->orWhereIn('destination_station_id', $stationIds)
+                ->orWhereHas('routeStopOrders', function ($subQuery) use ($stationIds) {
+                    $subQuery->whereIn('station_id', $stationIds);
+                });
         });
     }
 
@@ -48,7 +51,7 @@ class TripController extends Controller
             ->orderBy('name')
             ->get();
 
-        $vehicles = Vehicle::orderBy('identifier')->get(['id', 'identifier']);
+        $vehicles = Vehicle::where('active', true)->orderBy('identifier')->get(['id', 'identifier']);
 
         return Inertia::render('Admin/Trips/Index', [
             'trips' => $trips,
@@ -68,7 +71,7 @@ class TripController extends Controller
 
         return Inertia::render('Admin/Trips/Form', [
             'routes' => $routes,
-            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier']),
+            'vehicles' => Vehicle::where('active', true)->orderBy('identifier')->get(['id', 'identifier']),
         ]);
     }
 
@@ -95,20 +98,30 @@ class TripController extends Controller
             'vehicle_id' => 'required|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'nullable|in:scheduled,boarding,departed,arrived,cancelled',
+            'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
             'sales_control' => 'nullable|in:open,closed',
         ]);
 
         // Set default status if not provided
         $data['status'] = $data['status'] ?? 'scheduled';
+        $data['booking_type'] = $data['booking_type'] ?? 'seat_assignment';
         $data['sales_control'] = $data['sales_control'] ?? 'closed';
 
         // Determine trip origin and destination based on seller's station
         $route = Route::find($data['route_id']);
 
+        [$defaultOriginStationId, $defaultDestinationStationId] = $this->resolveRouteTerminalStations($route);
+
+        if (! $defaultOriginStationId || ! $defaultDestinationStationId) {
+            return back()->withErrors([
+                'route_id' => 'Cette route doit avoir au moins une gare de départ et une gare d’arrivée configurées.',
+            ]);
+        }
+
         if ($user->role === 'admin') {
             // Admins create trips in the route's default direction
-            $data['origin_station_id'] = $route->origin_station_id;
-            $data['destination_station_id'] = $route->destination_station_id;
+            $data['origin_station_id'] = $defaultOriginStationId;
+            $data['destination_station_id'] = $defaultDestinationStationId;
         } else {
             // For sellers/supervisors, check their assigned stations
             $assignedStationIds = \App\Models\UserStationAssignment::where('user_id', $user->id)
@@ -117,17 +130,17 @@ class TripController extends Controller
                 ->toArray();
 
             // If seller's station is the route's destination (but not origin), reverse the direction
-            $isReversed = in_array($route->destination_station_id, $assignedStationIds)
-                && ! in_array($route->origin_station_id, $assignedStationIds);
+            $isReversed = in_array($defaultDestinationStationId, $assignedStationIds)
+                && ! in_array($defaultOriginStationId, $assignedStationIds);
 
             if ($isReversed) {
                 // Seller is at destination, so trip goes: destination -> origin
-                $data['origin_station_id'] = $route->destination_station_id;
-                $data['destination_station_id'] = $route->origin_station_id;
+                $data['origin_station_id'] = $defaultDestinationStationId;
+                $data['destination_station_id'] = $defaultOriginStationId;
             } else {
                 // Normal direction
-                $data['origin_station_id'] = $route->origin_station_id;
-                $data['destination_station_id'] = $route->destination_station_id;
+                $data['origin_station_id'] = $defaultOriginStationId;
+                $data['destination_station_id'] = $defaultDestinationStationId;
             }
         }
 
@@ -160,7 +173,7 @@ class TripController extends Controller
         return Inertia::render('Admin/Trips/Form', [
             'trip' => $trip,
             'routes' => Route::orderBy('name')->get(['id', 'name']),
-            'vehicles' => Vehicle::orderBy('identifier')->get(['id', 'identifier']),
+            'vehicles' => Vehicle::where('active', true)->orderBy('identifier')->get(['id', 'identifier']),
         ]);
     }
 
@@ -174,6 +187,8 @@ class TripController extends Controller
             'vehicle_id' => 'required|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'required|in:scheduled,boarding,departed,arrived,cancelled',
+            'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
+            'sales_control' => 'nullable|in:open,closed',
         ]);
         $trip->update($data);
 
@@ -188,5 +203,22 @@ class TripController extends Controller
         $trip->delete();
 
         return back();
+    }
+
+    private function resolveRouteTerminalStations(Route $route): array
+    {
+        if ($route->origin_station_id && $route->destination_station_id) {
+            return [$route->origin_station_id, $route->destination_station_id];
+        }
+
+        $stationIds = $route->routeStopOrders()
+            ->orderBy('stop_index')
+            ->pluck('station_id')
+            ->values();
+
+        return [
+            $route->origin_station_id ?? $stationIds->first(),
+            $route->destination_station_id ?? ($stationIds->count() > 1 ? $stationIds->last() : $stationIds->first()),
+        ];
     }
 }

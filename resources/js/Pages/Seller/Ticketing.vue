@@ -21,8 +21,11 @@ import Account from 'vue-material-design-icons/Account.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import History from 'vue-material-design-icons/History.vue';
+import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
+import FileExcel from 'vue-material-design-icons/FileExcel.vue';
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
+import { useExportPrint } from '@/Composables/useExportPrint.js';
 
 const props = defineProps({
   trips: [Array, Object],
@@ -39,6 +42,7 @@ const props = defineProps({
 
 // Get page props for auth user
 const page = usePage();
+const { exportToExcel } = useExportPrint();
 
 // State
 const trips = ref(Array.isArray(props.trips) ? [...props.trips] : [...props.trips.data]);
@@ -294,46 +298,57 @@ const filteredTrips = computed(() => {
   return filtered;
 });
 
+const buildTripStationIndices = (trip) => {
+    const route = trip?.route;
+    if (!route) {
+        return {};
+    }
+
+    const orderedStationIds = [];
+    const addStation = (stationId) => {
+        if (stationId && !orderedStationIds.includes(stationId)) {
+            orderedStationIds.push(stationId);
+        }
+    };
+
+    addStation(route.origin_station_id);
+
+    const stops = [...(route.route_stop_orders || route.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+
+    stops.forEach((stop) => addStation(stop.station_id || stop.station?.id));
+    addStation(route.destination_station_id);
+
+    const isReversedTrip = trip.origin_station_id &&
+        route.origin_station_id &&
+        trip.origin_station_id !== route.origin_station_id;
+
+    const directionStations = isReversedTrip ? [...orderedStationIds].reverse() : orderedStationIds;
+
+    return directionStations.reduce((map, stationId, index) => {
+        map[stationId] = index;
+        return map;
+    }, {});
+};
+
+const getStationColor = (stationIndex, totalStations) => {
+    if (!Number.isFinite(stationIndex) || totalStations <= 1) {
+        return '#3B82F6';
+    }
+
+    const ratio = stationIndex / (totalStations - 1);
+    const lightness = 85 - (ratio * 55);
+
+    return `hsl(220, 100%, ${Number(lightness.toFixed(2))}%)`;
+};
+
 const availableFares = computed(() => {
     if (!currentTrip.value) return [];
     
     const route = currentTrip.value.route;
-    // stops (intermediate)
-    // Handle both snake_case (default Laravel) and camelCase (potential JS transform)
-    const stops = route?.route_stop_orders || route?.routeStopOrders || [];
-
-    // Build a Set of ALL allowed Station IDs for this route
-    // This includes: Origin, Destination, and all Intermediate Stops
-    const allowedStationIds = new Set();
-    
-    if (route.origin_station_id) allowedStationIds.add(route.origin_station_id);
-    if (route.destination_station_id) allowedStationIds.add(route.destination_station_id);
-    
-    // Add intermediate stations
-    // Handle both direct station_id and nested station object
-    stops.forEach(s => {
-        if (s.station_id) allowedStationIds.add(s.station_id);
-        if (s.station?.id) allowedStationIds.add(s.station.id);
-    });
-    
-    // Also build IndexMap for direction/ordering logic
-    const stationIndexMap = {};
-    if (route.origin_station_id) stationIndexMap[route.origin_station_id] = -1; // Start
-    
-    stops.forEach((s, index) => {
-        const sId = s.station_id || s.station?.id;
-        if (sId) stationIndexMap[sId] = index;
-    });
-    
-    if (route.destination_station_id) {
-         // Ensure Destination is last
-         stationIndexMap[route.destination_station_id] = 9999;
-    }
-
-    // Check for reversed trip (Trip Origin == Route Destination)
-    const isReversedTrip = currentTrip.value.origin_station_id && 
-                           route.destination_station_id && 
-                           currentTrip.value.origin_station_id === route.destination_station_id;
+    const stationIndexMap = buildTripStationIndices(currentTrip.value);
+    const totalStations = Object.keys(stationIndexMap).length;
+    const allowedStationIds = new Set(Object.keys(stationIndexMap));
 
     // Filter Fares
     const filtered = props.routeFares.filter(fare => {
@@ -367,7 +382,7 @@ const availableFares = computed(() => {
         const toIdx = stationIndexMap[fareToId];
         
         if (fromIdx !== undefined && toIdx !== undefined) {
-             return isReversedTrip ? fromIdx > toIdx : fromIdx < toIdx;
+             return fromIdx < toIdx;
         }
         
         // Fallback direction check (rare if map is complete)
@@ -377,16 +392,13 @@ const availableFares = computed(() => {
     // Sort by amount (cheapest/closest first)
     const sortedResults = [...filtered].sort((a, b) => a.amount - b.amount);
 
-    return sortedResults.map((fare, index) => {
-        // Color based on position in sorted list
-        const ratio = sortedResults.length > 1 ? index / (sortedResults.length - 1) : 0;
-        const hue = 210 + (ratio * 30);
-        const lightness = 75 - (ratio * 40);
-        const saturation = 65 + (ratio * 35);
-        
+    return sortedResults.map((fare) => {
+        const toStation = fare.to_station || fare.toStation;
+        const fareToId = fare.to_station_id || toStation?.id;
+
         return {
             ...fare,
-            color: `hsl(${hue}, ${saturation}%, ${lightness}%)`
+            color: getStationColor(stationIndexMap[fareToId], totalStations)
         };
     });
 });
@@ -467,6 +479,7 @@ const fetchSeatSuggestions = async () => {
             params: {
                 // UPDATED: Use station_id
                 destination_station_id: selectedFare.value.to_station_id,
+                boarding_station_id: selectedFare.value.from_station_id,
                 quantity: ticketQuantity.value
             }
         });
@@ -608,6 +621,8 @@ const confirmBooking = async () => {
     return;
   }
 
+  processing.value = true;
+
   // Determine all seats to book
   const allSeats = seatsToBook.value.length > 0 ? [...seatsToBook.value] : [selectedSeatNumber.value];
   const totalAmount = selectedFare.value.amount * allSeats.length;
@@ -658,13 +673,7 @@ const confirmBooking = async () => {
     const ticketIds = data.ticket_ids || [];
     // Print tickets
     if (ticketIds.length > 0) {
-      const printId = ticketIds.length > 1 ? ticketIds.join(',') : ticketIds[0];
-      if (useBluetoothPrinter.value && bluetoothPrinterConnected.value) {
-        printWithBluetooth(ticketIds[0]).catch(() => fallbackToBrowserPrint(ticketIds[0]));
-      } else {
-        // For multiple tickets, print them all
-        ticketIds.forEach(id => fallbackToBrowserPrint(id));
-      }
+      await printTickets(ticketIds);
     }
 
     // Refresh seat map from server (ground truth — works even without WebSocket)
@@ -685,6 +694,8 @@ const confirmBooking = async () => {
     }
     const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
     alert(message);
+  } finally {
+    processing.value = false;
   }
 };
 
@@ -708,6 +719,23 @@ const disconnectBluetoothPrinter = () => {
   bluetoothPrinterName.value = null;
 };
 
+const ensureBluetoothPrinterConnected = async () => {
+  if (bluetoothPrinterConnected.value) {
+    return true;
+  }
+
+  if (!bluetoothPrinter.isSupported()) {
+    return false;
+  }
+
+  await bluetoothPrinter.connect();
+  bluetoothPrinterConnected.value = true;
+  const status = bluetoothPrinter.getStatus();
+  bluetoothPrinterName.value = status.deviceName;
+
+  return true;
+};
+
 const toggleBluetoothPrinter = () => {
   useBluetoothPrinter.value = !useBluetoothPrinter.value;
   localStorage.setItem('use_bluetooth_printer', useBluetoothPrinter.value.toString());
@@ -720,7 +748,7 @@ const toggleBluetoothPrinter = () => {
 const printWithBluetooth = async (ticketId) => {
   try {
     // Fetch ticket data
-    const response = await axios.get(route('api.tickets.show', ticketId));
+    const response = await axios.get(route('seller.tickets.show-data', { ticket: ticketId }));
     const ticket = response.data;
     
     // Extract settings from response
@@ -728,7 +756,7 @@ const printWithBluetooth = async (ticketId) => {
       company_name: 'TSR CI',
       phone_numbers: ['+225 XX XX XX XX XX'],
       footer_messages: ['Valable pour ce voyage', 'Non remboursable'],
-      print_qr_code: false,
+      print_qr_code: true,
       qr_code_base_url: null
     };
     
@@ -744,8 +772,8 @@ const printWithBluetooth = async (ticketId) => {
       seat_number: ticket.seat_number || 'N/A',
       boarding_group: ticket.boarding_group || '1',
       price: String(ticket.price || 0),
-      vehicle_number: ticket.trip?.vehicle?.registration_number || 'N/A',
-      qr_code: ticket.qr_code || null,
+      vehicle_number: ticket.trip?.vehicle?.identifier || 'N/A',
+      qr_code: ticket.qr_payload_string || ticket.qr_code || null,
       timestamp: new Date().toLocaleString('fr-FR')
     };
     
@@ -754,6 +782,24 @@ const printWithBluetooth = async (ticketId) => {
     console.error('Bluetooth print error:', error);
     throw error;
   }
+};
+
+const printTickets = async (ticketIds) => {
+  if (useBluetoothPrinter.value) {
+    try {
+      const connected = await ensureBluetoothPrinterConnected();
+      if (connected) {
+        for (const id of ticketIds) {
+          await printWithBluetooth(id);
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Bluetooth print failed, falling back to browser print:', error);
+    }
+  }
+
+  ticketIds.forEach(id => fallbackToBrowserPrint(id));
 };
 
 const fallbackToBrowserPrint = (ticketId) => {
@@ -770,6 +816,67 @@ const cancelBooking = () => {
   selectedSeatNumber.value = null;
   ticketingStore.selectSeat(null); // Clear store selection
   suggestedSeats.value = [];
+};
+
+// =============================================
+// Export Excel / PDF
+// =============================================
+
+const exportExcelLoading = ref(false);
+const exportPdfLoading = ref(false);
+
+const exportTicketsToExcel = async () => {
+  exportExcelLoading.value = true;
+  try {
+    const params = {};
+    if (selectedTripId.value) params.trip_id = selectedTripId.value;
+    
+    const response = await axios.get(route('api.tickets.export'), { params });
+    
+    if (response.data?.data?.length > 0) {
+      const columns = {
+        n_ticket: 'N° Ticket',
+        date: 'Date',
+        heure: 'Heure',
+        ligne: 'Ligne',
+        depart: 'Départ',
+        arrivee: 'Arrivée',
+        place: 'Place',
+        zone_embarquement: 'Zone',
+        prix_fcfa: 'Prix (FCFA)',
+        vendeur: 'Vendeur',
+        passager: 'Passager',
+        telephone: 'Téléphone',
+        statut: 'Statut',
+        date_voyage: 'Date Voyage',
+        vehicule: 'Véhicule',
+      };
+      exportToExcel(response.data.data, columns, 'rapport_tickets');
+    } else {
+      alert('Aucun ticket à exporter pour aujourd\'hui.');
+    }
+  } catch (error) {
+    console.error('Erreur export Excel:', error);
+    alert('Erreur lors de l\'export Excel. Veuillez réessayer.');
+  } finally {
+    exportExcelLoading.value = false;
+  }
+};
+
+const exportTicketsToPdf = () => {
+  exportPdfLoading.value = true;
+  try {
+    const params = new URLSearchParams();
+    if (selectedTripId.value) params.set('trip_id', selectedTripId.value);
+    
+    const url = route('tickets.export-pdf') + '?' + params.toString();
+    window.open(url, '_blank');
+  } catch (error) {
+    console.error('Erreur export PDF:', error);
+    alert('Erreur lors de l\'export PDF. Veuillez réessayer.');
+  } finally {
+    exportPdfLoading.value = false;
+  }
 };
 
 const createTrip = () => {
@@ -1051,6 +1158,24 @@ onUnmounted(() => {
                           <option value="">Toutes les destinations</option>
                           <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
                       </select>
+
+                      <!-- Mobile Export Buttons -->
+                      <button
+                        @click="exportTicketsToExcel"
+                        :disabled="exportExcelLoading"
+                        class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors md:hidden"
+                        title="Exporter en Excel"
+                      >
+                        <FileExcel :size="16" />
+                      </button>
+                      <button
+                        @click="exportTicketsToPdf"
+                        :disabled="exportPdfLoading"
+                        class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors md:hidden"
+                        title="Exporter en PDF"
+                      >
+                        <FilePdfBox :size="16" />
+                      </button>
                       
                       <!-- History Toggle -->
 
@@ -1075,6 +1200,24 @@ onUnmounted(() => {
                   </div>
                   
                   <div class="hidden md:flex items-center gap-2 shrink-0">
+                    <!-- Export Excel -->
+                    <button
+                      @click="exportTicketsToExcel"
+                      :disabled="exportExcelLoading"
+                      class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                      title="Exporter en Excel"
+                    >
+                      <FileExcel :size="18" />
+                    </button>
+                    <!-- Export PDF -->
+                    <button
+                      @click="exportTicketsToPdf"
+                      :disabled="exportPdfLoading"
+                      class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                      title="Exporter en PDF"
+                    >
+                      <FilePdfBox :size="18" />
+                    </button>
                     <span class="px-2.5 py-1 bg-green-600 text-white rounded-full text-sm font-black shadow-sm">
                       {{ trips.length }} en cours
                     </span>

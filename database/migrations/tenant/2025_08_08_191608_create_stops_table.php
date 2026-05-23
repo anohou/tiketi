@@ -15,6 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('name');
             $table->uuid('station_id')->nullable()->index();
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

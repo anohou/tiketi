@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('password');
             $table->enum('role', ['admin', 'supervisor', 'seller'])->default('seller')->index();
             $table->uuid('station_id')->nullable()->index();
+            $table->json('settings')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

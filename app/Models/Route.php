@@ -20,6 +20,12 @@ class Route extends Model
         'origin_station_id', // Optional/Deprecated?
         'destination_station_id', // Optional/Deprecated?
         'active',
+        'settings',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+        'settings' => 'array',
     ];
 
     // ... booted ...

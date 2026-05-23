@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->json('seat_map');
             $table->unsignedInteger('seat_count');
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

@@ -10,6 +10,7 @@ use App\Models\Trip;
 use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
+use App\Services\TripSegmentService;
 use Inertia\Inertia;
 
 class TicketingController extends Controller
@@ -51,7 +52,7 @@ class TicketingController extends Controller
             'trips' => $trips,
             'routeFares' => $routeFares,
             'routes' => $routes,
-            'vehicles' => Vehicle::with('vehicleType')->orderBy('identifier')->get(['id', 'identifier', 'seat_count', 'vehicle_type_id']),
+            'vehicles' => Vehicle::with('vehicleType')->where('active', true)->orderBy('identifier')->get(['id', 'identifier', 'seat_count', 'vehicle_type_id']),
             'destinations' => $destinations,
             'hasActiveAssignment' => $hasActiveAssignment,
             'assignedStation' => $assignedStation,
@@ -129,10 +130,11 @@ class TicketingController extends Controller
     private function loadFares(bool $isAdmin, array $assignedStationIds)
     {
         if ($isAdmin) {
-            return RouteFare::with(['fromStation.destination', 'toStation.destination'])->get();
+            return RouteFare::with(['fromStation.destination', 'toStation.destination'])->where('active', true)->get();
         }
 
         $fares = RouteFare::with(['fromStation.destination', 'toStation.destination'])
+            ->where('active', true)
             ->where(function ($query) use ($assignedStationIds) {
                 $query->whereIn('from_station_id', $assignedStationIds)
                     ->orWhere(function ($q) use ($assignedStationIds) {
@@ -180,6 +182,7 @@ class TicketingController extends Controller
         $items = ($trips instanceof \Illuminate\Pagination\LengthAwarePaginator) ? $trips->items() : $trips;
 
         $seatMapService = app(SeatMapService::class);
+        $segments = app(TripSegmentService::class);
 
         foreach ($items as $trip) {
             $vehicleType = $trip->vehicle?->vehicleType;
@@ -199,7 +202,7 @@ class TicketingController extends Controller
 
             $totalSeats = $this->countSeatsInMap($seatMap);
             $trip->total_seats = $totalSeats;
-            $trip->available_seats = $totalSeats - ($trip->occupied_seats ?? 0);
+            $trip->available_seats = $segments->availableSeatCount($trip);
         }
     }
 
@@ -258,7 +261,11 @@ class TicketingController extends Controller
 
         $vehicleType = $trip->vehicle->vehicleType;
         $seatCount = $trip->vehicle->seat_count;
-        $occupiedSeats = $trip->tripSeatOccupancies->pluck('seat_number')->toArray();
+        $occupiedSeats = $trip->tripSeatOccupancies
+            ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status !== 'cancelled')
+            ->pluck('seat_number')
+            ->unique()
+            ->toArray();
 
         $stopOrders = $trip->route->routeStopOrders->pluck('stop_index', 'station_id');
         $totalStops = $stopOrders->count();
@@ -313,6 +320,6 @@ class TicketingController extends Controller
         $ratio = $stopIndex / ($totalStops - 1);
         $lightness = 85 - ($ratio * 55);
 
-        return "hsl(220, 100%, {$lightness}%)";
+        return 'hsl(220, 100%, '.round($lightness, 2).'%)';
     }
 }

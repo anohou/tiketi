@@ -18,6 +18,11 @@ class TripSeatOccupancy extends Model
         'trip_id',
         'seat_number',
         'ticket_id',
+        'settings',
+    ];
+
+    protected $casts = [
+        'settings' => 'array',
     ];
 
     protected static function booted(): void

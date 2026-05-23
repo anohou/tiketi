@@ -16,6 +16,7 @@ return new class extends Migration
             $table->uuid('route_id')->index();
             $table->uuid('stop_id')->index();
             $table->unsignedInteger('stop_index'); // 0..n
+            $table->json('settings')->nullable();
             $table->timestamps();
 
             $table->unique(['route_id', 'stop_index']);

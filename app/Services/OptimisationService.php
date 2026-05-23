@@ -39,16 +39,12 @@ class OptimisationService
         $this->preloadStopIndices($trip->route_id);
 
         // Détecter si le voyage est inversé par rapport à la direction par défaut de la route
-        $isReversedTrip = $trip->origin_station_id &&
-                          $trip->route &&
-                          $trip->origin_station_id !== $trip->route->origin_station_id;
+        $isReversedTrip = app(TripSegmentService::class)->isReversed($trip);
 
-        // Récupérer les sièges déjà occupés avec leurs destinations et origines
-        $occupiedSeatsData = Ticket::where('trip_id', $tripId)
+        $tickets = Ticket::where('trip_id', $tripId)
             ->where('status', '!=', 'cancelled')
             ->with(['toStation', 'fromStation'])
-            ->get()
-            ->keyBy('seat_number');
+            ->get();
 
         // Récupérer la configuration du véhicule
         $vehicleType = $trip->vehicle->vehicleType;
@@ -74,22 +70,54 @@ class OptimisationService
             ? $this->getStopIndex($trip->route_id, $boardingStationId, $isReversedTrip)
             : 0;
 
+        $occupiedSeatsData = $tickets
+            ->filter(function (Ticket $ticket) use ($trip, $isReversedTrip, $boardingIndex, $destinationIndex) {
+                if (! $trip->isSemiIntelligent()) {
+                    return true;
+                }
+
+                $ticketStart = $this->getStopIndex($trip->route_id, $ticket->from_station_id, $isReversedTrip);
+                $ticketEnd = $this->getStopIndex($trip->route_id, $ticket->to_station_id, $isReversedTrip);
+
+                return $ticketStart < $destinationIndex && $boardingIndex < $ticketEnd;
+            })
+            ->keyBy('seat_number');
+
         // Nombre total d'arrêts sur la route
         $totalStops = $this->stopIndexCache[$trip->route_id]['total'];
 
-        // Ratio de distance du voyage (0 = premier arrêt, 1 = dernier arrêt)
-        $tripDistanceRatio = $totalStops > 1 ? $destinationIndex / ($totalStops - 1) : 0;
+        $remainingStops = max(1, ($totalStops - 1) - $boardingIndex);
+        $segmentStopDistance = max(1, $destinationIndex - $boardingIndex);
 
-        // Classifier le tronçon : court < 40%, moyen 40-70%, long >= 70%
+        // Ratio de distance du segment vendu depuis la gare d'embarquement.
+        // 0 = arrêt le plus proche, 1 = terminus depuis cette gare.
+        $tripDistanceRatio = $remainingStops > 0
+            ? ($segmentStopDistance - 1) / max(1, $remainingStops - 1)
+            : 0;
+
+        // Classifier le tronçon : le premier arrêt après le départ est toujours proche,
+        // même sur une ligne à seulement trois gares où son ratio serait 50%.
         $troncon = 'long';
-        if ($tripDistanceRatio < 0.40) {
+        if ($segmentStopDistance <= 1) {
+            $troncon = 'short';
+        } elseif ($destinationIndex >= ($totalStops - 1)) {
+            $troncon = 'long';
+        } elseif ($tripDistanceRatio < 0.40) {
             $troncon = 'short';
         } elseif ($tripDistanceRatio < 0.70) {
             $troncon = 'medium';
         }
 
-        // Nombre de zones dynamiques = nombre de destinations (arrêts hors départ)
-        $numZones = max(1, $totalStops - 1);
+        // Les zones de sièges doivent rester physiques (avant / milieu / arrière),
+        // même si la route ne contient qu'une seule destination restante.
+        $numZones = max(3, $remainingStops);
+        if ($segmentStopDistance <= 1) {
+            $targetZone = 1;
+        } elseif ($destinationIndex >= ($totalStops - 1)) {
+            $targetZone = $numZones;
+        } else {
+            $targetZone = min($numZones - 1, $segmentStopDistance);
+        }
 
         // Déterminer les sièges disponibles selon le mode de réservation
         $availableSeats = [];
@@ -117,6 +145,13 @@ class OptimisationService
             }
         }
 
+        if ($troncon === 'short') {
+            $frontZoneSeats = $this->filterSeatsByPhysicalZone($availableSeats, $seatMapInfo, 'front');
+            if (! empty($frontZoneSeats)) {
+                $availableSeats = $frontZoneSeats;
+            }
+        }
+
         // Obtenir l'ordre de préférence des zones selon le type de trajet
         $zonePreferences = $this->getZonePreferences($numZones, $troncon);
 
@@ -134,14 +169,16 @@ class OptimisationService
             $score = $this->calculateDynamicZoneScore(
                 $seatNumber,
                 $troncon,
-                $destinationIndex,
+                $targetZone,
                 $destinationStationId,
                 $numZones,
                 $zonePreferences,
                 $totalSeats,
                 $seatMapInfo,
                 $occupiedSeatsData,
-                $occupantDestIndices
+                $occupantDestIndices,
+                $destinationIndex,
+                $segmentStopDistance
             );
 
             $seatScores[] = [
@@ -181,6 +218,11 @@ class OptimisationService
      */
     private function findAdjacentGroups(array $seatScores, array $seatMapInfo, int $groupSize, int $maxResults = 5): array
     {
+        $bestIndividualSeats = array_slice($seatScores, 0, $maxResults);
+        $bestIndividualAvg = count($bestIndividualSeats) > 0
+            ? array_sum(array_column($bestIndividualSeats, 'score')) / count($bestIndividualSeats)
+            : 0;
+
         // Créer un lookup rapide des scores par numéro de siège
         $scoreMap = [];
         foreach ($seatScores as $s) {
@@ -235,7 +277,7 @@ class OptimisationService
 
         if (empty($groups)) {
             // Pas de groupe adjacent trouvé : fallback sur les meilleurs sièges individuels
-            return array_slice($seatScores, 0, $maxResults);
+            return $bestIndividualSeats;
         }
 
         // Trier les groupes par score moyen décroissant
@@ -243,6 +285,15 @@ class OptimisationService
 
         // Retourner les sièges du meilleur groupe
         $bestGroup = $groups[0];
+
+        // Ne pas sacrifier la logique métier pour forcer l'adjacence.
+        // Exemple: sur un autocar 2+2, 3 sièges réellement adjacents existent surtout
+        // sur la dernière rangée; pour une destination proche, ils sont beaucoup moins
+        // pertinents que les meilleurs sièges proches des portes.
+        if ($bestGroup['avg_score'] < ($bestIndividualAvg - 250)) {
+            return $bestIndividualSeats;
+        }
+
         $result = [];
         foreach ($bestGroup['seats'] as $seat) {
             $result[] = [
@@ -255,6 +306,26 @@ class OptimisationService
         return array_slice($result, 0, $maxResults);
     }
 
+    private function filterSeatsByPhysicalZone(array $seatNumbers, array $seatMapInfo, string $zone): array
+    {
+        $rowsWithSeats = max(1, $seatMapInfo['rows_with_seats'] ?? 1);
+        $frontLimit = max(1, (int) ceil($rowsWithSeats / 3));
+        $rearStart = max(1, (int) floor(($rowsWithSeats * 2) / 3) + 1);
+
+        return array_values(array_filter($seatNumbers, function (int $seatNumber) use ($seatMapInfo, $zone, $frontLimit, $rearStart) {
+            $rowRank = $seatMapInfo['seats'][$seatNumber]['row_rank'] ?? null;
+            if ($rowRank === null) {
+                return false;
+            }
+
+            return match ($zone) {
+                'front' => $rowRank <= $frontLimit,
+                'rear' => $rowRank >= $rearStart,
+                default => $rowRank > $frontLimit && $rowRank < $rearStart,
+            };
+        }));
+    }
+
     /**
      * Précharge tous les index d'arrêts d'une route en une seule requête
      * Stocke le résultat en cache mémoire pour éviter les requêtes N+1
@@ -265,13 +336,30 @@ class OptimisationService
             return;
         }
 
-        $stopOrders = RouteStopOrder::where('route_id', $routeId)
-            ->pluck('stop_index', 'station_id')
-            ->toArray();
+        $route = \App\Models\Route::with('routeStopOrders')->find($routeId);
+        $orderedStationIds = [];
+        $addStation = function (?string $stationId) use (&$orderedStationIds): void {
+            if ($stationId && ! in_array($stationId, $orderedStationIds, true)) {
+                $orderedStationIds[] = $stationId;
+            }
+        };
+
+        if ($route) {
+            $addStation($route->origin_station_id);
+            foreach (($route->routeStopOrders ?? collect())->sortBy('stop_index') as $order) {
+                $addStation($order->station_id);
+            }
+            $addStation($route->destination_station_id);
+        } else {
+            RouteStopOrder::where('route_id', $routeId)
+                ->orderBy('stop_index')
+                ->get()
+                ->each(fn ($order) => $addStation($order->station_id));
+        }
 
         $this->stopIndexCache[$routeId] = [
-            'map' => $stopOrders,
-            'total' => count($stopOrders),
+            'map' => array_flip($orderedStationIds),
+            'total' => count($orderedStationIds),
         ];
     }
 
@@ -436,6 +524,14 @@ class OptimisationService
             $info['proximity_ranking'][] = $seatNumber;
         }
 
+        $seatRows = array_values(array_unique(array_map(fn ($seat) => $seat['row'], $info['seats'])));
+        sort($seatRows);
+        $rowRanks = array_flip($seatRows);
+        foreach ($info['seats'] as $seatNumber => $seat) {
+            $info['seats'][$seatNumber]['row_rank'] = ($rowRanks[$seat['row']] ?? 0) + 1;
+        }
+        $info['rows_with_seats'] = count($seatRows);
+
         return $info;
     }
 
@@ -478,27 +574,35 @@ class OptimisationService
     private function calculateDynamicZoneScore(
         int $seatNumber,
         string $troncon,
-        int $destinationIndex,
+        int $targetZone,
         string $destinationStationId,
         int $numZones,
         array $zonePreferences,
         int $totalSeats,
         array $seatMapInfo,
         Collection $occupiedSeatsData,
-        array $occupantDestIndices
+        array $occupantDestIndices,
+        int $destinationIndex,
+        int $segmentStopDistance
     ): array {
         $score = 100;
         $reasons = [];
 
         // --- 1. ZONAGE PAR DESTINATION ---
         $seatsPerZone = $totalSeats / max(1, $numZones);
-
-        // Zone cible du passager (1-indexé selon l'ordre des destinations)
-        $targetZone = $destinationIndex;
+        $seatInfo = $seatMapInfo['seats'][$seatNumber] ?? ['type' => 'middle', 'adjacent_aisle_seats' => [], 'adjacent_window_seats' => [], 'row' => 999, 'col' => 999];
 
         // Zone du siège (basée sur le classement de proximité)
         $seatRank = $seatMapInfo['seats'][$seatNumber]['proximity_rank'] ?? 999;
         $seatZone = (int) ceil($seatRank / $seatsPerZone);
+
+        if ($troncon === 'short') {
+            $seatRow = $seatMapInfo['seats'][$seatNumber]['row_rank'] ?? 999;
+            $rowsWithSeats = $seatMapInfo['rows_with_seats'] ?? 1;
+            $rowZone = (int) ceil(($seatRow / max(1, $rowsWithSeats)) * max(1, $numZones));
+            $seatZone = max(1, $rowZone);
+        }
+
         $seatZone = max(1, min($numZones, $seatZone));
 
         if ($seatZone === $targetZone) {
@@ -551,9 +655,28 @@ class OptimisationService
         // --- 4. PROXIMITÉ AUX PORTES ---
         $doorDistance = $seatMapInfo['seats'][$seatNumber]['door_distance'] ?? PHP_INT_MAX;
         $isNearDoor = ($doorDistance <= 1);
+        $proximityRatio = $totalSeats > 1 ? 1 - (($seatRank - 1) / ($totalSeats - 1)) : 1;
+
+        if ($troncon === 'short') {
+            $score += $proximityRatio * 350;
+            $reasons[] = 'Proche porte';
+
+            $seatRow = $seatInfo['row_rank'] ?? 999;
+            $rowsWithSeats = max(1, $seatMapInfo['rows_with_seats'] ?? 1);
+            $frontnessRatio = 1 - min(1, ($seatRow - 1) / max(1, $rowsWithSeats - 1));
+            $score += $frontnessRatio * 900;
+
+            if ($seatRow >= max(1, $rowsWithSeats - 2)) {
+                $score -= 1200;
+                $reasons[] = 'Arrière évité';
+            }
+        } elseif ($troncon === 'long') {
+            $score += (1 - $proximityRatio) * 120;
+        } else {
+            $score += $proximityRatio * 120;
+        }
 
         // --- 5. TYPE DE SIÈGE ---
-        $seatInfo = $seatMapInfo['seats'][$seatNumber] ?? ['type' => 'middle', 'adjacent_aisle_seats' => [], 'adjacent_window_seats' => []];
         $seatType = $seatInfo['type'];
 
         if ($seatType === 'aisle') {

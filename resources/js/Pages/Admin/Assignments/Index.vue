@@ -8,6 +8,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
+import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -45,6 +47,34 @@ const form = ref({
   station_id: '',
   active: true
 });
+
+// Export/Print
+const { exportToExcel, printList } = useExportPrint();
+
+const assignmentColumns = {
+  'user.name': 'Utilisateur',
+  'user.email': 'Email',
+  'user.role': 'Rôle',
+  'station.name': 'Gare',
+  'station.city': 'Ville',
+  active: 'Statut',
+};
+
+const handleExport = () => {
+  const data = filteredAssignments.value.map(a => ({
+    ...a,
+    active: a.active ? 'Actif' : 'Inactif',
+  }));
+  exportToExcel(data, assignmentColumns, 'affectations');
+};
+
+const handlePrint = () => {
+  const data = filteredAssignments.value.map(a => ({
+    ...a,
+    active: a.active ? 'Actif' : 'Inactif',
+  }));
+  printList(data, assignmentColumns, 'Affectations Utilisateurs');
+};
 
 // Computed
 const filteredAssignments = computed(() => {
@@ -188,6 +218,14 @@ const deleteAssignment = (id) => {
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Affectation">
                   <Plus class="h-5 w-5" />
                 </button>
+              </div>
+              <div class="flex justify-end mt-2">
+                <ExportPrintButtons 
+                  :disabled="filteredAssignments.length === 0"
+                  small
+                  @export="handleExport" 
+                  @print="handlePrint" 
+                />
               </div>
             </div>
 

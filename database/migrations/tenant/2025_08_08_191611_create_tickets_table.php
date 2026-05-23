@@ -27,6 +27,7 @@ return new class extends Migration
             $table->enum('status', ['issued', 'cancelled', 'refunded'])->default('issued')->index();
             $table->json('qr_payload')->nullable();
             $table->string('qr_code')->nullable();
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

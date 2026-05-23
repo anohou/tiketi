@@ -14,7 +14,12 @@ class UserRouteAssignment extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['user_id', 'route_id', 'station_id', 'active'];
+    protected $fillable = ['user_id', 'route_id', 'station_id', 'active', 'settings'];
+
+    protected $casts = [
+        'active' => 'boolean',
+        'settings' => 'array',
+    ];
 
     protected static function booted(): void
     {

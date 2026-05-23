@@ -15,7 +15,12 @@ class Station extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'name', 'code', 'city', 'address', 'phone', 'active', 'latitude', 'longitude', 'destination_id',
+        'name', 'code', 'city', 'address', 'phone', 'active', 'latitude', 'longitude', 'destination_id', 'settings',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
+        'settings' => 'array',
     ];
 
     protected static function booted(): void

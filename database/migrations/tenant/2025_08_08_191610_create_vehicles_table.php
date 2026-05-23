@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('maker')->nullable(); // fabricant du véhicule
             $table->uuid('vehicle_type_id')->index();
             $table->unsignedInteger('seat_count');
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

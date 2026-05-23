@@ -29,6 +29,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\UniversalTenancy::class,
         ]);
 
+        $middleware->api(append: [
+            \App\Http\Middleware\UniversalTenancy::class,
+        ]);
+
         $middleware->web(prepend: [
             \Illuminate\Session\Middleware\StartSession::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,

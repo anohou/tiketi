@@ -1,6 +1,6 @@
 <script setup>
 import FileExcel from 'vue-material-design-icons/FileExcel.vue';
-import Printer from 'vue-material-design-icons/Printer.vue';
+import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
 
 defineProps({
     disabled: {
@@ -42,12 +42,12 @@ const emit = defineEmits(['export', 'print']);
                 small ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm',
                 disabled 
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
             ]"
-            title="Imprimer la liste"
+            title="Exporter en PDF (choisir 'Enregistrer en PDF' dans la boîte de dialogue d'impression)"
         >
-            <Printer :size="small ? 14 : 16" />
-            <span class="hidden sm:inline">Imprimer</span>
+            <FilePdfBox :size="small ? 14 : 16" />
+            <span class="hidden sm:inline">PDF</span>
         </button>
     </div>
 </template>

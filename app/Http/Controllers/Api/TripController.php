@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Route;
 use App\Models\Trip;
 use App\Services\OptimisationService;
+use App\Services\TripSegmentService;
 use Illuminate\Http\Request;
 
 class TripController extends Controller
@@ -48,6 +50,37 @@ class TripController extends Controller
         return $query->get();
     }
 
+    public function byRouteAndDate(string $routeId, string $date)
+    {
+        Route::whereKey($routeId)->firstOrFail();
+
+        return Trip::with([
+            'route.originStation',
+            'route.destinationStation',
+            'route.routeStopOrders.station',
+            'vehicle.vehicleType',
+        ])
+            ->withCount('tripSeatOccupancies as occupied_seats')
+            ->where('route_id', $routeId)
+            ->whereDate('departure_at', $date)
+            ->orderBy('departure_at')
+            ->get();
+    }
+
+    public function show(string $id)
+    {
+        return Trip::with([
+            'route.originStation',
+            'route.destinationStation',
+            'route.routeStopOrders.station',
+            'vehicle.vehicleType',
+            'originStation',
+            'destinationStation',
+        ])
+            ->withCount('tripSeatOccupancies as occupied_seats')
+            ->findOrFail($id);
+    }
+
     public function suggestSeats(Request $request, Trip $trip)
     {
         $validated = $request->validate([
@@ -81,7 +114,7 @@ class TripController extends Controller
         ]);
     }
 
-    public function seatMap(Trip $trip, Request $request)
+    public function seatMap(Trip $trip, Request $request, TripSegmentService $segments)
     {
         $validated = $request->validate([
             'from_station_id' => 'nullable|uuid',
@@ -99,7 +132,7 @@ class TripController extends Controller
         $parts = array_map('intval', explode('+', $config));
 
         // Map station_id => stop_index using routeStopOrders
-        $stationIndices = $trip->route?->routeStopOrders?->pluck('stop_index', 'station_id')?->toArray() ?? [];
+        $stationIndices = $segments->stationIndices($trip);
         $totalStops = count($stationIndices);
 
         // Determine requested segment indices (default to full route if not provided)
@@ -113,8 +146,12 @@ class TripController extends Controller
             $reqEndIndex = $stationIndices[$reqToId];
         }
 
-        $occupiedSeatsLookup = $trip->tripSeatOccupancies->keyBy('seat_number')->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
+        $occupiedSeatsLookup = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
             if (! $occupancy->ticket) {
+                return false;
+            }
+
+            if ($occupancy->ticket->status === 'cancelled') {
                 return false;
             }
 
@@ -131,14 +168,14 @@ class TripController extends Controller
             // Overlap condition: Start1 < End2 && Start2 < End1
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
 
-        })->map(function ($occupancy) use ($stationIndices, $totalStops) {
+        })->keyBy('seat_number')->map(function ($occupancy) use ($stationIndices, $totalStops) {
             $ticketToStation = $occupancy->ticket->toStation;
             $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
-            $stopOrder = $ticketToIdx !== null ? $ticketToIdx + 1 : $totalStops;
+            $stopIndex = $ticketToIdx !== null ? $ticketToIdx : max(0, $totalStops - 1);
 
             return [
                 'destination_name' => $ticketToStation->name ?? 'Inconnu',
-                'color' => $this->getStopColor($stopOrder, $totalStops),
+                'color' => $this->getStopColor($stopIndex, $totalStops),
             ];
         });
 
@@ -195,25 +232,25 @@ class TripController extends Controller
     }
 
     /**
-     * Determines the color for a stop based on its order in the route.
+     * Determines the color for a stop based on its index in the route.
      * Uses blue gradient: light blue for close destinations, dark blue for far destinations
      */
-    private function getStopColor(int $stopOrder, int $totalStops): string
+    private function getStopColor(int $stopIndex, int $totalStops): string
     {
         if ($totalStops <= 1) {
             return '#3B82F6';
         } // Blue-500 default
 
         // Normalize the order between 0 and 1
-        $ratio = ($stopOrder - 1) / ($totalStops - 1); // 0 = first stop, 1 = last stop
+        $ratio = $stopIndex / ($totalStops - 1); // 0 = origin, 1 = last stop
 
         // Blue gradient
         // HSL: 220 (Blue)
         // Saturation: 100%
-        // Lightness: From 85% (very very light/close) to 30% (dark/far)
+        // Lightness: From 85% (closest) to 30% (furthest)
 
         $lightness = 85 - ($ratio * 55); // 85 -> 30
 
-        return "hsl(220, 100%, {$lightness}%)";
+        return 'hsl(220, 100%, '.round($lightness, 2).'%)';
     }
 }

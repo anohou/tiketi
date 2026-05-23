@@ -58,7 +58,7 @@
                 <slot name="header-actions" />
 
                 <!-- Help Button (Desktop & Mobile) -->
-                <button class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all flex items-center justify-center cursor-help" title="Aide">
+                <button @click="openHelp" class="p-2 border rounded-full text-gray-500 border-gray-300 hover:bg-orange-50 transition-all flex items-center justify-center cursor-help" title="Aide">
                    <HelpCircleOutline :size="20" />
                 </button>
             </div>
@@ -168,7 +168,7 @@
                       <div class="pt-6 mt-6 border-t border-orange-50 space-y-4">
                           <div class="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Utilitaires</div>
 
-                          <button class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-gray-600 hover:bg-orange-50/50">
+                          <button @click="openHelp" class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-gray-600 hover:bg-orange-50/50">
                               <HelpCircleOutline :size="24" fillColor="#9CA3AF" />
                               <span class="text-sm font-bold uppercase tracking-wider">Aide</span>
                           </button>
@@ -182,6 +182,8 @@
       <aside v-if="showTripSidebar" class="hidden xl:block w-[320px] h-screen shrink-0 border-l border-orange-200 bg-white shadow-xl z-50">
         <TripSidebar />
       </aside>
+
+      <HelpPanel :show="isHelpOpen" :topic="currentHelpTopic" @close="isHelpOpen = false" />
 
       <!-- Mobile Trip Sidebar Overlay -->
       <div v-if="isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
@@ -211,6 +213,8 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 import TripSidebar from '@/Components/TripSidebar.vue';
+import HelpPanel from '@/Components/HelpPanel.vue';
+import { findHelpTopic } from '@/Support/helpContent.js';
 import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
@@ -241,6 +245,7 @@ const showMenu = ref(false);
 const isMenuOpen = ref(false);
 const isSidebarOpen = ref(false);
 const isNavOpen = ref(false);
+const isHelpOpen = ref(false);
 
 const page = usePage();
 const user = page.props.auth.user || {};
@@ -249,6 +254,30 @@ const isLandlord = computed(() => user.role === 'superadmin');
 
 // Get assigned stations from page props (populated by HandleInertiaRequests middleware)
 const assignedStations = computed(() => page.props.assignedStations || []);
+
+const currentRouteName = computed(() => {
+  try {
+    const current = route().current();
+    if (typeof current === 'string') {
+      return current;
+    }
+  } catch (error) {
+    return null;
+  }
+
+  return null;
+});
+
+const currentHelpTopic = computed(() => findHelpTopic({
+  routeName: currentRouteName.value,
+  path: typeof window !== 'undefined' ? window.location.pathname : '',
+  role: user.role,
+}));
+
+const openHelp = () => {
+  isNavOpen.value = false;
+  isHelpOpen.value = true;
+};
 
 // Should show trip sidebar? (Not for accountant, and not on admin parameter pages)
 const showTripSidebar = computed(() => {

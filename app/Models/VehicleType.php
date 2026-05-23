@@ -26,12 +26,14 @@ class VehicleType extends Model
         'door_side',
         'door_width',
         'active',
+        'settings',
     ];
 
     protected $casts = [
         'seat_map' => 'array',
         'door_positions' => 'array',
         'last_row_seats' => 'integer',
+        'settings' => 'array',
     ];
 
     protected static function booted(): void

@@ -20,10 +20,12 @@ class RouteFare extends Model
         'amount',
         'is_bidirectional',
         'active',
+        'settings',
     ];
 
     protected $casts = [
         'is_bidirectional' => 'boolean',
+        'settings' => 'array',
     ];
 
     public function fromStation(): BelongsTo
@@ -45,6 +47,7 @@ class RouteFare extends Model
         // First try direct match
         $fare = self::where('from_station_id', $fromStationId)
             ->where('to_station_id', $toStationId)
+            ->where('active', true)
             ->first();
 
         if ($fare) {
@@ -55,6 +58,7 @@ class RouteFare extends Model
         $reverseFare = self::where('from_station_id', $toStationId)
             ->where('to_station_id', $fromStationId)
             ->where('is_bidirectional', true)
+            ->where('active', true)
             ->first();
 
         return $reverseFare?->amount;
@@ -69,6 +73,7 @@ class RouteFare extends Model
         // First try direct match
         $fare = self::where('from_station_id', $fromStationId)
             ->where('to_station_id', $toStationId)
+            ->where('active', true)
             ->first();
 
         if ($fare) {
@@ -83,6 +88,7 @@ class RouteFare extends Model
         $reverseFare = self::where('from_station_id', $toStationId)
             ->where('to_station_id', $fromStationId)
             ->where('is_bidirectional', true)
+            ->where('active', true)
             ->first();
 
         if ($reverseFare) {

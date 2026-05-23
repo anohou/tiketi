@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/help', fn () => Inertia::render('Help/Index'))->name('help.index');
 
     // =========================================
     // ADMIN ROUTES - Configuration & Statistics
@@ -100,6 +101,7 @@ Route::middleware('auth')->group(function () {
 
         // API-like endpoints for ticketing
         Route::post('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/{ticket}/data', [\App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
         Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
         Route::get('/trips/{trip}/seat-map', [\App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
         Route::get('/trips/{trip}/suggest-seats', [\App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
@@ -134,6 +136,9 @@ Route::middleware('auth')->group(function () {
     // Printing routes
     Route::get('/tickets/{ticket}/print', [\App\Http\Controllers\TicketPrintController::class, 'print'])->name('tickets.print');
     Route::post('/tickets/print-multiple', [\App\Http\Controllers\TicketPrintController::class, 'printMultiple'])->name('tickets.print-multiple');
+
+    // Export routes
+    Route::get('/tickets/export-pdf', [\App\Http\Controllers\TicketPrintController::class, 'exportPdf'])->name('tickets.export-pdf');
 });
 
 require __DIR__.'/auth.php';

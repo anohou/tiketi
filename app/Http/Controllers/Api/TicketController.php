@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
+use App\Services\TripSegmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class TicketController extends Controller
         return response()->json($tickets);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TripSegmentService $segments)
     {
         $validated = $request->validate([
             'trip_id' => 'required|uuid|exists:trips,id',
@@ -35,27 +36,27 @@ class TicketController extends Controller
             'seats.*' => 'integer|min:1',
             'passenger_name' => 'nullable|string|max:255',
             'passenger_phone' => 'nullable|string|max:20',
-            'amount' => 'required|integer|min:0',
+            'amount' => 'nullable|integer|min:0',
         ]);
 
         $trip = Trip::with(['route.routeStopOrders', 'tripSeatOccupancies.ticket', 'vehicle.vehicleType'])->findOrFail($validated['trip_id']);
 
-        $stationIndices = $trip->route->routeStopOrders->pluck('stop_index', 'station_id')->toArray();
         $fromStationId = $validated['from_station_id'];
         $toStationId = $validated['to_station_id'];
-        $reqStartIndex = $stationIndices[$fromStationId] ?? false;
-        $reqEndIndex = $stationIndices[$toStationId] ?? false;
+        [$validSegment, $segmentError, $stationIndices, $reqStartIndex, $reqEndIndex] = $segments->validateSegment($trip, $fromStationId, $toStationId);
 
-        if ($reqStartIndex === false || $reqEndIndex === false) {
-            return $this->errorResponse($request, 'Segment d\'itinéraire invalide (gares non trouvées sur la route).', 422);
+        if (! $validSegment) {
+            return $this->errorResponse($request, $segmentError, 422);
         }
 
-        if ($reqStartIndex == $reqEndIndex) {
-            return $this->errorResponse($request, 'Gare de départ et d\'arrivée identiques.', 422);
+        $pricePerSeat = $segments->fareAmount($fromStationId, $toStationId);
+        if ($pricePerSeat === null) {
+            return $this->errorResponse($request, 'Aucun tarif actif trouvé pour ce trajet.', 422);
         }
 
-        if ($reqStartIndex > $reqEndIndex) {
-            return $this->errorResponse($request, 'Sens du trajet invalide (Départ après Arrivée).', 422);
+        $expectedAmount = $pricePerSeat * count($validated['seats']);
+        if (isset($validated['amount']) && (int) $validated['amount'] !== $expectedAmount) {
+            return $this->errorResponse($request, 'Montant invalide pour ce trajet. Veuillez rafraîchir les tarifs.', 422);
         }
 
         // Restriction station vendeur
@@ -67,7 +68,7 @@ class TicketController extends Controller
                 return $this->errorResponse($request, 'Vous n\'êtes pas autorisé à vendre des tickets au départ de cette station.', 403);
             }
 
-            $isAtOriginStation = in_array($trip->route->origin_station_id, $assignedStationIds);
+            $isAtOriginStation = in_array($trip->origin_station_id, $assignedStationIds);
 
             if (! $isAtOriginStation && $trip->isSalesClosed()) {
                 $seatsFreedAtThisStation = $trip->tripSeatOccupancies
@@ -84,20 +85,7 @@ class TicketController extends Controller
         }
 
         // Segment overlap check
-        $occupiedSeats = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
-            if (! $occupancy->ticket) {
-                return false;
-            }
-
-            $ticketFromIdx = $stationIndices[$occupancy->ticket->from_station_id] ?? null;
-            $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
-
-            if ($ticketFromIdx === null || $ticketToIdx === null) {
-                return true;
-            }
-
-            return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
-        })->pluck('seat_number')->toArray();
+        $occupiedSeats = $segments->overlappingSeatNumbers($trip->tripSeatOccupancies, $stationIndices, $reqStartIndex, $reqEndIndex);
 
         $conflictingSeats = array_intersect($validated['seats'], $occupiedSeats);
         if (! empty($conflictingSeats)) {
@@ -118,11 +106,12 @@ class TicketController extends Controller
         try {
             DB::beginTransaction();
 
-            // Double check occupied seats
-            $lockedOccupancies = TripSeatOccupancy::where('trip_id', $trip->id)
+            // Double check only conflicting segment overlaps, so non-overlapping segments can reuse seats.
+            $candidateOccupancies = TripSeatOccupancy::with('ticket')
+                ->where('trip_id', $trip->id)
                 ->whereIn('seat_number', $validated['seats'])
-                ->pluck('seat_number')
-                ->toArray();
+                ->get();
+            $lockedOccupancies = $segments->overlappingSeatNumbers($candidateOccupancies, $stationIndices, $reqStartIndex, $reqEndIndex);
 
             if (! empty($lockedOccupancies)) {
                 DB::rollBack();
@@ -130,8 +119,9 @@ class TicketController extends Controller
                 return $this->errorResponse($request, 'Ces places viennent d\'être réservées par un autre agent: '.implode(', ', $lockedOccupancies), 409);
             }
 
-            $sellerStationId = auth()->user()->stationAssignments()->where('active', true)->first()?->station_id;
-            $pricePerSeat = $validated['amount'] / count($validated['seats']);
+            $sellerStationId = $user->role === 'seller'
+                ? $user->stationAssignments()->where('active', true)->first()?->station_id
+                : $fromStationId;
 
             $optService = app(\App\Services\OptimisationService::class);
             $vehicleType = $trip->vehicle->vehicleType;
@@ -155,6 +145,8 @@ class TicketController extends Controller
                     'qr_code' => 'QR-'.strtoupper(Str::random(12)),
                     'boarding_group' => $boardingGroup,
                 ]);
+                $ticket->load(['fromStation', 'toStation']);
+                $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);
 
                 TripSeatOccupancy::create([
                     'trip_id' => $trip->id,
@@ -184,7 +176,7 @@ class TicketController extends Controller
                 return response()->json([
                     'message' => 'Tickets créés avec succès',
                     'tickets' => $tickets,
-                    'total_amount' => $validated['amount'],
+                    'total_amount' => $expectedAmount,
                     'print_url' => route('tickets.print-multiple'),
                     'ticket_ids' => collect($tickets)->pluck('id')->toArray(),
                 ], 201);
@@ -238,21 +230,30 @@ class TicketController extends Controller
             $settings = [
                 'company_name' => 'TSR CI',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
+                'cc_label' => null,
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],
+                'baggage_policy_message' => "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",
                 'print_qr_code' => false,
                 'qr_code_base_url' => null,
+                'okohi_enabled' => false,
+                'okohi_host' => null,
+                'okohi_company_id' => null,
+                'okohi_loyalty_type' => 'points',
+                'okohi_integration_key' => null,
             ];
         }
 
         $ticketArray = $ticket->toArray();
         $ticketArray['settings'] = $settings;
+        $ticketArray['qr_payload_string'] = $ticket->printableQrValue($settings instanceof \App\Models\TicketSetting ? $settings : null);
+        $ticketArray['tiketi_qr_payload_string'] = $ticket->qrPayloadString();
 
         return response()->json($ticketArray);
     }
 
-    public function destroy(Ticket $ticket)
+    public function cancel(Request $request, Ticket $ticket)
     {
-        if ($ticket->seller_id !== auth()->id()) {
+        if (! $this->canCancel($ticket)) {
             return response()->json(['message' => 'Non autorisé'], 403);
         }
 
@@ -262,7 +263,12 @@ class TicketController extends Controller
         try {
             DB::beginTransaction();
             TripSeatOccupancy::where('ticket_id', $ticket->id)->delete();
-            $ticket->delete();
+            $ticket->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => auth()->id(),
+                'cancellation_reason' => $request->input('reason'),
+            ]);
             DB::commit();
 
             try {
@@ -279,6 +285,95 @@ class TicketController extends Controller
 
             return response()->json(['message' => 'Erreur lors de l\'annulation'], 500);
         }
+    }
+
+    public function destroy(Ticket $ticket)
+    {
+        return $this->cancel(request(), $ticket);
+    }
+
+    /**
+     * Export tickets as JSON for client-side Excel generation
+     * GET /api/tickets/export
+     */
+    public function export(Request $request)
+    {
+        $user = auth()->user();
+        
+        $ticketsQuery = Ticket::query()
+            ->with(['trip.route', 'trip.vehicle.vehicleType', 'seller', 'fromStation', 'toStation'])
+            ->orderBy('created_at', 'desc');
+
+        // Filter by date range if provided
+        if ($request->filled('start_date')) {
+            $ticketsQuery->whereDate('created_at', '>=', $request->get('start_date'));
+        } else {
+            $ticketsQuery->whereDate('created_at', today());
+        }
+        if ($request->filled('end_date')) {
+            $ticketsQuery->whereDate('created_at', '<=', $request->get('end_date'));
+        }
+
+        // Filter by trip_id if provided
+        if ($request->filled('trip_id')) {
+            $ticketsQuery->where('trip_id', $request->get('trip_id'));
+        }
+
+        // Sellers can only export their own tickets
+        if ($user->role === 'seller') {
+            $ticketsQuery->where('seller_id', $user->id);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $ticketsQuery->where('status', $request->get('status'));
+        } else {
+            $ticketsQuery->where('status', '!=', 'cancelled');
+        }
+
+        $tickets = $ticketsQuery->get();
+
+        $exportData = $tickets->map(function ($ticket) {
+            return [
+                'n_ticket' => $ticket->ticket_number,
+                'date' => $ticket->created_at->format('d/m/Y'),
+                'heure' => $ticket->created_at->format('H:i'),
+                'ligne' => $ticket->trip?->route?->name ?? '-',
+                'depart' => $ticket->fromStation?->name ?? '-',
+                'arrivee' => $ticket->toStation?->name ?? '-',
+                'place' => $ticket->seat_number ?? '-',
+                'zone_embarquement' => $ticket->boarding_group ?? '-',
+                'prix_fcfa' => $ticket->price,
+                'vendeur' => $ticket->seller?->name ?? '-',
+                'passager' => $ticket->passenger_name ?? 'Anonyme',
+                'telephone' => $ticket->passenger_phone ?? '-',
+                'statut' => $ticket->status === 'cancelled' ? 'Annulé' : 'Valide',
+                'date_voyage' => $ticket->trip?->departure_at?->format('d/m/Y H:i') ?? '-',
+                'vehicule' => $ticket->trip?->vehicle?->identifier ?? '-',
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $tickets->values(),
+            'total' => $tickets->count(),
+            'message' => $tickets->count().' tickets exportés avec succès',
+        ]);
+    }
+
+    private function canCancel(Ticket $ticket): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if (in_array($user->role, ['admin', 'supervisor'], true)) {
+            return true;
+        }
+
+        return $ticket->seller_id === $user->id;
     }
 
     private function errorResponse(Request $request, string $message, int $status)

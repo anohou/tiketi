@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('city')->nullable(); // Optional detail if needed, or redundant if name is city
             $table->string('region')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->json('settings')->nullable();
             $table->timestamps();
         });
     }

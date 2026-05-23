@@ -9,6 +9,8 @@ import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
+import ChevronUp from 'vue-material-design-icons/ChevronUp.vue';
+import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 
 const props = defineProps({
   routeModel: Object,
@@ -20,7 +22,7 @@ const props = defineProps({
 const processing = ref(false);
 const errors = ref({});
 const form = ref({
-  stop_id: '',
+  station_id: '',
   stop_index: props.stops.length
 });
 
@@ -32,7 +34,7 @@ const submit = () => {
   router.post(route('admin.routes.stops.store', props.routeModel.id), form.value, {
     onSuccess: () => {
       processing.value = false;
-      form.value.stop_id = '';
+      form.value.station_id = '';
       form.value.stop_index = props.stops.length; // Reset to end
     },
     onError: (newErrors) => {
@@ -48,6 +50,46 @@ const deleteStop = (stopOrder) => {
       onError: () => alert('Impossible de supprimer cette destination.')
     });
   }
+};
+
+const moveUp = (index) => {
+  if (index === 0) return;
+  const currentStop = props.stops[index];
+  const prevStop = props.stops[index - 1];
+
+  processing.value = true;
+  router.post(route('admin.routes.stops.reorder', props.routeModel.id), {
+    orders: [
+      { id: currentStop.id, stop_index: index - 1 },
+      { id: prevStop.id, stop_index: index }
+    ]
+  }, {
+    onSuccess: () => { processing.value = false; },
+    onError: () => {
+      processing.value = false;
+      alert('Erreur lors du réordonnancement.');
+    }
+  });
+};
+
+const moveDown = (index) => {
+  if (index === props.stops.length - 1) return;
+  const currentStop = props.stops[index];
+  const nextStop = props.stops[index + 1];
+
+  processing.value = true;
+  router.post(route('admin.routes.stops.reorder', props.routeModel.id), {
+    orders: [
+      { id: currentStop.id, stop_index: index + 1 },
+      { id: nextStop.id, stop_index: index }
+    ]
+  }, {
+    onSuccess: () => { processing.value = false; },
+    onError: () => {
+      processing.value = false;
+      alert('Erreur lors du réordonnancement.');
+    }
+  });
 };
 </script>
 
@@ -112,9 +154,35 @@ const deleteStop = (stopOrder) => {
                       {{ stopOrder.stop.city }}
                     </td>
                     <td class="px-3 py-2 text-sm text-right">
-                      <button @click="deleteStop(stopOrder)" class="text-red-600 hover:text-red-800">
-                        <Trash2 class="h-5 w-5" />
-                      </button>
+                      <div class="flex items-center justify-end gap-2">
+                        <!-- Up Arrow -->
+                        <button 
+                          @click="moveUp(index)" 
+                          :disabled="index === 0 || processing"
+                          class="p-1 rounded text-green-600 hover:bg-green-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
+                          title="Monter"
+                        >
+                          <ChevronUp class="w-5 h-5" />
+                        </button>
+                        <!-- Down Arrow -->
+                        <button 
+                          @click="moveDown(index)" 
+                          :disabled="index === stops.length - 1 || processing"
+                          class="p-1 rounded text-green-600 hover:bg-green-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
+                          title="Descendre"
+                        >
+                          <ChevronDown class="w-5 h-5" />
+                        </button>
+                        <!-- Delete Button -->
+                        <button 
+                          @click="deleteStop(stopOrder)" 
+                          :disabled="processing"
+                          class="p-1 rounded text-red-600 hover:bg-red-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
+                          title="Retirer"
+                        >
+                          <Trash2 class="h-5 w-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 </tbody>
@@ -133,16 +201,16 @@ const deleteStop = (stopOrder) => {
             <form @submit.prevent="submit">
               <div class="space-y-3">
                 <div>
-                  <InputLabel for="stop_id" value="Sélectionner une destination" />
-                  <select v-model="form.stop_id" id="stop_id"
+                  <InputLabel for="station_id" value="Sélectionner une destination" />
+                  <select v-model="form.station_id" id="station_id"
                     class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                    :class="{ 'border-red-500': errors.stop_id }">
+                    :class="{ 'border-red-500': errors.station_id }">
                     <option value="">Choisir une destination...</option>
                     <option v-for="stop in availableStops" :key="stop.id" :value="stop.id">
                       {{ stop.name }} ({{ stop.city }})
                     </option>
                   </select>
-                  <InputError class="mt-2" :message="errors.stop_id" />
+                  <InputError class="mt-2" :message="errors.station_id" />
                 </div>
 
                 <div>

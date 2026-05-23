@@ -32,6 +32,11 @@ class RouteStopOrderController extends Controller
             'stops' => $route->routeStopOrders->sortBy('stop_index')->values()->map(function ($order) {
                 return [
                     'id' => $order->id,
+                    'station' => [
+                        'id' => $order->station->id,
+                        'name' => $order->station->name,
+                        'city' => $order->station->city,
+                    ],
                     'stop' => [
                         'id' => $order->station->id,
                         'name' => $order->station->name,
@@ -50,12 +55,14 @@ class RouteStopOrderController extends Controller
     public function store(Request $request, Route $route)
     {
         $validated = $request->validate([
-            'station_id' => 'required|exists:stations,id',
+            'station_id' => 'required_without:stop_id|exists:stations,id',
+            'stop_id' => 'required_without:station_id|exists:stations,id',
             'stop_index' => 'required|integer|min:0',
         ]);
+        $stationId = $validated['station_id'] ?? $validated['stop_id'];
 
         // Check if station already exists in this route
-        if ($route->routeStopOrders()->where('station_id', $validated['station_id'])->exists()) {
+        if ($route->routeStopOrders()->where('station_id', $stationId)->exists()) {
             return back()->withErrors(['station_id' => 'Cette station est déjà présente sur cette route.']);
         }
 
@@ -65,9 +72,11 @@ class RouteStopOrderController extends Controller
             ->increment('stop_index');
 
         $route->routeStopOrders()->create([
-            'station_id' => $validated['station_id'],
+            'station_id' => $stationId,
             'stop_index' => $validated['stop_index'],
         ]);
+
+        $this->syncRouteTerminalStations($route);
 
         return back()->with('success', 'Arrêt ajouté avec succès.');
     }
@@ -85,6 +94,8 @@ class RouteStopOrderController extends Controller
             ->where('stop_index', '>', $deletedIndex)
             ->decrement('stop_index');
 
+        $this->syncRouteTerminalStations($route);
+
         return back()->with('success', 'Arrêt supprimé avec succès.');
     }
 
@@ -99,7 +110,7 @@ class RouteStopOrderController extends Controller
             'orders.*.stop_index' => 'required|integer',
         ]);
 
-        \DB::transaction(function () use ($validated) {
+        \DB::transaction(function () use ($validated, $route) {
             // Get a temporary index that won't conflict
             $tempIndex = RouteStopOrder::max('stop_index') + 1;
 
@@ -115,8 +126,23 @@ class RouteStopOrderController extends Controller
 
             // Set stop1 to its new index
             $stop1->update(['stop_index' => $validated['orders'][0]['stop_index']]);
+
+            $this->syncRouteTerminalStations($route);
         });
 
         return back()->with('success', 'Ordre mis à jour avec succès.');
+    }
+
+    private function syncRouteTerminalStations(Route $route): void
+    {
+        $orderedStations = $route->routeStopOrders()
+            ->orderBy('stop_index')
+            ->pluck('station_id')
+            ->values();
+
+        $route->update([
+            'origin_station_id' => $orderedStations->first(),
+            'destination_station_id' => $orderedStations->count() > 1 ? $orderedStations->last() : $orderedStations->first(),
+        ]);
     }
 }

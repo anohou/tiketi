@@ -24,10 +24,17 @@ class TicketSettingController extends Controller
             'company_name' => 'required|string|max:255',
             'phone_numbers' => 'nullable|array',
             'phone_numbers.*' => 'string|max:255',
+            'cc_label' => 'nullable|string|max:255',
             'footer_messages' => 'nullable|array',
             'footer_messages.*' => 'string|max:255',
+            'baggage_policy_message' => 'nullable|string|max:1000',
             'qr_code_base_url' => 'nullable|url|max:255',
             'print_qr_code' => 'boolean',
+            'okohi_enabled' => 'boolean',
+            'okohi_host' => 'nullable|url|max:255',
+            'okohi_company_id' => 'nullable|uuid',
+            'okohi_loyalty_type' => 'nullable|in:points,visite',
+            'okohi_integration_key' => 'nullable|string|max:255',
         ]);
 
         $settings = TicketSetting::getSettings();
