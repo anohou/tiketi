@@ -32,10 +32,27 @@ class DatabaseSeeder extends Seeder
 
         // Drop the database if it exists (since migrate:fresh only clears central DB)
         try {
-            \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\"");
+            // First, try to terminate other connections if pgsql
+            if (config('database.default') === 'pgsql') {
+                \Illuminate\Support\Facades\DB::statement("
+                    SELECT pg_terminate_backend(pg_stat_activity.pid)
+                    FROM pg_stat_activity
+                    WHERE pg_stat_activity.datname = '$dbName'
+                      AND pid <> pg_backend_pid()
+                ");
+            }
+            
+            // Drop database with FORCE option if supported (PostgreSQL 13+)
+            \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\" WITH (FORCE)");
             $this->command->info("🗑️ Existing tenant database $dbName dropped.");
         } catch (\Exception $e) {
-            $this->command->warn("Could not drop database $dbName: ".$e->getMessage());
+            $this->command->warn("Could not drop database $dbName with FORCE: ".$e->getMessage());
+            try {
+                \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\"");
+                $this->command->info("🗑️ Existing tenant database $dbName dropped (no force).");
+            } catch (\Exception $e2) {
+                $this->command->warn("Fallback drop also failed: ".$e2->getMessage());
+            }
         }
 
         $tenant = Tenant::create([
