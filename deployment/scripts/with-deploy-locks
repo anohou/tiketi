@@ -13,11 +13,62 @@ case "${app}" in
 esac
 
 lock_root="${DEPLOY_LOCK_ROOT:-/srv/apps/anohou/prod/locks}"
+deployment_slug="${DEPLOYMENT_SLUG:-anohou}"
+environment_name="${DEPLOY_ENV_NAME:-prod}"
+host_platform_root="${DEPLOY_PLATFORM_ROOT:-/srv/platform}"
+top_level_lock="${lock_root}/top-level-lifecycle-${deployment_slug}-${environment_name}.lock"
+top_level_metadata="${top_level_lock}.json"
 global_lock="${lock_root}/deploy-global.lock"
 app_lock="${lock_root}/${app}.lock"
 command_path="${1:-}"
 
 mkdir -p "${lock_root}"
+
+emit_marker_observation() {
+    local kind="$1"
+    local marker_file="$2"
+    local marker_pid marker_hostname marker_mode marker_started_at requested_db source_db target_db current_hostname summary
+
+    [[ -f "${marker_file}" ]] || return 0
+
+    marker_pid="$(sed -n 's/.*"pid":[[:space:]]*\([0-9][0-9]*\).*/\1/p' "${marker_file}" | head -n 1)"
+    marker_hostname="$(sed -n 's/.*"hostname":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    marker_mode="$(sed -n 's/.*"mode":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    marker_started_at="$(sed -n 's/.*"started_at":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    requested_db="$(sed -n 's/.*"requested_db":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    source_db="$(sed -n 's/.*"source_db":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    target_db="$(sed -n 's/.*"target_db":[[:space:]]*"\([^"]*\)".*/\1/p' "${marker_file}" | head -n 1)"
+    current_hostname="$(hostname 2>/dev/null || echo unknown)"
+
+    summary="kind=${kind} mode=${marker_mode:-unknown} started_at=${marker_started_at:-unknown}"
+    [[ -n "${requested_db}" ]] && summary="${summary} requested_db=${requested_db}"
+    [[ -n "${source_db}" ]] && summary="${summary} source_db=${source_db}"
+    [[ -n "${target_db}" ]] && summary="${summary} target_db=${target_db}"
+
+    if [[ -n "${marker_pid}" ]] && [[ -z "${marker_hostname}" || "${marker_hostname}" == "${current_hostname}" ]] && kill -0 "${marker_pid}" 2>/dev/null; then
+        log "Lifecycle advisory: active ${summary} pid=${marker_pid}"
+    else
+        log "Lifecycle advisory: stale ${summary} marker=${marker_file}"
+    fi
+}
+
+if [[ -n "${host_platform_root}" && "${host_platform_root}" != "null" ]]; then
+    status_root="${host_platform_root}/postgres-server/${deployment_slug}/${environment_name}/current/status"
+    emit_marker_observation "backup" "${status_root}/backup.active.json"
+    emit_marker_observation "restore" "${status_root}/restore.active.json"
+fi
+
+exec 7>"${top_level_lock}"
+if ! flock -n 7; then
+    if [[ -f "${top_level_metadata}" ]]; then
+        log "Deployment skipped: top-level lifecycle lock is held (${top_level_lock})"
+        log "Top-level lifecycle metadata: $(cat "${top_level_metadata}")"
+    else
+        log "Deployment skipped: top-level lifecycle lock is held (${top_level_lock})"
+    fi
+    exit 0
+fi
+flock -u 7
 
 exec 9>"${global_lock}"
 if ! flock -n 9; then

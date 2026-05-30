@@ -20,6 +20,7 @@ BUILD_STEP_START=0
 BUILD_TOTAL_DURATION=0
 declare -a BUILD_TIMING_LINES=()
 declare -a VITE_BUILD_ARGS=()
+declare -a BUILD_ARGS=()
 
 detect_checksum_tool() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -187,10 +188,16 @@ collect_vite_build_args() {
     collect_vite_build_args_from_file "${PROJECT_ENV_PATH:-}"
 }
 
+collect_asset_build_arg() {
+    local asset_build_enabled="${ASSET_BUILD_ENABLED:-true}"
+    BUILD_ARGS+=(--build-arg "ASSET_BUILD_ENABLED=${asset_build_enabled}")
+}
+
 # ── Version tag ────────────────────────────────────────────────────────────────
 start_build_timer
 detect_checksum_tool
 collect_vite_build_args
+collect_asset_build_arg
 GIT_SHA="$(git -C "${APP_ROOT}" rev-parse --short HEAD 2>/dev/null || true)"
 SOURCE_FINGERPRINT="$(compute_source_fingerprint)"
 DEFAULT_VERSION="${GIT_SHA:-${SOURCE_FINGERPRINT:0:12}}"
@@ -251,6 +258,7 @@ docker build \
     --build-arg IMAGE_SOURCE="${IMAGE_SOURCE:-}" \
     --build-arg IMAGE_REVISION="${GIT_SHA}" \
     --build-arg BUILD_MODE="${BUILD_MODE}" \
+    "${BUILD_ARGS[@]}" \
     "${VITE_BUILD_ARGS[@]}" \
     --label "build.version=${VERSION}" \
     --label "build.git-sha=${GIT_SHA}" \

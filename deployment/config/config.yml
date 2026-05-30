@@ -22,6 +22,7 @@ app:
 
 # ── Image source policy ──────────────────────────────────────────────────────
 build:
+  profile: with_assets
   # Default deploy behavior:
   # - remote: pull image from registry
   # - local: build image on the server
@@ -30,6 +31,8 @@ build:
   allow_local_build: true
   require_clean_git_for_local_build: true
   local_build_require_explicit_flag: true
+  # Explicit asset-build toggle used by the deployment tooling.
+  asset_build_enabled: true
 
 # ── Registry / release policy ────────────────────────────────────────────────
 registry:

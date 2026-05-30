@@ -23,6 +23,7 @@ RUN composer install \
 # ─── Stage 2: Node/Vite assets ───────────────────────────────────────────────
 FROM node:20-alpine AS assets
 
+ARG ASSET_BUILD_ENABLED=true
 ARG VITE_APP_NAME
 ARG VITE_APP_ENV
 ARG VITE_REVERB_APP_KEY
@@ -41,16 +42,19 @@ WORKDIR /app
 
 COPY --from=composer /app/vendor/ /app/vendor/
 
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then \
-        npm ci --ignore-scripts; \
-    else \
-        npm install --ignore-scripts; \
-    fi
-
 COPY . .
 
-RUN npm run build
+RUN mkdir -p public/build \
+    && if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
+        if [ -f package-lock.json ]; then \
+            npm ci --ignore-scripts; \
+        else \
+            npm install --ignore-scripts; \
+        fi; \
+        npm run build; \
+    else \
+        echo "Skipping frontend asset build (ASSET_BUILD_ENABLED=${ASSET_BUILD_ENABLED})"; \
+    fi
 
 # ─── Stage 3: Production runtime ─────────────────────────────────────────────
 FROM php:8.4-fpm-alpine AS production

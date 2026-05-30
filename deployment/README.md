@@ -60,6 +60,7 @@ deployment/
 
 - `config/config.yml` is rendered by `server-setup-toolkit` per app and environment.
 - `config/template.env` is the allowlist for runtime env keys; only keys listed there are emitted into `.env`.
+- `config/template.env` is rendered from the shared Laravel base template plus app-specific `.app_env` keys from `apps/<app>/laravel-deployment.enc.yml`, so fresh scaffold/sync reproduces app-specific runtime keys without hand patches.
 - `scripts/provision-db.sh` provisions the app database and roles against the shared Postgres service.
 - `scripts/deploy.sh` is the standard recreate-style deployment entrypoint for apps scaffolded from this kit.
 - `scripts/zero-downtime-deploy.sh` is the opt-in Laravel blue/green entrypoint. It is guarded by `zero_downtime.enabled=true` in rendered `config/config.yml`.
@@ -76,5 +77,5 @@ deployment/
 ## Notes
 
 - This template is intended for new Laravel app scaffolds from `server-setup-toolkit`.
-- App-specific identity, domains, DB name, secret file paths, and Postgres credentials come from `apps/<app>/laravel-deployment.enc.yml`.
+- App-specific identity, domains, DB name, runtime env keys, secret file paths, and Postgres credentials come from `apps/<app>/laravel-deployment.enc.yml`.
 - Existing apps generated from older Laravel templates can remain on their legacy deployment kits until explicitly migrated.

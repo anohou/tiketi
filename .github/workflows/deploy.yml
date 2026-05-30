@@ -161,6 +161,43 @@ jobs:
           echo "Run the build-and-push workflow first, or provide workflow_dispatch input image_ref." >&2
           exit 1
 
+      - name: Install Cosign
+        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote' && github.event.inputs.environment == 'production'
+        uses: sigstore/cosign-installer@v3.8.1
+        with:
+          cosign-release: v2.4.1
+
+      - name: Verify signed image trust
+        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote' && github.event.inputs.environment == 'production'
+        run: |
+          set -euo pipefail
+          image_ref="${{ steps.image_ref.outputs.image_ref }}"
+          identity_regexp="^https://github.com/${{ github.repository }}/.github/workflows/build-and-push.yml@.*$"
+          oidc_issuer="https://token.actions.githubusercontent.com"
+
+          cosign verify \
+            --certificate-identity-regexp "${identity_regexp}" \
+            --certificate-oidc-issuer "${oidc_issuer}" \
+            "${image_ref}" >/dev/null
+
+          cosign verify-attestation \
+            --type slsaprovenance \
+            --certificate-identity-regexp "${identity_regexp}" \
+            --certificate-oidc-issuer "${oidc_issuer}" \
+            "${image_ref}" >/dev/null
+
+          if ! cosign verify-attestation \
+            --type spdxjson \
+            --certificate-identity-regexp "${identity_regexp}" \
+            --certificate-oidc-issuer "${oidc_issuer}" \
+            "${image_ref}" >/dev/null 2>&1; then
+            cosign verify-attestation \
+              --type https://spdx.dev/Document \
+              --certificate-identity-regexp "${identity_regexp}" \
+              --certificate-oidc-issuer "${oidc_issuer}" \
+              "${image_ref}" >/dev/null
+          fi
+
       - name: Configure SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -315,4 +352,7 @@ jobs:
             echo "- Git ref: \`${{ github.event.inputs.git_ref }}\`"
             echo "- Git SHA: \`${{ steps.meta.outputs.sha }}\`"
             echo "- Build mode: \`${{ github.event.inputs.build_mode }}\`"
+            if [[ -n "${{ steps.image_ref.outputs.image_ref }}" ]]; then
+              echo "- Verified image: \`${{ steps.image_ref.outputs.image_ref }}\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

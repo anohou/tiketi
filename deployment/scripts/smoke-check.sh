@@ -17,6 +17,10 @@ RUN_EXTERNAL_SMOKE="${RUN_EXTERNAL_SMOKE:-false}"
 log() { echo "[smoke] $(date '+%H:%M:%S') $*"; }
 err() { echo "[smoke] ERROR: $*" >&2; exit 1; }
 
+asset_build_enabled() {
+    [[ "${ASSET_BUILD_ENABLED:-true}" == "true" ]]
+}
+
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" ps nginx >/dev/null 2>&1 \
     || err "nginx service is not available"
 
@@ -90,9 +94,13 @@ external_readiness_url() {
     printf '%s\n' "${APP_URL}" | sed -E 's#^(https?://[^/]+).*$#\1/readyz#'
 }
 
-ASSET_PATH="$(find_first_asset_path)"
-[[ -n "${ASSET_PATH}" ]] || err "No image-baked asset found under public/build"
-assert_local_fetch "${ASSET_PATH}" "200"
+if asset_build_enabled; then
+    ASSET_PATH="$(find_first_asset_path)"
+    [[ -n "${ASSET_PATH}" ]] || err "No image-baked asset found under public/build"
+    assert_local_fetch "${ASSET_PATH}" "200"
+else
+    log "Skipping asset smoke check because ASSET_BUILD_ENABLED=false"
+fi
 
 docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" exec -T php-fpm php artisan about --no-ansi >/dev/null \
     || err "Laravel boot smoke check failed"
