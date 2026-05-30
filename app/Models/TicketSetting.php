@@ -50,20 +50,24 @@ class TicketSetting extends Model
 
     private function isJson($string): bool
     {
-        if (!is_string($string)) {
+        if (! is_string($string)) {
             return false;
         }
+
         json_decode($string);
+
         return json_last_error() === JSON_ERROR_NONE;
     }
 
     public function getOkohiSettings(): array
     {
         $value = $this->attributes['qr_code_base_url'] ?? null;
-        if (blank($value) || !$this->isJson($value)) {
+        if (blank($value) || ! $this->isJson($value)) {
             return [];
         }
+
         $decoded = json_decode((string) $value, true);
+
         return is_array($decoded) ? $decoded : [];
     }
 
@@ -129,6 +133,7 @@ class TicketSetting extends Model
         if ($this->isJson($value)) {
             return null;
         }
+
         return $value;
     }
 

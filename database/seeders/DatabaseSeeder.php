@@ -41,17 +41,17 @@ class DatabaseSeeder extends Seeder
                       AND pid <> pg_backend_pid()
                 ");
             }
-            
+
             // Drop database with FORCE option if supported (PostgreSQL 13+)
             \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\" WITH (FORCE)");
             $this->command->info("🗑️ Existing tenant database $dbName dropped.");
         } catch (\Exception $e) {
-            $this->command->warn("Could not drop database $dbName with FORCE: ".$e->getMessage());
+            $this->command->warn('Could not drop database '.$dbName.' with FORCE: '.$e->getMessage());
             try {
                 \Illuminate\Support\Facades\DB::statement("DROP DATABASE IF EXISTS \"$dbName\"");
-                $this->command->info("🗑️ Existing tenant database $dbName dropped (no force).");
+                $this->command->info('🗑️ Existing tenant database '.$dbName.' dropped (no force).');
             } catch (\Exception $e2) {
-                $this->command->warn("Fallback drop also failed: ".$e2->getMessage());
+                $this->command->warn('Fallback drop also failed: '.$e2->getMessage());
             }
         }
 

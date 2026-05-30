@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\OptimisationController;
 use App\Http\Controllers\Api\OkohiVerificationController;
+use App\Http\Controllers\Api\OptimisationController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\TripController;

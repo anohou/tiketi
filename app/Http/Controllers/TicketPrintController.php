@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketSetting;
-use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;

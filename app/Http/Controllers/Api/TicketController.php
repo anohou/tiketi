@@ -299,7 +299,7 @@ class TicketController extends Controller
     public function export(Request $request)
     {
         $user = auth()->user();
-        
+
         $ticketsQuery = Ticket::query()
             ->with(['trip.route', 'trip.vehicle.vehicleType', 'seller', 'fromStation', 'toStation'])
             ->orderBy('created_at', 'desc');
