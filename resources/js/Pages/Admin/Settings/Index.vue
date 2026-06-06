@@ -12,6 +12,7 @@ import Cash from 'vue-material-design-icons/Cash.vue';
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
+import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 
 defineProps({
@@ -60,6 +61,7 @@ const configSections = [
       { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes' },
       { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares' },
       { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
+      { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
     ]
   },
   {

@@ -15,8 +15,18 @@ class UniversalTenancy extends InitializeTenancyByDomain
         $host = $request->getHost();
         $centralDomains = config('tenancy.central_domains', []);
 
+        // Bypass tenancy pour la route de vérification Okohi — accessible via IP ou domaine central
+        if (str_contains($request->getPathInfo(), '/api/okohi/verify')) {
+            return $next($request);
+        }
+
         // Fallback for development if config is missing 'localhost'
         if ($host === 'localhost' || $host === '127.0.0.1') {
+            return $next($request);
+        }
+
+        // Bypass pour les adresses IP (appels externes Okohi)
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
             return $next($request);
         }
 

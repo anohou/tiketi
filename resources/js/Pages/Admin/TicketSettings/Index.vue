@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -26,53 +26,10 @@ const form = ref({
   cc_label: props.settings?.cc_label || '',
   footer_messages: props.settings?.footer_messages || ['Valable pour ce voyage', 'Non remboursable'],
   baggage_policy_message: props.settings?.baggage_policy_message || "La perte des bagages transportés doit faire l'objet d'une déclaration aux agences de la société.",
-  qr_code_base_url: props.settings?.qr_code_base_url || '',
   print_qr_code: props.settings?.print_qr_code || false,
-  okohi_enabled: props.settings?.okohi_enabled || false,
-  okohi_host: props.settings?.okohi_host || '',
-  okohi_company_id: props.settings?.okohi_company_id || '',
-  okohi_loyalty_type: props.settings?.okohi_loyalty_type || 'points',
-  okohi_integration_key: props.settings?.okohi_integration_key || '',
 });
 
-const okohiVerifyUrl = computed(() => {
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  return `${origin}/api/okohi/verify?ticket_id={ticket_id}`;
-});
-
-const okohiScanExampleUrl = computed(() => {
-  if (!form.value.okohi_host) return '';
-  const host = form.value.okohi_host.replace(/\/+$/, '');
-  const companyId = form.value.okohi_company_id || 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
-  const loyaltyType = form.value.okohi_loyalty_type || 'points';
-  const integrationKey = form.value.okohi_integration_key || 'integration_key';
-  const dummyTicketId = 'TKT-123456';
-  const dummyAmount = '5000';
-  const dummyTimestamp = Math.floor(Date.now() / 1000);
-  return `${host}/api/v1/scan/${companyId}/${loyaltyType}/${integrationKey}/${dummyTicketId}/${dummyAmount}/${dummyTimestamp}`;
-});
-
-const shouldShowPreviewQrCode = computed(() => {
-  return form.value.print_qr_code || (
-    form.value.okohi_enabled &&
-    form.value.okohi_host &&
-    form.value.okohi_company_id &&
-    form.value.okohi_loyalty_type &&
-    form.value.okohi_integration_key
-  );
-});
-
-const copied = ref(false);
-const copyToClipboard = () => {
-  if (typeof navigator !== 'undefined' && navigator.clipboard) {
-    navigator.clipboard.writeText(okohiVerifyUrl.value).then(() => {
-      copied.value = true;
-      setTimeout(() => {
-        copied.value = false;
-      }, 2000);
-    });
-  }
-};
+const shouldShowPreviewQrCode = computed(() => form.value.print_qr_code);
 
 // Methods
 const addPhone = () => {
@@ -337,110 +294,20 @@ const submit = () => {
                     <InputLabel for="print_qr_code" value="Activer le QR Code" class="ml-2 font-bold" />
                   </div>
 
-                  <div v-if="form.print_qr_code" class="space-y-2 pl-6">
-                    <InputLabel for="qr_code_base_url" value="URL de base (optionnel)" />
-                    <TextInput 
-                      v-model="form.qr_code_base_url" 
-                      id="qr_code_base_url" 
-                      placeholder="https://tsr-ci.com/verify/"
-                      type="url"
-                    />
-                    <p class="text-[10px] text-gray-500 italic">
-                      Sera ajouté avant le code du ticket
-                    </p>
-                  </div>
                 </div>
 
-                <div class="bg-green-50 p-4 rounded-xl border border-green-100">
-                  <div class="flex items-center mb-4">
-                    <input
-                      type="checkbox"
-                      v-model="form.okohi_enabled"
-                      id="okohi_enabled"
-                      class="rounded border-orange-300 text-green-600 shadow-sm focus:ring focus:ring-green-200"
-                    />
-                    <InputLabel for="okohi_enabled" value="Activer la fidélité OKOHI" class="ml-2 font-bold" />
+                <!-- Link to loyalty page -->
+                <div class="bg-green-50 rounded-xl border border-green-100 p-4 flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-bold text-green-800">Fidélisation Okohi</p>
+                    <p class="text-xs text-green-600 mt-0.5">Configurer les points de fidélité sur les tickets</p>
                   </div>
-
-                  <div v-if="form.okohi_enabled" class="space-y-4 pl-6">
-                    <div>
-                      <InputLabel for="okohi_host" value="Hôte OKOHI" />
-                      <TextInput
-                        v-model="form.okohi_host"
-                        id="okohi_host"
-                        placeholder="https://okohi.example.com"
-                        type="url"
-                        :class="{ 'border-red-500': errors.okohi_host }"
-                      />
-                      <InputError class="mt-2" :message="errors.okohi_host" />
-                    </div>
-
-                    <div>
-                      <InputLabel for="okohi_company_id" value="Company ID OKOHI" />
-                      <TextInput
-                        v-model="form.okohi_company_id"
-                        id="okohi_company_id"
-                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                        :class="{ 'border-red-500': errors.okohi_company_id }"
-                      />
-                      <InputError class="mt-2" :message="errors.okohi_company_id" />
-                    </div>
-
-                    <div>
-                      <InputLabel for="okohi_loyalty_type" value="Type de fidélité" />
-                      <select
-                        v-model="form.okohi_loyalty_type"
-                        id="okohi_loyalty_type"
-                        class="w-full rounded-md border-orange-200 shadow-sm focus:border-green-500 focus:ring-green-500"
-                        :class="{ 'border-red-500': errors.okohi_loyalty_type }"
-                      >
-                        <option value="points">Points</option>
-                        <option value="visite">Visite</option>
-                      </select>
-                      <InputError class="mt-2" :message="errors.okohi_loyalty_type" />
-                    </div>
-
-                    <div>
-                      <InputLabel for="okohi_integration_key" value="Clé d'intégration OKOHI" />
-                      <TextInput
-                        v-model="form.okohi_integration_key"
-                        id="okohi_integration_key"
-                        placeholder="integration_key"
-                        :class="{ 'border-red-500': errors.okohi_integration_key }"
-                      />
-                      <InputError class="mt-2" :message="errors.okohi_integration_key" />
-                    </div>
-
-                    <div class="space-y-3 mt-4">
-                      <!-- Verification URL Box -->
-                      <div class="text-[11px] text-gray-600 bg-white border border-green-100 rounded-lg p-3 shadow-sm flex items-start justify-between gap-3">
-                        <div class="space-y-1">
-                          <span class="font-semibold text-green-700 block">URL de vérification à renseigner dans OKOHI :</span>
-                          <span class="font-mono break-all text-gray-800">{{ okohiVerifyUrl }}</span>
-                        </div>
-                        <button 
-                          @click.prevent="copyToClipboard" 
-                          type="button"
-                          class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 font-bold rounded border border-green-200 transition-all text-[10px] uppercase shadow-sm select-none"
-                        >
-                          <svg v-if="copied" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                          </svg>
-                          <svg v-else class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                          </svg>
-                          <span>{{ copied ? 'Copié !' : 'Copier' }}</span>
-                        </button>
-                      </div>
-
-                      <!-- Example generated Scan URL Box -->
-                      <div v-if="okohiScanExampleUrl" class="text-[11px] text-gray-600 bg-white border border-green-100 rounded-lg p-3 shadow-sm">
-                        <span class="font-semibold text-green-700 block mb-1">Exemple de format généré dans le QR code :</span>
-                        <span class="font-mono break-all text-gray-800">{{ okohiScanExampleUrl }}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <Link
+                    :href="route('admin.settings.loyalty')"
+                    class="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Configurer →
+                  </Link>
                 </div>
               </div>
             </form>

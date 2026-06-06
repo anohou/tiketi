@@ -28,18 +28,12 @@ class TicketSettingController extends Controller
             'footer_messages' => 'nullable|array',
             'footer_messages.*' => 'string|max:255',
             'baggage_policy_message' => 'nullable|string|max:1000',
-            'qr_code_base_url' => 'nullable|url|max:255',
             'print_qr_code' => 'boolean',
-            'okohi_enabled' => 'boolean',
-            'okohi_host' => 'nullable|url|max:255',
-            'okohi_company_id' => 'nullable|uuid',
-            'okohi_loyalty_type' => 'nullable|in:points,visite',
-            'okohi_integration_key' => 'nullable|string|max:255',
         ]);
 
         $settings = TicketSetting::getSettings();
         $settings->update($validated);
 
-        return redirect()->back()->with('success', 'Paramètres mis à jour avec succès');
+        return back()->with('success', 'Paramètres d\'impression mis à jour avec succès.');
     }
 }

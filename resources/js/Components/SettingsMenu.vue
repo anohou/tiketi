@@ -44,6 +44,7 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Cash from 'vue-material-design-icons/Cash.vue';
+import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 
 const selectedRoute = ref('');
 
@@ -58,6 +59,7 @@ const settingsMenu = [
     { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple },
     { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup },
     { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer },
+    { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
 ];
 
 onMounted(() => {

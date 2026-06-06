@@ -74,6 +74,10 @@ Route::middleware('auth')->group(function () {
         // Ticket Settings
         Route::get('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'index'])->name('ticket-settings.index');
         Route::put('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'update'])->name('ticket-settings.update');
+
+        // Loyalty / Fidélisation (Okohi)
+        Route::get('settings/loyalty', [\App\Http\Controllers\Admin\LoyaltySettingController::class, 'index'])->name('settings.loyalty');
+        Route::put('settings/loyalty', [\App\Http\Controllers\Admin\LoyaltySettingController::class, 'update'])->name('settings.loyalty.update');
     });
 
     // =========================================
