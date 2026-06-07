@@ -164,19 +164,16 @@ class TicketingFlowTest extends TestCase
 
         $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
         $settings = TicketSetting::getSettings();
+        $okohiUrl = 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}';
         $settings->update([
             'print_qr_code' => true,
-            'okohi_enabled' => true,
-            'okohi_host' => 'https://okohi.test',
-            'okohi_company_id' => '11111111-1111-1111-1111-111111111111',
-            'okohi_loyalty_type' => 'points',
-            'okohi_integration_key' => 'okohi-key',
+            'okohi_url' => $okohiUrl,
         ]);
+        $settings->refresh();
 
-        $this->assertSame(
-            'https://okohi.test/api/v1/scan/11111111-1111-1111-1111-111111111111/points/okohi-key/'.$ticket->ticket_number.'/'.$ticket->price.'/'.$ticket->created_at->timestamp,
-            $ticket->printableQrValue($settings)
-        );
+        $expected = 'https://okohi.test/api/v1/scan/'.$ticket->ticket_number.'/'.$ticket->price.'/'.$ticket->created_at->timestamp;
+
+        $this->assertSame($expected, $ticket->printableQrValue($settings));
     }
 
     public function test_printable_qr_is_still_printed_when_okohi_is_enabled_even_if_print_qr_code_is_false(): void
@@ -194,11 +191,7 @@ class TicketingFlowTest extends TestCase
         $settings = TicketSetting::getSettings();
         $settings->update([
             'print_qr_code' => false,
-            'okohi_enabled' => true,
-            'okohi_host' => 'https://okohi.test',
-            'okohi_company_id' => '11111111-1111-1111-1111-111111111111',
-            'okohi_loyalty_type' => 'points',
-            'okohi_integration_key' => 'okohi-key',
+            'okohi_url' => 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}',
         ]);
 
         $printResponse = $this->actingAs($admin)->get("/tickets/{$ticketId}/print");
@@ -549,7 +542,7 @@ class TicketingFlowTest extends TestCase
                 $table->string('cc_label')->nullable();
                 $table->json('footer_messages')->nullable();
                 $table->text('baggage_policy_message')->nullable();
-                $table->json('qr_code_base_url')->nullable();
+                $table->text('okohi_url')->nullable();
                 $table->boolean('print_qr_code')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();

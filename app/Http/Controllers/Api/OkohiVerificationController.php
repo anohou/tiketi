@@ -24,9 +24,16 @@ class OkohiVerificationController extends Controller
         }
 
         // Appel via IP ou domaine central : cherche dans tous les tenants
+        $tenants = Tenant::all();
+
+        // Pas de tenants (ex: tests) — cherche sur la connexion courante
+        if ($tenants->isEmpty()) {
+            return $this->respond($ticketId);
+        }
+
         $found = null;
 
-        Tenant::all()->each(function (Tenant $tenant) use ($ticketId, &$found) {
+        $tenants->each(function (Tenant $tenant) use ($ticketId, &$found) {
             if ($found !== null) {
                 return false;
             }
@@ -36,7 +43,6 @@ class OkohiVerificationController extends Controller
             $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
             if ($ticket && $ticket->status !== 'cancelled') {
-                // Extraire les données AVANT tenancy()->end()
                 $found = [
                     'ticket_id' => $ticket->ticket_number,
                     'amount' => (int) $ticket->price,
