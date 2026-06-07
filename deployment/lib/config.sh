@@ -76,6 +76,9 @@ APP_URL="${APP_URL:-$(_cfg app url)}"
 APP_DOMAIN="${APP_DOMAIN:-$(_cfg app domain)}"
 APP_IMAGE="${APP_IMAGE:-$(_cfg app image)}"
 COMPOSE_PROJECT_BASE="${COMPOSE_PROJECT_NAME:-$(_cfg app compose_project)}"
+APP_FRAMEWORK="${APP_FRAMEWORK:-$(_cfg app framework)}"
+MIGRATION_COMMAND="${MIGRATION_COMMAND:-$(_cfg app migration command)}"
+MIGRATION_USE_MIGRATOR_CREDENTIALS="${MIGRATION_USE_MIGRATOR_CREDENTIALS:-$(_cfg app migration use_migrator_credentials)}"
 TENANT_WILDCARD_DOMAIN="${TENANT_WILDCARD_DOMAIN:-$(_cfg app tenant_wildcard_domain)}"
 TENANT_DB_PREFIX="${TENANT_DB_PREFIX:-$(_cfg app tenant_db_prefix)}"
 
@@ -136,7 +139,9 @@ DB_ADMIN_ENV_PATH="${DB_ADMIN_ENV_PATH:-$(_cfg secrets db_admin_env_path)}"
 PROJECT_ENV_PATH="${PROJECT_ENV_PATH:-$(_cfg secrets project_env_path)}"
 
 # database.*
+APP_DB_ENGINE="${APP_DB_ENGINE:-$(_cfg database engine)}"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-$(_cfg database postgres_container)}"
+MYSQL_CONTAINER="${MYSQL_CONTAINER:-$(_cfg database mysql_container)}"
 DB_NAME="${DB_NAME:-$(_cfg database db_name)}"
 
 # backup.*
@@ -189,6 +194,7 @@ ORPHAN_PATTERN="${ORPHAN_PATTERN:-$(_cfg cleanup orphan_pattern)}"
 
 # ── Export everything ─────────────────────────────────────────────────────────
 export APP_NAME APP_SLUG APP_URL APP_DOMAIN APP_IMAGE COMPOSE_PROJECT_BASE \
+       APP_FRAMEWORK MIGRATION_COMMAND MIGRATION_USE_MIGRATOR_CREDENTIALS \
        TENANT_WILDCARD_DOMAIN TENANT_DB_PREFIX \
        BUILD_DEFAULT_SOURCE BUILD_PROFILE BUILD_ALLOW_LOCAL_BUILD \
        BUILD_REQUIRE_CLEAN_GIT_FOR_LOCAL_BUILD BUILD_LOCAL_BUILD_REQUIRE_EXPLICIT_FLAG \
@@ -203,7 +209,7 @@ export APP_NAME APP_SLUG APP_URL APP_DOMAIN APP_IMAGE COMPOSE_PROJECT_BASE \
        TRAEFIK_FILE_RELOAD_MAX_SECONDS ALLOW_UNSAFE_MIGRATIONS DIRECT_ORIGIN_IP \
        TENANT_SMOKE_HOSTS CLOUDFLARE_CACHE_PURGE_PATHS \
        COMMON_ENV_PATH DB_ADMIN_ENV_PATH PROJECT_ENV_PATH \
-       POSTGRES_CONTAINER DB_NAME BACKUP_OUTPUT_DIR \
+       POSTGRES_CONTAINER MYSQL_CONTAINER DB_NAME BACKUP_OUTPUT_DIR \
        TRAEFIK_SWARM_NETWORK DB_NETWORK \
        TRAEFIK_CERT_RESOLVER \
        NGINX_IMAGE QUEUE_WORKER_ENABLED SCHEDULER_ENABLED REVERB_ENABLED REVERB_PATH REVERB_PORT \
@@ -217,6 +223,38 @@ export APP_NAME APP_SLUG APP_URL APP_DOMAIN APP_IMAGE COMPOSE_PROJECT_BASE \
        ORPHAN_PATTERN
 
 export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_BASE}"
+
+deployment_env_value() {
+    local file_path="$1"
+    local key="$2"
+    [[ -f "${file_path}" ]] || return 1
+
+    awk -F= -v wanted="${key}" '
+        $1 == wanted {
+            value = substr($0, index($0, "=") + 1)
+            sub(/\r$/, "", value)
+            print value
+            exit 0
+        }
+    ' "${file_path}"
+}
+
+project_secret_value() {
+    local key="$1"
+    [[ -n "${PROJECT_ENV_PATH:-}" ]] || return 1
+    deployment_env_value "${PROJECT_ENV_PATH}" "${key}"
+}
+
+require_project_secret_value() {
+    local key="$1"
+    local value=""
+    value="$(project_secret_value "${key}")"
+    [[ -n "${value}" ]] || {
+        echo "[config] ERROR: ${key} not found in ${PROJECT_ENV_PATH}" >&2
+        exit 1
+    }
+    printf '%s' "${value}"
+}
 
 # ── Network readiness helper ──────────────────────────────────────────────────
 ensure_docker_networks() {

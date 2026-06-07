@@ -149,9 +149,19 @@ sync_into_live_root() {
         --exclude='storage/app/public/**' \
         --exclude='storage/app/purifier/**' \
         --exclude='deployment/.env' \
+        --exclude='deployment/.deploy/' \
+        --exclude='deployment/.deploy-lock/' \
+        --exclude='deployment/.deploy-state/' \
         --exclude='deployment/.last-built-version' \
         --exclude='deployment/.last-deployed-version' \
         --exclude='deployment/.release-manifest.env' \
+        --exclude='deployment/.build-timings.log' \
+        --exclude='deployment/persistent-public/' \
+        --exclude='deployment/runtime-public/' \
+        --exclude='deployment/runtime-public-blue/' \
+        --exclude='deployment/runtime-public-green/' \
+        --exclude='deployment/runtime-public-*/' \
+        --exclude='deployment.working/' \
         "${SOURCE_ROOT}/" "${LIVE_ROOT}/"
 }
 

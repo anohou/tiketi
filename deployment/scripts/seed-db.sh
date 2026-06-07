@@ -34,13 +34,16 @@ if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
     exit 0
 fi
 
-# Load configs
-source "${SCRIPT_DIR}/rbac.config.sh"
-RUNTIME_USER=$(grep -m1 "^DB_USERNAME=" "${DEPLOY_DIR}/.env" | cut -d= -f2- | tr -d '\r')
-APP_OWNER_ROLE="$(derive_owner_role "${RUNTIME_USER}")" || err "Failed to derive owner role"
+db_connection="$(grep -m1 '^DB_CONNECTION=' "${DEPLOY_DIR}/.env" | cut -d= -f2- | tr -d '\r')"
+APP_OWNER_ROLE=""
+if [[ "${db_connection}" == "pgsql" ]]; then
+    source "${SCRIPT_DIR}/rbac.config.sh"
+    RUNTIME_USER="$(grep -m1 "^DB_USERNAME=" "${DEPLOY_DIR}/.env" | cut -d= -f2- | tr -d '\r')"
+    APP_OWNER_ROLE="$(derive_owner_role "${RUNTIME_USER}")" || err "Failed to derive owner role"
+fi
 
-MIG_USER=$(grep -m1 "^DB_MIGRATOR_USERNAME=" "${DEPLOY_DIR}/.env" | cut -d= -f2- | tr -d '\r')
-MIG_PASS=$(grep -m1 "^DB_MIGRATOR_PASSWORD=" "${DEPLOY_DIR}/.env" | cut -d= -f2- | tr -d '\r')
+MIG_USER="$(require_project_secret_value "DB_MIGRATOR_USERNAME")"
+MIG_PASS="$(require_project_secret_value "DB_MIGRATOR_PASSWORD")"
 
 log "Running database seeders using image ${SEED_IMAGE_REF} ..."
 
@@ -48,10 +51,15 @@ docker run --rm \
     --env-file "${DEPLOY_DIR}/.env" \
     --env "DB_USERNAME=${MIG_USER}" \
     --env "DB_PASSWORD=${MIG_PASS}" \
-    --env "PGOPTIONS=-c role=${APP_OWNER_ROLE}" \
     --network "${DB_NETWORK}" \
     "${SEED_IMAGE_REF}" \
-    php artisan db:seed --force --no-ansi \
+    sh -lc "$(
+        if [[ "${db_connection}" == "pgsql" ]]; then
+            printf 'PGOPTIONS=%q php artisan db:seed --force --no-ansi' "-c role=${APP_OWNER_ROLE}"
+        else
+            printf 'php artisan db:seed --force --no-ansi'
+        fi
+    )" \
     || err "Database seeding failed."
 
 log "✓ Database seeded successfully!"

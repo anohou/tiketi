@@ -116,9 +116,8 @@ _set TENANT_SMOKE_HOSTS    "${TENANT_SMOKE_HOSTS:-}"
 _set CLOUDFLARE_CACHE_PURGE_PATHS "${CLOUDFLARE_CACHE_PURGE_PATHS:-}"
 linfo "Config-derived values injected (app identity, image, networks, queue runtime)"
 
-# Layer 3.5: Auto-map Postgres RBAC creds → Laravel creds (avoids key duplication)
-# The project env file uses DB_USERNAME/DB_PASSWORD directly, so no mapping needed.
-# These are kept in case the postgres infra env file uses different key names.
+# Layer 3.5: Auto-map runtime creds only.
+# Privileged credentials stay in PROJECT_ENV_PATH and are injected command-scoped.
 if _has "APP_RUNTIME_USER"; then
     _set DB_USERNAME "$(_get APP_RUNTIME_USER)"
     linfo "Auto-mapped DB_USERNAME = APP_RUNTIME_USER"
@@ -126,14 +125,6 @@ fi
 if _has "APP_RUNTIME_PASSWORD"; then
     _set DB_PASSWORD "$(_get APP_RUNTIME_PASSWORD)"
 fi
-if _has "APP_MIGRATOR_USER"; then
-    _set DB_MIGRATOR_USERNAME "$(_get APP_MIGRATOR_USER)"
-    linfo "Auto-mapped DB_MIGRATOR_USERNAME = APP_MIGRATOR_USER"
-fi
-if _has "APP_MIGRATOR_PASSWORD"; then
-    _set DB_MIGRATOR_PASSWORD "$(_get APP_MIGRATOR_PASSWORD)"
-fi
-
 # Layer 4: CLI KEY=VALUE overrides (highest priority)
 for override in "$@"; do
     _set "${override%%=*}" "${override#*=}"
@@ -179,8 +170,6 @@ REQUIRED_KEYS=(
     "DB_DATABASE"
     "DB_USERNAME"
     "DB_PASSWORD"
-    "DB_MIGRATOR_USERNAME"
-    "DB_MIGRATOR_PASSWORD"
 )
 
 missing=()

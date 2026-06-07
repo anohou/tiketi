@@ -17,6 +17,10 @@ app:
   domain: tiketi.ci
   image: ghcr.io/anohou/tiketi
   compose_project: tiketi
+  framework: "laravel"
+  migration:
+    command: "php artisan migrate --force"
+    use_migrator_credentials: true
   tenant_wildcard_domain: "*.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
 
@@ -26,7 +30,7 @@ build:
   # Default deploy behavior:
   # - remote: pull image from registry
   # - local: build image on the server
-  default_source: remote
+  default_source: local
   # Emergency break-glass local builds are allowed when explicitly requested
   allow_local_build: true
   require_clean_git_for_local_build: true
@@ -51,8 +55,8 @@ deploy:
   strategy: recreate
   allow_emergency_build: true
   audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
-  runtime_root: /srv/apps/anohou/prod/source
-  ci_source_root: /srv/apps/anohou/prod/ci-sources
+  runtime_root: /srv/apps/anohou/prod/app-deployments
+  ci_source_root: /srv/apps/anohou/prod/app-git-sources
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
 zero_downtime:
@@ -81,8 +85,11 @@ secrets:
 
 # ── Database ──────────────────────────────────────────────────────────────────
 database:
+  engine: postgres
   # Name of the running shared Postgres container to run provisioning against
   postgres_container: anohou-prod-postgres-postgres-1
+  # Name of the running shared MySQL container to run provisioning against
+  mysql_container: anohou-prod-mysql-mysql-1
   # Application database name — provisioned by provision-db.sh
   db_name: tiketi_prod
 

@@ -11,21 +11,34 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/deploy.config.sh"
-source "${SCRIPT_DIR}/rbac.config.sh"
-source "${SCRIPT_DIR}/../lib/postgres-app-db.sh"
 
-APP_DB_LOG_PREFIX="provision-db"
+db_connection="$(project_secret_value "DB_CONNECTION" || true)"
+if [[ -z "${db_connection}" && -f "${SCRIPT_DIR}/../.env" ]]; then
+    db_connection="$(awk -F= '$1 == "DB_CONNECTION" {print substr($0, index($0, "=") + 1); exit 0}' "${SCRIPT_DIR}/../.env" | tr -d '\r' || true)"
+fi
 
-app_db_require_command docker
-app_db_load_context "${DB_NAME:?DB_NAME must be set in config.yml (database.db_name)}"
+case "${db_connection:-pgsql}" in
+    pgsql|postgres|postgresql)
+        source "${SCRIPT_DIR}/rbac.config.sh"
+        source "${SCRIPT_DIR}/../lib/postgres-app-db.sh"
 
-app_db_log "Provisioning database '${APP_DB_TARGET_DB_NAME}' in container '${POSTGRES_CONTAINER}'"
-app_db_log "  schema: ${APP_DB_SCHEMA_NAME} | owner: ${APP_DB_OWNER_ROLE}"
-
-app_db_ensure_database_exists "${APP_DB_TARGET_DB_NAME}"
-app_db_configure_roles "${APP_DB_TARGET_DB_NAME}"
-app_db_apply_schema_and_grants "${APP_DB_TARGET_DB_NAME}"
-app_db_log "Verifying provisioning in Postgres..."
-app_db_verify_state "${APP_DB_TARGET_DB_NAME}"
-
-app_db_log "✓ Database '${APP_DB_TARGET_DB_NAME}' provisioned and fully verified."
+        APP_DB_LOG_PREFIX="provision-db"
+        app_db_require_command docker
+        app_db_load_context "${DB_NAME:?DB_NAME must be set in config.yml (database.db_name)}"
+        app_db_log "Provisioning database '${APP_DB_TARGET_DB_NAME}' in container '${POSTGRES_CONTAINER}'"
+        app_db_log "  schema: ${APP_DB_SCHEMA_NAME} | owner: ${APP_DB_OWNER_ROLE}"
+        app_db_ensure_database_exists "${APP_DB_TARGET_DB_NAME}"
+        app_db_configure_roles "${APP_DB_TARGET_DB_NAME}"
+        app_db_apply_schema_and_grants "${APP_DB_TARGET_DB_NAME}"
+        app_db_log "Verifying provisioning in Postgres..."
+        app_db_verify_state "${APP_DB_TARGET_DB_NAME}"
+        app_db_log "✓ Database '${APP_DB_TARGET_DB_NAME}' provisioned and fully verified."
+        ;;
+    mysql)
+        exec "${SCRIPT_DIR}/provision-mysql-db.sh"
+        ;;
+    *)
+        echo "[provision-db] ERROR: Unsupported DB_CONNECTION=${db_connection}" >&2
+        exit 1
+        ;;
+esac

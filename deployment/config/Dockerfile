@@ -21,7 +21,7 @@ RUN composer install \
     --optimize-autoloader
 
 # ─── Stage 2: Node/Vite assets ───────────────────────────────────────────────
-FROM node:20-alpine AS assets
+FROM node:22-alpine AS assets
 
 ARG ASSET_BUILD_ENABLED=true
 ARG VITE_APP_NAME
@@ -37,6 +37,9 @@ ENV VITE_REVERB_APP_KEY=${VITE_REVERB_APP_KEY}
 ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
 ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
 ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+ENV NPM_CONFIG_FUND=false
+ENV NPM_CONFIG_AUDIT=false
 
 WORKDIR /app
 
@@ -47,9 +50,9 @@ COPY . .
 RUN mkdir -p public/build \
     && if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
         if [ -f package-lock.json ]; then \
-            npm ci --ignore-scripts; \
+            npm ci --ignore-scripts --no-audit --no-fund; \
         else \
-            npm install --ignore-scripts; \
+            npm install --ignore-scripts --no-audit --no-fund; \
         fi; \
         npm run build; \
     else \

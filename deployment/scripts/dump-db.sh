@@ -3,6 +3,13 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/deploy.config.sh"
+
+db_connection="$(project_secret_value "DB_CONNECTION" || true)"
+if [[ "${db_connection}" == "mysql" ]]; then
+    exec "${SCRIPT_DIR}/dump-mysql-db.sh" "$@"
+fi
+
+source "${SCRIPT_DIR}/deploy.config.sh"
 source "${SCRIPT_DIR}/rbac.config.sh"
 source "${SCRIPT_DIR}/../lib/postgres-app-db.sh"
 

@@ -60,6 +60,89 @@ compose_for() {
     docker compose -p "${project_name}" "${profiles[@]}" -f "${COMPOSE_FILE}" --env-file "${env_file}" "$@"
 }
 
+env_value_from_file() {
+    local file_path="$1"
+    local key="$2"
+    [[ -f "${file_path}" ]] || return 1
+    awk -F= -v wanted="${key}" '
+        $1 == wanted {
+            value = substr($0, index($0, "=") + 1)
+            sub(/\r$/, "", value)
+            print value
+            exit 0
+        }
+    ' "${file_path}"
+}
+
+load_migration_credentials() {
+    MIGRATION_DB_USERNAME="$(require_project_secret_value "DB_MIGRATOR_USERNAME")"
+    MIGRATION_DB_PASSWORD="$(require_project_secret_value "DB_MIGRATOR_PASSWORD")"
+    export MIGRATION_DB_USERNAME MIGRATION_DB_PASSWORD
+}
+
+assert_runtime_db_engine_matches_config() {
+    local db_connection expected_connection
+    db_connection="$(env_value_from_file "${TARGET_ENV_FILE}" "DB_CONNECTION")"
+    case "${APP_DB_ENGINE:-postgres}" in
+        postgres) expected_connection="pgsql" ;;
+        mysql) expected_connection="mysql" ;;
+        *) err "Unsupported APP_DB_ENGINE=${APP_DB_ENGINE}" ;;
+    esac
+    [[ "${db_connection}" == "${expected_connection}" ]] || err "Runtime DB_CONNECTION=${db_connection} does not match configured database.engine=${APP_DB_ENGINE}"
+}
+
+run_migration_command_in_image() {
+    local command_string="$1"
+    local db_connection runtime_user app_owner_role
+
+    load_migration_credentials
+    assert_runtime_db_engine_matches_config
+    db_connection="$(env_value_from_file "${TARGET_ENV_FILE}" "DB_CONNECTION")"
+
+    if [[ "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}" == "true" ]]; then
+        if [[ "${db_connection}" == "pgsql" ]]; then
+            source "${SCRIPT_DIR}/rbac.config.sh"
+            runtime_user="$(env_value_from_file "${TARGET_ENV_FILE}" "DB_USERNAME")"
+            app_owner_role="$(derive_owner_role "${runtime_user}")" || err "Failed to derive owner role"
+            docker run --rm \
+                --env-file "${TARGET_ENV_FILE}" \
+                --env "DB_USERNAME=${MIGRATION_DB_USERNAME}" \
+                --env "DB_PASSWORD=${MIGRATION_DB_PASSWORD}" \
+                --env "PGOPTIONS=-c role=${app_owner_role}" \
+                --network "${DB_NETWORK}" \
+                "${DEPLOY_ACTUAL_IMAGE_REF}" \
+                sh -lc "${command_string}"
+            return 0
+        fi
+
+        docker run --rm \
+            --env-file "${TARGET_ENV_FILE}" \
+            --env "DB_USERNAME=${MIGRATION_DB_USERNAME}" \
+            --env "DB_PASSWORD=${MIGRATION_DB_PASSWORD}" \
+            --network "${DB_NETWORK}" \
+            "${DEPLOY_ACTUAL_IMAGE_REF}" \
+            sh -lc "${command_string}"
+        return 0
+    fi
+
+    docker run --rm \
+        --env-file "${TARGET_ENV_FILE}" \
+        --network "${DB_NETWORK}" \
+        "${DEPLOY_ACTUAL_IMAGE_REF}" \
+        sh -lc "${command_string}"
+}
+
+preflight_migration_command() {
+    case "${APP_FRAMEWORK:-laravel}" in
+        laravel)
+            printf '%s\n' "php artisan migrate --pretend --force --no-ansi"
+            ;;
+        *)
+            printf '%s\n' ""
+            ;;
+    esac
+}
+
 resolve_image_source_mode() {
     [[ -n "${IMAGE_SOURCE_MODE}" ]] && { echo "${IMAGE_SOURCE_MODE}"; return; }
     echo "${BUILD_DEFAULT_SOURCE:-remote}"
@@ -205,31 +288,24 @@ normalize_target_permissions() {
 
 run_artisan_in_image() {
     local command=("$@")
-    source "${SCRIPT_DIR}/rbac.config.sh"
-    local runtime_user app_owner_role mig_user mig_pass
-    runtime_user="$(grep -m1 '^DB_USERNAME=' "${TARGET_ENV_FILE}" | cut -d= -f2-)"
-    app_owner_role="$(derive_owner_role "${runtime_user}")" || err "Failed to derive owner role"
-    mig_user="$(grep -m1 '^DB_MIGRATOR_USERNAME=' "${TARGET_ENV_FILE}" | cut -d= -f2-)"
-    mig_pass="$(grep -m1 '^DB_MIGRATOR_PASSWORD=' "${TARGET_ENV_FILE}" | cut -d= -f2-)"
-    docker run --rm \
-        --env-file "${TARGET_ENV_FILE}" \
-        --env "DB_USERNAME=${mig_user}" \
-        --env "DB_PASSWORD=${mig_pass}" \
-        --env "PGOPTIONS=-c role=${app_owner_role}" \
-        --network "${DB_NETWORK}" \
-        "${DEPLOY_ACTUAL_IMAGE_REF}" \
-        php artisan "${command[@]}"
+    run_migration_command_in_image "php artisan ${command[*]}"
 }
 
 run_migration_preflight() {
     local log_file="${DEPLOY_LOG_DIR}/migrate-pretend.log"
+    local preflight_command
     mkdir -p "${DEPLOY_LOG_DIR}"
-    run_artisan_in_image migrate --pretend --force --no-ansi | tee "${log_file}"
+    preflight_command="$(preflight_migration_command)"
+    [[ -n "${preflight_command}" ]] || {
+        warn "Migration preflight is not implemented for framework ${APP_FRAMEWORK:-unknown}; skipping"
+        return 0
+    }
+    run_migration_command_in_image "${preflight_command}" | tee "${log_file}"
     ALLOW_UNSAFE_MIGRATIONS="${ALLOW_UNSAFE_MIGRATIONS:-false}" bash "${SCRIPT_DIR}/check-migration-safety.sh" "${log_file}"
 }
 
 run_migrations() {
-    run_artisan_in_image migrate --force --no-ansi
+    run_migration_command_in_image "${MIGRATION_COMMAND:-php artisan migrate --force}"
     printf 'deploy_id=%s\ncolor=%s\ncompleted_at=%s\n' "${DEPLOY_ID}" "${TARGET_COLOR}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${MIGRATION_MARKER_FILE}"
 }
 

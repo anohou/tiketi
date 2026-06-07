@@ -225,7 +225,7 @@ jobs:
           app_name="$(basename "${deploy_path}")"
           ci_sources_root="${{ steps.meta.outputs.ci_source_root }}"
           if [[ -z "${ci_sources_root}" ]]; then
-            ci_sources_root="$(dirname "${deploy_path}")/ci-sources"
+            ci_sources_root="$(dirname "$(dirname "${deploy_path}")")/app-git-sources"
           fi
           source_path="${ci_sources_root}/${app_name}"
           target_ref="${{ github.event.inputs.git_ref }}"

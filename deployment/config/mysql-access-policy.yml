@@ -1,0 +1,35 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  mysql-access-policy.yml — MySQL least-privilege direct-grant defaults     ║
+# ║  SAFE TO COMMIT — no secrets, no roles, no auth material                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+role_env:
+  runtime_username: DB_USERNAME
+  runtime_password: DB_PASSWORD
+  migrator_username: DB_MIGRATOR_USERNAME
+  migrator_password: DB_MIGRATOR_PASSWORD
+  dba_username: DBA_ADMIN_USERNAME
+  dba_password: DBA_ADMIN_PASSWORD
+  backup_username: DB_BACKUP_USER
+  backup_password: DB_BACKUP_PASSWORD
+
+runtime:
+  allow_temporary_tables_env: MYSQL_RUNTIME_ALLOW_TEMPORARY_TABLES
+
+account:
+  host_env: MYSQL_ACCOUNT_HOST
+  auth_plugin_env: MYSQL_AUTH_PLUGIN
+
+backup:
+  mode_env: MYSQL_BACKUP_MODE
+  include_routines_env: MYSQL_BACKUP_INCLUDE_ROUTINES
+  include_events_env: MYSQL_BACKUP_INCLUDE_EVENTS
+  require_lock_tables_env: MYSQL_BACKUP_REQUIRE_LOCK_TABLES
+
+privileges:
+  runtime_database: SELECT, INSERT, UPDATE, DELETE
+  runtime_temporary_tables: CREATE TEMPORARY TABLES
+  migrator_database: SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, TRIGGER, CREATE ROUTINE, ALTER ROUTINE, EXECUTE
+  backup_database: SELECT, SHOW VIEW, TRIGGER, EXECUTE
+  backup_events: EVENT
+  backup_lock_tables: LOCK TABLES

@@ -134,10 +134,19 @@ should_exclude_from_fingerprint() {
         public/build|public/build/*|public/storage|public/storage/*|public/hot)
             return 0
             ;;
+        deployment/.deploy|deployment/.deploy/*|deployment/.deploy-lock|deployment/.deploy-lock/*|deployment/.deploy-state|deployment/.deploy-state/*)
+            return 0
+            ;;
+        deployment/runtime-public|deployment/runtime-public/*|deployment/runtime-public-blue|deployment/runtime-public-blue/*|deployment/runtime-public-green|deployment/runtime-public-green/*|deployment/runtime-public-*|deployment/runtime-public-*/*)
+            return 0
+            ;;
+        deployment/persistent-public|deployment/persistent-public/*|deployment.working|deployment.working/*)
+            return 0
+            ;;
         coverage|coverage/*|dist|dist/*|build|build/*)
             return 0
             ;;
-        deployment/.last-built-version|deployment/.last-deployed-version|deployment/.build-timings.log)
+        deployment/.last-built-version|deployment/.last-deployed-version|deployment/.release-manifest.env|deployment/.build-timings.log)
             return 0
             ;;
     esac
