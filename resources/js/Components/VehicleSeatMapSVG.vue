@@ -531,6 +531,8 @@ const handleSeatClick = (seat) => {
 </template>
 
 <style scoped>
+@reference "../../css/app.css";
+
 .vehicle-svg-container {
   @apply w-full h-full flex items-start justify-center bg-white rounded-lg p-0;
 }
