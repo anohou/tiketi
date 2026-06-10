@@ -45,6 +45,16 @@ compose_for() {
     docker compose -p "${project_name}" "${profiles[@]}" -f "${DEPLOY_DIR}/config/docker-compose.prod.yml" --env-file "${env_file}" "$@"
 }
 
+start_web_services() {
+    local env_file="$1"
+    local project_name="$2"
+
+    compose_for "${env_file}" "${project_name}" up -d php-fpm nginx >/dev/null
+    if [[ "${REVERB_ENABLED:-false}" == "true" ]]; then
+        compose_for "${env_file}" "${project_name}" up -d reverb >/dev/null
+    fi
+}
+
 verify_color_internal() {
     local env_file="$1" color="$2" headers status actual
     local project_name="$3"
@@ -73,6 +83,7 @@ verify_color_internal() {
 
     write_state ROLLING_BACK
     if [[ "${PREVIOUS_COLOR}" == "legacy" ]]; then
+        start_web_services "${PREVIOUS_ENV_FILE}" "${PREVIOUS_PROJECT}"
         if ! compose_for "${PREVIOUS_ENV_FILE}" "${PREVIOUS_PROJECT}" exec -T nginx sh -lc "wget -q -O /dev/null --timeout=3 http://127.0.0.1:8080/readyz" >/dev/null 2>&1; then
             write_state ROLLBACK_BLOCKED_PREVIOUS_UNHEALTHY
             err "Legacy previous stack is not healthy; refusing to switch traffic to it"
@@ -84,7 +95,7 @@ verify_color_internal() {
 
     compose_for "${ACTIVE_ENV_FILE}" "${COMPOSE_PROJECT_BASE}-${ACTIVE_COLOR}" stop queue-worker scheduler >/dev/null 2>&1 || true
     if [[ "${PREVIOUS_COLOR}" == "legacy" ]]; then
-        dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
+        dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
         rm -f "${dynamic_file}"
         sleep "${TRAEFIK_FILE_RELOAD_MAX_SECONDS:-15}"
     else

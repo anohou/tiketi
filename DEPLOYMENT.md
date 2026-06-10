@@ -108,6 +108,15 @@ Migrate the central database (Landlord). This creates `tenants`, `domains`, and 
 php artisan migrate --path=database/landlord_migrations --force
 ```
 
+Tenant schema migrations live in `database/migrations/tenant` and are applied with:
+```bash
+php artisan tenants:migrate --force
+```
+
+In production, the deployment toolkit now runs both stages during deploy:
+1. central migration command
+2. tenant migration command for existing tenants
+
 ### C. Create Superadmin
 Seed the database to create your platform admin account.
 ```bash

@@ -36,12 +36,20 @@ MUTATION_STARTED=false
 DEPLOY_SUCCEEDED=false
 CHECKSUM_BIN=""
 CHECKSUM_ARGS=()
+CENTRAL_MIGRATION_COMPLETED=false
 
 declare -a COMPOSE_PROFILE_ARGS=()
 
 log() { echo "[deploy] $(date '+%H:%M:%S') $*"; }
 warn() { echo "[deploy] WARN: $*" >&2; }
 err() { echo "[deploy] ERROR: $*" >&2; exit 1; }
+
+trim_shell_value() {
+    local value="${1:-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "${value}"
+}
 
 compose() {
     docker compose \
@@ -92,13 +100,17 @@ runtime_db_username() {
 
 docker_run_migration_command() {
     local command_string="$1"
+    local use_migrator_credentials="$2"
     local db_connection runtime_user app_owner_role
 
-    load_migration_credentials
+    command_string="$(trim_shell_value "${command_string}")"
+    [[ -n "${command_string}" ]] || return 0
+
     assert_runtime_db_engine_matches_config
     db_connection="$(runtime_db_connection)"
 
-    if [[ "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}" == "true" ]]; then
+    if [[ "${use_migrator_credentials}" == "true" ]]; then
+        load_migration_credentials
         if [[ "${db_connection}" == "pgsql" ]]; then
             source "${SCRIPT_DIR}/rbac.config.sh"
             runtime_user="$(runtime_db_username)"
@@ -129,6 +141,27 @@ docker_run_migration_command() {
         --network "${DB_NETWORK}" \
         "${DEPLOY_ACTUAL_IMAGE_REF}" \
         sh -lc "${command_string}"
+}
+
+run_migration_stage() {
+    local stage_name="$1"
+    local command_string="$2"
+    local use_migrator_credentials="$3"
+
+    command_string="$(trim_shell_value "${command_string}")"
+    [[ -n "${command_string}" ]] || return 0
+
+    log "Running ${stage_name} migration stage..."
+    if ! docker_run_migration_command "${command_string}" "${use_migrator_credentials}"; then
+        if [[ "${stage_name}" == "tenant" && "${CENTRAL_MIGRATION_COMPLETED}" == "true" ]]; then
+            err "Tenant migration stage failed after central migration succeeded."
+        fi
+        err "${stage_name^} migration stage failed — aborting deploy."
+    fi
+
+    if [[ "${stage_name}" == "central" ]]; then
+        CENTRAL_MIGRATION_COMPLETED=true
+    fi
 }
 
 preflight_migration_command() {
@@ -214,10 +247,30 @@ compose_profiles() {
 
 acquire_lock() {
     mkdir -p "${DEPLOY_DIR}"
-    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-        err "Another deploy is already running (lock: ${LOCK_DIR})"
-    fi
-    printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+    local current_hostname lock_pid lock_hostname lock_started_at
+    current_hostname="$(hostname 2>/dev/null || echo unknown)"
+
+    while true; do
+        if mkdir "${LOCK_DIR}" 2>/dev/null; then
+            printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+            printf '%s\n' "${current_hostname}" > "${LOCK_DIR}/hostname"
+            printf '%s\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > "${LOCK_DIR}/started_at"
+            return 0
+        fi
+
+        lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+        lock_hostname="$(cat "${LOCK_DIR}/hostname" 2>/dev/null || true)"
+        lock_started_at="$(cat "${LOCK_DIR}/started_at" 2>/dev/null || true)"
+
+        if [[ "${lock_pid}" =~ ^[0-9]+$ ]] && {
+            [[ -z "${lock_hostname}" ]] || [[ "${lock_hostname}" == "${current_hostname}" ]];
+        } && kill -0 "${lock_pid}" 2>/dev/null; then
+            err "Another deploy is already running (lock: ${LOCK_DIR}, pid: ${lock_pid}, host: ${lock_hostname:-unknown}, started_at: ${lock_started_at:-unknown})"
+        fi
+
+        warn "Removing stale deploy lock at ${LOCK_DIR} (pid: ${lock_pid:-unknown}, host: ${lock_hostname:-unknown}, started_at: ${lock_started_at:-unknown})"
+        rm -rf "${LOCK_DIR}" || err "Failed to remove stale deploy lock at ${LOCK_DIR}"
+    done
 }
 
 release_lock() {
@@ -314,6 +367,27 @@ write_release_manifest() {
         echo "DEPLOY_STATUS=${status}"
     } > "${manifest}"
     chmod 600 "${manifest}" || true
+}
+
+persist_release_metadata() {
+    local manifest="${DEPLOY_DIR}/.release-manifest.env"
+
+    if ! echo "${VERSION}" > "${DEPLOY_DIR}/.last-deployed-version"; then
+        warn "Failed to update .last-deployed-version"
+    fi
+
+    if ! write_release_manifest "${manifest}" "${DEPLOY_ACTUAL_IMAGE_REF}" "${VERSION}" "success"; then
+        warn "Failed to write success release manifest"
+        return 0
+    fi
+
+    if ! cp "${manifest}" "${DEPLOY_DIR}/.last-known-good.env"; then
+        warn "Failed to refresh .last-known-good.env"
+    fi
+
+    if ! cp "${COMPOSE_FILE}" "${DEPLOY_DIR}/.last-known-good-compose.yml"; then
+        warn "Failed to refresh .last-known-good-compose.yml"
+    fi
 }
 
 snapshot_rollback_target() {
@@ -471,8 +545,8 @@ resolve_image() {
 
 run_migrations() {
     log "Step 4/8 — Running migrations ..."
-    docker_run_migration_command "${MIGRATION_COMMAND:-php artisan migrate --force}" \
-        || err "Migrations failed — aborting deploy."
+    run_migration_stage "central" "${MIGRATION_COMMAND:-}" "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}"
+    run_migration_stage "tenant" "${TENANT_MIGRATION_COMMAND:-}" "${TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS:-false}"
 }
 
 automatic_rollback() {
@@ -606,10 +680,7 @@ verify_promoted_readiness
 RUN_EXTERNAL_SMOKE=true RESTORED_URIS_FILE="${RESTORED_URIS_FILE}" \
     DEPLOY_COMPOSE_FILE="${COMPOSE_FILE}" DEPLOY_ENV_FILE="${ENV_FILE}" \
     bash "${SCRIPT_DIR}/smoke-check.sh"
-echo "${VERSION}" > "${DEPLOY_DIR}/.last-deployed-version"
-write_release_manifest "${DEPLOY_DIR}/.release-manifest.env" "${DEPLOY_ACTUAL_IMAGE_REF}" "${VERSION}" "success"
-cp "${DEPLOY_DIR}/.release-manifest.env" "${DEPLOY_DIR}/.last-known-good.env"
-cp "${COMPOSE_FILE}" "${DEPLOY_DIR}/.last-known-good-compose.yml"
+persist_release_metadata
 
 DEPLOY_SUCCEEDED=true
 log "Persistent public root: ${PERSISTENT_PUBLIC_ROOT}"

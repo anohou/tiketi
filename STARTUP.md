@@ -173,7 +173,7 @@ php artisan migrate --path=database/landlord_migrations
 
 ### Step 5 — Run tenant migrations (per tenant)
 
-Tenant-specific migrations (stations, routes, vehicles, trips, tickets, etc.) live in `database/migrations/`. They run **inside each tenant's database** via:
+Tenant-specific migrations (stations, routes, vehicles, trips, tickets, etc.) live in `database/migrations/tenant/`. They run **inside each tenant's database** via:
 
 ```bash
 # After creating a tenant (see step 4 below)
@@ -512,6 +512,8 @@ $tenant->domains()->create(['domain' => 'tsrci.transport.ci']);
 ```bash
 php artisan tenants:migrate --force
 ```
+
+Production note: the deployment toolkit now runs the central migration stage first and then `php artisan tenants:migrate --force --no-interaction` for existing tenants during deploy.
 
 ### Re-seed a specific tenant
 

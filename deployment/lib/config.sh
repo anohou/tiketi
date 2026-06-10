@@ -67,6 +67,13 @@ _cfg() {
     echo ""
 }
 
+_trim_config_value() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "${value}"
+}
+
 # ── Load values (env var wins if already set) ─────────────────────────────────
 
 # app.*
@@ -79,12 +86,22 @@ COMPOSE_PROJECT_BASE="${COMPOSE_PROJECT_NAME:-$(_cfg app compose_project)}"
 APP_FRAMEWORK="${APP_FRAMEWORK:-$(_cfg app framework)}"
 MIGRATION_COMMAND="${MIGRATION_COMMAND:-$(_cfg app migration command)}"
 MIGRATION_USE_MIGRATOR_CREDENTIALS="${MIGRATION_USE_MIGRATOR_CREDENTIALS:-$(_cfg app migration use_migrator_credentials)}"
+TENANT_MIGRATION_COMMAND="${TENANT_MIGRATION_COMMAND:-$(_cfg app migration tenant_command)}"
+TENANT_MIGRATION_PREFLIGHT_COMMAND="${TENANT_MIGRATION_PREFLIGHT_COMMAND:-$(_cfg app migration tenant_preflight_command)}"
+TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS="${TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS:-$(_cfg app migration tenant_use_migrator_credentials)}"
 TENANT_WILDCARD_DOMAIN="${TENANT_WILDCARD_DOMAIN:-$(_cfg app tenant_wildcard_domain)}"
 TENANT_DB_PREFIX="${TENANT_DB_PREFIX:-$(_cfg app tenant_db_prefix)}"
+
+MIGRATION_COMMAND="$(_trim_config_value "${MIGRATION_COMMAND}")"
+TENANT_MIGRATION_COMMAND="$(_trim_config_value "${TENANT_MIGRATION_COMMAND}")"
+TENANT_MIGRATION_PREFLIGHT_COMMAND="$(_trim_config_value "${TENANT_MIGRATION_PREFLIGHT_COMMAND}")"
 
 # build.*
 BUILD_DEFAULT_SOURCE="${BUILD_DEFAULT_SOURCE:-$(_cfg build default_source)}"
 BUILD_PROFILE="${BUILD_PROFILE:-$(_cfg build profile)}"
+BUILD_RUNTIME_MODE="${BUILD_RUNTIME_MODE:-$(_cfg build runtime_mode)}"
+BUILD_RUNTIME_IMAGE="${BUILD_RUNTIME_IMAGE:-$(_cfg build runtime_image)}"
+BUILD_ALLOW_FULL_LOCAL_RUNTIME="${BUILD_ALLOW_FULL_LOCAL_RUNTIME:-$(_cfg build allow_full_local_runtime)}"
 BUILD_ALLOW_LOCAL_BUILD="${BUILD_ALLOW_LOCAL_BUILD:-$(_cfg build allow_local_build)}"
 BUILD_REQUIRE_CLEAN_GIT_FOR_LOCAL_BUILD="${BUILD_REQUIRE_CLEAN_GIT_FOR_LOCAL_BUILD:-$(_cfg build require_clean_git_for_local_build)}"
 BUILD_LOCAL_BUILD_REQUIRE_EXPLICIT_FLAG="${BUILD_LOCAL_BUILD_REQUIRE_EXPLICIT_FLAG:-$(_cfg build local_build_require_explicit_flag)}"
@@ -195,8 +212,11 @@ ORPHAN_PATTERN="${ORPHAN_PATTERN:-$(_cfg cleanup orphan_pattern)}"
 # ── Export everything ─────────────────────────────────────────────────────────
 export APP_NAME APP_SLUG APP_URL APP_DOMAIN APP_IMAGE COMPOSE_PROJECT_BASE \
        APP_FRAMEWORK MIGRATION_COMMAND MIGRATION_USE_MIGRATOR_CREDENTIALS \
+       TENANT_MIGRATION_COMMAND TENANT_MIGRATION_PREFLIGHT_COMMAND \
+       TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS \
        TENANT_WILDCARD_DOMAIN TENANT_DB_PREFIX \
-       BUILD_DEFAULT_SOURCE BUILD_PROFILE BUILD_ALLOW_LOCAL_BUILD \
+       BUILD_DEFAULT_SOURCE BUILD_PROFILE BUILD_RUNTIME_MODE BUILD_RUNTIME_IMAGE \
+       BUILD_ALLOW_FULL_LOCAL_RUNTIME BUILD_ALLOW_LOCAL_BUILD \
        BUILD_REQUIRE_CLEAN_GIT_FOR_LOCAL_BUILD BUILD_LOCAL_BUILD_REQUIRE_EXPLICIT_FLAG \
        ASSET_BUILD_ENABLED \
        REGISTRY_PROVIDER REGISTRY_IMAGE REGISTRY_DEFAULT_TAG REGISTRY_DEPLOY_BY_DIGEST \

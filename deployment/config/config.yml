@@ -21,6 +21,9 @@ app:
   migration:
     command: "php artisan migrate --force"
     use_migrator_credentials: true
+    tenant_command: ""
+    tenant_preflight_command: ""
+    tenant_use_migrator_credentials: false
   tenant_wildcard_domain: "*.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
 
@@ -31,6 +34,9 @@ build:
   # - remote: pull image from registry
   # - local: build image on the server
   default_source: local
+  runtime_mode: shared
+  runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v1"
+  allow_full_local_runtime: true
   # Emergency break-glass local builds are allowed when explicitly requested
   allow_local_build: true
   require_clean_git_for_local_build: true

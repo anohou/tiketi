@@ -26,10 +26,18 @@ DEPLOY_IMAGE_REF="${DEPLOY_IMAGE_REF:-}"
 DEPLOY_IMAGE_DIGEST="${DEPLOY_IMAGE_DIGEST:-}"
 DEPLOY_ACTUAL_IMAGE_REF=""
 RESUME_AFTER_MIGRATION="${RESUME_AFTER_MIGRATION:-false}"
+CENTRAL_MIGRATION_COMPLETED=false
 
 log() { echo "[zero-downtime] $(date '+%H:%M:%S') $*"; }
 warn() { echo "[zero-downtime] WARN: $*" >&2; }
 err() { echo "[zero-downtime] ERROR: $*" >&2; exit 1; }
+
+trim_shell_value() {
+    local value="${1:-}"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "${value}"
+}
 
 write_state() {
     local state="$1"
@@ -58,6 +66,27 @@ compose_for() {
         [[ -n "${profile}" ]] && profiles+=("${profile}")
     done < <(compose_profiles)
     docker compose -p "${project_name}" "${profiles[@]}" -f "${COMPOSE_FILE}" --env-file "${env_file}" "$@"
+}
+
+project_exists() {
+    local env_file="$1"
+    local project_name="$2"
+
+    docker compose -p "${project_name}" -f "${COMPOSE_FILE}" --env-file "${env_file}" ps -q 2>/dev/null | grep -q .
+}
+
+promote_target_env() {
+    cp "${TARGET_ENV_FILE}" "${DEPLOY_DIR}/.env" || err "Failed to promote ${TARGET_ENV_FILE} into ${DEPLOY_DIR}/.env"
+}
+
+retire_legacy_stack() {
+    if ! project_exists "${TARGET_ENV_FILE}" "${COMPOSE_PROJECT_BASE}"; then
+        return 0
+    fi
+
+    log "Retiring legacy compose project ${COMPOSE_PROJECT_BASE} to avoid stale routers and env drift"
+    docker compose -p "${COMPOSE_PROJECT_BASE}" -f "${COMPOSE_FILE}" --env-file "${TARGET_ENV_FILE}" down --remove-orphans \
+        || err "Failed to retire legacy compose project ${COMPOSE_PROJECT_BASE}"
 }
 
 env_value_from_file() {
@@ -93,13 +122,17 @@ assert_runtime_db_engine_matches_config() {
 
 run_migration_command_in_image() {
     local command_string="$1"
+    local use_migrator_credentials="$2"
     local db_connection runtime_user app_owner_role
 
-    load_migration_credentials
+    command_string="$(trim_shell_value "${command_string}")"
+    [[ -n "${command_string}" ]] || return 0
+
     assert_runtime_db_engine_matches_config
     db_connection="$(env_value_from_file "${TARGET_ENV_FILE}" "DB_CONNECTION")"
 
-    if [[ "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}" == "true" ]]; then
+    if [[ "${use_migrator_credentials}" == "true" ]]; then
+        load_migration_credentials
         if [[ "${db_connection}" == "pgsql" ]]; then
             source "${SCRIPT_DIR}/rbac.config.sh"
             runtime_user="$(env_value_from_file "${TARGET_ENV_FILE}" "DB_USERNAME")"
@@ -130,6 +163,59 @@ run_migration_command_in_image() {
         --network "${DB_NETWORK}" \
         "${DEPLOY_ACTUAL_IMAGE_REF}" \
         sh -lc "${command_string}"
+}
+
+run_migration_stage() {
+    local stage_name="$1"
+    local command_string="$2"
+    local use_migrator_credentials="$3"
+
+    command_string="$(trim_shell_value "${command_string}")"
+    [[ -n "${command_string}" ]] || return 0
+
+    log "Running ${stage_name} migration stage..."
+    if ! run_migration_command_in_image "${command_string}" "${use_migrator_credentials}"; then
+        if [[ "${stage_name}" == "tenant" && "${CENTRAL_MIGRATION_COMPLETED}" == "true" ]]; then
+            err "Tenant migration stage failed after central migration succeeded."
+        fi
+        err "${stage_name^} migration stage failed."
+    fi
+
+    if [[ "${stage_name}" == "central" ]]; then
+        CENTRAL_MIGRATION_COMPLETED=true
+    fi
+}
+
+run_migration_preflight_stage() {
+    local stage_name="$1"
+    local command_string="$2"
+    local use_migrator_credentials="$3"
+    local log_file="${4:-}"
+    local run_safety_check="${5:-false}"
+
+    command_string="$(trim_shell_value "${command_string}")"
+    [[ -n "${command_string}" ]] || return 0
+
+    log "Running ${stage_name} migration preflight..."
+    if [[ -n "${log_file}" ]]; then
+        if ! run_migration_command_in_image "${command_string}" "${use_migrator_credentials}" | tee "${log_file}"; then
+            if [[ "${stage_name}" == "tenant" ]]; then
+                err "Tenant migration preflight failed before any migration mutation."
+            fi
+            err "${stage_name^} migration preflight failed."
+        fi
+    else
+        if ! run_migration_command_in_image "${command_string}" "${use_migrator_credentials}"; then
+            if [[ "${stage_name}" == "tenant" ]]; then
+                err "Tenant migration preflight failed before any migration mutation."
+            fi
+            err "${stage_name^} migration preflight failed."
+        fi
+    fi
+
+    if [[ "${run_safety_check}" == "true" ]]; then
+        ALLOW_UNSAFE_MIGRATIONS="${ALLOW_UNSAFE_MIGRATIONS:-false}" bash "${SCRIPT_DIR}/check-migration-safety.sh" "${log_file}"
+    fi
 }
 
 preflight_migration_command() {
@@ -288,24 +374,44 @@ normalize_target_permissions() {
 
 run_artisan_in_image() {
     local command=("$@")
-    run_migration_command_in_image "php artisan ${command[*]}"
+    run_migration_command_in_image "php artisan ${command[*]}" "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}"
 }
 
 run_migration_preflight() {
     local log_file="${DEPLOY_LOG_DIR}/migrate-pretend.log"
     local preflight_command
+    local central_command tenant_command tenant_preflight_command
     mkdir -p "${DEPLOY_LOG_DIR}"
-    preflight_command="$(preflight_migration_command)"
-    [[ -n "${preflight_command}" ]] || {
-        warn "Migration preflight is not implemented for framework ${APP_FRAMEWORK:-unknown}; skipping"
-        return 0
-    }
-    run_migration_command_in_image "${preflight_command}" | tee "${log_file}"
-    ALLOW_UNSAFE_MIGRATIONS="${ALLOW_UNSAFE_MIGRATIONS:-false}" bash "${SCRIPT_DIR}/check-migration-safety.sh" "${log_file}"
+    central_command="$(trim_shell_value "${MIGRATION_COMMAND:-}")"
+    tenant_command="$(trim_shell_value "${TENANT_MIGRATION_COMMAND:-}")"
+    tenant_preflight_command="$(trim_shell_value "${TENANT_MIGRATION_PREFLIGHT_COMMAND:-}")"
+
+    if [[ -n "${tenant_preflight_command}" && -z "${tenant_command}" ]]; then
+        err "Tenant migration preflight is configured without a tenant migration command."
+    fi
+    if [[ -n "${tenant_command}" && -z "${tenant_preflight_command}" ]]; then
+        err "Tenant migration preflight is required for zero-downtime deploys before any migration mutation."
+    fi
+
+    if [[ -n "${central_command}" ]]; then
+        preflight_command="$(preflight_migration_command)"
+        [[ -n "${preflight_command}" ]] || {
+            warn "Migration preflight is not implemented for framework ${APP_FRAMEWORK:-unknown}; skipping"
+            preflight_command=""
+        }
+        if [[ -n "${preflight_command}" ]]; then
+            run_migration_preflight_stage "central" "${preflight_command}" "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}" "${log_file}" "true"
+        fi
+    fi
+
+    if [[ -n "${tenant_preflight_command}" ]]; then
+        run_migration_preflight_stage "tenant" "${tenant_preflight_command}" "${TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS:-false}"
+    fi
 }
 
 run_migrations() {
-    run_migration_command_in_image "${MIGRATION_COMMAND:-php artisan migrate --force}"
+    run_migration_stage "central" "${MIGRATION_COMMAND:-}" "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}"
+    run_migration_stage "tenant" "${TENANT_MIGRATION_COMMAND:-}" "${TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS:-false}"
     printf 'deploy_id=%s\ncolor=%s\ncompleted_at=%s\n' "${DEPLOY_ID}" "${TARGET_COLOR}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${MIGRATION_MARKER_FILE}"
 }
 
@@ -364,7 +470,7 @@ verify_dynamic_wildcard_config() {
     if [[ -z "${TENANT_WILDCARD_DOMAIN:-}" || "${TENANT_WILDCARD_DOMAIN}" == "null" ]]; then
         return 0
     fi
-    local dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
+    local dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
     [[ -f "${dynamic_file}" ]] || return 0
     grep -q 'HostRegexp' "${dynamic_file}" || err "Traefik dynamic config does not contain a tenant HostRegexp rule"
     grep -q "${APP_DOMAIN}" "${dynamic_file}" || err "Traefik dynamic config does not contain APP_DOMAIN ${APP_DOMAIN}"
@@ -420,7 +526,7 @@ select_colors() {
 }
 
 rollback_traefik_if_possible() {
-    local dynamic_dir="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}"
+    local dynamic_dir="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}"
     local backup="${TRAEFIK_DYNAMIC_FILE:-${dynamic_dir}/dynamic-${COMPOSE_PROJECT_BASE}.yml}.previous"
     local active_file="${TRAEFIK_DYNAMIC_FILE:-${dynamic_dir}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
     if [[ -f "${backup}" ]]; then
@@ -511,7 +617,7 @@ LOCK_FILE="${LOCK_DIR}/zero-downtime.lock"
     warm_and_validate
 
     write_state SWITCHING
-    TRAEFIK_DYNAMIC_DIR="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}" \
+    TRAEFIK_DYNAMIC_DIR="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}" \
         bash "${SCRIPT_DIR}/traefik-switch.sh" "${TARGET_COLOR}" "${TARGET_PROJECT}" "${TARGET_ENV_FILE}"
     verify_dynamic_wildcard_config
 
@@ -522,6 +628,8 @@ LOCK_FILE="${LOCK_DIR}/zero-downtime.lock"
 
     write_state DRAINING
     sleep "${DEPLOY_DRAIN_SECONDS:-30}"
+    promote_target_env
+    retire_legacy_stack
     printf '%s\n' "${TARGET_COLOR}" > "${ACTIVE_COLOR_FILE}"
     printf '%s\n' "${ACTIVE_COLOR}" > "${PREVIOUS_COLOR_FILE}"
     printf 'deploy_id=%s\ncolor=%s\nimage=%s\ncompleted_at=%s\n' \

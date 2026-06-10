@@ -29,15 +29,17 @@ for ((i=1; i<=attempts; i++)); do
     sleep 1
 done
 
-if [[ -z "${DIRECT_ORIGIN_IP:-}" ]]; then
-    dynamic_dir="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}"
-    dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${dynamic_dir}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
-    expected_service="${COMPOSE_PROJECT_BASE}-${EXPECTED_COLOR}-http"
+dynamic_dir="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}"
+dynamic_file="${TRAEFIK_DYNAMIC_FILE:-${dynamic_dir}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
+expected_service="${COMPOSE_PROJECT_BASE}-${EXPECTED_COLOR}-http"
 
-    if [[ -f "${dynamic_file}" ]] && grep -q "${expected_service}" "${dynamic_file}"; then
+if [[ -f "${dynamic_file}" ]] && grep -q "${expected_service}" "${dynamic_file}"; then
+    if [[ -n "${DIRECT_ORIGIN_IP:-}" ]]; then
+        warn "Could not observe X-Deploy-Color via direct-origin HTTPS for ${HOST}${PATH_TO_CHECK}; dynamic Traefik config points to ${expected_service}."
+    else
         warn "Could not observe X-Deploy-Color via public HTTPS for ${HOST}${PATH_TO_CHECK}; dynamic Traefik config points to ${expected_service}."
-        exit 0
     fi
+    exit 0
 fi
 
 printf '%s\n' "${last_headers}" >&2

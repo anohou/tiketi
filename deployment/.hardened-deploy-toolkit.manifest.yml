@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-06-07T02:58:46Z
+generated_at: 2026-06-10T09:42:19Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -8,8 +8,14 @@ parameters:
   app_image: ghcr.io/anohou/tiketi
   compose_project: tiketi
   app_framework: laravel
+  build_runtime_mode: shared
+  build_runtime_image: ghcr.io/anohou/laravel-runtime:8.4-alpine-v1
+  build_allow_full_local_runtime: true
   migration_command: php artisan migrate --force
   migration_use_migrator_credentials: true
+  tenant_migration_command: ""
+  tenant_migration_preflight_command: ""
+  tenant_migration_use_migrator_credentials: false
   app_domain: tiketi.ci
   app_url: https://tiketi.ci
   frontend_url: https://tiketi.ci
@@ -69,11 +75,11 @@ parameters:
 preserve_files: []
 managed_files:
   README.md:
-    sha256: 15ca9792940471fe789de0d3c8ce392ab83261872661b11b060c4be23a00ee8d
+    sha256: 1f7ace947cd1fb4d6a1976cea1979b8f4015386ebbcdb5b9460108b29d704d4c
   config/Dockerfile:
-    sha256: 53454ae085e283b9129cf3a2ce176ec51aa655868b74025f4306e50427478e65
+    sha256: c5d9293708dc37340af6e15ca374b2b72633ff8bcaf4014ff5444be416bacb22
   config/config.yml:
-    sha256: 0df9af92794ecbcad578a8e6d210860be10bf3015d7902d815e7ff0b5daaa7ab
+    sha256: da8cfd8c7501a4dc6902e68b148d68c9e660e5f20c6d1afe1a5dd3d6275d16f2
   config/docker-compose.prod.yml:
     sha256: a3d1cd35ab18aaf4ce66aea08b644d4d6d4bf332543b3f98f55fd0e9ea1c1345
   config/mysql-access-policy.yml:
@@ -85,15 +91,15 @@ managed_files:
   config/rbac.yml:
     sha256: 590d985b355919b9c957a89f79c9e79e641a07e0a0b0fe88c259e39d251712db
   config/systemd/pull-deploy.service:
-    sha256: ce003324e87d800d2413f474bd7a8a9d48c8ae5417016277a018372ceee147a6
+    sha256: d99c50cb064038d5318133fd57a2b4647e748d2c004ffa145ff8f8468bdc51c6
   config/systemd/pull-deploy.timer:
     sha256: fc32ce3382febb07e7c298dfabd7c2c7bdbe7e67d481883321b3402711f3fbef
   config/template.env:
-    sha256: 99a7424f4d4b8b6586f87e0b332f96c10252a1b622e337a8083c5985cd785c99
+    sha256: 20dbc75cce393191242e3e90c3214b7767d6c44b13eb8bf52a46790bf342f11a
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/config.sh:
-    sha256: 84788cb7dc429dee5052e0849b57dd64f3ea3a38965b8672f39dc9c433ba22a1
+    sha256: 99e54682774794c93145778b2f1617916031bcd71366683074baecbf2700b097
   lib/mysql-access-policy.sh:
     sha256: 5616418e63e3b33836ef712421742d1deee5ca0ff3f03f0a912a06f26ab28f7b
   lib/mysql-app-db.sh:
@@ -107,7 +113,7 @@ managed_files:
   scripts/artisan.sh:
     sha256: 7dd7d26d9e5cc1689f81ee293b5cdad9f35d208ed965a3a32e646f4cae0f8003
   scripts/build.sh:
-    sha256: 47d87a038245ee44d62ec475130f72bd9f4eb307ae8ac61d2ea5ae2b976939e8
+    sha256: 6b27924fe6dab5a026b3672fe5b374e024077bb0b7166ab4cca2c782a319da71
   scripts/cleanup.sh:
     sha256: 9ab03691e08233a11afe508e76015822a7f97f7ab47e196b86253c696a20264e
   scripts/clear-cache.sh:
@@ -117,13 +123,13 @@ managed_files:
   scripts/create-admin.sh:
     sha256: 551d31ce1b6d6f6f524c941de97e7e07720ed8ff88f6a233035cdc732a387ef2
   scripts/deploy-local.sh:
-    sha256: e19dd05b8df92c4d422c6b0179d7d07b6191b9e73bc627ad47a520f77037d6bc
+    sha256: 2abac28379684fd41bc8171c546b070d2cb02aebba6cc6e46d9176c33b95e5bc
   scripts/deploy-local-zero-downtime.sh:
-    sha256: 4cf5bc59fdc7eaab8c6951ea7e55b4dd199a3700c69d887bb81a01248a1ac869
+    sha256: 894f622ba43f05e44598dc79abc90697df47cc62d40a5c622f53b8aaed3bf03a
   scripts/deploy.config.sh:
     sha256: 721c6091573728fb0ad69e346f7f0f723063e1454e6fd803e86ac8cf3410c5fe
   scripts/deploy.sh:
-    sha256: c919d5aff87116fc34dfdee8f220116f0a23a111a1bfc09991a3d58862e73a15
+    sha256: 3eca46d57629820aab947392a68e9dfa0f92c9334a608db71ac35cf1a128b85d
   scripts/dump-db.sh:
     sha256: 76f906edafc6c2bb3b71cc2f80cdfe8c2d6b7bf9805aa4fa090b5b58a1158c8b
   scripts/dump-mysql-db.sh:
@@ -145,13 +151,15 @@ managed_files:
   scripts/check-migration-safety.sh:
     sha256: 973610e8c18dd0835873fe93218e14e37864174598aab8c28a359e4be6c83cd4
   scripts/check-traefik-active-color.sh:
-    sha256: 88ea31db0a509c07736e59cd241c19e56ed2437a1aa2b8f8f850832a60a4af69
+    sha256: 0d9ae3c95246a265e5bb050ba714cce6bbdad6de149f84031fdc2078dd546dae
+  scripts/repair-tenant-bootstrap.sh:
+    sha256: d79441be1fd9179b8de16918a3ad8262e92a1d6a991ca4fc34e939de4f7b019d
   scripts/restart-workers.sh:
     sha256: 8aaa4a3ccb9e5cf6fc83b5e689b4f39eb2bf2ac945e434a0014581557e38863b
   scripts/resume-zero-downtime-deploy.sh:
-    sha256: bf55dc3947fdaf2221146f6354717d196f1556dc1252b3a3e830d95a197ba5be
+    sha256: 3a6d3d9de600580c6c75087faeb9d40bc214cb1abca27e14bfa2ffb4e2275b74
   scripts/rollback-zero-downtime.sh:
-    sha256: 0f7ddf861435654a6d3c58a40dcbf2f0b2770c56cdddfca7323754c14fb804fd
+    sha256: 9c44ca89d411966f262973c782f4600873ba13d0823ce037e3e7252b52036380
   scripts/restore-db.sh:
     sha256: 355c0ebfdeba36b53867ad9cdf80e24aec7af50b911c664206df36212f323286
   scripts/restore-mysql-db.sh:
@@ -161,17 +169,17 @@ managed_files:
   scripts/seed-db.sh:
     sha256: feb2da60c86be6a52f3c6170dbcff91e7d2ac14c2c4fe464c23fdee926bebfc2
   scripts/smoke-check.sh:
-    sha256: 01d89d7d1211ff14707b7856fbe7b924b0427d29eab2a24543123432e28043f1
+    sha256: c29ca591ef517a9de69c35a8e315952f163129cf1c1a810c22ed980fcd65cc3d
   scripts/sync-from-git.sh:
     sha256: 5ca297de598ae79d1ed62ae5fade27669bf6af046cd4ae5469ec334fff826f1b
   scripts/traefik-switch.sh:
-    sha256: e0f1402387a1c1c7254744144e860c6fed30e37f1fa6baf57f527aee73626fbd
+    sha256: fb0b3d03f0905b06a6543cbe6e089a04e6c886224a1522a4707d1387994c7e69
   scripts/versions.sh:
     sha256: 088c80fda16d485f938c1be334b4de1f5a00e799db3a4d5c29ca888d7a960e6a
   scripts/with-deploy-locks:
     sha256: 93361ae7b5c96edac8c046853b2444d265fd8e49defd7934e0e13187085e6eac
   scripts/zero-downtime-deploy.sh:
-    sha256: 90ab0296123267d7c5b866015a7fbbb06ff62efc1129bbd8a94afad598778b3a
+    sha256: af8aa17df58f0f48338b435071530e8157da5f6999b0e01d19afa782ddad6f0a
 managed_app_files:
   app/Console/Commands/CreateAdminUser.php:
     sha256: 8f0aecb6eb0427674e4281cd75f1f55ca06b8167b352f2f844c7965c2671ec0e

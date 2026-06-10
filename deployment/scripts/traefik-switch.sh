@@ -17,7 +17,7 @@ err() { echo "[traefik-switch] ERROR: $*" >&2; exit 1; }
 [[ -n "${TARGET_ENV_FILE}" ]] || err "Target env file is required"
 [[ -f "${TARGET_ENV_FILE}" ]] || err "Target env file not found: ${TARGET_ENV_FILE}"
 
-TRAEFIK_DYNAMIC_DIR="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/current/config/traefik/dynamic}"
+TRAEFIK_DYNAMIC_DIR="${TRAEFIK_DYNAMIC_DIR:-$(dirname "${DEPLOY_RUNTIME_ROOT}")/releases/config/traefik/dynamic}"
 TRAEFIK_DYNAMIC_FILE="${TRAEFIK_DYNAMIC_FILE:-${TRAEFIK_DYNAMIC_DIR}/dynamic-${COMPOSE_PROJECT_BASE}.yml}"
 TRAEFIK_DYNAMIC_BACKUP="${TRAEFIK_DYNAMIC_FILE}.previous"
 TMP_FILE="${TRAEFIK_DYNAMIC_DIR}/.dynamic-${COMPOSE_PROJECT_BASE}.yml.tmp.$$"

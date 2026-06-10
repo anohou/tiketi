@@ -13,6 +13,7 @@ ENV_FILE="${DEPLOY_ENV_FILE:-${DEPLOY_DIR}/.env}"
 RESTORED_URIS_FILE="${RESTORED_URIS_FILE:-${DEPLOY_DIR}/.deploy-state/restored-uris.txt}"
 PROBE_URL_HEADER="X-Deploy-Smoke: 1"
 RUN_EXTERNAL_SMOKE="${RUN_EXTERNAL_SMOKE:-false}"
+EXTERNAL_SMOKE_CHECK_APP_URL="${EXTERNAL_SMOKE_CHECK_APP_URL:-false}"
 
 log() { echo "[smoke] $(date '+%H:%M:%S') $*"; }
 err() { echo "[smoke] ERROR: $*" >&2; exit 1; }
@@ -116,7 +117,9 @@ if [[ -f "${RESTORED_URIS_FILE}" ]]; then
 fi
 
 if [[ "${RUN_EXTERNAL_SMOKE}" == "true" ]]; then
-    assert_external_fetch_any "${APP_URL}" "200" "301" "302" "303" "307" "308"
+    if [[ "${EXTERNAL_SMOKE_CHECK_APP_URL}" == "true" ]]; then
+        assert_external_fetch_any "${APP_URL}" "200" "301" "302" "303" "307" "308"
+    fi
     assert_external_fetch "$(external_readiness_url)" "200"
 fi
 

@@ -21,6 +21,9 @@ BUILD_TOTAL_DURATION=0
 declare -a BUILD_TIMING_LINES=()
 declare -a VITE_BUILD_ARGS=()
 declare -a BUILD_ARGS=()
+DOCKER_BUILD_TARGET=""
+EFFECTIVE_RUNTIME_MODE=""
+EFFECTIVE_RUNTIME_IMAGE=""
 
 detect_checksum_tool() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -35,11 +38,19 @@ detect_checksum_tool() {
 }
 
 checksum_file() {
-    "${CHECKSUM_BIN}" "${CHECKSUM_ARGS[@]}" "$1" | awk '{print $1}'
+    if ((${#CHECKSUM_ARGS[@]} > 0)); then
+        "${CHECKSUM_BIN}" "${CHECKSUM_ARGS[@]}" "$1" | awk '{print $1}'
+    else
+        "${CHECKSUM_BIN}" "$1" | awk '{print $1}'
+    fi
 }
 
 checksum_stream() {
-    "${CHECKSUM_BIN}" "${CHECKSUM_ARGS[@]}" | awk '{print $1}'
+    if ((${#CHECKSUM_ARGS[@]} > 0)); then
+        "${CHECKSUM_BIN}" "${CHECKSUM_ARGS[@]}" | awk '{print $1}'
+    else
+        "${CHECKSUM_BIN}" | awk '{print $1}'
+    fi
 }
 
 now_epoch() {
@@ -188,6 +199,9 @@ collect_vite_build_args_from_file() {
         value="${value#"${value%%[![:space:]]*}"}"
         value="${value%"${value##*[![:space:]]}"}"
         value="${value%\"}"; value="${value#\"}"; value="${value%\'}"; value="${value#\'}"
+        if [[ "${key}" == "VITE_REVERB_APP_KEY" ]]; then
+            key="PUBLIC_REVERB_APP_KEY"
+        fi
         VITE_BUILD_ARGS+=(--build-arg "${key}=${value}")
     done < "${file}"
 }
@@ -200,6 +214,10 @@ collect_vite_build_args() {
 collect_asset_build_arg() {
     local asset_build_enabled="${ASSET_BUILD_ENABLED:-true}"
     BUILD_ARGS+=(--build-arg "ASSET_BUILD_ENABLED=${asset_build_enabled}")
+}
+
+collect_runtime_build_arg() {
+    BUILD_ARGS+=(--build-arg "LARAVEL_RUNTIME_IMAGE=${EFFECTIVE_RUNTIME_IMAGE}")
 }
 
 # ── Version tag ────────────────────────────────────────────────────────────────
@@ -231,13 +249,17 @@ fi
 
 existing_image_matches_source() {
     local image_ref="$1"
-    local existing_sha existing_fingerprint existing_mode
+    local existing_sha existing_fingerprint existing_mode existing_runtime_mode existing_runtime_image
 
     existing_sha="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.git-sha" }}' 2>/dev/null || true)"
     existing_fingerprint="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.source-fingerprint" }}' 2>/dev/null || true)"
     existing_mode="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.mode" }}' 2>/dev/null || true)"
+    existing_runtime_mode="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.runtime-mode" }}' 2>/dev/null || true)"
+    existing_runtime_image="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.runtime-image" }}' 2>/dev/null || true)"
 
     [[ "${existing_mode}" == "${BUILD_MODE}" ]] || return 1
+    [[ "${existing_runtime_mode}" == "${EFFECTIVE_RUNTIME_MODE}" ]] || return 1
+    [[ "${existing_runtime_image}" == "${EFFECTIVE_RUNTIME_IMAGE}" ]] || return 1
 
     if [[ -n "${existing_fingerprint}" ]]; then
         [[ "${existing_fingerprint}" == "${SOURCE_FINGERPRINT}" ]] || return 1
@@ -249,8 +271,94 @@ existing_image_matches_source() {
     [[ "${existing_sha}" == "${GIT_SHA}" ]] || return 1
 }
 
+bool_is_true() {
+    case "${1:-}" in
+        true|True|TRUE|1|yes|Yes|YES|on|On|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+resolve_runtime_mode() {
+    local configured_mode="${BUILD_RUNTIME_MODE:-shared}"
+    local allow_full_local_runtime="${BUILD_ALLOW_FULL_LOCAL_RUNTIME:-true}"
+
+    case "${configured_mode}" in
+        shared|local)
+            ;;
+        *)
+            err "Unsupported BUILD_RUNTIME_MODE=${configured_mode}. Use shared or local."
+            ;;
+    esac
+
+    if bool_is_true "${DEPLOY_FULL_LOCAL_RUNTIME:-false}"; then
+        if ! bool_is_true "${allow_full_local_runtime}"; then
+            err "Full local runtime builds are disabled for this app."
+        fi
+        log "Emergency runtime override enabled via DEPLOY_FULL_LOCAL_RUNTIME=true"
+        EFFECTIVE_RUNTIME_MODE="local"
+        return 0
+    fi
+
+    EFFECTIVE_RUNTIME_MODE="${configured_mode}"
+}
+
+resolve_runtime_image() {
+    EFFECTIVE_RUNTIME_IMAGE="${BUILD_RUNTIME_IMAGE:-ghcr.io/anohou/laravel-runtime:8.4-alpine-v1}"
+}
+
+resolve_docker_build_target() {
+    case "${EFFECTIVE_RUNTIME_MODE}" in
+        shared)
+            DOCKER_BUILD_TARGET="production-shared"
+            ;;
+        local)
+            DOCKER_BUILD_TARGET="production-local"
+            ;;
+        *)
+            err "Unsupported effective runtime mode: ${EFFECTIVE_RUNTIME_MODE}"
+            ;;
+    esac
+}
+
+ensure_shared_runtime_image_available() {
+    if [[ "${EFFECTIVE_RUNTIME_MODE}" != "shared" ]]; then
+        return 0
+    fi
+
+    start_step_timer
+    if docker image inspect "${EFFECTIVE_RUNTIME_IMAGE}" >/dev/null 2>&1; then
+        log "Shared runtime image already available locally; refreshing from registry: ${EFFECTIVE_RUNTIME_IMAGE}"
+    else
+        log "Shared runtime image missing locally; pulling ${EFFECTIVE_RUNTIME_IMAGE} ..."
+    fi
+
+    if ! docker pull "${EFFECTIVE_RUNTIME_IMAGE}"; then
+        finish_step_timer "ensure_shared_runtime_image"
+        err "Unable to refresh shared runtime image ${EFFECTIVE_RUNTIME_IMAGE}. Use DEPLOY_FULL_LOCAL_RUNTIME=true for the emergency full-local path."
+    fi
+
+    if ! docker image inspect "${EFFECTIVE_RUNTIME_IMAGE}" >/dev/null 2>&1; then
+        finish_step_timer "ensure_shared_runtime_image"
+        err "Shared runtime image ${EFFECTIVE_RUNTIME_IMAGE} is unavailable after pull. Use DEPLOY_FULL_LOCAL_RUNTIME=true for the emergency full-local path."
+    fi
+
+    log "Shared runtime image ready: ${EFFECTIVE_RUNTIME_IMAGE}"
+    finish_step_timer "ensure_shared_runtime_image"
+}
+
+resolve_runtime_mode
+resolve_runtime_image
+resolve_docker_build_target
+collect_runtime_build_arg
+ensure_shared_runtime_image_available
+
 log "Building image: ${APP_IMAGE}:${VERSION}"
 log "Git SHA: ${GIT_SHA:-none}  |  Source fingerprint: ${SOURCE_FINGERPRINT:0:12}  |  Timestamp: ${TIMESTAMP}  |  Build mode: ${BUILD_MODE}"
+log "Runtime mode: ${EFFECTIVE_RUNTIME_MODE}  |  Docker target: ${DOCKER_BUILD_TARGET}  |  Runtime image: ${EFFECTIVE_RUNTIME_IMAGE}"
 
 start_step_timer
 if existing_image_matches_source "${APP_IMAGE}:${VERSION}"; then
@@ -258,24 +366,39 @@ if existing_image_matches_source "${APP_IMAGE}:${VERSION}"; then
 else
 
 # ── Docker build ───────────────────────────────────────────────────────────────
-docker build \
-    --file  "${DEPLOY_DIR}/config/Dockerfile" \
-    --tag   "${APP_IMAGE}:${VERSION}" \
-    --tag   "${APP_IMAGE}:latest" \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    --build-arg IMAGE_TITLE="${APP_IMAGE}" \
-    --build-arg IMAGE_SOURCE="${IMAGE_SOURCE:-}" \
-    --build-arg IMAGE_REVISION="${GIT_SHA}" \
-    --build-arg BUILD_MODE="${BUILD_MODE}" \
-    "${BUILD_ARGS[@]}" \
-    "${VITE_BUILD_ARGS[@]}" \
-    --label "build.version=${VERSION}" \
-    --label "build.git-sha=${GIT_SHA}" \
-    --label "build.source-fingerprint=${SOURCE_FINGERPRINT}" \
-    --label "build.timestamp=${TIMESTAMP}" \
-    --label "build.mode=${BUILD_MODE}" \
-    --progress plain \
+docker_build_cmd=(
+    docker build
+    --file "${DEPLOY_DIR}/config/Dockerfile"
+    --target "${DOCKER_BUILD_TARGET}"
+    --tag "${APP_IMAGE}:${VERSION}"
+    --tag "${APP_IMAGE}:latest"
+    --build-arg BUILDKIT_INLINE_CACHE=1
+    --build-arg "IMAGE_TITLE=${APP_IMAGE}"
+    --build-arg "IMAGE_SOURCE=${IMAGE_SOURCE:-}"
+    --build-arg "IMAGE_REVISION=${GIT_SHA}"
+    --build-arg "BUILD_MODE=${BUILD_MODE}"
+)
+
+if ((${#BUILD_ARGS[@]} > 0)); then
+    docker_build_cmd+=("${BUILD_ARGS[@]}")
+fi
+if ((${#VITE_BUILD_ARGS[@]} > 0)); then
+    docker_build_cmd+=("${VITE_BUILD_ARGS[@]}")
+fi
+
+docker_build_cmd+=(
+    --label "build.version=${VERSION}"
+    --label "build.git-sha=${GIT_SHA}"
+    --label "build.source-fingerprint=${SOURCE_FINGERPRINT}"
+    --label "build.timestamp=${TIMESTAMP}"
+    --label "build.mode=${BUILD_MODE}"
+    --label "build.runtime-mode=${EFFECTIVE_RUNTIME_MODE}"
+    --label "build.runtime-image=${EFFECTIVE_RUNTIME_IMAGE}"
+    --progress plain
     "${APP_ROOT}"
+)
+
+"${docker_build_cmd[@]}"
 
     BUILT_IMAGE=true
 
