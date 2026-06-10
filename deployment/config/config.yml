@@ -19,10 +19,10 @@ app:
   compose_project: tiketi
   framework: "laravel"
   migration:
-    command: "php artisan migrate --force"
+    command: "php artisan migrate --force --no-interaction"
     use_migrator_credentials: true
-    tenant_command: ""
-    tenant_preflight_command: ""
+    tenant_command: "php artisan tenants:migrate --force --no-interaction"
+    tenant_preflight_command: "php artisan tenants:migrate --pretend --force --no-ansi --no-interaction"
     tenant_use_migrator_credentials: false
   tenant_wildcard_domain: "*.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
