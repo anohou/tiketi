@@ -13,9 +13,10 @@ DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 log() { echo "[admin] $(date '+%H:%M:%S') $*"; }
 err() { echo "[admin] ERROR: $*" >&2; exit 1; }
 
-CREATE_ADMIN_MODE="artisan_command"
-CREATE_ADMIN_COMMAND="admin:create"
-CREATE_ADMIN_DEFAULT_ROLE="superadmin"
+# Allow operator-side env overrides while keeping template defaults.
+CREATE_ADMIN_MODE="${CREATE_ADMIN_MODE:-artisan_command}"
+CREATE_ADMIN_COMMAND="${CREATE_ADMIN_COMMAND:-admin:create}"
+CREATE_ADMIN_DEFAULT_ROLE="${CREATE_ADMIN_DEFAULT_ROLE:-superadmin}"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: ./create-admin.sh [admin-command-options]"
@@ -45,6 +46,19 @@ case "${CREATE_ADMIN_MODE}" in
         ;;
 
     filament)
+        if ! ARTISAN_TTY=false "${SCRIPT_DIR}/artisan.sh" list --raw 2>/dev/null | grep -Fxq 'make:filament-user'; then
+            if [[ -n "${CREATE_ADMIN_COMMAND}" && "${CREATE_ADMIN_COMMAND}" != "make:filament-user" ]]; then
+                log "Configured mode is filament, but make:filament-user is unavailable. Falling back to ${CREATE_ADMIN_COMMAND}."
+                if [[ $# -eq 0 && -n "${CREATE_ADMIN_DEFAULT_ROLE}" ]]; then
+                    set -- "--role=${CREATE_ADMIN_DEFAULT_ROLE}"
+                fi
+                ARTISAN_TTY="${ARTISAN_TTY:-true}" "${SCRIPT_DIR}/artisan.sh" "${CREATE_ADMIN_COMMAND}" "$@"
+                log "✓ Admin command completed successfully."
+                exit 0
+            fi
+            err "Configured mode is filament, but make:filament-user is not available in this app."
+        fi
+
         NAME="${1:-}"
         EMAIL="${2:-}"
         PASSWORD="${3:-}"

@@ -75,7 +75,9 @@ ARG BUILD_MODE="unknown"
 RUN apk add --no-cache \
     # Runtime
     postgresql-client \
+    mysql-client \
     libpq \
+    mariadb-connector-c \
     fcgi \
     libzip \
     icu \
@@ -88,6 +90,7 @@ RUN apk add --no-cache \
     && apk add --no-cache --virtual .build-deps \
         $PHPIZE_DEPS \
         postgresql-dev \
+        mariadb-connector-c-dev \
         libzip-dev \
         icu-dev \
         oniguruma-dev \
@@ -101,6 +104,7 @@ RUN apk add --no-cache \
         --with-jpeg \
         --with-webp \
     && docker-php-ext-install \
+        pdo_mysql \
         pdo_pgsql \
         pgsql \
         zip \

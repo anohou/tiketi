@@ -15,6 +15,8 @@ app:
   slug: tiketi
   url: https://tiketi.ci
   domain: tiketi.ci
+  frontend_url: https://tiketi.ci
+  cors_allowed_origins: https://tiketi.ci,https://*.tiketi.ci
   image: ghcr.io/anohou/tiketi
   compose_project: tiketi
   framework: "laravel"
@@ -37,6 +39,9 @@ build:
   runtime_mode: shared
   runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v1"
   allow_full_local_runtime: true
+  cache_mode: registry
+  cache_ref: "ghcr.io/anohou/tiketi:buildcache-laravel-php84-node22-v1"
+  allow_cache_bypass: true
   # Emergency break-glass local builds are allowed when explicitly requested
   allow_local_build: true
   require_clean_git_for_local_build: true
@@ -128,6 +133,15 @@ services:
     path: /app
     port: 6001
 
+gateway:
+  mode: standard
+  internal_alias: tiketi-nginx
+  provider_hooks_enabled: false
+  provider_hooks_host: "tiketi.ci"
+  provider_hooks_path: "/provider-hooks/"
+  nginx_mounts:
+
+
 # ── Operator utilities ───────────────────────────────────────────────────────
 create_admin:
   mode: artisan_command
@@ -147,6 +161,8 @@ create_admin:
 
 # ── Runtime knobs ────────────────────────────────────────────────────────────
 runtime:
+  mounts:
+{{ runtime_mounts_block }}
   queue:
     sleep: 3
     tries: 3

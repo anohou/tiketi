@@ -11,19 +11,27 @@ DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_ROOT="$(dirname "${DEPLOY_DIR}")"
 
 source "${SCRIPT_DIR}/deploy.config.sh"
+source "${DEPLOY_DIR}/lib/build-fingerprint.sh"
 
 CHECKSUM_BIN=""
 CHECKSUM_ARGS=()
 TIMINGS_LOG_FILE="${DEPLOY_DIR}/.build-timings.log"
+BUILD_STATE_FILE="${DEPLOY_DIR}/.last-build-state.env"
 BUILD_TIMER_START=0
 BUILD_STEP_START=0
 BUILD_TOTAL_DURATION=0
 declare -a BUILD_TIMING_LINES=()
 declare -a VITE_BUILD_ARGS=()
 declare -a BUILD_ARGS=()
+declare -a DOCKER_BUILD_ARGS=()
 DOCKER_BUILD_TARGET=""
 EFFECTIVE_RUNTIME_MODE=""
 EFFECTIVE_RUNTIME_IMAGE=""
+BUILD_INPUT_FINGERPRINT=""
+EFFECTIVE_CACHE_MODE="${BUILD_CACHE_MODE:-disabled}"
+DEPLOY_WARM_BUILD_CACHE="${DEPLOY_WARM_BUILD_CACHE:-false}"
+DEPLOY_EXPORT_BUILD_CACHE="${DEPLOY_EXPORT_BUILD_CACHE:-}"
+RESOLVED_CACHE_FROM_ARG=""
 
 detect_checksum_tool() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -154,10 +162,16 @@ should_exclude_from_fingerprint() {
         deployment/persistent-public|deployment/persistent-public/*|deployment.working|deployment.working/*)
             return 0
             ;;
-        coverage|coverage/*|dist|dist/*|build|build/*)
+    coverage|coverage/*|dist|dist/*|build|build/*)
             return 0
             ;;
-        deployment/.last-built-version|deployment/.last-deployed-version|deployment/.release-manifest.env|deployment/.build-timings.log)
+        .DS_Store|*.log|*.log.*)
+            return 0
+            ;;
+        deployment/.env|deployment/.env.*|deployment/.last-*|deployment/.release-manifest.env)
+            return 0
+            ;;
+        deployment/.last-known-good.env|deployment/.last-known-good-compose.yml|deployment/.build-timings.log)
             return 0
             ;;
     esac
@@ -167,23 +181,12 @@ should_exclude_from_fingerprint() {
 
 compute_source_fingerprint() {
     start_step_timer
-    (
-        cd "${APP_ROOT}"
-        while IFS= read -r -d '' entry; do
-            local rel target checksum
-            rel="${entry#./}"
-            should_exclude_from_fingerprint "${rel}" && continue
-
-            if [[ -L "${entry}" ]]; then
-                target="$(readlink "${entry}")"
-                printf 'symlink\t%s\t%s\n' "${rel}" "${target}"
-            elif [[ -f "${entry}" ]]; then
-                checksum="$(checksum_file "${entry}")"
-                printf 'file\t%s\t%s\n' "${rel}" "${checksum}"
-            fi
-        done < <(find . -mindepth 1 \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
-    ) | checksum_stream
+    build_fingerprint_compute_source_tree_fingerprint "${APP_ROOT}"
     finish_step_timer "compute_source_fingerprint"
+}
+
+compute_build_input_fingerprint() {
+    build_fingerprint_compute_build_input_fingerprint "${APP_ROOT}"
 }
 
 collect_vite_build_args_from_file() {
@@ -227,6 +230,7 @@ collect_vite_build_args
 collect_asset_build_arg
 GIT_SHA="$(git -C "${APP_ROOT}" rev-parse --short HEAD 2>/dev/null || true)"
 SOURCE_FINGERPRINT="$(compute_source_fingerprint)"
+BUILD_INPUT_FINGERPRINT="$(compute_build_input_fingerprint)"
 DEFAULT_VERSION="${GIT_SHA:-${SOURCE_FINGERPRINT:0:12}}"
 VERSION="${1:-${DEFAULT_VERSION}}"
 TIMESTAMP=$(date -u '+%Y%m%dT%H%M%SZ')
@@ -249,10 +253,11 @@ fi
 
 existing_image_matches_source() {
     local image_ref="$1"
-    local existing_sha existing_fingerprint existing_mode existing_runtime_mode existing_runtime_image
+    local existing_sha existing_fingerprint existing_input_fingerprint existing_mode existing_runtime_mode existing_runtime_image
 
     existing_sha="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.git-sha" }}' 2>/dev/null || true)"
     existing_fingerprint="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.source-fingerprint" }}' 2>/dev/null || true)"
+    existing_input_fingerprint="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.input-fingerprint" }}' 2>/dev/null || true)"
     existing_mode="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.mode" }}' 2>/dev/null || true)"
     existing_runtime_mode="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.runtime-mode" }}' 2>/dev/null || true)"
     existing_runtime_image="$(docker image inspect "${image_ref}" --format '{{ index .Config.Labels "build.runtime-image" }}' 2>/dev/null || true)"
@@ -260,6 +265,11 @@ existing_image_matches_source() {
     [[ "${existing_mode}" == "${BUILD_MODE}" ]] || return 1
     [[ "${existing_runtime_mode}" == "${EFFECTIVE_RUNTIME_MODE}" ]] || return 1
     [[ "${existing_runtime_image}" == "${EFFECTIVE_RUNTIME_IMAGE}" ]] || return 1
+
+    if [[ -n "${existing_input_fingerprint}" ]]; then
+        [[ "${existing_input_fingerprint}" == "${BUILD_INPUT_FINGERPRINT}" ]] || return 1
+        return 0
+    fi
 
     if [[ -n "${existing_fingerprint}" ]]; then
         [[ "${existing_fingerprint}" == "${SOURCE_FINGERPRINT}" ]] || return 1
@@ -280,6 +290,50 @@ bool_is_true() {
             return 1
             ;;
     esac
+}
+
+build_cache_ref_inspect_status() {
+    local tmp_output
+
+    tmp_output="$(mktemp)"
+    if docker buildx imagetools inspect "${BUILD_CACHE_REF}" >"${tmp_output}" 2>&1; then
+        rm -f "${tmp_output}"
+        return 0
+    fi
+    cat "${tmp_output}"
+    rm -f "${tmp_output}"
+    return 1
+}
+
+ensure_registry_cache_prereqs() {
+    docker buildx version >/dev/null 2>&1 || err "Docker Buildx is required when build.cache_mode=registry. Use DEPLOY_BYPASS_BUILD_CACHE=true if allowed."
+    [[ -n "${BUILD_CACHE_REF}" ]] || err "build.cache_ref is required when build.cache_mode=registry."
+}
+
+resolve_cache_from_arg() {
+    local inspect_output=""
+    local inspect_status=0
+
+    set +e
+    inspect_output="$(build_cache_ref_inspect_status)"
+    inspect_status=$?
+    set -e
+
+    if [[ "${inspect_status}" -eq 0 ]]; then
+        RESOLVED_CACHE_FROM_ARG="type=registry,ref=${BUILD_CACHE_REF}"
+        return 0
+    fi
+
+    if [[ "${inspect_output}" == *"unauthorized"* || "${inspect_output}" == *"denied"* || "${inspect_output}" == *"insufficient_scope"* || "${inspect_output}" == *"requested access to the resource is denied"* ]]; then
+        err "Unable to authenticate to the build cache registry ref ${BUILD_CACHE_REF}. Use DEPLOY_BYPASS_BUILD_CACHE=true if allowed."
+    fi
+
+    if [[ "${inspect_output}" != *"not found"* && "${inspect_output}" != *"no such manifest"* && "${inspect_output}" != *"name unknown"* ]]; then
+        err "Unable to verify build cache registry ref ${BUILD_CACHE_REF}. Use DEPLOY_BYPASS_BUILD_CACHE=true if allowed."
+    fi
+
+    log "Cache ref ${BUILD_CACHE_REF} is missing or unavailable for import; continuing without --cache-from."
+    return 1
 }
 
 resolve_runtime_mode() {
@@ -350,24 +404,86 @@ ensure_shared_runtime_image_available() {
     finish_step_timer "ensure_shared_runtime_image"
 }
 
+run_plain_docker_build() {
+    log "Cache path: plain docker build"
+    docker build "${DOCKER_BUILD_ARGS[@]}"
+}
+
+run_registry_cache_build() {
+    local -a buildx_args
+    local export_cache=false
+
+    ensure_registry_cache_prereqs
+    if [[ -z "${DEPLOY_EXPORT_BUILD_CACHE}" ]]; then
+        if bool_is_true "${DEPLOY_WARM_BUILD_CACHE}"; then
+            export_cache=true
+        fi
+    elif bool_is_true "${DEPLOY_EXPORT_BUILD_CACHE}"; then
+        export_cache=true
+    fi
+
+    if resolve_cache_from_arg; then
+        buildx_args=(--cache-from "${RESOLVED_CACHE_FROM_ARG}")
+        log "Registry cache import: enabled"
+    else
+        buildx_args=()
+        log "Registry cache import: unavailable"
+        if [[ "${export_cache}" != "true" ]]; then
+            log "Registry cache export: disabled"
+            run_plain_docker_build
+            return 0
+        fi
+    fi
+
+    if [[ "${export_cache}" == "true" ]]; then
+        buildx_args+=("--cache-to" "type=registry,ref=${BUILD_CACHE_REF},mode=max")
+        log "Registry cache export: enabled"
+    else
+        log "Registry cache export: disabled"
+    fi
+
+    log "Cache mode: registry"
+    log "Cache ref: ${BUILD_CACHE_REF}"
+    docker buildx build --load "${buildx_args[@]}" "${DOCKER_BUILD_ARGS[@]}"
+}
+
 resolve_runtime_mode
 resolve_runtime_image
 resolve_docker_build_target
 collect_runtime_build_arg
 ensure_shared_runtime_image_available
 
+if bool_is_true "${DEPLOY_WARM_BUILD_CACHE}"; then
+    [[ "${EFFECTIVE_CACHE_MODE}" == "registry" ]] || err "Warm-cache mode requires build.cache_mode=registry."
+    if bool_is_true "${DEPLOY_BYPASS_BUILD_CACHE:-false}"; then
+        err "DEPLOY_BYPASS_BUILD_CACHE=true is not supported with warm-cache mode."
+    fi
+fi
+
+if bool_is_true "${DEPLOY_BYPASS_BUILD_CACHE:-false}"; then
+    if ! bool_is_true "${BUILD_ALLOW_CACHE_BYPASS:-false}"; then
+        err "DEPLOY_BYPASS_BUILD_CACHE=true is not allowed for this app because build.allow_cache_bypass=false."
+    fi
+fi
+
 log "Building image: ${APP_IMAGE}:${VERSION}"
 log "Git SHA: ${GIT_SHA:-none}  |  Source fingerprint: ${SOURCE_FINGERPRINT:0:12}  |  Timestamp: ${TIMESTAMP}  |  Build mode: ${BUILD_MODE}"
 log "Runtime mode: ${EFFECTIVE_RUNTIME_MODE}  |  Docker target: ${DOCKER_BUILD_TARGET}  |  Runtime image: ${EFFECTIVE_RUNTIME_IMAGE}"
+log "Build input fingerprint: ${BUILD_INPUT_FINGERPRINT:0:12}"
 
 start_step_timer
-if existing_image_matches_source "${APP_IMAGE}:${VERSION}"; then
-    log "Skipping docker build; ${APP_IMAGE}:${VERSION} already matches the current source fingerprint in ${BUILD_MODE} mode"
-else
+reuse_existing_image=false
+if bool_is_true "${DEPLOY_FORCE_REBUILD:-false}"; then
+    log "DEPLOY_FORCE_REBUILD=true requested; bypassing same-tag image reuse"
+elif existing_image_matches_source "${APP_IMAGE}:${VERSION}"; then
+    log "Skipping docker build; ${APP_IMAGE}:${VERSION} already matches the current build input fingerprint in ${BUILD_MODE} mode"
+    reuse_existing_image=true
+fi
+
+if [[ "${reuse_existing_image}" != "true" ]]; then
 
 # ── Docker build ───────────────────────────────────────────────────────────────
-docker_build_cmd=(
-    docker build
+DOCKER_BUILD_ARGS=(
     --file "${DEPLOY_DIR}/config/Dockerfile"
     --target "${DOCKER_BUILD_TARGET}"
     --tag "${APP_IMAGE}:${VERSION}"
@@ -380,16 +496,17 @@ docker_build_cmd=(
 )
 
 if ((${#BUILD_ARGS[@]} > 0)); then
-    docker_build_cmd+=("${BUILD_ARGS[@]}")
+    DOCKER_BUILD_ARGS+=("${BUILD_ARGS[@]}")
 fi
 if ((${#VITE_BUILD_ARGS[@]} > 0)); then
-    docker_build_cmd+=("${VITE_BUILD_ARGS[@]}")
+    DOCKER_BUILD_ARGS+=("${VITE_BUILD_ARGS[@]}")
 fi
 
-docker_build_cmd+=(
+DOCKER_BUILD_ARGS+=(
     --label "build.version=${VERSION}"
     --label "build.git-sha=${GIT_SHA}"
     --label "build.source-fingerprint=${SOURCE_FINGERPRINT}"
+    --label "build.input-fingerprint=${BUILD_INPUT_FINGERPRINT}"
     --label "build.timestamp=${TIMESTAMP}"
     --label "build.mode=${BUILD_MODE}"
     --label "build.runtime-mode=${EFFECTIVE_RUNTIME_MODE}"
@@ -398,7 +515,16 @@ docker_build_cmd+=(
     "${APP_ROOT}"
 )
 
-"${docker_build_cmd[@]}"
+    if [[ "${EFFECTIVE_CACHE_MODE}" == "registry" ]] && ! bool_is_true "${DEPLOY_BYPASS_BUILD_CACHE:-false}"; then
+        run_registry_cache_build
+    else
+        if [[ "${EFFECTIVE_CACHE_MODE}" == "registry" ]]; then
+            log "Build cache bypass requested; using plain docker build without explicit registry cache flags"
+        else
+            log "Cache mode: disabled"
+        fi
+        run_plain_docker_build
+    fi
 
     BUILT_IMAGE=true
 
@@ -410,6 +536,7 @@ if [[ "${BUILT_IMAGE}" == "true" ]]; then
 else
     log "✓ Reusing existing image: ${APP_IMAGE}:${VERSION}"
 fi
+write_build_state "${BUILD_STATE_FILE}" "${BUILD_INPUT_FINGERPRINT}" "${VERSION}" "${APP_IMAGE}" "${BUILD_MODE}" "${EFFECTIVE_RUNTIME_MODE}" "${EFFECTIVE_RUNTIME_IMAGE}"
 
 # ── Persist version for downstream scripts ────────────────────────────────────
 start_step_timer

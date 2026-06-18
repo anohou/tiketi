@@ -4,6 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/deploy.config.sh"
+source "${DEPLOY_DIR}/lib/build-fingerprint.sh"
 
 VERSION="${1:-$(cat "${DEPLOY_DIR}/.last-built-version" 2>/dev/null || echo "latest")}"
 COMPOSE_FILE="${DEPLOY_DIR}/config/docker-compose.prod.yml"
@@ -25,6 +26,8 @@ ALLOW_LOCAL_BUILD="${DEPLOY_ALLOW_LOCAL_BUILD:-${ALLOW_LOCAL_BUILD:-${BUILD_ALLO
 DEPLOY_IMAGE_REF="${DEPLOY_IMAGE_REF:-}"
 DEPLOY_IMAGE_DIGEST="${DEPLOY_IMAGE_DIGEST:-}"
 DEPLOY_ACTUAL_IMAGE_REF=""
+BUILD_STATE_FILE="${DEPLOY_DIR}/.last-build-state.env"
+CURRENT_BUILD_INPUT_FINGERPRINT=""
 RESUME_AFTER_MIGRATION="${RESUME_AFTER_MIGRATION:-false}"
 CENTRAL_MIGRATION_COMPLETED=false
 
@@ -37,6 +40,29 @@ trim_shell_value() {
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
     printf '%s' "${value}"
+}
+
+bool_is_true() {
+    case "${1:-}" in
+        true|True|TRUE|1|yes|Yes|YES|on|On|ON)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+effective_build_runtime_mode() {
+    if bool_is_true "${DEPLOY_FULL_LOCAL_RUNTIME:-false}"; then
+        printf 'local\n'
+        return 0
+    fi
+    printf '%s\n' "${BUILD_RUNTIME_MODE:-shared}"
+}
+
+effective_build_runtime_image() {
+    printf '%s\n' "${BUILD_RUNTIME_IMAGE:-ghcr.io/anohou/laravel-runtime:8.4-alpine-v1}"
 }
 
 write_state() {
@@ -263,7 +289,31 @@ resolve_image() {
         local)
             [[ "${DEPLOY_ALLOW_EMERGENCY_BUILD:-${BUILD_ALLOW_LOCAL_BUILD:-false}}" == "true" ]] || err "Local builds are disabled"
             [[ "${ALLOW_LOCAL_BUILD}" == "true" ]] || err "Local builds require DEPLOY_ALLOW_LOCAL_BUILD=true"
-            BUILD_MODE=emergency-local bash "${SCRIPT_DIR}/build.sh" "${VERSION}"
+            CURRENT_BUILD_INPUT_FINGERPRINT="$(BUILD_MODE=emergency-local build_fingerprint_compute_build_input_fingerprint "$(dirname "${DEPLOY_DIR}")")"
+            if bool_is_true "${DEPLOY_FORCE_REBUILD:-false}"; then
+                log "DEPLOY_FORCE_REBUILD=true requested; running a forced rebuild from the synced source tree ..."
+                BUILD_MODE=emergency-local bash "${SCRIPT_DIR}/build.sh" "${VERSION}"
+            elif prepare_build_image_from_state \
+                "${CURRENT_BUILD_INPUT_FINGERPRINT}" \
+                "${VERSION}" \
+                "${BUILD_STATE_FILE}" \
+                "emergency-local" \
+                "$(effective_build_runtime_mode)" \
+                "$(effective_build_runtime_image)"; then
+                write_build_state \
+                    "${BUILD_STATE_FILE}" \
+                    "${CURRENT_BUILD_INPUT_FINGERPRINT}" \
+                    "${VERSION}" \
+                    "${APP_IMAGE}" \
+                    "emergency-local" \
+                    "$(effective_build_runtime_mode)" \
+                    "$(effective_build_runtime_image)"
+                echo "${VERSION}" > "${DEPLOY_DIR}/.last-built-version"
+                log "Skipping app build (${BUILD_SKIP_REASON})"
+            else
+                log "Building app image from synced source ..."
+                BUILD_MODE=emergency-local bash "${SCRIPT_DIR}/build.sh" "${VERSION}"
+            fi
             ;;
         *)
             err "Unsupported image source mode"

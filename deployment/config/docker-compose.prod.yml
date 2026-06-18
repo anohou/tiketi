@@ -15,6 +15,7 @@ x-app-defaults: &app-defaults
   volumes:
     - ../../storage:/var/www/html/storage
     - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public:ro
+
   networks:
     - app-network
     - db-network
@@ -76,6 +77,8 @@ services:
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.service=${COMPOSE_PROJECT_NAME}_http_service"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_tenant_http.middlewares=secure-headers@file"
 
+
+
   # ─── PHP-FPM ────────────────────────────────────────────────────────────────
   php-fpm:
     <<: *app-defaults
@@ -89,12 +92,14 @@ services:
       - ../../storage:/var/www/html/storage
       - ../${DEPLOY_RUNTIME_PUBLIC_DIR:-runtime-public}:/var/www/html/public:ro
 
+
   # ─── Queue Worker ───────────────────────────────────────────────────────────
   queue-worker:
     profiles: ["with-queue"]
     <<: *app-defaults
     command: >
       php artisan queue:work database
+        --queue=${QUEUE_WORKER_QUEUES:-high-priority,default,progression,low-priority,bulk}
         --sleep=${QUEUE_SLEEP:-3}
         --tries=${QUEUE_TRIES:-3}
         --timeout=${QUEUE_TIMEOUT:-300}

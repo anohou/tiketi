@@ -124,17 +124,23 @@ Defaults:
 - `runtime_mode: shared`
 - `runtime_image: ghcr.io/anohou/laravel-runtime:8.4-alpine-v1`
 - `allow_full_local_runtime: true`
+- `cache_mode: registry`
+- `allow_cache_bypass: true`
 
 Operational usage:
 
 - Normal source deploy:
   `make deploy-app-source APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
+- Optional one-run cache warmup for source-based Laravel apps:
+  `make warm-laravel-build-cache APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
 - One-run strategy override to deploy a prebuilt image even when the declared strategy is `source`:
   `FORCE_DEPLOY_STRATEGY=image make deploy-app-source APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
 - One-run strategy override to deploy from source even when the declared strategy is `image`:
   `FORCE_DEPLOY_STRATEGY=source make deploy-app-image APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
 - Emergency fallback to the legacy full-local runtime path for one run:
   `DEPLOY_FULL_LOCAL_RUNTIME=true make deploy-app-source APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
+- Force a fresh source rebuild even when the build fingerprint matches:
+  `DEPLOY_FORCE_REBUILD=true make deploy-app-source APP=<app> DEPLOYMENT=<deployment> ENV=<env>`
 
 Expected logs:
 
@@ -150,6 +156,7 @@ Expected logs:
 - Queue workers and scheduler are owned by one color at a time. The old color is drained before migrations; the new color starts workers only after the Traefik switch succeeds.
 - Nginx injects `X-Deploy-Color` for deploy verification. Strip it at Cloudflare or another public edge layer if it should not be visible to end users.
 - `sync-laravel-deployment` only refreshes this local deployment kit. It does not run Ansible and does not deploy to the target host by itself.
+- `make deploy-app-source ...` and `make deploy-app-source-zero-downtime ...` refresh this local Laravel deployment kit automatically before they sync and deploy source.
 
 ## Notes
 

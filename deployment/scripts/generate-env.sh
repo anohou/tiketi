@@ -39,6 +39,11 @@ _set() {
     mv "${LOOKUP_FILE}.tmp" "$LOOKUP_FILE"
     printf '%s=%s\n' "$key" "$val" >> "$LOOKUP_FILE"
 }
+_set_if_non_empty() {
+    local key="$1" val="$2"
+    [[ -n "${val}" ]] || return 0
+    _set "$key" "$val"
+}
 _has() { grep -q "^${1}=" "$LOOKUP_FILE" 2>/dev/null; }
 _get() { grep -m1 "^${1}=" "$LOOKUP_FILE" 2>/dev/null | cut -d= -f2- || echo ""; }
 
@@ -81,8 +86,11 @@ _set ASSET_URL             ""
 _set APP_DOMAIN            "${APP_DOMAIN}"
 _set TENANT_WILDCARD_DOMAIN "${TENANT_WILDCARD_DOMAIN:-}"
 _set TENANT_DB_PREFIX      "${TENANT_DB_PREFIX:-}"
-_set FRONTEND_URL          "${FRONTEND_URL:-}"
-_set CORS_ALLOWED_ORIGINS  "${CORS_ALLOWED_ORIGINS:-}"
+_set_if_non_empty FRONTEND_URL          "${FRONTEND_URL:-}"
+_set_if_non_empty ADMIN_FRONTEND_URL    "${ADMIN_FRONTEND_URL:-}"
+_set_if_non_empty CORS_ALLOWED_ORIGINS  "${CORS_ALLOWED_ORIGINS:-}"
+_set_if_non_empty IMAGEKIT_URL_ENDPOINT "${IMAGEKIT_URL_ENDPOINT:-}"
+_set_if_non_empty R2_PUBLIC_URL         "${R2_PUBLIC_URL:-${R2_URL:-}}"
 _set TRAEFIK_SWARM_NETWORK "${TRAEFIK_SWARM_NETWORK}"
 _set TRAEFIK_CERT_RESOLVER "${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
 _set DB_NETWORK            "${DB_NETWORK}"

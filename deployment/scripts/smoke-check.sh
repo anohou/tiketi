@@ -14,6 +14,8 @@ RESTORED_URIS_FILE="${RESTORED_URIS_FILE:-${DEPLOY_DIR}/.deploy-state/restored-u
 PROBE_URL_HEADER="X-Deploy-Smoke: 1"
 RUN_EXTERNAL_SMOKE="${RUN_EXTERNAL_SMOKE:-false}"
 EXTERNAL_SMOKE_CHECK_APP_URL="${EXTERNAL_SMOKE_CHECK_APP_URL:-false}"
+EXTERNAL_SMOKE_TIMEOUT_SECONDS="${EXTERNAL_SMOKE_TIMEOUT_SECONDS:-30}"
+EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS="${EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS:-2}"
 
 log() { echo "[smoke] $(date '+%H:%M:%S') $*"; }
 err() { echo "[smoke] ERROR: $*" >&2; exit 1; }
@@ -89,6 +91,34 @@ assert_external_fetch_any() {
     err "Expected ${url} to return one of [$*], got ${status:-unknown}"
 }
 
+retry_external_fetch() {
+    local url="$1"
+    shift
+    local expected_statuses=("$@")
+    local deadline status expected
+
+    deadline=$(( $(date +%s) + EXTERNAL_SMOKE_TIMEOUT_SECONDS ))
+    while true; do
+        status="$(fetch_external_status "${url}")"
+        for expected in "${expected_statuses[@]}"; do
+            if [[ "${status}" == "${expected}" ]]; then
+                log "✓ external ${url} returned ${status}"
+                return 0
+            fi
+        done
+
+        if (( $(date +%s) >= deadline )); then
+            if [[ "${#expected_statuses[@]}" -eq 1 ]]; then
+                err "Expected ${url} to return ${expected_statuses[0]}, got ${status:-unknown}"
+            fi
+            err "Expected ${url} to return one of [${expected_statuses[*]}], got ${status:-unknown}"
+        fi
+
+        log "External smoke not ready yet for ${url} (got ${status:-unknown}); retrying in ${EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS}s"
+        sleep "${EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS}"
+    done
+}
+
 external_readiness_url() {
     # Readiness is served at the host root, even when the app itself is mounted
     # behind a public path prefix and Traefik strips that prefix before nginx.
@@ -118,9 +148,9 @@ fi
 
 if [[ "${RUN_EXTERNAL_SMOKE}" == "true" ]]; then
     if [[ "${EXTERNAL_SMOKE_CHECK_APP_URL}" == "true" ]]; then
-        assert_external_fetch_any "${APP_URL}" "200" "301" "302" "303" "307" "308"
+        retry_external_fetch "${APP_URL}" "200" "301" "302" "303" "307" "308"
     fi
-    assert_external_fetch "$(external_readiness_url)" "200"
+    retry_external_fetch "$(external_readiness_url)" "200"
 fi
 
 log "✓ Smoke checks complete"

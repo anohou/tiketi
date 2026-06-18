@@ -49,12 +49,15 @@ class CreateAdminUser extends Command
             return self::FAILURE;
         }
 
-        $name = trim((string) ($this->option('name') ?: $this->ask('Admin name')));
-        $email = strtolower(trim((string) ($this->option('email') ?: $this->ask('Admin email'))));
-        $role = trim((string) ($this->option('role') ?: self::DEFAULT_ROLE));
-        $password = (string) ($this->option('password') ?: $this->secret('Admin password'));
+        $stdinPayload = $this->readStdinJson();
+        $name = trim((string) ($stdinPayload['name'] ?? $this->option('name') ?: $this->ask('Admin name')));
+        $email = strtolower(trim((string) ($stdinPayload['email'] ?? $this->option('email') ?: $this->ask('Admin email'))));
+        $role = trim((string) ($stdinPayload['role'] ?? $this->option('role') ?: self::DEFAULT_ROLE));
+        $password = (string) ($stdinPayload['password'] ?? $this->option('password') ?: $this->secret('Admin password'));
+        $updateRequested = $this->booleanInput($stdinPayload['update'] ?? $this->option('update'));
+        $forceRequested = $this->booleanInput($stdinPayload['force'] ?? $this->option('force'));
 
-        if ($this->option('password') === null) {
+        if (($stdinPayload['password'] ?? null) === null && $this->option('password') === null) {
             $confirmation = (string) $this->secret('Confirm admin password');
             if (! hash_equals($password, $confirmation)) {
                 $this->error('Password confirmation does not match.');
@@ -91,14 +94,14 @@ class CreateAdminUser extends Command
 
         /** @var Model|null $existing */
         $existing = $modelClass::query()->where(self::EMAIL_COLUMN, $email)->first();
-        if ($existing && ! $this->option('update')) {
+        if ($existing && ! $updateRequested) {
             $this->error("A user with email [{$email}] already exists. Re-run with --update to update it.");
 
             return self::FAILURE;
         }
 
         $action = $existing ? 'update' : 'create';
-        if (! $this->option('force')) {
+        if (! $forceRequested) {
             $this->line('');
             $this->line(ucfirst($action).' admin account:');
             $this->line("Name: {$name}");
@@ -168,6 +171,44 @@ class CreateAdminUser extends Command
             if (preg_match($regex, strtolower($email)) === 1) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    private function readStdinJson(): ?array
+    {
+        if (stream_isatty(STDIN)) {
+            return null;
+        }
+
+        $input = trim((string) stream_get_contents(STDIN));
+        if ($input === '') {
+            return null;
+        }
+
+        $decoded = json_decode($input, true);
+        if (! is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    private function booleanInput(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+
+            return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+        }
+
+        if (is_int($value)) {
+            return $value === 1;
         }
 
         return false;
