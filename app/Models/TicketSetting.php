@@ -13,7 +13,8 @@ class TicketSetting extends Model
         'footer_messages',
         'baggage_policy_message',
         'print_qr_code',
-        'okohi_url',
+        'okohi_base_url',
+        'okohi_integration_url',
         'settings',
     ];
 
@@ -34,14 +35,15 @@ class TicketSetting extends Model
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],
                 'baggage_policy_message' => "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",
                 'print_qr_code' => true,
-                'okohi_url' => null,
+                'okohi_base_url' => null,
+                'okohi_integration_url' => null,
             ]
         );
     }
 
     public function hasOkohiIntegration(): bool
     {
-        return filled($this->okohi_url);
+        return filled($this->okohi_integration_url);
     }
 
     public function okohiScanUrl(Ticket $ticket): string
@@ -49,7 +51,7 @@ class TicketSetting extends Model
         return str_replace(
             ['{ticket_id}', '{amount}', '{timestamp}'],
             [$ticket->ticket_number, (int) $ticket->price, $ticket->created_at?->timestamp ?? now()->timestamp],
-            $this->okohi_url
+            $this->okohi_integration_url
         );
     }
 }

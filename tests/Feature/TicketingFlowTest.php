@@ -146,9 +146,9 @@ class TicketingFlowTest extends TestCase
             'ticket_id' => $ticket->ticket_number,
         ]))
             ->assertOk()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.ticket_id', $ticket->ticket_number)
-            ->assertJsonPath('data.amount', $ticket->price);
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('ticket_id', $ticket->ticket_number)
+            ->assertJsonPath('amount', $ticket->price);
     }
 
     public function test_printable_qr_uses_okohi_scan_url_when_enabled(): void
@@ -167,7 +167,7 @@ class TicketingFlowTest extends TestCase
         $okohiUrl = 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}';
         $settings->update([
             'print_qr_code' => true,
-            'okohi_url' => $okohiUrl,
+            'okohi_integration_url' => $okohiUrl,
         ]);
         $settings->refresh();
 
@@ -191,7 +191,7 @@ class TicketingFlowTest extends TestCase
         $settings = TicketSetting::getSettings();
         $settings->update([
             'print_qr_code' => false,
-            'okohi_url' => 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}',
+            'okohi_integration_url' => 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}',
         ]);
 
         $printResponse = $this->actingAs($admin)->get("/tickets/{$ticketId}/print");
@@ -542,7 +542,8 @@ class TicketingFlowTest extends TestCase
                 $table->string('cc_label')->nullable();
                 $table->json('footer_messages')->nullable();
                 $table->text('baggage_policy_message')->nullable();
-                $table->text('okohi_url')->nullable();
+                $table->string('okohi_base_url')->nullable();
+                $table->text('okohi_integration_url')->nullable();
                 $table->boolean('print_qr_code')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();

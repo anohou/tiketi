@@ -15,20 +15,17 @@ class OkohiVerificationController extends Controller
         $ticketId = (string) $request->query('ticket_id', '');
 
         if ($ticketId === '') {
-            return response()->json(['success' => false], 422);
+            return response()->json(['valid' => false, 'reason' => 'Missing ticket_id'], 422);
         }
 
-        // Tenancy déjà initialisée (appel depuis test.localhost)
         if (tenancy()->initialized) {
-            return $this->respond($ticketId);
+            return $this->respond($ticketId, $request);
         }
 
-        // Appel via IP ou domaine central : cherche dans tous les tenants
         $tenants = Tenant::all();
 
-        // Pas de tenants (ex: tests) — cherche sur la connexion courante
         if ($tenants->isEmpty()) {
-            return $this->respond($ticketId);
+            return $this->respond($ticketId, $request);
         }
 
         $found = null;
@@ -44,9 +41,10 @@ class OkohiVerificationController extends Controller
 
             if ($ticket && $ticket->status !== 'cancelled') {
                 $found = [
+                    'valid' => true,
                     'ticket_id' => $ticket->ticket_number,
                     'amount' => (int) $ticket->price,
-                    'created_at' => $ticket->created_at?->toIso8601String(),
+                    'timestamp' => $ticket->created_at?->timestamp ?? 0,
                 ];
             }
 
@@ -54,27 +52,25 @@ class OkohiVerificationController extends Controller
         });
 
         if (! $found) {
-            return response()->json(['success' => false], 404);
+            return response()->json(['valid' => false, 'reason' => 'Ticket not found or cancelled'], 404);
         }
 
-        return response()->json(['success' => true, 'data' => $found]);
+        return response()->json($found);
     }
 
-    private function respond(string $ticketId): JsonResponse
+    private function respond(string $ticketId, Request $request): JsonResponse
     {
         $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
         if (! $ticket || $ticket->status === 'cancelled') {
-            return response()->json(['success' => false], 404);
+            return response()->json(['valid' => false, 'reason' => 'Ticket not found or cancelled'], 404);
         }
 
         return response()->json([
-            'success' => true,
-            'data' => [
-                'ticket_id' => $ticket->ticket_number,
-                'amount' => (int) $ticket->price,
-                'created_at' => $ticket->created_at?->toIso8601String(),
-            ],
+            'valid' => true,
+            'ticket_id' => $ticket->ticket_number,
+            'amount' => (int) $ticket->price,
+            'timestamp' => $ticket->created_at?->timestamp ?? 0,
         ]);
     }
 }

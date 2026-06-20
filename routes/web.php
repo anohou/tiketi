@@ -77,7 +77,8 @@ Route::middleware('auth')->group(function () {
 
         // Loyalty / Fidélisation (Okohi)
         Route::get('settings/loyalty', [\App\Http\Controllers\Admin\LoyaltySettingController::class, 'index'])->name('settings.loyalty');
-        Route::put('settings/loyalty', [\App\Http\Controllers\Admin\LoyaltySettingController::class, 'update'])->name('settings.loyalty.update');
+        Route::post('settings/loyalty/connect', [\App\Http\Controllers\Admin\OkohiConnectController::class, 'connect'])->name('settings.loyalty.connect');
+        Route::delete('settings/loyalty/disconnect', [\App\Http\Controllers\Admin\OkohiConnectController::class, 'disconnect'])->name('settings.loyalty.disconnect');
     });
 
     // =========================================
