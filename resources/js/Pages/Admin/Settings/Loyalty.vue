@@ -12,6 +12,7 @@ import Delete from 'vue-material-design-icons/Delete.vue';
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 import CheckCircle from 'vue-material-design-icons/CheckCircle.vue';
 import AlertCircle from 'vue-material-design-icons/AlertCircleOutline.vue';
+import AlertOutline from 'vue-material-design-icons/AlertOutline.vue';
 
 const props = defineProps({
   settings: Object,
@@ -22,15 +23,14 @@ const flash = usePage().props.flash ?? {};
 const processing = ref(false);
 const errors = ref({});
 const copied = ref(false);
+const showConfirm = ref(false);
 
 const isConnected = computed(() => !!props.settings?.okohi_integration_url);
-
-const okohiBaseUrl = ref(props.settings?.okohi_base_url ?? '');
 const code = ref('');
 
 const verifyUrl = computed(() => {
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  return `${origin}/api/okohi/verify`;
+  return `${origin}/api/okohi/verify?tenant=…&ticket_id={ticket_id}`;
 });
 
 const copyVerifyUrl = () => {
@@ -44,7 +44,6 @@ const connect = () => {
   processing.value = true;
   errors.value = {};
   router.post(route('admin.settings.loyalty.connect'), {
-    okohi_base_url: okohiBaseUrl.value.trim(),
     code: code.value.trim(),
   }, {
     onSuccess: () => { processing.value = false; code.value = ''; },
@@ -52,10 +51,15 @@ const connect = () => {
   });
 };
 
+const confirmDisconnect = () => {
+  showConfirm.value = true;
+};
+
 const disconnect = () => {
+  showConfirm.value = false;
   processing.value = true;
   router.delete(route('admin.settings.loyalty.disconnect'), {
-    onSuccess: () => { processing.value = false; okohiBaseUrl.value = ''; code.value = ''; },
+    onSuccess: () => { processing.value = false; code.value = ''; },
     onError: () => { processing.value = false; },
   });
 };
@@ -100,21 +104,16 @@ const disconnect = () => {
 
               <!-- Status banner -->
               <div
-                :class="isConnected
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-gray-50 border-gray-200'"
+                :class="isConnected ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'"
                 class="border rounded-xl p-4 flex items-center gap-3"
               >
                 <CheckCircle v-if="isConnected" class="text-green-500 shrink-0" :size="22" />
                 <AlertCircle v-else class="text-gray-400 shrink-0" :size="22" />
-                <div class="flex-1 min-w-0">
+                <div>
                   <p class="text-sm font-bold" :class="isConnected ? 'text-green-800' : 'text-gray-600'">
                     {{ isConnected ? 'Intégration active' : 'Non connecté' }}
                   </p>
-                  <p v-if="isConnected" class="text-[11px] text-green-600 truncate mt-0.5">
-                    {{ settings.okohi_integration_url }}
-                  </p>
-                  <p v-else class="text-[11px] text-gray-400 mt-0.5">
+                  <p v-if="!isConnected" class="text-[11px] text-gray-400 mt-0.5">
                     Saisissez le code Okohi pour activer la fidélisation
                   </p>
                 </div>
@@ -125,27 +124,10 @@ const disconnect = () => {
                 {{ flash.success }}
               </div>
 
-              <!-- Connection form (shown when not connected) -->
+              <!-- Connection form -->
               <div v-if="!isConnected" class="bg-white rounded-xl border border-orange-200 shadow-sm p-5 space-y-4">
                 <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Connecter Okohi</p>
 
-                <!-- Base URL -->
-                <div>
-                  <label class="block text-xs font-bold text-gray-600 mb-1">URL de base Okohi</label>
-                  <input
-                    v-model="okohiBaseUrl"
-                    type="url"
-                    placeholder="https://okohi.anohou.dev/okohi-api-prod-xxxx"
-                    class="w-full rounded-lg border-orange-200 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm"
-                    :class="{ 'border-red-400': errors.okohi_base_url }"
-                  />
-                  <InputError class="mt-1" :message="errors.okohi_base_url" />
-                  <p class="text-[11px] text-gray-400 mt-1">
-                    Trouvez cette URL dans <strong>Okohi → Mon Établissement → Intégration API</strong>.
-                  </p>
-                </div>
-
-                <!-- Code -->
                 <div>
                   <label class="block text-xs font-bold text-gray-600 mb-1">Code de connexion (4 chiffres)</label>
                   <input
@@ -165,7 +147,7 @@ const disconnect = () => {
 
                 <button
                   @click="connect"
-                  :disabled="processing || !okohiBaseUrl || code.length !== 4"
+                  :disabled="processing || code.length !== 4"
                   class="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-100 flex items-center justify-center gap-2"
                 >
                   <Loader v-if="processing" :size="20" class="animate-spin" />
@@ -174,7 +156,7 @@ const disconnect = () => {
                 </button>
               </div>
 
-              <!-- Connected state: verify URL + disconnect -->
+              <!-- Connected state -->
               <div v-if="isConnected" class="space-y-4">
 
                 <!-- Verify URL -->
@@ -202,7 +184,7 @@ const disconnect = () => {
 
                 <!-- Disconnect -->
                 <button
-                  @click="disconnect"
+                  @click="confirmDisconnect"
                   :disabled="processing"
                   class="w-full py-3 bg-white hover:bg-red-50 disabled:opacity-60 text-red-500 font-bold rounded-xl transition-colors border border-red-200 flex items-center justify-center gap-2"
                 >
@@ -214,7 +196,7 @@ const disconnect = () => {
 
             </div>
 
-            <!-- Right column — how it works -->
+            <!-- Right column -->
             <div class="space-y-4">
               <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
                 <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Comment connecter Okohi</p>
@@ -234,7 +216,7 @@ const disconnect = () => {
                   <li class="flex gap-3">
                     <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 font-black text-xs flex items-center justify-center shrink-0">3</span>
                     <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
-                      Collez l'URL de base Okohi et le code dans le formulaire ci-contre, puis cliquez <strong>Connecter</strong>.
+                      Saisissez le code dans le formulaire ci-contre et cliquez <strong>Connecter</strong>.
                     </p>
                   </li>
                   <li class="flex gap-3">
@@ -270,7 +252,7 @@ const disconnect = () => {
                   <li class="flex gap-3">
                     <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">D</span>
                     <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
-                      Tiketi répond <code class="text-[11px] bg-gray-100 px-1 rounded">"valid": true</code> → Okohi attribue les points au client.
+                      Tiketi confirme le ticket → Okohi attribue les points au client.
                     </p>
                   </li>
                 </ol>
@@ -282,6 +264,38 @@ const disconnect = () => {
       </div>
 
     </div>
+
+    <!-- Confirmation modal -->
+    <Teleport to="body">
+      <div v-if="showConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="p-2 bg-red-100 rounded-xl shrink-0">
+              <AlertOutline class="text-red-500" :size="22" />
+            </div>
+            <h3 class="text-base font-black text-gray-900">Déconnecter Okohi ?</h3>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed mb-6">
+            Les QR codes des prochains tickets n'auront plus de lien Okohi. Les tickets déjà imprimés ne sont pas affectés.
+          </p>
+          <div class="flex gap-3">
+            <button
+              @click="showConfirm = false"
+              class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              @click="disconnect"
+              class="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors"
+            >
+              Déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </MainNavLayout>
 </template>
 

@@ -9,14 +9,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('ticket_settings', function (Blueprint $table) {
-            $table->renameColumn('okohi_url', 'okohi_integration_url');
+            $table->string('okohi_integration_key')->nullable()->after('okohi_integration_url');
         });
     }
 
     public function down(): void
     {
         Schema::table('ticket_settings', function (Blueprint $table) {
-            $table->renameColumn('okohi_integration_url', 'okohi_url');
+            $table->dropColumn('okohi_integration_key');
         });
     }
 };

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\OkohiDeleteController;
 use App\Http\Controllers\Api\OkohiVerificationController;
 use App\Http\Controllers\Api\OptimisationController;
 use App\Http\Controllers\Api\RouteController;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Route;
 
 // Routes publiques (trajets et véhicules)
 Route::get('/okohi/verify', OkohiVerificationController::class)->name('okohi.verify');
+Route::delete('/okohi/delete', OkohiDeleteController::class)->name('okohi.delete');
 
 Route::prefix('routes')->group(function () {
     Route::get('/', [RouteController::class, 'index']); // GET /api/routes

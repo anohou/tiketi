@@ -14,8 +14,8 @@ class LoyaltySettingController extends Controller
 
         return Inertia::render('Admin/Settings/Loyalty', [
             'settings' => [
-                'okohi_base_url' => $settings->okohi_base_url,
                 'okohi_integration_url' => $settings->okohi_integration_url,
+                'okohi_base_url' => config('services.okohi.base_url'),
             ],
         ]);
     }

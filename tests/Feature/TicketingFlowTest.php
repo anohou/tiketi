@@ -147,8 +147,8 @@ class TicketingFlowTest extends TestCase
         ]))
             ->assertOk()
             ->assertJsonPath('valid', true)
-            ->assertJsonPath('ticket_id', $ticket->ticket_number)
-            ->assertJsonPath('amount', $ticket->price);
+            ->assertJsonPath('data.ticket_id', $ticket->ticket_number)
+            ->assertJsonPath('data.amount', $ticket->price);
     }
 
     public function test_printable_qr_uses_okohi_scan_url_when_enabled(): void
@@ -542,8 +542,8 @@ class TicketingFlowTest extends TestCase
                 $table->string('cc_label')->nullable();
                 $table->json('footer_messages')->nullable();
                 $table->text('baggage_policy_message')->nullable();
-                $table->string('okohi_base_url')->nullable();
                 $table->text('okohi_integration_url')->nullable();
+                $table->string('okohi_integration_key')->nullable();
                 $table->boolean('print_qr_code')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();
