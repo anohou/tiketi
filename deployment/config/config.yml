@@ -67,6 +67,7 @@ deploy:
   allow_emergency_build: true
   audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
   runtime_root: /srv/apps/anohou/prod/app-deployments
+  host_platform_root: /srv/platform
   ci_source_root: /srv/apps/anohou/prod/app-git-sources
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
@@ -119,6 +120,7 @@ networks:
 # ── Traefik ───────────────────────────────────────────────────────────────────
 traefik:
   cert_resolver: cloudflare
+  dynamic_dir: /srv/platform/platform/current/config/traefik/dynamic
 
 # ── Services (third-party images) ───────────────────────────────────────────
 services:

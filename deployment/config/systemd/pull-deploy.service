@@ -16,4 +16,4 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
-ReadWritePaths=/srv/apps/anohou/prod/app-deployments/tiketi /srv/apps/anohou/prod/locks /srv/apps/anohou/prod/releases/config/traefik/dynamic
+ReadWritePaths=/srv/apps/anohou/prod/app-deployments/tiketi /srv/apps/anohou/prod/locks /srv/platform/platform/current/config/traefik/dynamic /srv/apps/anohou/prod/releases/config/traefik/dynamic
