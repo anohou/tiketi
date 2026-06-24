@@ -103,7 +103,7 @@ ${TENANT_REVERB_ROUTER}
     ${REVERB_SERVICE}:
       loadBalancer:
         servers:
-          - url: "http://${REVERB_ALIAS}:${REVERB_PORT:-6001}"
+          - url: "http://${REVERB_ALIAS}:${REVERB_SERVER_PORT:-6001}"
 EOF
 
 if command -v yq >/dev/null 2>&1; then
