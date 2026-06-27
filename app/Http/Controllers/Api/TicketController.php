@@ -9,7 +9,6 @@ use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Services\TripSegmentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -96,15 +95,15 @@ class TicketController extends Controller
             return $this->errorResponse($request, 'Certaines places n\'existent pas.', 422);
         }
 
-        // Redis lock to prevent double bookings
-        $lock = Cache::lock('booking_trip_'.$trip->id, 5);
-
-        if (! $lock->block(3)) {
-            return $this->errorResponse($request, 'Le système est actuellement très sollicité pour ce voyage. Veuillez réessayer dans un instant.', 409);
-        }
-
         try {
             DB::beginTransaction();
+
+            // Serialize bookings per trip at the database level so we don't
+            // depend on cache-tag-compatible stores for concurrency control.
+            Trip::query()
+                ->whereKey($trip->id)
+                ->lockForUpdate()
+                ->firstOrFail();
 
             // Double check only conflicting segment overlaps, so non-overlapping segments can reuse seats.
             $candidateOccupancies = TripSeatOccupancy::with('ticket')
@@ -191,9 +190,6 @@ class TicketController extends Controller
             ]);
 
         } catch (\Illuminate\Database\QueryException $e) {
-            if (isset($lock)) {
-                $lock->release();
-            }
             DB::rollBack();
 
             if ($e->getCode() === '23000') {
@@ -205,17 +201,10 @@ class TicketController extends Controller
             return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
 
         } catch (\Exception $e) {
-            if (isset($lock)) {
-                $lock->release();
-            }
             DB::rollBack();
             Log::error('Erreur création ticket: '.$e->getMessage());
 
             return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
-        } finally {
-            if (isset($lock)) {
-                $lock->release();
-            }
         }
     }
 

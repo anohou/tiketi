@@ -1,5 +1,21 @@
 <?php
 
+$mailFromAddress = env('MAIL_FROM_ADDRESS');
+$appMailHost = parse_url(
+    (string) (env('APP_URL') ?: env('CENTRAL_DOMAIN') ?: env('APP_DOMAIN') ?: 'http://localhost'),
+    PHP_URL_HOST,
+);
+
+if (! is_string($appMailHost) || $appMailHost === '') {
+    $appMailHost = 'localhost';
+}
+
+$appMailHost = ltrim(strtolower($appMailHost), '.');
+$appMailHost = preg_replace('/^\*\./', '', $appMailHost) ?: 'localhost';
+$fallbackMailFromAddress = filter_var('noreply@'.$appMailHost, FILTER_VALIDATE_EMAIL)
+    ? 'noreply@'.$appMailHost
+    : 'noreply@localhost';
+
 return [
 
     /*
@@ -111,8 +127,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => filter_var($mailFromAddress, FILTER_VALIDATE_EMAIL) ? $mailFromAddress : $fallbackMailFromAddress,
+        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Tiketi')),
     ],
 
 ];

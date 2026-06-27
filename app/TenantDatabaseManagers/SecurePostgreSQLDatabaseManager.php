@@ -31,7 +31,7 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
 
         $appUser = config('database.connections.pgsql.username');
         $provisionerUser = config('database.connections.tenant_provisioner.username');
-        $schema = config('database.connections.pgsql.search_path', 'public');
+        $schema = $this->primarySchemaName(config('database.connections.pgsql.search_path', 'public'));
 
         if (! is_string($appUser) || $appUser === '') {
             throw new \RuntimeException('PostgreSQL app username is not configured.');
@@ -62,13 +62,54 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             $this->quoteIdentifier($name),
             $this->quoteIdentifier($appUser),
         ));
-        $this->tenantProvisionerConnection($name)->statement(sprintf(
+        $tenantProvisioner = $this->tenantProvisionerConnection($name);
+
+        $tenantProvisioner->statement(sprintf(
             'CREATE SCHEMA IF NOT EXISTS %s AUTHORIZATION %s',
             $this->quoteIdentifier($schema),
             $this->quoteIdentifier($provisionerUser),
         ));
-        $this->tenantProvisionerConnection($name)->statement(sprintf(
+        $tenantProvisioner->statement(sprintf(
             'GRANT USAGE, CREATE ON SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'ALTER ROLE %s IN DATABASE %s SET search_path = %s',
+            $this->quoteIdentifier($appUser),
+            $this->quoteIdentifier($name),
+            $this->quoteIdentifier($schema),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT ALL PRIVILEGES ON TABLES TO %s',
+            $this->quoteIdentifier($provisionerUser),
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT ALL PRIVILEGES ON SEQUENCES TO %s',
+            $this->quoteIdentifier($provisionerUser),
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($appUser),
+        ));
+        $tenantProvisioner->statement(sprintf(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT EXECUTE ON FUNCTIONS TO %s',
+            $this->quoteIdentifier($provisionerUser),
             $this->quoteIdentifier($schema),
             $this->quoteIdentifier($appUser),
         ));
@@ -139,6 +180,18 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
     protected function quoteIdentifier(string $identifier): string
     {
         return '"'.str_replace('"', '""', $identifier).'"';
+    }
+
+    protected function primarySchemaName(mixed $searchPath): string
+    {
+        if (! is_string($searchPath) || trim($searchPath) === '') {
+            return 'public';
+        }
+
+        $primarySchema = trim(explode(',', $searchPath)[0]);
+        $primarySchema = trim($primarySchema, " \t\n\r\0\x0B\"");
+
+        return $primarySchema !== '' ? $primarySchema : 'public';
     }
 
     protected function tenantProvisionerConnection(string $database): ConnectionInterface

@@ -6,6 +6,11 @@ use App\Models\Tenant;
 use App\TenantDatabaseManagers\SecurePostgreSQLDatabaseManager;
 use Stancl\Tenancy\Database\Models\Domain;
 
+$centralDomains = array_values(array_filter(array_map(
+    static fn (string $domain) => trim($domain),
+    explode(',', (string) env('CENTRAL_DOMAIN', (string) parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)))
+)));
+
 return [
     'tenant_model' => Tenant::class,
     'id_generator' => Stancl\Tenancy\UUIDGenerator::class,
@@ -18,7 +23,7 @@ return [
      *
      * Add your main/admin domain here.
      */
-    'central_domains' => explode(',', env('CENTRAL_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST))),
+    'central_domains' => $centralDomains,
 
     /**
      * Tenancy bootstrappers are executed when tenancy is initialized.

@@ -1,5 +1,22 @@
 <?php
 
+$configuredBroadcastConnection = env('BROADCAST_CONNECTION');
+$reverbEnabled = filter_var(env('REVERB_ENABLED', false), FILTER_VALIDATE_BOOL);
+$reverbConfigured = filled(env('REVERB_APP_ID'))
+    && filled(env('REVERB_APP_KEY'))
+    && filled(env('REVERB_APP_SECRET'))
+    && filled(env('REVERB_BROADCAST_HOST', env('REVERB_HOST')));
+$pusherConfigured = filled(env('PUSHER_APP_ID'))
+    && filled(env('PUSHER_APP_KEY'))
+    && filled(env('PUSHER_APP_SECRET'));
+
+$defaultBroadcastConnection = match ($configuredBroadcastConnection) {
+    'reverb' => $reverbEnabled && $reverbConfigured ? 'reverb' : 'log',
+    'pusher' => $pusherConfigured ? 'pusher' : 'log',
+    null, '' => $reverbEnabled && $reverbConfigured ? 'reverb' : 'log',
+    default => $configuredBroadcastConnection,
+};
+
 return [
 
     /*
@@ -15,7 +32,7 @@ return [
     |
     */
 
-    'default' => env('BROADCAST_CONNECTION', 'null'),
+    'default' => $defaultBroadcastConnection,
 
     /*
     |--------------------------------------------------------------------------
