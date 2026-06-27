@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-06-24T13:23:34Z
+generated_at: 2026-06-27T06:43:49Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -14,6 +14,10 @@ parameters:
   build_cache_mode: registry
   build_cache_ref: ghcr.io/anohou/tiketi:buildcache-laravel-php84-node22-v1
   build_allow_cache_bypass: true
+  registry_provider: ghcr
+  registry_image: ghcr.io/anohou/tiketi
+  registry_default_tag: production
+  registry_deploy_by_digest: true
   runtime_mounts_json_b64: W10K
   gateway_mode: standard
   gateway_internal_alias: tiketi-nginx
@@ -89,7 +93,7 @@ managed_files:
   config/Dockerfile:
     sha256: 154f76fb76a67bc5f932007bd0720e5f57334848d57702a67da88d8c16862e3f
   config/config.yml:
-    sha256: 0eba9a5e96c7c3fbf792cf42a084627332640fffca1f432d059175a321bdec58
+    sha256: ea4cf31c4afd96717a4c02c9c805194e436f13047b1a6852b15ee29cd742b8c9
   config/docker-compose.prod.yml:
     sha256: e8e1440c005274b778fec5f994cae2ce80bd11e62b8e7d868eb0850d292d86e2
   config/gateway-nginx.conf:
@@ -113,7 +117,7 @@ managed_files:
   lib/build-fingerprint.sh:
     sha256: 3ad68096c544e401d9637d2ff4e756bb0a9d9462c7ba0cffc2f7550bb4e6fa1c
   lib/config.sh:
-    sha256: c3093a8d4c26b2218dfdc98bf7d98d5f88fd57caf96ecdb6b3ce04e47f658943
+    sha256: 005505c76351a35f4e4911e4c66b97685bbf840b1ad612b77b2e1fa8d6db88c1
   lib/mysql-access-policy.sh:
     sha256: 5616418e63e3b33836ef712421742d1deee5ca0ff3f03f0a912a06f26ab28f7b
   lib/mysql-app-db.sh:
@@ -158,6 +162,8 @@ managed_files:
     sha256: c3dbb79cd61bc0134fe56e2647441e26f69848b312468404469eab8e2763e1fb
   scripts/provision-mysql-db.sh:
     sha256: 02f0f7ca7bc62836efba6841ef011c7dd6f3b103052c68286258b49095c5ca5b
+  scripts/pull-deploy.sh:
+    sha256: 63e0a10c6eb8a0af76b5e20f9296b15b52d49c74e3c636260298d43b1e8d8ae3
   scripts/rbac.config.sh:
     sha256: 34a897b065af2c7ba08d3d129ff55ab61dec5b4dedcef570fb10804f47f594b0
   scripts/rebuild-cache.sh:

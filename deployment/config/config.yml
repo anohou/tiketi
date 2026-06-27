@@ -61,6 +61,13 @@ repository:
   git_url: git@github.com:anohou/tiketi.git
   default_ref: main
 
+# ── Pull-deploy deployment-state source ─────────────────────────────────────
+deployment_state:
+  repo: anohou/deployment-state
+  path: prod/tiketi.json
+  ref: main
+  token_file: /srv/apps/anohou/prod/config/deployment-state.token
+
 # ── Deployment runtime policy ────────────────────────────────────────────────
 deploy:
   strategy: recreate
