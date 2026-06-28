@@ -99,6 +99,9 @@ class TicketPrintController extends Controller
         }
 
         $tickets = $ticketsQuery->get();
+        $trip = $request->filled('trip_id')
+            ? \App\Models\Trip::with(['route.originStation', 'route.destinationStation', 'vehicle'])->find($request->get('trip_id'))
+            : null;
 
         $totalAmount = $tickets->sum('price');
         $startDate = $request->get('start_date', today()->toDateString());
@@ -110,6 +113,7 @@ class TicketPrintController extends Controller
             'startDate' => Carbon::parse($startDate)->format('d/m/Y'),
             'endDate' => Carbon::parse($endDate)->format('d/m/Y'),
             'generatedAt' => now()->format('d/m/Y H:i'),
+            'trip' => $trip,
         ]);
 
         $pdf->setPaper('A4', 'landscape');

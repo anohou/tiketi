@@ -6,6 +6,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
+import BookingModal from '@/Components/Seller/BookingModal.vue';
 import TicketInspectionModal from '@/Components/Supervisor/TicketInspectionModal.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
@@ -243,11 +244,12 @@ const dragStartY = ref(0);
 
 // Passenger form modal
 const showPassengerModal = ref(false);
+const showDestinationModal = ref(false);
 const selectedSeatNumber = ref(null);
-const selectedSeatSuggestion = computed(() => {
-  if (!selectedSeatNumber.value || !suggestedSeats.value) return null;
-  return suggestedSeats.value.find(s => s.seat_number === selectedSeatNumber.value);
-});
+const seatSelectionMode = ref(false);
+const seatFirstFlow = ref(false);
+// Always keep the active seat selection green until the ticket is confirmed.
+const selectedSeatColor = computed(() => '#22C55E');
 const passengerForm = ref({
   name: '',
   phone: ''
@@ -333,13 +335,23 @@ const buildTripStationIndices = (trip) => {
 
 const getStationColor = (stationIndex, totalStations) => {
     if (!Number.isFinite(stationIndex) || totalStations <= 1) {
-        return '#3B82F6';
+        return {
+            bg: '#DBEAFE',
+            fg: '#1E3A8A',
+            muted: '#1D4ED8',
+        };
     }
 
     const ratio = stationIndex / (totalStations - 1);
-    const lightness = 85 - (ratio * 55);
+    const lightness = 96 - (ratio * 46);
+    const textColor = lightness > 70 ? '#1E293B' : '#FFFFFF';
+    const mutedColor = lightness > 70 ? '#334155' : 'rgba(255,255,255,0.72)';
 
-    return `hsl(220, 100%, ${Number(lightness.toFixed(2))}%)`;
+    return {
+        bg: `hsl(220, 100%, ${Number(lightness.toFixed(2))}%)`,
+        fg: textColor,
+        muted: mutedColor,
+    };
 };
 
 const availableFares = computed(() => {
@@ -395,12 +407,15 @@ const availableFares = computed(() => {
     return sortedResults.map((fare) => {
         const toStation = fare.to_station || fare.toStation;
         const fareToId = fare.to_station_id || toStation?.id;
+        const palette = getStationColor(stationIndexMap[fareToId], totalStations);
 
-        return {
-            ...fare,
-            color: getStationColor(stationIndexMap[fareToId], totalStations)
-        };
-    });
+    return {
+        ...fare,
+        color: palette.bg,
+        textColor: '#FFFFFF',
+        mutedColor: 'rgba(255,255,255,0.7)',
+    };
+});
 });
 
 // Seat statistics computed from seatMap response
@@ -414,6 +429,12 @@ const seatStats = computed(() => {
   const available = seatMap.value.available_seats || seatMap.value.available_seats_count || (total - sold);
   return { total, sold, available };
 });
+
+const getOccupancyRate = (available, total) => {
+  if (!total) return 0;
+  const occupied = Math.max(0, total - available);
+  return Math.round((occupied / total) * 100);
+};
 
 
 const totalAmount = computed(() => {
@@ -496,18 +517,42 @@ const fetchSeatSuggestions = async () => {
     }
 };
 
+const resetPassengerModalState = () => {
+  passengerForm.value = { name: '', phone: '' };
+  passengerFormErrors.value = {};
+  showPassengerFields.value = false;
+};
+
+const openPassengerModal = () => {
+  resetPassengerModalState();
+  showPassengerModal.value = true;
+};
+
+const openDestinationModalForSeat = (seatNumber) => {
+  selectedSeatNumber.value = seatNumber;
+  seatSelectionMode.value = true;
+  seatFirstFlow.value = true;
+  showPassengerModal.value = false;
+  resetPassengerModalState();
+  showDestinationModal.value = true;
+  ticketingStore.setShowSuggestions(false);
+};
+
+const selectFareForSeat = (fare) => {
+  selectedFare.value = fare;
+  showDestinationModal.value = false;
+  seatSelectionMode.value = false;
+};
+
 // New function for the actual booking flow
 const initiateBookingFlow = (seatNumber) => {
   if (!selectedFare.value) {
-    alert("Veuillez d'abord sélectionner une destination.");
+    openDestinationModalForSeat(seatNumber);
     return;
   }
 
   selectedSeatNumber.value = seatNumber;
-  passengerForm.value = { name: '', phone: '' };
-  passengerFormErrors.value = {};
-  showPassengerFields.value = false;
-  showPassengerModal.value = true;
+  openPassengerModal();
 };
 
 const handleSeatClick = (seatNumber) => {
@@ -695,6 +740,8 @@ const confirmBooking = async () => {
     const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
     alert(message);
   } finally {
+    seatFirstFlow.value = false;
+    ticketingStore.setShowSuggestions(true);
     processing.value = false;
   }
 };
@@ -812,26 +859,30 @@ const fallbackToBrowserPrint = (ticketId) => {
 
 const cancelBooking = () => {
   showPassengerModal.value = false;
+  showDestinationModal.value = false;
+  seatSelectionMode.value = false;
+  seatFirstFlow.value = false;
   selectedFare.value = null;
   selectedSeatNumber.value = null;
   ticketingStore.selectSeat(null); // Clear store selection
   suggestedSeats.value = [];
+  ticketingStore.setSuggestions([]);
+  ticketingStore.setShowSuggestions(true);
 };
 
 // =============================================
 // Export Excel / PDF
 // =============================================
 
-const exportExcelLoading = ref(false);
-const exportPdfLoading = ref(false);
+const exportExcelLoadingTripId = ref(null);
+const exportPdfLoadingTripId = ref(null);
 
-const exportTicketsToExcel = async () => {
-  exportExcelLoading.value = true;
+const exportTicketsToExcel = async (tripId) => {
+  exportExcelLoadingTripId.value = tripId;
   try {
-    const params = {};
-    if (selectedTripId.value) params.trip_id = selectedTripId.value;
+    const params = { trip_id: tripId };
     
-    const response = await axios.get(route('api.tickets.export'), { params });
+    const response = await axios.get(route('seller.tickets.export'), { params });
     
     if (response.data?.data?.length > 0) {
       const columns = {
@@ -859,15 +910,15 @@ const exportTicketsToExcel = async () => {
     console.error('Erreur export Excel:', error);
     alert('Erreur lors de l\'export Excel. Veuillez réessayer.');
   } finally {
-    exportExcelLoading.value = false;
+    exportExcelLoadingTripId.value = null;
   }
 };
 
-const exportTicketsToPdf = () => {
-  exportPdfLoading.value = true;
+const exportTicketsToPdf = (tripId) => {
+  exportPdfLoadingTripId.value = tripId;
   try {
     const params = new URLSearchParams();
-    if (selectedTripId.value) params.set('trip_id', selectedTripId.value);
+    params.set('trip_id', tripId);
     
     const url = route('tickets.export-pdf') + '?' + params.toString();
     window.open(url, '_blank');
@@ -875,7 +926,7 @@ const exportTicketsToPdf = () => {
     console.error('Erreur export PDF:', error);
     alert('Erreur lors de l\'export PDF. Veuillez réessayer.');
   } finally {
-    exportPdfLoading.value = false;
+    exportPdfLoadingTripId.value = null;
   }
 };
 
@@ -966,6 +1017,13 @@ watch(selectedTripId, (newVal, oldVal) => {
     selectedFare.value = null;
     seatMap.value = null;
     suggestedSeats.value = [];
+    ticketingStore.setSuggestions([]);
+    ticketingStore.setShowSuggestions(true);
+    showPassengerModal.value = false;
+    showDestinationModal.value = false;
+    seatSelectionMode.value = false;
+    seatFirstFlow.value = false;
+    selectedSeatNumber.value = null;
     fetchSeatMap();
     resetZoom(); // Reset zoom when changing trips
   }
@@ -973,18 +1031,25 @@ watch(selectedTripId, (newVal, oldVal) => {
 
 watch(selectedFare, (newVal) => {
     if(newVal) {
-        ticketingStore.setFareColor(newVal.color);
+        ticketingStore.setFareColor('#22C55E');
+        ticketingStore.setShowSuggestions(!seatFirstFlow.value);
+        const manualSeatFlow = seatFirstFlow.value && selectedSeatNumber.value;
         // Fetch specific seat map for this segment
         fetchSeatMap();
         
         fetchSeatSuggestions().then(() => {
+            if (manualSeatFlow) {
+                openPassengerModal();
+                return;
+            }
             // Auto-select optimal seat if enabled
             if (autoSelectOptimal.value && suggestedSeats.value && suggestedSeats.value.length > 0) {
                 autoSelectOptimalSeat();
             }
         });
     } else {
-        ticketingStore.setFareColor('#3B82F6');
+        ticketingStore.setFareColor('#22C55E');
+        ticketingStore.setShowSuggestions(true);
         // Reload full seat map (conservative view)
         fetchSeatMap();
         suggestedSeats.value = [];
@@ -1116,7 +1181,7 @@ onUnmounted(() => {
               <!-- Clock and Button aligned on mobile / Button on right on Desktop -->
               <div class="flex items-center justify-between md:justify-end gap-4 md:gap-6 mt-2 md:mt-0 w-full md:w-auto z-10 shrink-0">
                 <!-- Mobile Clock -->
-                <div class="text-left md:hidden">
+              <div class="text-left md:hidden">
                   <div class="text-2xl font-black text-gray-900 tracking-tight leading-none">{{ currentTime }}</div>
                   <div class="text-[10px] font-bold text-gray-400 tracking-widest mt-1">{{ currentDate }}</div>
                 </div>
@@ -1159,24 +1224,6 @@ onUnmounted(() => {
                           <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
                       </select>
 
-                      <!-- Mobile Export Buttons -->
-                      <button
-                        @click="exportTicketsToExcel"
-                        :disabled="exportExcelLoading"
-                        class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors md:hidden"
-                        title="Exporter en Excel"
-                      >
-                        <FileExcel :size="16" />
-                      </button>
-                      <button
-                        @click="exportTicketsToPdf"
-                        :disabled="exportPdfLoading"
-                        class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors md:hidden"
-                        title="Exporter en PDF"
-                      >
-                        <FilePdfBox :size="16" />
-                      </button>
-                      
                       <!-- History Toggle -->
 
                       <!-- History Toggle -->
@@ -1200,24 +1247,6 @@ onUnmounted(() => {
                   </div>
                   
                   <div class="hidden md:flex items-center gap-2 shrink-0">
-                    <!-- Export Excel -->
-                    <button
-                      @click="exportTicketsToExcel"
-                      :disabled="exportExcelLoading"
-                      class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors"
-                      title="Exporter en Excel"
-                    >
-                      <FileExcel :size="18" />
-                    </button>
-                    <!-- Export PDF -->
-                    <button
-                      @click="exportTicketsToPdf"
-                      :disabled="exportPdfLoading"
-                      class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                      title="Exporter en PDF"
-                    >
-                      <FilePdfBox :size="18" />
-                    </button>
                     <span class="px-2.5 py-1 bg-green-600 text-white rounded-full text-sm font-black shadow-sm">
                       {{ trips.length }} en cours
                     </span>
@@ -1234,13 +1263,54 @@ onUnmounted(() => {
                             {{ new Date(currentTrip.departure_at) < new Date() ? 'Voyage Passé' : 'En cours' }}
                           </div>
                         </div>
-                        <div class="text-base font-black text-gray-900 leading-tight truncate">{{ currentTrip.display_name }}</div>
-                      </div>
-                      <div class="text-right shrink-0 ml-3">
-                        <div class="text-xl font-black text-gray-900">
-                          {{ new Date(currentTrip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-black tracking-wider">
+                            {{ currentTrip.code || 'Code en attente' }}
+                          </span>
+                          <span class="text-xs font-semibold text-gray-500">Trajet</span>
                         </div>
-                        <div class="text-[10px] text-gray-500">{{ currentTrip.vehicle?.identifier }}</div>
+                        <div class="text-base font-black text-gray-900 leading-tight whitespace-normal break-words">
+                          {{ currentTrip.display_name }}
+                        </div>
+                      </div>
+                        <div class="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
+                          <div class="flex items-center gap-1.5">
+                            <Link
+                              :href="route('seller.ticketing.horizontal', { trip_id: currentTrip.id })"
+                              class="p-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              title="Vue horizontale"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" class="w-4 h-4">
+                                <path
+                                  fill="currentColor"
+                                  d="M6 6h5v2H8.41l3.31 3.31-1.42 1.41L7 9.41V11H5V6h1Zm12 0v5h-2V9.41l-3.29 3.29-1.42-1.41L15.59 8H14V6h4Zm0 12h-4v-2h1.59l-3.31-3.31 1.42-1.41L17 14.59V13h1v5Zm-12 0v-5h2v1.59l3.29-3.29 1.42 1.41L8.41 16H10v2H6Z"
+                                />
+                              </svg>
+                              <span class="sr-only">Vue horizontale</span>
+                            </Link>
+                            <button
+                              @click.stop="exportTicketsToExcel(currentTrip.id)"
+                              :disabled="exportExcelLoadingTripId === currentTrip.id"
+                              class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                              title="Exporter ce voyage en Excel"
+                            >
+                              <FileExcel :size="16" />
+                            </button>
+                            <button
+                              @click.stop="exportTicketsToPdf(currentTrip.id)"
+                              :disabled="exportPdfLoadingTripId === currentTrip.id"
+                              class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                              title="Exporter ce voyage en PDF"
+                            >
+                              <FilePdfBox :size="16" />
+                            </button>
+                          </div>
+                          <div>
+                            <div class="text-xl font-black text-gray-900">
+                              {{ new Date(currentTrip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+                          </div>
+                          <div class="text-[10px] text-gray-500">{{ currentTrip.vehicle?.identifier }}</div>
+                        </div>
                       </div>
                     </div>
                     <!-- Seat Stats Row -->
@@ -1252,6 +1322,10 @@ onUnmounted(() => {
                       <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-green-50 rounded-lg">
                         <span class="text-lg font-black text-green-600">{{ seatStats.total }}</span>
                         <span class="text-[10px] text-green-600 font-medium">total</span>
+                      </div>
+                      <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-blue-50 rounded-lg">
+                        <span class="text-lg font-black text-blue-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
+                        <span class="text-[10px] text-blue-600 font-medium">Taux de remplissage</span>
                       </div>
                     </div>
                   </div>
@@ -1280,8 +1354,11 @@ onUnmounted(() => {
                           <div class="min-w-0">
                             <div class="flex items-center gap-2">
                               <div v-if="selectedTripId === trip.id" :class="['w-2 h-2 rounded-full', new Date(trip.departure_at) < new Date() ? 'bg-gray-400' : 'bg-green-500 animate-pulse']"></div>
-                              <div :class="['font-bold truncate tracking-tight', new Date(trip.departure_at) < new Date() ? 'text-gray-500 italic' : 'text-gray-900']">
-                                {{ trip.display_name }}
+                              <div :class="['font-bold tracking-tight whitespace-normal break-words', new Date(trip.departure_at) < new Date() ? 'text-gray-500 italic' : 'text-gray-900']">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-black tracking-wider mr-2">
+                                  {{ trip.code || 'Code en attente' }}
+                                </span>
+                                <span class="align-middle">{{ trip.display_name }}</span>
                                 <span v-if="new Date(trip.departure_at) < new Date()" class="ml-2 text-[10px] font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded uppercase">Passé</span>
                               </div>
                               <span
@@ -1294,12 +1371,45 @@ onUnmounted(() => {
                             </div>
                           </div>
                         </div>
-                        <div class="text-right shrink-0 ml-3">
-                          <div class="text-xl font-black text-gray-900">
-                            {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+                        <div class="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
+                          <div class="flex items-center gap-1.5">
+                            <Link
+                              :href="route('seller.ticketing.horizontal', { trip_id: trip.id })"
+                              class="p-1.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              title="Vue horizontale"
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" class="w-4 h-4">
+                                <path
+                                  fill="currentColor"
+                                  d="M6 6h5v2H8.41l3.31 3.31-1.42 1.41L7 9.41V11H5V6h1Zm12 0v5h-2V9.41l-3.29 3.29-1.42-1.41L15.59 8H14V6h4Zm0 12h-4v-2h1.59l-3.31-3.31 1.42-1.41L17 14.59V13h1v5Zm-12 0v-5h2v1.59l3.29-3.29 1.42 1.41L8.41 16H10v2H6Z"
+                                />
+                              </svg>
+                              <span class="sr-only">Vue horizontale</span>
+                            </Link>
+                            <button
+                              @click.stop="exportTicketsToExcel(trip.id)"
+                              :disabled="exportExcelLoadingTripId === trip.id"
+                              class="p-1.5 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+                              title="Exporter ce voyage en Excel"
+                            >
+                              <FileExcel :size="16" />
+                            </button>
+                            <button
+                              @click.stop="exportTicketsToPdf(trip.id)"
+                              :disabled="exportPdfLoadingTripId === trip.id"
+                              class="p-1.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                              title="Exporter ce voyage en PDF"
+                            >
+                              <FilePdfBox :size="16" />
+                            </button>
                           </div>
-                          <div class="text-[10px] text-gray-500 font-bold capitalize">
-                            {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }}
+                          <div>
+                            <div class="text-xl font-black text-gray-900">
+                              {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
+                            </div>
+                            <div class="text-[10px] text-gray-500 font-bold capitalize">
+                              {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1317,6 +1427,13 @@ onUnmounted(() => {
                             <div class="flex items-end gap-1">
                                 <span class="text-base font-black text-gray-700">{{ trip.total_seats || 0 }}</span>
                                 <span class="text-[9px] text-gray-500 mb-0.5 font-bold uppercase">Cap</span>
+                            </div>
+                        </div>
+                        <div class="flex-1 bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
+                            <div class="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Taux de remplissage</div>
+                            <div class="flex items-end gap-1">
+                                <span class="text-base font-black text-blue-600">{{ getOccupancyRate(trip.available_seats || 0, trip.total_seats || 0) }}%</span>
+                                <span class="text-[9px] text-blue-600/70 mb-0.5 font-bold uppercase">Occ</span>
                             </div>
                         </div>
                       </div>
@@ -1368,19 +1485,19 @@ onUnmounted(() => {
                     </button>
 
                     <!-- Auto toggle moved here -->
-                    <label class="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-orange-100 shadow-sm hover:border-green-200 transition-colors">
+                    <label class="flex items-center gap-2 cursor-pointer bg-green-50 px-3 py-1.5 rounded-xl border border-green-200 shadow-sm hover:bg-green-100 hover:border-green-300 transition-colors">
                       <input 
                         type="checkbox" 
                         v-model="autoSelectOptimal"
-                        class="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                        class="h-5 w-5 rounded border-green-400 text-green-600 focus:ring-green-500 accent-green-600"
                       />
-                      <span class="text-xs text-gray-700 font-medium">⚡ Auto</span>
+                      <span class="text-xs font-semibold text-green-800">⚡ Auto</span>
                     </label>
                   </div>
                 </div>
                 <div class="flex-1 overflow-y-auto p-2">
                   <div v-if="currentTrip" class="space-y-2">
-                    <div v-for="fare in availableFares" :key="fare.id"
+                     <div v-for="fare in availableFares" :key="fare.id"
                          @click="!isTripPassed && (selectedFare = fare)"
                          :class="[
                            'relative overflow-hidden rounded-2xl transition-all duration-300 border-2 shadow-sm',
@@ -1397,19 +1514,19 @@ onUnmounted(() => {
                       <!-- Horizontal Layout: Destination Left, Price Right -->
                       <div class="p-3 flex items-center justify-between">
                         <div class="flex-1 min-w-0 mr-3">
-                          <div class="text-white text-base font-bold truncate">
+                          <div class="text-base font-bold truncate" :style="{ color: fare.textColor || '#FFFFFF' }">
                             {{ fare.to_station?.name }}
                           </div>
-                          <div class="text-white/70 text-[10px] font-medium">
+                          <div class="text-[10px] font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
                             → depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}
                           </div>
                         </div>
                         <div class="text-right shrink-0 flex items-center gap-2">
                           <div>
-                            <div class="text-2xl font-black text-white">
+                            <div class="text-2xl font-black" :style="{ color: fare.textColor || '#FFFFFF' }">
                               {{ fare.amount.toLocaleString('fr-FR') }}
                             </div>
-                            <div class="text-white/70 text-[10px] font-bold">FCFA</div>
+                            <div class="text-[10px] font-bold" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">FCFA</div>
                           </div>
                           <!-- Checkmark removed as requested -->
                         </div>
@@ -1447,9 +1564,9 @@ onUnmounted(() => {
                         :vehicle-type="currentTrip.vehicle.vehicle_type"
                         :seat-map="seatMap"
                         :suggested-seats="suggestedSeats"
-                        :show-suggestions="!!selectedFare && suggestedSeats.length > 0"
+                        :show-suggestions="ticketingStore.showSuggestions && !!selectedFare && suggestedSeats.length > 0"
                         :selected-seat="selectedSeatNumber"
-                        :selected-color="selectedFare?.color"
+                        :selected-color="selectedSeatColor"
                         :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
                         @seat-click="handleSeatClick"
                         class="w-full h-auto"
@@ -1468,141 +1585,26 @@ onUnmounted(() => {
           </template>
     </div>
 
-    <!-- Passenger Information Modal -->
-    <div v-if="showPassengerModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[60] flex items-center justify-center p-4">
-      <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 transform transition-all duration-300 overflow-hidden">
-          <div class="p-6">
-            <div class="flex items-center justify-between mb-6">
-              <h3 class="text-xl font-black text-gray-900 flex items-center gap-2">
-                <Account :size="24" class="text-green-600" />
-                Informations Passager
-              </h3>
-              <button @click="cancelBooking" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                <Close class="w-6 h-6 text-gray-400" />
-              </button>
-            </div>
-            
-            <!-- Seat Information -->
-            <div class="bg-gradient-to-br from-green-50 to-orange-50/50 border border-orange-100 rounded-2xl p-5 mb-6 shadow-sm">
-              <div class="text-center">
-                <div class="text-3xl font-black text-gray-900 mb-2 leading-none">
-                    <span v-if="seatsToBook.length > 1" class="text-blue-600">Places {{ seatsToBook.join(', ') }}</span>
-                    <span v-else class="text-blue-600">Place {{ selectedSeatNumber }}</span>
-                </div>
-                <div v-if="seatsToBook.length > 1" class="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-3 border border-orange-100 inline-block">
-                  <div class="text-[10px] font-black text-green-600 uppercase tracking-widest">{{ seatsToBook.length }} places adjacentes</div>
-                </div>
-                <div v-else-if="selectedSeatSuggestion" class="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-3 border border-orange-100 inline-block text-left">
-                  <div class="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1">Suggestion</div>
-                  <div class="text-xs text-gray-700 leading-snug">
-                    <span class="font-bold">Score:</span> {{ selectedSeatSuggestion.score }} •
-                    {{ selectedSeatSuggestion.reason }}
-                  </div>
-                </div>
-                <div class="space-y-1">
-                    <div class="text-sm font-bold text-gray-700 flex items-center justify-center gap-2">
-                        <Bus :size="14" class="text-green-600" />
-                        {{ currentTrip?.display_name || '---' }}
-                    </div>
-                    <div class="text-xs text-gray-500 font-medium">
-                        {{ selectedFare?.from_station?.name }} → {{ selectedFare?.to_station?.name }}
-                    </div>
-                </div>
-                <div class="text-2xl font-black text-green-700 mt-4 px-4 py-2 bg-green-100/50 rounded-xl inline-block border border-green-200">
-                    {{ (selectedFare?.amount || 0).toLocaleString('fr-FR') }} 
-                    <span class="text-sm font-bold opacity-60">FCFA</span>
-                </div>
-                
-                <!-- Quantity Input Moved Here -->
-                <div class="mt-6 flex flex-col items-center gap-3 bg-white/40 p-4 rounded-2xl border border-orange-100 shadow-inner">
-                   <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantité de billets</span>
-                   <div class="flex items-center bg-white rounded-xl border border-orange-100 shadow-sm overflow-hidden">
-                      <button 
-                        type="button"
-                        @click="ticketQuantity = Math.max(1, ticketQuantity - 1)"
-                        class="px-4 py-2 text-gray-600 hover:bg-orange-50 transition-colors border-r border-orange-50 font-black text-lg"
-                      >-</button>
-                      <input 
-                        v-model.number="ticketQuantity"
-                        type="number"
-                        min="1"
-                        max="10"
-                        class="w-16 py-2 text-center border-0 focus:ring-0 text-gray-900 font-black text-xl bg-transparent"
-                      />
-                      <button 
-                        type="button"
-                        @click="ticketQuantity = Math.min(10, ticketQuantity + 1)"
-                        class="px-4 py-2 text-gray-600 hover:bg-orange-50 transition-colors border-l border-orange-50 font-black text-lg"
-                      >+</button>
-                   </div>
-                   <div v-if="ticketQuantity > 1" class="text-sm font-black text-blue-700 animate-pulse">
-                      Total: {{ ((selectedFare?.amount || 0) * ticketQuantity).toLocaleString('fr-FR') }} FCFA
-                   </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Toggle for passenger fields -->
-            <button
-              @click="showPassengerFields = !showPassengerFields"
-              class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg mb-4 transition-colors"
-            >
-              <span class="text-sm font-medium text-gray-700">Informations passager (optionnel)</span>
-              <ChevronDown :class="{ 'rotate-180': showPassengerFields }" class="w-5 h-5 text-gray-500 transition-transform" />
-            </button>
-            
-            <!-- Passenger fields (collapsible) -->
-            <div v-show="showPassengerFields" class="space-y-4 mb-4">
-              <div>
-                <InputLabel for="passenger_name" value="Nom du passager" />
-                <TextInput
-                  id="passenger_name"
-                  v-model="passengerForm.name"
-                  type="text"
-                  class="mt-1 block w-full rounded-xl border-orange-100 focus:border-green-500 focus:ring-green-500"
-                  placeholder="Nom complet"
-                />
-                <InputError class="mt-2" :message="passengerFormErrors.name" />
-              </div>
-              
-              <div>
-                <InputLabel for="passenger_phone" value="Téléphone" />
-                <TextInput
-                  id="passenger_phone"
-                  v-model="passengerForm.phone"
-                  type="tel"
-                  class="mt-1 block w-full rounded-xl border-orange-100 focus:border-green-500 focus:ring-green-500"
-                  placeholder="Ex: 0102030405"
-                />
-                <InputError class="mt-2" :message="passengerFormErrors.phone" />
-              </div>
-            </div>
-            
-            <form @submit.prevent="confirmBooking" class="mt-8 space-y-3">
-              <button
-                type="submit"
-                :disabled="processing"
-                class="w-full py-4 bg-green-600 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-green-600/20 hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div v-if="processing" class="animate-spin mr-2"><Refresh :size="20" /></div>
-                <Printer v-else :size="24" />
-                <span>{{ processing ? 'Validation...' : 'Valider & Imprimer' }}</span>
-              </button>
-              
-              <button
-                type="button"
-                @click="cancelBooking"
-                class="w-full py-3 bg-gray-50 text-gray-500 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors"
-              >
-                Annuler
-              </button>
-            </form>
-        </div>
-      </div>
-    </div>
+    <BookingModal
+      :visible="showPassengerModal || showDestinationModal"
+      :mode="showDestinationModal ? 'destination' : 'passenger'"
+      :current-trip="currentTrip"
+      :selected-seat-number="selectedSeatNumber"
+      :selected-fare="selectedFare"
+      :available-fares="availableFares"
+      :seats-to-book="seatsToBook"
+      :passenger-form="passengerForm"
+      :passenger-form-errors="passengerFormErrors"
+      :processing="processing"
+      v-model:ticketQuantity="ticketQuantity"
+      v-model:showPassengerFields="showPassengerFields"
+      @close="cancelBooking"
+      @select-fare="selectFareForSeat"
+      @confirm="confirmBooking"
+    />
 
     <!-- Modal de création de voyage -->
-    <div v-if="showCreateTripModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+    <div v-if="showCreateTripModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[1000] flex items-center justify-center p-4">
       <div class="relative bg-white rounded-lg shadow-xl w-full max-w-md">
         <div class="p-5">
           <h3 class="text-lg leading-6 font-medium text-gray-900">Créer un nouveau voyage</h3>
@@ -1704,7 +1706,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Zoom Modal for Seat Map -->
-    <div v-if="showZoomModal" class="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
+    <div v-if="showZoomModal" class="fixed inset-0 bg-black bg-opacity-75 z-[1000] flex items-center justify-center p-4">
       <div class="relative bg-white rounded-lg shadow-2xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
         <!-- Modal Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
@@ -1730,9 +1732,9 @@ onUnmounted(() => {
               :vehicle-type="currentTrip.vehicle.vehicle_type"
               :seat-map="seatMap"
               :suggested-seats="suggestedSeats"
-              :show-suggestions="!!selectedFare && suggestedSeats.length > 0"
+              :show-suggestions="ticketingStore.showSuggestions && !!selectedFare && suggestedSeats.length > 0"
               :selected-seat="selectedSeatNumber"
-              :selected-color="selectedFare?.color"
+              :selected-color="selectedSeatColor"
               :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role)"
               :vertical-mode="true"
               @seat-click="handleSeatClick"
@@ -1749,7 +1751,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Trip Selection Modal -->
-    <div v-if="showTripSelectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[100] flex items-center justify-center p-4">
+    <div v-if="showTripSelectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-[1020] flex items-center justify-center p-4">
       <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-gray-100 bg-green-50 flex items-center justify-between">

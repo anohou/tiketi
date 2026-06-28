@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
@@ -242,6 +242,8 @@ const vehicleType = computed(() => {
     return seatMap.value?.vehicle_type || selectedTrip.value?.vehicle?.vehicle_type;
 });
 
+const selectedSeatColor = '#22C55E';
+
 // Stats for the selected trip
 const seatStats = computed(() => {
     if (!seatMap.value || !seatMap.value.seat_map) return null;
@@ -251,6 +253,12 @@ const seatStats = computed(() => {
         available: seatMap.value.available_seats_count || seatMap.value.available_seats || 0
     };
 });
+
+const getOccupancyRate = (available, total) => {
+    if (!total) return 0;
+    const occupied = Math.max(0, total - available);
+    return Math.round((occupied / total) * 100);
+};
 </script>
 
 <template>
@@ -264,9 +272,24 @@ const seatStats = computed(() => {
                 </h2>
                 <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Plan & Occupations</p>
             </div>
-            <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-orange-100 transition-all text-gray-400 hover:text-green-600 disabled:opacity-50">
-                <Refresh :size="18" :class="{ 'animate-spin': loading }" />
-            </button>
+            <div class="flex items-center gap-2">
+                <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-orange-100 transition-all text-gray-400 hover:text-green-600 disabled:opacity-50">
+                    <Refresh :size="18" :class="{ 'animate-spin': loading }" />
+                </button>
+                <Link
+                    v-if="selectedTripId"
+                    :href="route('seller.ticketing.horizontal', { trip_id: selectedTripId })"
+                    class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-orange-100 transition-all text-gray-400 hover:text-blue-600"
+                    title="Vue horizontale"
+                >
+                    <svg viewBox="0 0 24 24" aria-hidden="true" class="w-[18px] h-[18px]">
+                        <path
+                            fill="currentColor"
+                            d="M4 4h7v2H7.41l3.3 3.3-1.42 1.4L6 7.41V11H4V4Zm16 0v7h-2V7.41l-3.29 3.29-1.42-1.4L16.59 6H13V4h7Zm0 16h-7v-2h3.59l-3.3-3.3 1.42-1.4L18 16.59V13h2v7Zm-16 0v-7h2v3.59l3.29-3.29 1.42 1.4L7.41 18H11v2H4Z"
+                        />
+                    </svg>
+                </Link>
+            </div>
         </div>
 
         <!-- TICKETING PAGE: Show only selected trip seat map (workspace mode) -->
@@ -278,11 +301,11 @@ const seatStats = computed(() => {
                         <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></div>
                         <div class="text-xs font-bold text-gray-900 truncate">{{ selectedTrip.display_name || selectedTrip.route?.name }}</div>
                     </div>
-                    <div class="flex items-center gap-2 mt-0.5 pl-3.5">
-                        <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">{{ selectedTrip.vehicle?.identifier }}</span>
-                        <span class="text-[10px] font-bold text-gray-400">{{ formatTime(selectedTrip.departure_at) }}</span>
-                    </div>
+                <div class="flex items-center gap-2 mt-0.5 pl-3.5">
+                    <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">{{ selectedTrip.vehicle?.identifier }}</span>
+                    <span class="text-[10px] font-bold text-gray-400">{{ formatTime(selectedTrip.departure_at) }}</span>
                 </div>
+            </div>
 
                 <!-- Loading State -->
                 <div v-if="seatMapLoading" class="flex-1 flex flex-col items-center justify-center">
@@ -303,6 +326,9 @@ const seatStats = computed(() => {
                             <span class="mx-1 text-gray-300">|</span>
                             <span class="font-bold text-green-500">Lib</span>
                             <span class="font-black text-green-600">{{ seatStats.available }}</span>
+                            <span class="mx-1 text-gray-300">|</span>
+                            <span class="font-bold text-blue-500">Occ</span>
+                            <span class="font-black text-blue-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                         </div>
                         <!-- Zoom Controls -->
                         <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
@@ -326,7 +352,7 @@ const seatStats = computed(() => {
                                 :vehicle-type="vehicleType"
                                 :suggested-seats="ticketingStore.suggestedSeats"
                                 :selected-seat="ticketingStore.selectedSeat"
-                                :selected-color="ticketingStore.selectedFareColor"
+                                :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
                                 @seat-click="handleSeatClick"
                                 class="w-full h-full"
@@ -429,7 +455,7 @@ const seatStats = computed(() => {
                                     :vehicle-type="vehicleType"
                                     :suggested-seats="ticketingStore.suggestedSeats"
                                     :selected-seat="ticketingStore.selectedSeat"
-                                    :selected-color="ticketingStore.selectedFareColor"
+                                    :selected-color="selectedSeatColor"
                                     :show-suggestions="ticketingStore.showSuggestions"
                                     @seat-click="handleSeatClick"
                                     class="w-full h-full"

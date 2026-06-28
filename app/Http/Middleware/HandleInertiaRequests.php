@@ -65,6 +65,7 @@ class HandleInertiaRequests extends Middleware
                 'message' => fn () => $request->session()->get('message'),
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
+                'created_user_password' => fn () => $request->session()->get('created_user_password'),
                 'tenant_admin_password' => fn () => $request->session()->get('tenant_admin_password'),
                 'ticket_id' => fn () => $request->session()->get('flash.ticket_id'),
                 'ticket_ids' => fn () => $request->session()->get('flash.ticket_ids'),

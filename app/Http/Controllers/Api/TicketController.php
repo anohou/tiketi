@@ -287,7 +287,14 @@ class TicketController extends Controller
      */
     public function export(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user() ?? auth()->user();
+
+        if (! $user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Utilisateur non authentifié.',
+            ], 401);
+        }
 
         $ticketsQuery = Ticket::query()
             ->with(['trip.route', 'trip.vehicle.vehicleType', 'seller', 'fromStation', 'toStation'])

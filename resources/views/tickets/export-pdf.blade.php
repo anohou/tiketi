@@ -76,6 +76,9 @@
         <div class="meta">
             Periode : {{ $startDate }} -> {{ $endDate }}
             &nbsp;|&nbsp; Genere le {{ $generatedAt }}
+            @if(!empty($trip))
+                &nbsp;|&nbsp; Code trajet : {{ $trip->code ?? '-' }}
+            @endif
         </div>
     </div>
 
@@ -90,7 +93,6 @@
             <tr>
                 <th>N Ticket</th>
                 <th>Date vente</th>
-                <th>Voyage</th>
                 <th>Depart</th>
                 <th>Arrivee</th>
                 <th>Place</th>
@@ -106,7 +108,6 @@
             <tr>
                 <td>{{ $ticket->ticket_number }}</td>
                 <td>{{ $ticket->created_at->format('d/m/Y H:i') }}</td>
-                <td>{{ $ticket->trip?->departure_at?->format('d/m/Y H:i') ?? '-' }}</td>
                 <td>{{ $ticket->fromStation?->name ?? '-' }}</td>
                 <td>{{ $ticket->toStation?->name ?? '-' }}</td>
                 <td>{{ $ticket->seat_number ?? '-' }}</td>
@@ -120,7 +121,7 @@
             </tr>
             @endforeach
             <tr class="total-row">
-                <td colspan="9" style="text-align:right; padding-right:10px;">TOTAL</td>
+                <td colspan="8" style="text-align:right; padding-right:10px;">TOTAL</td>
                 <td style="text-align:right">{{ number_format($totalAmount, 0, ',', ' ') }}</td>
                 <td></td>
             </tr>

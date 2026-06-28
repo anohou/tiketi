@@ -247,9 +247,9 @@ class TripController extends Controller
         // Blue gradient
         // HSL: 220 (Blue)
         // Saturation: 100%
-        // Lightness: From 85% (closest) to 30% (furthest)
+        // Lightness: From 92% (closest) to 42% (furthest)
 
-        $lightness = 85 - ($ratio * 55); // 85 -> 30
+        $lightness = 92 - ($ratio * 50); // 92 -> 42
 
         return 'hsl(220, 100%, '.round($lightness, 2).'%)';
     }

@@ -349,6 +349,7 @@ const deleteTrip = (id) => {
 
 // Export/Print configuration
 const tripColumns = {
+  code: 'Code',
   'route.name': 'Route',
   departure_at: 'Départ',
   'vehicle.identifier': 'Véhicule',
@@ -359,6 +360,7 @@ const tripColumns = {
 const handleExport = () => {
   const data = filteredTrips.value.map(trip => ({
     ...trip,
+    code: trip.code || '-',
     departure_at: formatDate(trip.departure_at),
     status: getStatusInfo(trip.status, trip.departure_at).label
   }));
@@ -368,10 +370,11 @@ const handleExport = () => {
 const handlePrint = () => {
   const data = filteredTrips.value.map(trip => ({
     ...trip,
+    code: trip.code || '-',
     departure_at: formatDate(trip.departure_at),
     status: getStatusInfo(trip.status, trip.departure_at).label
   }));
-  printList(data, tripColumns, 'Liste des Voyages');
+  printList(data, tripColumns, 'Liste des trajets');
 };
 </script>
 
@@ -475,13 +478,16 @@ const handlePrint = () => {
                   }"
                 >
                   <div class="flex justify-between items-start">
-                    <div class="flex-1 min-w-0">
-                      <h3 :class="['font-semibold truncate', isSelected(trip) ? 'text-green-800' : 'text-gray-800']">
-                        {{ trip.route?.name }}
-                      </h3>
-                      <p class="text-[10px] text-gray-500 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
-                      <p class="text-[10px] text-gray-400">{{ trip.vehicle?.identifier }}</p>
-                    </div>
+                      <div class="flex-1 min-w-0">
+                        <h3 :class="['font-semibold truncate', isSelected(trip) ? 'text-green-800' : 'text-gray-800']">
+                          {{ trip.route?.name }}
+                        </h3>
+                        <p class="text-[10px] text-green-600 font-semibold mt-1">
+                          {{ trip.code || 'Code en attente' }}
+                        </p>
+                        <p class="text-[10px] text-gray-500 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
+                        <p class="text-[10px] text-gray-400">{{ trip.vehicle?.identifier }}</p>
+                      </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[9px] font-medium',
@@ -519,6 +525,7 @@ const handlePrint = () => {
               <div class="flex justify-between items-start mb-6">
                 <div>
                   <h2 class="text-2xl font-bold text-gray-800">{{ selectedTrip.route?.name }}</h2>
+                  <p class="text-sm font-semibold text-green-600">{{ selectedTrip.code || 'Code en attente' }}</p>
                   <p class="text-sm text-gray-500">{{ formatDate(selectedTrip.departure_at) }}</p>
                 </div>
                 <div class="flex gap-2">

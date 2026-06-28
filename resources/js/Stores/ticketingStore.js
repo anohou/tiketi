@@ -3,7 +3,7 @@ import { reactive } from 'vue';
 export const ticketingStore = reactive({
     selectedSeat: null,
     suggestedSeats: [],
-    selectedFareColor: '#3B82F6',
+    selectedFareColor: '#22C55E',
     showSuggestions: true,
 
     selectedTripId: null,
@@ -31,7 +31,7 @@ export const ticketingStore = reactive({
     },
 
     setFareColor(color) {
-        this.selectedFareColor = color || '#3B82F6';
+        this.selectedFareColor = color || '#22C55E';
     },
 
     setShowSuggestions(show) {

@@ -62,7 +62,7 @@ Domain routing:
 
 | Tool | Min. Version | Notes |
 |---|---|---|
-| PHP | 8.2+ | With extensions: pdo_mysql, mbstring, xml, bcmath, openssl, tokenizer, fileinfo |
+| PHP | 8.4+ | With extensions: pdo_mysql, mbstring, xml, bcmath, openssl, tokenizer, fileinfo |
 | Composer | 2.x | |
 | Node.js | 18+ | |
 | MySQL / MariaDB | 8.0+ | DB user **must** have `CREATE DATABASE` privilege |

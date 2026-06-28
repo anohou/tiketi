@@ -235,11 +235,15 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
-  fullHeight: {
-    type: Boolean,
-    default: false
-  }
-});
+      fullHeight: {
+        type: Boolean,
+        default: false
+      },
+      hideTripSidebar: {
+        type: Boolean,
+        default: false
+      }
+  });
 
 const showMenu = ref(false);
 const isMenuOpen = ref(false);
@@ -281,6 +285,8 @@ const openHelp = () => {
 
 // Should show trip sidebar? (Not for accountant, and not on admin parameter pages)
 const showTripSidebar = computed(() => {
+    if (props.hideTripSidebar) return false;
+
     // Hide sidebar for superadmin (Landlord)
     if (user.role === 'superadmin') return false;
 

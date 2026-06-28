@@ -267,8 +267,8 @@ class TicketingController extends Controller
             ->unique()
             ->toArray();
 
-        $stopOrders = $trip->route->routeStopOrders->pluck('stop_index', 'station_id');
-        $totalStops = $stopOrders->count();
+        $stationIndices = app(TripSegmentService::class)->stationIndices($trip);
+        $totalStops = count($stationIndices);
 
         $seatMapService = app(SeatMapService::class);
         $seatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
@@ -289,7 +289,7 @@ class TicketingController extends Controller
                 $seat['isOccupied'] = in_array($seatNumber, $occupiedSeats);
 
                 if ($seat['isOccupied'] && $occupancy?->ticket) {
-                    $stopIndex = $stopOrders[$occupancy->ticket->to_station_id] ?? 0;
+                    $stopIndex = $stationIndices[$occupancy->ticket->to_station_id] ?? 0;
                     $seat['color'] = $this->getStopColor($stopIndex, $totalStops);
                     $seat['destination_name'] = $occupancy->ticket->toStation->name ?? 'Inconnu';
                     $seat['ticket_id'] = $occupancy->ticket->id;
@@ -318,7 +318,7 @@ class TicketingController extends Controller
         }
 
         $ratio = $stopIndex / ($totalStops - 1);
-        $lightness = 85 - ($ratio * 55);
+        $lightness = 92 - ($ratio * 50);
 
         return 'hsl(220, 100%, '.round($lightness, 2).'%)';
     }

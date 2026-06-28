@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -21,11 +21,10 @@ import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Check from 'vue-material-design-icons/Check.vue';
-import Eye from 'vue-material-design-icons/Eye.vue';
-import EyeOff from 'vue-material-design-icons/EyeOff.vue';
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 
 const { exportToExcel, printList } = useExportPrint();
+const page = usePage();
 
 const props = defineProps({
   users: {
@@ -47,8 +46,6 @@ const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
 const activeTab = ref('assignments');
-const passwordCopied = ref(false);
-const showPassword = ref(false);
 
 // Assignment modal state
 const showAssignmentModal = ref(false);
@@ -63,6 +60,10 @@ const showResetPasswordModal = ref(false);
 const newPassword = ref('');
 const newPasswordCopied = ref(false);
 const passwordSaved = ref(false);
+
+const showCreatedPasswordModal = ref(false);
+const createdPassword = ref('');
+const createdPasswordCopied = ref(false);
 
 const form = ref({
   name: '',
@@ -139,36 +140,38 @@ const generatePassword = () => {
   return password;
 };
 
-// Copy password to clipboard
-const copyPasswordToClipboard = async () => {
-  if (!form.value.password) return;
-  
+const openCreateModal = () => {
+  isEditing.value = false;
+  form.value = {
+    name: '',
+    email: '',
+    telephone: '',
+    role: 'seller',
+    password: '',
+    password_confirmation: ''
+  };
+  errors.value = {};
+  showModal.value = true;
+};
+
+const copyCreatedPasswordToClipboard = async () => {
+  if (!createdPassword.value) return;
+
   try {
-    await navigator.clipboard.writeText(form.value.password);
-    passwordCopied.value = true;
+    await navigator.clipboard.writeText(createdPassword.value);
+    createdPasswordCopied.value = true;
     setTimeout(() => {
-      passwordCopied.value = false;
+      createdPasswordCopied.value = false;
     }, 2000);
   } catch (err) {
     console.error('Failed to copy password:', err);
   }
 };
 
-const openCreateModal = () => {
-  isEditing.value = false;
-  const generatedPassword = generatePassword();
-  form.value = {
-    name: '',
-    email: '',
-    telephone: '',
-    role: 'seller',
-    password: generatedPassword,
-    password_confirmation: generatedPassword
-  };
-  errors.value = {};
-  passwordCopied.value = false;
-  showPassword.value = false;
-  showModal.value = true;
+const closeCreatedPasswordModal = () => {
+  showCreatedPasswordModal.value = false;
+  createdPassword.value = '';
+  createdPasswordCopied.value = false;
 };
 
 const openEditModal = () => {
@@ -213,6 +216,14 @@ const submit = () => {
     onSuccess: () => {
       processing.value = false;
       closeModal();
+      setTimeout(() => {
+        const generatedPassword = page.props.flash?.created_user_password;
+        if (!generatedPassword) return;
+
+        createdPassword.value = generatedPassword;
+        createdPasswordCopied.value = false;
+        showCreatedPasswordModal.value = true;
+      }, 250);
     },
     onError: (newErrors) => {
       processing.value = false;
@@ -772,50 +783,11 @@ const handlePrint = () => {
       </template>
       <template #content>
         <div class="space-y-4">
-          <!-- Password field when creating (hidden by default with show/copy/regenerate) -->
           <div v-if="!isEditing" class="p-4 bg-gray-50 rounded-lg border border-gray-100 mb-4">
-            <InputLabel for="password" value="Mot de passe généré" class="text-green-700" />
-            <div class="flex gap-2 mt-1">
-              <div class="relative flex-1">
-                <TextInput 
-                  v-model="form.password" 
-                  id="password" 
-                  :type="showPassword ? 'text' : 'password'" 
-                  class="w-full font-mono pr-20 bg-white" 
-                  readonly 
-                />
-                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                  <button 
-                    type="button"
-                    @click="showPassword = !showPassword"
-                    class="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                    :title="showPassword ? 'Masquer' : 'Afficher'"
-                  >
-                    <EyeOff v-if="showPassword" class="h-5 w-5" />
-                    <Eye v-else class="h-5 w-5" />
-                  </button>
-                  <button 
-                    type="button"
-                    @click="copyPasswordToClipboard"
-                    class="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                    :title="passwordCopied ? 'Copié!' : 'Copier'"
-                  >
-                    <Check v-if="passwordCopied" class="h-5 w-5 text-green-600" />
-                    <ContentCopy v-else class="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-              <button 
-                type="button"
-                @click="() => { const pw = generatePassword(); form.password = pw; form.password_confirmation = pw; passwordCopied = false; }"
-                class="p-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-gray-600 transition-colors"
-                title="Générer un nouveau mot de passe"
-              >
-                <Refresh class="h-5 w-5" />
-              </button>
-            </div>
-            <p v-if="passwordCopied" class="text-xs text-green-600 mt-1 font-medium">Mot de passe copié!</p>
-            <InputError :message="errors.password" />
+            <p class="text-sm text-gray-600">
+              L'administration générera automatiquement le mot de passe du compte à la création.
+              Vous pourrez le copier juste après l'enregistrement.
+            </p>
           </div>
 
 
@@ -877,6 +849,56 @@ const handlePrint = () => {
         <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
         <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
           {{ isEditing ? 'Mettre à jour' : 'Enregistrer' }}
+        </PrimaryButton>
+      </template>
+    </DialogModal>
+
+    <!-- Created Password Modal -->
+    <DialogModal :show="showCreatedPasswordModal" @close="closeCreatedPasswordModal" maxWidth="md">
+      <template #title>Utilisateur créé avec succès</template>
+      <template #content>
+        <div class="text-center py-4">
+          <div class="mb-4">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <Check class="h-6 w-6 text-green-600" />
+            </div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Compte utilisateur créé</h3>
+            <div class="mt-2 px-7 py-3">
+              <p class="text-sm text-gray-500">
+                Voici le mot de passe généré pour ce nouvel utilisateur. Copiez-le avant de fermer cette fenêtre.
+              </p>
+            </div>
+          </div>
+
+          <div class="relative mt-2 rounded-md shadow-sm max-w-sm mx-auto">
+            <TextInput
+              v-model="createdPassword"
+              type="text"
+              class="w-full pr-12 text-center font-mono bg-gray-50"
+              readonly
+            />
+            <div class="absolute inset-y-0 right-0 flex items-center">
+              <button
+                type="button"
+                @click="copyCreatedPasswordToClipboard"
+                class="h-full px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-r-md transition-colors border-l"
+                :class="{ 'text-green-500 hover:text-green-600': createdPasswordCopied }"
+                title="Copier"
+              >
+                <Check v-if="createdPasswordCopied" class="h-5 w-5" />
+                <ContentCopy v-else class="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          <p v-if="createdPasswordCopied" class="text-xs text-green-600 mt-2 font-medium">
+            Mot de passe copié !
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <PrimaryButton @click="closeCreatedPasswordModal">
+          Terminer
         </PrimaryButton>
       </template>
     </DialogModal>

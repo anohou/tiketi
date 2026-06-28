@@ -180,63 +180,50 @@ const recalculateMetadata = () => {
   const configStr = form.value.seat_configuration || '2+2';
   const doorSide = form.value.door_side || 'right';
   const doorWidth = parseInt(form.value.door_width) || 2;
-  const lastRowSeats = parseInt(form.value.last_row_seats) || 5;
 
   const parts = configStr.split('+').map(Number);
   const leftCount = parts[0] || 2;
   const rightCount = parts[1] || 2;
   const slotsPerRow = leftCount + rightCount;
 
-  // Approximate rows for calculation
-  const approxRows = Math.ceil((seatCount + 5) / slotsPerRow);
-  const doorPositions = [0];
-
-  // Middle door
-  const middleRow = Math.floor(approxRows / 2);
-  const mStart = (middleRow - 1) * slotsPerRow + 1;
-  if (doorSide === 'right') {
-    for (let i = 0; i < Math.min(doorWidth, rightCount); i++) doorPositions.push(mStart + leftCount + i);
-  } else {
-    for (let i = 0; i < Math.min(doorWidth, leftCount); i++) doorPositions.push(mStart + i);
+  if (seatCount <= 0 || slotsPerRow <= 0) {
+    return;
   }
 
-  // Back door: moved forward by 2 rows
-  const backRow = approxRows - 4;
-  if (backRow > middleRow) {
-    const bStart = (backRow - 1) * slotsPerRow + 1;
-    if (doorSide === 'right') {
-      for (let i = 0; i < Math.min(doorWidth, rightCount); i++) doorPositions.push(bStart + leftCount + i);
-    } else {
-      for (let i = 0; i < Math.min(doorWidth, leftCount); i++) doorPositions.push(bStart + i);
+  // Optional helper: suggest a default set of door positions without
+  // modifying the manually entered capacity. The admin keeps full control
+  // over the final seat count.
+  const approxRows = Math.max(2, Math.ceil(seatCount / slotsPerRow));
+  const doorPositions = [0];
+
+  const middleRow = Math.floor(approxRows / 2);
+  const mStart = Math.max(1, (middleRow - 1) * slotsPerRow + 1);
+  if (doorSide === 'right') {
+    for (let i = 0; i < Math.min(doorWidth, rightCount); i++) {
+      doorPositions.push(mStart + leftCount + i);
+    }
+  } else {
+    for (let i = 0; i < Math.min(doorWidth, leftCount); i++) {
+      doorPositions.push(mStart + i);
     }
   }
 
-  const finalDoorPositions = [...new Set(doorPositions)].sort((a, b) => a - b);
-  form.value.door_positions_text = finalDoorPositions.join(', ');
-
-  // Harmony Logic: Adjust seatCount to fill rows perfectly
-  const doorSlotsInStandardRows = finalDoorPositions.filter(p => p !== 0).length;
-  // We want: (N * slotsPerRow) - doorSlotsInStandardRows + lastRowSeats = seatCount
-  // Find N that gives a seatCount close to the original one
-  const currentTotalSlots = (seatCount - lastRowSeats) + doorSlotsInStandardRows;
-  const N = Math.round(currentTotalSlots / slotsPerRow);
-  const adjustedSeatCount = (N * slotsPerRow) - doorSlotsInStandardRows + lastRowSeats;
-  
-  if (adjustedSeatCount !== seatCount && adjustedSeatCount > 0) {
-    form.value.seat_count = adjustedSeatCount.toString();
+  const backRow = approxRows - 4;
+  if (backRow > middleRow) {
+    const bStart = Math.max(1, (backRow - 1) * slotsPerRow + 1);
+    if (doorSide === 'right') {
+      for (let i = 0; i < Math.min(doorWidth, rightCount); i++) {
+        doorPositions.push(bStart + leftCount + i);
+      }
+    } else {
+      for (let i = 0; i < Math.min(doorWidth, leftCount); i++) {
+        doorPositions.push(bStart + i);
+      }
+    }
   }
-};
 
-// Watch for changes to trigger sync
-watch([
-  () => form.value.seat_configuration,
-  () => form.value.door_side,
-  () => form.value.door_width,
-  () => form.value.last_row_seats
-], () => {
-  if (!showModal.value) return;
-  recalculateMetadata();
-});
+  form.value.door_positions_text = [...new Set(doorPositions)].sort((a, b) => a - b).join(', ');
+};
 
 const deleteVehicleType = (id) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce type de véhicule ?')) {
@@ -577,11 +564,14 @@ const handlePrint = () => {
             <div class="md:col-span-1">
               <div class="flex items-center justify-between mb-1">
                 <InputLabel for="door_positions" value="Positions Manuelles" />
-                <button @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-bold flex items-center gap-1" title="Synchroniser et Harmoniser">
-                  <span class="rotate-180">↺</span> SYNC
+                <button @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-bold flex items-center gap-1" title="Proposer des positions de portes">
+                  <span class="rotate-180">↺</span> SUGGÉRER
                 </button>
               </div>
               <TextInput v-model="form.door_positions_text" id="door_positions" class="w-full text-sm" placeholder="1, 23" />
+              <p class="mt-1 text-[11px] text-gray-500">
+                Ce champ reste libre. Le bouton suggère seulement des portes, il ne modifie plus le nombre de places.
+              </p>
               <InputError :message="errors.door_positions" />
             </div>
 

@@ -20,7 +20,7 @@ const props = defineProps({
   },
   selectedColor: {
     type: String,
-    default: '#A855F7' // Default purple
+    default: '#2563EB'
   },
   showSuggestions: {
     type: Boolean,

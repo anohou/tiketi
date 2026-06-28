@@ -15,6 +15,7 @@ class Trip extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
+        'code',
         'route_id',
         'vehicle_id',
         'departure_at',
@@ -121,7 +122,20 @@ class Trip extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+
+            if (empty($model->code)) {
+                $model->code = static::generateTripCode();
+            }
         });
+    }
+
+    protected static function generateTripCode(): string
+    {
+        do {
+            $code = 'TRP-'.now()->format('ymd').'-'.Str::upper(Str::random(5));
+        } while (static::where('code', $code)->exists());
+
+        return $code;
     }
 
     public function route()

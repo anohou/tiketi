@@ -267,7 +267,7 @@ const disconnect = () => {
 
     <!-- Confirmation modal -->
     <Teleport to="body">
-      <div v-if="showConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div v-if="showConfirm" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
           <div class="flex items-center gap-3 mb-4">
             <div class="p-2 bg-red-100 rounded-xl shrink-0">

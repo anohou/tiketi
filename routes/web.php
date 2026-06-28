@@ -106,6 +106,7 @@ Route::middleware('auth')->group(function () {
 
         // API-like endpoints for ticketing
         Route::post('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/export', [\App\Http\Controllers\Api\TicketController::class, 'export'])->name('tickets.export');
         Route::get('/tickets/{ticket}/data', [\App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
         Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
         Route::get('/trips/{trip}/seat-map', [\App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 
@@ -32,12 +33,13 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $password = Str::password(10, true, true, false, false);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'telephone' => 'required|string|max:20',
             'role' => 'required|in:admin,supervisor,seller',
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
         User::create([
@@ -45,10 +47,12 @@ class UserController extends Controller
             'email' => $request->email,
             'telephone' => $request->telephone,
             'role' => $request->role,
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($password),
         ]);
 
-        return redirect()->route('admin.users.index')->with('success', 'Utilisateur créé avec succès.');
+        return redirect()->route('admin.users.index')
+            ->with('success', 'Utilisateur créé avec succès.')
+            ->with('created_user_password', $password);
     }
 
     public function show(User $user)
