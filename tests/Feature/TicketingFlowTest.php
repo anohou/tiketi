@@ -484,6 +484,7 @@ class TicketingFlowTest extends TestCase
         if (! Schema::hasTable('trips')) {
             Schema::create('trips', function (Blueprint $table) {
                 $table->uuid('id')->primary();
+                $table->string('code')->nullable()->unique();
                 $table->uuid('route_id')->index();
                 $table->uuid('origin_station_id')->nullable();
                 $table->uuid('destination_station_id')->nullable();
