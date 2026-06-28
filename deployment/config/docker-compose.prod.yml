@@ -97,14 +97,28 @@ services:
   queue-worker:
     profiles: ["with-queue"]
     <<: *app-defaults
-    command: >
-      php artisan queue:work database
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "until php -r '
+        $$host = getenv(\"DB_HOST\") ?: \"postgres\";
+        $$port = (int) (getenv(\"DB_PORT\") ?: 5432);
+        $$timeout = (float) (getenv(\"DB_WAIT_TIMEOUT_SECONDS\") ?: 2);
+        $$socket = @fsockopen($$host, $$port, $$errno, $$errstr, $$timeout);
+        if (! $$socket) {
+            fwrite(STDERR, sprintf(\"[queue-worker] waiting for database at %s:%d (%s)\\n\", $$host, $$port, $$errstr ?: \"unreachable\"));
+            exit(1);
+        }
+        fclose($$socket);
+      '; do
+        sleep ${DB_WAIT_SLEEP_SECONDS:-3};
+      done
+      exec php artisan queue:work database
         --queue=${QUEUE_WORKER_QUEUES:-high-priority,default,progression,low-priority,bulk}
         --sleep=${QUEUE_SLEEP:-3}
         --tries=${QUEUE_TRIES:-3}
         --timeout=${QUEUE_TIMEOUT:-300}
         --max-jobs=${QUEUE_MAX_JOBS:-1000}
-        --max-time=${QUEUE_MAX_TIME:-3600}
+        --max-time=${QUEUE_MAX_TIME:-3600}"
     healthcheck:
       test: ["CMD", "php", "artisan", "queue:monitor", "database"]
       interval: 60s
@@ -119,7 +133,20 @@ services:
     <<: *app-defaults
     entrypoint: ["/bin/sh", "-c"]
     command: |
-      "while true; do
+      "until php -r '
+        $$host = getenv(\"DB_HOST\") ?: \"postgres\";
+        $$port = (int) (getenv(\"DB_PORT\") ?: 5432);
+        $$timeout = (float) (getenv(\"DB_WAIT_TIMEOUT_SECONDS\") ?: 2);
+        $$socket = @fsockopen($$host, $$port, $$errno, $$errstr, $$timeout);
+        if (! $$socket) {
+            fwrite(STDERR, sprintf(\"[scheduler] waiting for database at %s:%d (%s)\\n\", $$host, $$port, $$errstr ?: \"unreachable\"));
+            exit(1);
+        }
+        fclose($$socket);
+      '; do
+        sleep ${DB_WAIT_SLEEP_SECONDS:-3}
+      done
+      while true; do
         php artisan schedule:run --no-ansi >> /dev/null 2>&1
         sleep 60
       done"

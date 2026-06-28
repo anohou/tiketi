@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-06-27T06:43:49Z
+generated_at: 2026-06-28T03:52:10Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -89,13 +89,13 @@ parameters:
 preserve_files: []
 managed_files:
   README.md:
-    sha256: acbc2a48881e9aef4850ce185632e9c448922fe6cc46ec63a520516ff6f7edf2
+    sha256: 298bd553414add378470950acaabb2fcc1ae40d9eba8f5fbe8c09147baecc960
   config/Dockerfile:
     sha256: 154f76fb76a67bc5f932007bd0720e5f57334848d57702a67da88d8c16862e3f
   config/config.yml:
     sha256: ea4cf31c4afd96717a4c02c9c805194e436f13047b1a6852b15ee29cd742b8c9
   config/docker-compose.prod.yml:
-    sha256: e8e1440c005274b778fec5f994cae2ce80bd11e62b8e7d868eb0850d292d86e2
+    sha256: 4bc3ade2852be34056fd0d8916dd6d36e0520be8efb4c62bfc999554eebd4d8c
   config/gateway-nginx.conf:
     sha256: f372e892bfd5c8516a5b243b4863cbaa1435a1e2f33ae8a2b5e68c76c85afcbf
   config/mysql-access-policy.yml:
@@ -111,7 +111,7 @@ managed_files:
   config/systemd/pull-deploy.timer:
     sha256: fc32ce3382febb07e7c298dfabd7c2c7bdbe7e67d481883321b3402711f3fbef
   config/template.env:
-    sha256: cdbc7f11b6ef29d7cf7ef3726ef83cba931ce1c5fbc3abbcd162bd6575e538c2
+    sha256: e5873cbd5fd561aa32d98858011c592793b013c0d169519f2c217244afdf469c
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/build-fingerprint.sh:
@@ -156,6 +156,8 @@ managed_files:
     sha256: e0f41411d8ee4a5b3be62a5a22f18ee1d914c0885a93ad985c20fcc6995f1200
   scripts/healthcheck.sh:
     sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
+  scripts/php-shell.sh:
+    sha256: 42a404b57a86fd4d1e9a781b13746a9b78b9eae9c66e644b902f0b517089e296
   scripts/mysql-access.config.sh:
     sha256: c949a8234aded57c13e5e0392437681782da97a3aa9ec888a41852563352d2f2
   scripts/provision-db.sh:
