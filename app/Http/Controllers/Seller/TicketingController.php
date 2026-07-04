@@ -10,6 +10,7 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 
 class TicketingController extends Controller
@@ -172,7 +173,7 @@ class TicketingController extends Controller
 
     private function enrichTripsWithSeatCounts($trips): void
     {
-        $items = ($trips instanceof \Illuminate\Pagination\LengthAwarePaginator) ? $trips->items() : $trips;
+        $items = ($trips instanceof LengthAwarePaginator) ? $trips->items() : $trips;
 
         $seatMapService = app(SeatMapService::class);
         $segments = app(TripSegmentService::class);

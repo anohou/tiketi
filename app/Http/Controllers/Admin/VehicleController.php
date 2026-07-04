@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Traits\ManagesVehicles;
+use App\Models\CrewMember;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class VehicleController extends Controller
             ->paginate(50);
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
 
-        $crewMembers = \App\Models\CrewMember::where('active', true)
+        $crewMembers = CrewMember::where('active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'phone', 'license_number']);
 

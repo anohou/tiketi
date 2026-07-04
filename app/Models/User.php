@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, HasUuids, Notifiable;
 
     /**
@@ -69,7 +70,7 @@ class User extends Authenticatable
 
     public function routeAssignments()
     {
-        return $this->hasMany(\App\Models\UserRouteAssignment::class);
+        return $this->hasMany(UserRouteAssignment::class);
     }
 
     public function routes()
@@ -123,11 +124,11 @@ class User extends Authenticatable
     public function accessibleRoutesQuery()
     {
         if ($this->isAdmin()) {
-            return \App\Models\Route::where('active', true);
+            return Route::where('active', true);
         }
         $stationIds = $this->getActiveStationIds();
 
-        return \App\Models\Route::where('active', true)
+        return Route::where('active', true)
             ->where(function ($q) use ($stationIds) {
                 $q->whereIn('origin_station_id', $stationIds)
                     ->orWhereIn('destination_station_id', $stationIds)

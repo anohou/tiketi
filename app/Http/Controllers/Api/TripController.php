@@ -7,6 +7,7 @@ use App\Models\Route;
 use App\Models\Ticket;
 use App\Models\Trip;
 use App\Services\OptimisationService;
+use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
 use Illuminate\Http\Request;
 
@@ -197,7 +198,7 @@ class TripController extends Controller
         });
 
         // Use SeatMapService to ensure we have a valid 2D grid
-        $seatMapService = app(\App\Services\SeatMapService::class);
+        $seatMapService = app(SeatMapService::class);
         $storedSeatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
             'seat_count' => $seatCount,
             'seat_configuration' => $config,

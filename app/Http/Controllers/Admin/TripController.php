@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Events\TripCreated;
 use App\Http\Controllers\Controller;
 use App\Models\Route;
 use App\Models\Trip;
 use App\Models\Vehicle;
+use App\Models\VehicleCrewAssignment;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -29,7 +31,7 @@ class TripController extends Controller
             $minDate = $trips->min('departure_at');
             $maxDate = $trips->max('departure_at');
 
-            $assignments = \App\Models\VehicleCrewAssignment::whereIn('vehicle_id', $vehicleIds)
+            $assignments = VehicleCrewAssignment::whereIn('vehicle_id', $vehicleIds)
                 ->where(function ($query) use ($minDate) {
                     $query->whereNull('assigned_to')
                         ->orWhere('assigned_to', '>=', $minDate);
@@ -170,7 +172,7 @@ class TripController extends Controller
 
         $trip = Trip::create($data);
 
-        \App\Events\TripCreated::dispatch($trip);
+        TripCreated::dispatch($trip);
 
         // Redirect based on user role
         if ($user->role === 'admin') {

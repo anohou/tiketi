@@ -5,9 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
+use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
+use App\Services\OptimisationService;
+use App\Services\TicketQueryService;
 use App\Services\TripSegmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -122,7 +126,7 @@ class TicketController extends Controller
                 ? $user->stationAssignments()->where('active', true)->first()?->station_id
                 : $fromStationId;
 
-            $optService = app(\App\Services\OptimisationService::class);
+            $optService = app(OptimisationService::class);
             $vehicleType = $trip->vehicle->vehicleType;
 
             $tickets = [];
@@ -200,7 +204,7 @@ class TicketController extends Controller
                 ],
             ]);
 
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             DB::rollBack();
 
             if ($e->getCode() === '23000') {
@@ -224,7 +228,7 @@ class TicketController extends Controller
         $ticket->load(['trip.route', 'trip.vehicle', 'fromStation', 'toStation', 'seller']);
 
         try {
-            $settings = \App\Models\TicketSetting::getSettings();
+            $settings = TicketSetting::getSettings();
         } catch (\Exception $e) {
             Log::warning('Failed to get ticket settings: '.$e->getMessage());
             $settings = [
@@ -245,7 +249,7 @@ class TicketController extends Controller
 
         $ticketArray = $ticket->toArray();
         $ticketArray['settings'] = $settings;
-        $ticketArray['qr_payload_string'] = $ticket->printableQrValue($settings instanceof \App\Models\TicketSetting ? $settings : null);
+        $ticketArray['qr_payload_string'] = $ticket->printableQrValue($settings instanceof TicketSetting ? $settings : null);
         $ticketArray['tiketi_qr_payload_string'] = $ticket->qrPayloadString();
 
         return response()->json($ticketArray);
@@ -310,7 +314,7 @@ class TicketController extends Controller
             ], 401);
         }
 
-        $tickets = app(\App\Services\TicketQueryService::class)
+        $tickets = app(TicketQueryService::class)
             ->getFilteredTicketsQuery($request, $user)
             ->get();
 

@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Destination;
 use App\Models\Route as BusRoute;
+use App\Models\RouteFare;
 use App\Models\Station;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -27,7 +29,7 @@ class RouteController extends Controller
             ->orderBy('name')
             ->paginate(50);
 
-        $destinations = \App\Models\Destination::orderBy('name')->get(['id', 'name']);
+        $destinations = Destination::orderBy('name')->get(['id', 'name']);
 
         // Provide all stations for intermediate stops selection
         $stations = Station::with('destination')->orderBy('name')->get()->map(function ($station) {
@@ -40,7 +42,7 @@ class RouteController extends Controller
         });
 
         // Get all fares
-        $fares = \App\Models\RouteFare::with(['fromStation', 'toStation'])->get(); // Changed relations
+        $fares = RouteFare::with(['fromStation', 'toStation'])->get(); // Changed relations
 
         return Inertia::render('Admin/Routes/Index', [
             'routes' => $routes,
@@ -54,7 +56,7 @@ class RouteController extends Controller
     public function create()
     {
         return Inertia::render('Admin/Routes/Form', [
-            'destinations' => \App\Models\Destination::orderBy('name')->get(),
+            'destinations' => Destination::orderBy('name')->get(),
             'stations' => Station::orderBy('name')->get(),
         ]);
     }
@@ -82,7 +84,7 @@ class RouteController extends Controller
     {
         return Inertia::render('Admin/Routes/Form', [
             'routeItem' => $route,
-            'destinations' => \App\Models\Destination::orderBy('name')->get(),
+            'destinations' => Destination::orderBy('name')->get(),
             'stations' => Station::orderBy('name')->get(),
         ]);
     }

@@ -7,6 +7,7 @@ use App\Models\UserStationAssignment;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -73,7 +74,7 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        \Illuminate\Support\Facades\Auth::logout();
+        Auth::logout();
 
         $user->delete();
 

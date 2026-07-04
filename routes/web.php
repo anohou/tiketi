@@ -1,6 +1,22 @@
 <?php
 
+use App\Http\Controllers\Accountant\ReportsController;
+use App\Http\Controllers\Admin\DestinationController;
+use App\Http\Controllers\Admin\LoyaltySettingController;
+use App\Http\Controllers\Admin\OkohiConnectController;
+use App\Http\Controllers\Admin\RouteController;
+use App\Http\Controllers\Admin\RouteFareController;
+use App\Http\Controllers\Admin\RouteStopOrderController;
+use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Admin\StationController;
+use App\Http\Controllers\Admin\TicketSettingController;
+use App\Http\Controllers\Admin\TripController;
+use App\Http\Controllers\Admin\UserAssignmentController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\VehicleController;
+use App\Http\Controllers\Admin\VehicleTypeController;
 use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\Executive\AnalyticsController;
 use App\Http\Controllers\Fleet\CrewMemberController;
 use App\Http\Controllers\Fleet\FleetAssignmentController;
 use App\Http\Controllers\Fleet\FleetDashboardController;
@@ -8,8 +24,12 @@ use App\Http\Controllers\Fleet\FleetVehicleController;
 use App\Http\Controllers\Fleet\FleetVehicleTypeController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Seller\TicketController;
+use App\Http\Controllers\Seller\TicketingController;
 use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SupervisorDashboardController;
+use App\Http\Controllers\TicketPrintController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -21,7 +41,7 @@ Route::get('/', function () {
     ];
 
     if ($isTenant) {
-        $data['users'] = \App\Models\User::where('active', true)
+        $data['users'] = User::where('active', true)
             ->select(['id', 'name', 'email', 'role'])
             ->orderBy('name')
             ->get();
@@ -64,38 +84,38 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
         // Settings Landing Page
-        Route::get('/settings', [\App\Http\Controllers\Admin\SettingsController::class, 'index'])->name('settings.index');
-        Route::get('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'enterprise'])->name('settings.enterprise');
-        Route::post('/settings/enterprise', [\App\Http\Controllers\Admin\SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::get('/settings/enterprise', [SettingsController::class, 'enterprise'])->name('settings.enterprise');
+        Route::post('/settings/enterprise', [SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
 
         // CRUDs
-        Route::resource('destinations', \App\Http\Controllers\Admin\DestinationController::class);
-        Route::resource('stations', \App\Http\Controllers\Admin\StationController::class);
+        Route::resource('destinations', DestinationController::class);
+        Route::resource('stations', StationController::class);
 
-        Route::resource('vehicle-types', \App\Http\Controllers\Admin\VehicleTypeController::class);
-        Route::resource('vehicles', \App\Http\Controllers\Admin\VehicleController::class);
-        Route::resource('routes', \App\Http\Controllers\Admin\RouteController::class);
+        Route::resource('vehicle-types', VehicleTypeController::class);
+        Route::resource('vehicles', VehicleController::class);
+        Route::resource('routes', RouteController::class);
 
         // Route Stops Management
-        Route::get('routes/{route}/stops', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'index'])->name('routes.stops.index');
-        Route::post('routes/{route}/stops', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'store'])->name('routes.stops.store');
-        Route::delete('routes/{route}/stops/{routeStopOrder}', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'destroy'])->name('routes.stops.destroy');
-        Route::put('routes/{route}/stops/reorder', [\App\Http\Controllers\Admin\RouteStopOrderController::class, 'reorder'])->name('routes.stops.reorder');
+        Route::get('routes/{route}/stops', [RouteStopOrderController::class, 'index'])->name('routes.stops.index');
+        Route::post('routes/{route}/stops', [RouteStopOrderController::class, 'store'])->name('routes.stops.store');
+        Route::delete('routes/{route}/stops/{routeStopOrder}', [RouteStopOrderController::class, 'destroy'])->name('routes.stops.destroy');
+        Route::put('routes/{route}/stops/reorder', [RouteStopOrderController::class, 'reorder'])->name('routes.stops.reorder');
 
-        Route::resource('trips', \App\Http\Controllers\Admin\TripController::class);
-        Route::resource('route-fares', \App\Http\Controllers\Admin\RouteFareController::class);
-        Route::resource('users', \App\Http\Controllers\Admin\UserController::class);
-        Route::put('users/{user}/toggle-active', [\App\Http\Controllers\Admin\UserController::class, 'toggleActive'])->name('users.toggle-active');
-        Route::resource('assignments', \App\Http\Controllers\Admin\UserAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('trips', TripController::class);
+        Route::resource('route-fares', RouteFareController::class);
+        Route::resource('users', UserController::class);
+        Route::put('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::resource('assignments', UserAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
 
         // Ticket Settings
-        Route::get('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'index'])->name('ticket-settings.index');
-        Route::put('ticket-settings', [\App\Http\Controllers\Admin\TicketSettingController::class, 'update'])->name('ticket-settings.update');
+        Route::get('ticket-settings', [TicketSettingController::class, 'index'])->name('ticket-settings.index');
+        Route::put('ticket-settings', [TicketSettingController::class, 'update'])->name('ticket-settings.update');
 
         // Loyalty / Fidélisation (Okohi)
-        Route::get('settings/loyalty', [\App\Http\Controllers\Admin\LoyaltySettingController::class, 'index'])->name('settings.loyalty');
-        Route::post('settings/loyalty/connect', [\App\Http\Controllers\Admin\OkohiConnectController::class, 'connect'])->name('settings.loyalty.connect');
-        Route::delete('settings/loyalty/disconnect', [\App\Http\Controllers\Admin\OkohiConnectController::class, 'disconnect'])->name('settings.loyalty.disconnect');
+        Route::get('settings/loyalty', [LoyaltySettingController::class, 'index'])->name('settings.loyalty');
+        Route::post('settings/loyalty/connect', [OkohiConnectController::class, 'connect'])->name('settings.loyalty.connect');
+        Route::delete('settings/loyalty/disconnect', [OkohiConnectController::class, 'disconnect'])->name('settings.loyalty.disconnect');
     });
 
     // =========================================
@@ -106,7 +126,7 @@ Route::middleware('auth')->group(function () {
         // Alias for backward compatibility
         Route::get('/', [SupervisorDashboardController::class, 'index'])->name('dashboard');
         // Supervisor ticketing - can see trips from all stations
-        Route::get('/ticketing', [\App\Http\Controllers\Seller\TicketingController::class, 'index'])->name('ticketing');
+        Route::get('/ticketing', [TicketingController::class, 'index'])->name('ticketing');
     });
 
     // =========================================
@@ -117,35 +137,35 @@ Route::middleware('auth')->group(function () {
         Route::get('/dashboard', [SellerDashboardController::class, 'index'])->name('dashboard');
 
         // Ticketing (POS Interface)
-        Route::get('/ticketing', [\App\Http\Controllers\Seller\TicketingController::class, 'index'])->name('ticketing');
-        Route::get('/ticketing-horizontal', [\App\Http\Controllers\Seller\TicketingController::class, 'horizontal'])->name('ticketing.horizontal');
-        Route::get('/tickets', [\App\Http\Controllers\Seller\TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/ticketing', [TicketingController::class, 'index'])->name('ticketing');
+        Route::get('/ticketing-horizontal', [TicketingController::class, 'horizontal'])->name('ticketing.horizontal');
+        Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 
         // API-like endpoints for ticketing
-        Route::post('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
-        Route::get('/tickets/export', [\App\Http\Controllers\Api\TicketController::class, 'export'])->name('tickets.export');
-        Route::get('/tickets/{ticket}/data', [\App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
-        Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
-        Route::get('/trips/{trip}/seat-map', [\App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
-        Route::get('/trips/{trip}/suggest-seats', [\App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
+        Route::post('/tickets', [App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
+        Route::get('/tickets/export', [App\Http\Controllers\Api\TicketController::class, 'export'])->name('tickets.export');
+        Route::get('/tickets/{ticket}/data', [App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
+        Route::delete('/tickets/{ticket}', [App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
+        Route::get('/trips/{trip}/seat-map', [App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
+        Route::get('/trips/{trip}/suggest-seats', [App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
 
         // Trip creation (for sellers)
-        Route::post('/trips', [\App\Http\Controllers\Admin\TripController::class, 'store'])->name('trips.store');
+        Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
     });
 
     // =========================================
     // ACCOUNTANT ROUTES - Financial Reports
     // =========================================
     Route::prefix('accountant')->middleware('role:admin,accountant')->name('accountant.')->group(function () {
-        Route::get('/reports', [\App\Http\Controllers\Accountant\ReportsController::class, 'index'])->name('reports');
-        Route::get('/export', [\App\Http\Controllers\Accountant\ReportsController::class, 'export'])->name('export');
+        Route::get('/reports', [ReportsController::class, 'index'])->name('reports');
+        Route::get('/export', [ReportsController::class, 'export'])->name('export');
     });
 
     // =========================================
     // EXECUTIVE ROUTES - Analytics Dashboard (Read-Only)
     // =========================================
     Route::prefix('executive')->middleware('role:admin,executive')->name('executive.')->group(function () {
-        Route::get('/analytics', [\App\Http\Controllers\Executive\AnalyticsController::class, 'index'])->name('analytics');
+        Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics');
     });
 
     // =========================================
@@ -169,16 +189,16 @@ Route::middleware('auth')->group(function () {
     // SHARED ROUTES - Available to all authenticated users
     // =========================================
     Route::middleware('role:admin,supervisor,seller,accountant,executive')->group(function () {
-        Route::get('/trips', [\App\Http\Controllers\Api\TripController::class, 'index'])->name('trips.index');
-        Route::get('/tickets', [\App\Http\Controllers\Api\TicketController::class, 'index'])->name('tickets.index');
+        Route::get('/trips', [App\Http\Controllers\Api\TripController::class, 'index'])->name('trips.index');
+        Route::get('/tickets', [App\Http\Controllers\Api\TicketController::class, 'index'])->name('tickets.index');
     });
 
     // Printing routes
-    Route::get('/tickets/{ticket}/print', [\App\Http\Controllers\TicketPrintController::class, 'print'])->name('tickets.print');
-    Route::post('/tickets/print-multiple', [\App\Http\Controllers\TicketPrintController::class, 'printMultiple'])->name('tickets.print-multiple');
+    Route::get('/tickets/{ticket}/print', [TicketPrintController::class, 'print'])->name('tickets.print');
+    Route::post('/tickets/print-multiple', [TicketPrintController::class, 'printMultiple'])->name('tickets.print-multiple');
 
     // Export routes
-    Route::get('/tickets/export-pdf', [\App\Http\Controllers\TicketPrintController::class, 'exportPdf'])->name('tickets.export-pdf');
+    Route::get('/tickets/export-pdf', [TicketPrintController::class, 'exportPdf'])->name('tickets.export-pdf');
 });
 
 require __DIR__.'/auth.php';

@@ -4,9 +4,15 @@ namespace App\Http\Controllers\Landlord;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Rules\AllowedTenantDomain;
 use App\Support\TenantDomainPolicy;
+use Database\Seeders\DestinationSeeder;
+use Database\Seeders\VehicleTypeSeeder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Stancl\Tenancy\Database\Models\Domain;
 
@@ -67,24 +73,24 @@ class TenantController extends Controller
         ]);
 
         // Generate strong password (10 chars)
-        $password = \Illuminate\Support\Str::password(10, true, true, false, false);
+        $password = Str::password(10, true, true, false, false);
 
         // Initialize Tenant Data and Create Admin
         $tenant->run(function () use ($validated, $password) {
             // Seed base data
-            \Illuminate\Support\Facades\Artisan::call('db:seed', [
-                '--class' => \Database\Seeders\DestinationSeeder::class,
+            Artisan::call('db:seed', [
+                '--class' => DestinationSeeder::class,
                 '--force' => true,
             ]);
-            \Illuminate\Support\Facades\Artisan::call('db:seed', [
-                '--class' => \Database\Seeders\VehicleTypeSeeder::class,
+            Artisan::call('db:seed', [
+                '--class' => VehicleTypeSeeder::class,
                 '--force' => true,
             ]);
 
-            \App\Models\User::create([
+            User::create([
                 'name' => 'Admin '.$validated['name'],
                 'email' => $validated['email'] ?? ('admin@'.$validated['id'].'.com'),
-                'password' => \Illuminate\Support\Facades\Hash::make($password),
+                'password' => Hash::make($password),
                 'role' => 'admin',
             ]);
         });

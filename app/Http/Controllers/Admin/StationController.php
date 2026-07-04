@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Destination;
 use App\Models\Station;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -33,7 +34,7 @@ class StationController extends Controller
             ->orderBy('name')
             ->paginate(50);
 
-        $destinations = \App\Models\Destination::with([
+        $destinations = Destination::with([
             'stations:id,name,code,city,settings,destination_id',
         ])->orderBy('name')->get(['id', 'name', 'settings']);
 
@@ -71,7 +72,7 @@ class StationController extends Controller
 
         // Auto-fill city name from destination if empty?
         if (empty($data['city'])) {
-            $dest = \App\Models\Destination::find($data['destination_id']);
+            $dest = Destination::find($data['destination_id']);
             $data['city'] = $dest->name;
         }
 
@@ -107,7 +108,7 @@ class StationController extends Controller
         unset($data['latitude'], $data['longitude'], $data['can_sell_tickets']);
 
         if (empty($data['city'])) {
-            $dest = \App\Models\Destination::find($data['destination_id']);
+            $dest = Destination::find($data['destination_id']);
             $data['city'] = $dest->name;
         }
 

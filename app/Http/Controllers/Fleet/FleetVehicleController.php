@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Fleet;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Traits\ManagesVehicles;
+use App\Models\CrewMember;
+use App\Models\UserVehicleAssignment;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use Illuminate\Http\Request;
@@ -36,7 +38,7 @@ class FleetVehicleController extends Controller
 
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
 
-        $crewMembers = \App\Models\CrewMember::where('active', true)
+        $crewMembers = CrewMember::where('active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'phone', 'license_number']);
 
@@ -61,7 +63,7 @@ class FleetVehicleController extends Controller
         $user = auth()->user();
         if ($user && $user->role === 'fleet_manager') {
             // Assigner automatiquement le véhicule créé au gestionnaire
-            \App\Models\UserVehicleAssignment::create([
+            UserVehicleAssignment::create([
                 'user_id' => $user->id,
                 'vehicle_id' => $vehicle->id,
                 'active' => true,

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Destination;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
@@ -21,7 +22,7 @@ class SettingsController extends Controller
         return Inertia::render('Admin/Settings/Index', [
             'stats' => [
                 'stations' => Station::count(),
-                'destinations' => \App\Models\Destination::count(),
+                'destinations' => Destination::count(),
                 'routes' => Route::count(),
 
                 'vehicles' => Vehicle::count(),

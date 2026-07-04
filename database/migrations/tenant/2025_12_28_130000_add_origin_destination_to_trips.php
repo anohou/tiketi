@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Trip;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -22,7 +23,7 @@ return new class extends Migration
         });
 
         // Backfill existing trips with origin/destination from their route
-        $trips = \App\Models\Trip::with('route')->get();
+        $trips = Trip::with('route')->get();
         foreach ($trips as $trip) {
             if ($trip->route) {
                 $trip->origin_station_id = $trip->route->origin_station_id;

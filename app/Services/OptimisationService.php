@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Route;
 use App\Models\RouteStopOrder;
 use App\Models\Ticket;
 use App\Models\Trip;
+use App\Models\VehicleType;
 use Illuminate\Support\Collection;
 
 class OptimisationService
@@ -344,7 +346,7 @@ class OptimisationService
             return;
         }
 
-        $route = \App\Models\Route::with('routeStopOrders')->find($routeId);
+        $route = Route::with('routeStopOrders')->find($routeId);
         $orderedStationIds = [];
         $addStation = function (?string $stationId) use (&$orderedStationIds): void {
             if ($stationId && ! in_array($stationId, $orderedStationIds, true)) {
@@ -791,7 +793,7 @@ class OptimisationService
      * Zone 2 : middle distance
      * Zone 3 : closest to door (board last)
      */
-    public function computeBoardingGroup(\App\Models\VehicleType $vehicleType, int $seatNumber): int
+    public function computeBoardingGroup(VehicleType $vehicleType, int $seatNumber): int
     {
         $totalSeats = $vehicleType->seat_count;
         $doorPositions = $vehicleType->door_positions ?? [];

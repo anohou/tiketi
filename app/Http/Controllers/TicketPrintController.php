@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Ticket;
 use App\Models\TicketSetting;
+use App\Models\Trip;
+use App\Services\TicketQueryService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -57,7 +59,7 @@ class TicketPrintController extends Controller
             }
         }
 
-        $pdf = PDF::loadView('tickets.print-multiple', [
+        $pdf = Pdf::loadView('tickets.print-multiple', [
             'tickets' => $tickets,
             'qrCodes' => $qrCodes,
             'settings' => $settings,
@@ -76,11 +78,11 @@ class TicketPrintController extends Controller
         $tripId = $request->get('trip_id');
         $hasExplicitDateRange = $request->filled('start_date') || $request->filled('end_date');
 
-        $tickets = app(\App\Services\TicketQueryService::class)
+        $tickets = app(TicketQueryService::class)
             ->getFilteredTicketsQuery($request, $user)
             ->get();
         $trip = $tripId
-            ? \App\Models\Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders.station', 'vehicle'])->find($tripId)
+            ? Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders.station', 'vehicle'])->find($tripId)
             : null;
 
         $totalAmount = $tickets->sum('price');
@@ -137,7 +139,7 @@ class TicketPrintController extends Controller
             $endDate = today()->toDateString();
         }
 
-        $pdf = PDF::loadView('tickets.export-pdf', [
+        $pdf = Pdf::loadView('tickets.export-pdf', [
             'tickets' => $tickets,
             'totalAmount' => $totalAmount,
             'periodLabel' => $periodLabel,

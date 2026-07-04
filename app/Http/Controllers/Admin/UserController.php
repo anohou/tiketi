@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Station;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -18,7 +19,7 @@ class UserController extends Controller
             ->orderBy('name')
             ->paginate(20);
 
-        $stations = \App\Models\Station::orderBy('name')->get(['id', 'name', 'city']);
+        $stations = Station::orderBy('name')->get(['id', 'name', 'city']);
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,

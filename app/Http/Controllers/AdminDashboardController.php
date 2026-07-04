@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Destination;
 use App\Models\Route;
+use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
+use App\Models\VehicleType;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -47,10 +51,10 @@ class AdminDashboardController extends Controller
         $totalStations = Station::count();
         $activeStations = Station::where('active', true)->count();
         $totalRoutes = Route::count();
-        $totalDestinations = \App\Models\Destination::count();
-        $totalVehicleTypes = \App\Models\VehicleType::count();
-        $totalFares = \App\Models\RouteFare::count();
-        $totalAssignments = \App\Models\UserStationAssignment::count();
+        $totalDestinations = Destination::count();
+        $totalVehicleTypes = VehicleType::count();
+        $totalFares = RouteFare::count();
+        $totalAssignments = UserStationAssignment::count();
 
         // User statistics by role
         $usersByRole = User::selectRaw('role, COUNT(*) as count')

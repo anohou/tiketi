@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\UserStationAssignment;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,7 +37,7 @@ class HandleInertiaRequests extends Middleware
         $isTenant = function_exists('tenancy') && tenancy()->initialized;
 
         if ($user && $isTenant) {
-            $assignedStations = \App\Models\UserStationAssignment::where('user_id', $user->id)
+            $assignedStations = UserStationAssignment::where('user_id', $user->id)
                 ->where('active', true)
                 ->with('station')
                 ->get()
