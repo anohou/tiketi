@@ -11,7 +11,7 @@ trait ManagesVehicleTypes
     protected function validateVehicleType(Request $request, ?VehicleType $vehicleType = null): array
     {
         return $request->validate([
-            'name' => 'required|string|unique:vehicle_types,name' . ($vehicleType ? ',' . $vehicleType->id : ''),
+            'name' => 'required|string|unique:vehicle_types,name'.($vehicleType ? ','.$vehicleType->id : ''),
             'seat_count' => 'required|integer|min:1',
             'seat_configuration' => 'required|string',
             'door_positions' => 'nullable|array',
@@ -27,6 +27,7 @@ trait ManagesVehicleTypes
     {
         $data = $this->validateVehicleType($request);
         $data['seat_map'] = $seatMapService->generateSeatMap($data);
+
         return VehicleType::create($data);
     }
 
@@ -34,6 +35,7 @@ trait ManagesVehicleTypes
     {
         $data = $this->validateVehicleType($request, $vehicleType);
         $data['seat_map'] = $seatMapService->generateSeatMap($data);
+
         return $vehicleType->update($data);
     }
 

@@ -7,9 +7,9 @@ use App\Models\CrewMember;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class VehicleCrewAssignmentController extends Controller
 {
@@ -66,8 +66,8 @@ class VehicleCrewAssignmentController extends Controller
         // Vérifier si le permis de conduire du chauffeur est expiré par rapport à la date de début d'affectation
         if ($crewMember->isDriver() && $crewMember->isLicenseExpired($data['assigned_from'])) {
             return back()->withErrors([
-                'crew_member_id' => 'Le permis de conduire de ce chauffeur est expiré à la date de début d\'affectation (' 
-                    . $crewMember->license_expiry_date->format('d/m/Y') . ').',
+                'crew_member_id' => 'Le permis de conduire de ce chauffeur est expiré à la date de début d\'affectation ('
+                    .$crewMember->license_expiry_date->format('d/m/Y').').',
             ]);
         }
 

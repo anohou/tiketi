@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Ticket;
 use App\Models\Route;
+use App\Models\Ticket;
 use App\Models\Trip;
 use App\Services\OptimisationService;
 use App\Services\TripSegmentService;
@@ -291,6 +291,6 @@ class TripController extends Controller
         // Lightness varies from 88% (very close) to 43% (furthest terminus)
         $lightness = 88 - ($ratio * 45);
 
-        return "hsl({$hue}, 90%, " . round($lightness, 2) . "%)";
+        return "hsl({$hue}, 90%, ".round($lightness, 2).'%)';
     }
 }

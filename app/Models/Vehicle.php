@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class Vehicle extends Model
 {
@@ -98,7 +98,7 @@ class Vehicle extends Model
      */
     public function isInsuranceExpired($date = null): bool
     {
-        if (!$this->insurance_expiry_date) {
+        if (! $this->insurance_expiry_date) {
             return false;
         }
 

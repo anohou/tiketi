@@ -275,8 +275,8 @@ class TicketController extends Controller
                 $trip = Trip::with(['route.routeStopOrders', 'originStation', 'destinationStation', 'vehicle.vehicleType'])->find($tripId);
                 if ($trip) {
                     event(new SeatMapUpdated($trip, [
-                    ['seat_number' => $seatNumber, 'status' => 'available'],
-                ], 'ticket.cancelled'));
+                        ['seat_number' => $seatNumber, 'status' => 'available'],
+                    ], 'ticket.cancelled'));
                 }
             } catch (\Exception $e) {
                 Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());

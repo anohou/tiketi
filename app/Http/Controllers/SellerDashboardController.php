@@ -6,7 +6,6 @@ use App\Models\Route as BusRoute;
 use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
-use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use Inertia\Inertia;
 

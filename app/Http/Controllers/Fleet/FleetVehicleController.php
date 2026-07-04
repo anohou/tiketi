@@ -16,7 +16,7 @@ class FleetVehicleController extends Controller
     public function index()
     {
         $user = auth()->user();
-        
+
         $query = Vehicle::with([
             'vehicleType',
             'trips.route',
@@ -35,7 +35,7 @@ class FleetVehicleController extends Controller
         $vehicles = $query->paginate(50);
 
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
-        
+
         $crewMembers = \App\Models\CrewMember::where('active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'role', 'phone', 'license_number']);
@@ -84,7 +84,7 @@ class FleetVehicleController extends Controller
     public function update(Request $request, Vehicle $vehicle)
     {
         $this->authorizeVehicle($vehicle);
-        
+
         $this->performUpdateVehicle($request, $vehicle);
 
         return redirect()->route('fleet.vehicles.index')->with('success', 'Véhicule mis à jour.');
@@ -124,7 +124,7 @@ class FleetVehicleController extends Controller
         $user = auth()->user();
         if ($user && $user->role === 'fleet_manager') {
             $isAssigned = $vehicle->managers()->where('users.id', $user->id)->exists();
-            if (!$isAssigned) {
+            if (! $isAssigned) {
                 abort(403, 'Vous n\'êtes pas autorisé à gérer ce véhicule.');
             }
         }

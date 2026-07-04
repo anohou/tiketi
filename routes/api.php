@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\OkohiDeleteController;
 use App\Http\Controllers\Api\OkohiVerificationController;
 use App\Http\Controllers\Api\OptimisationController;
@@ -7,7 +8,6 @@ use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\VehicleController;
-use App\Http\Controllers\Api\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*

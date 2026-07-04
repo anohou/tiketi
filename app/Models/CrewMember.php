@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Str;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class CrewMember extends Model
 {
@@ -79,7 +79,7 @@ class CrewMember extends Model
      */
     public function isLicenseExpired($date = null): bool
     {
-        if ($this->role !== 'driver' || !$this->license_expiry_date) {
+        if ($this->role !== 'driver' || ! $this->license_expiry_date) {
             return false;
         }
 

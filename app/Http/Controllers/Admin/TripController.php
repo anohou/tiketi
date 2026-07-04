@@ -11,8 +11,6 @@ use Inertia\Inertia;
 
 class TripController extends Controller
 {
-
-
     /**
      * Display a listing of the resource.
      */
@@ -27,14 +25,14 @@ class TripController extends Controller
 
         // Charger l'équipage pour chaque voyage (via les affectations véhicule à la date de départ) sans requête N+1
         $vehicleIds = $trips->pluck('vehicle_id')->unique()->filter()->toArray();
-        if (!empty($vehicleIds)) {
+        if (! empty($vehicleIds)) {
             $minDate = $trips->min('departure_at');
             $maxDate = $trips->max('departure_at');
 
             $assignments = \App\Models\VehicleCrewAssignment::whereIn('vehicle_id', $vehicleIds)
-                ->where(function($query) use ($minDate) {
+                ->where(function ($query) use ($minDate) {
                     $query->whereNull('assigned_to')
-                          ->orWhere('assigned_to', '>=', $minDate);
+                        ->orWhere('assigned_to', '>=', $minDate);
                 })
                 ->where('assigned_from', '<=', $maxDate)
                 ->with('crewMember')
@@ -62,6 +60,7 @@ class TripController extends Controller
         } else {
             $trips->getCollection()->transform(function ($trip) {
                 $trip->crew_info = collect();
+
                 return $trip;
             });
         }
@@ -125,8 +124,8 @@ class TripController extends Controller
         $vehicle = Vehicle::findOrFail($data['vehicle_id']);
         if ($vehicle->isInsuranceExpired($data['departure_at'])) {
             return back()->withErrors([
-                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage (' 
-                    . $vehicle->insurance_expiry_date->format('d/m/Y') . ').',
+                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
+                    .$vehicle->insurance_expiry_date->format('d/m/Y').').',
             ]);
         }
 
@@ -219,8 +218,8 @@ class TripController extends Controller
         $vehicle = Vehicle::findOrFail($data['vehicle_id']);
         if ($vehicle->isInsuranceExpired($data['departure_at'])) {
             return back()->withErrors([
-                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage (' 
-                    . $vehicle->insurance_expiry_date->format('d/m/Y') . ').',
+                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
+                    .$vehicle->insurance_expiry_date->format('d/m/Y').').',
             ]);
         }
         $trip->update($data);

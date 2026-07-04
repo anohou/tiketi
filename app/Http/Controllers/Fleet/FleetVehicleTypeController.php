@@ -13,9 +13,7 @@ class FleetVehicleTypeController extends Controller
 {
     use ManagesVehicleTypes;
 
-    public function __construct(private SeatMapService $seatMapService)
-    {
-    }
+    public function __construct(private SeatMapService $seatMapService) {}
 
     public function index()
     {

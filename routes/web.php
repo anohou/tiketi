@@ -1,13 +1,13 @@
 <?php
 
 use App\Http\Controllers\AdminDashboardController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Fleet\CrewMemberController;
 use App\Http\Controllers\Fleet\FleetAssignmentController;
 use App\Http\Controllers\Fleet\FleetDashboardController;
 use App\Http\Controllers\Fleet\FleetVehicleController;
 use App\Http\Controllers\Fleet\FleetVehicleTypeController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SupervisorDashboardController;
 use Illuminate\Support\Facades\Route;
@@ -50,8 +50,6 @@ Route::get('/dashboard', function () {
         default => redirect()->route('login'),
     };
 })->middleware(['auth', 'verified'])->name('dashboard');
-
-
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

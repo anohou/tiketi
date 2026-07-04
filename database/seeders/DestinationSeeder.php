@@ -18,7 +18,7 @@ class DestinationSeeder extends Seeder
             Destination::updateOrCreate(
                 ['name' => $ville['name']],
                 [
-                    'description' => 'Ville de ' . $ville['name'],
+                    'description' => 'Ville de '.$ville['name'],
                     'region' => $ville['region'],
                     'is_active' => true,
                 ]
