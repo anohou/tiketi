@@ -242,6 +242,15 @@ const exportTicketsToPdf = (tripId) => {
   }
 };
 
+const selectTripFromModal = (tripId) => {
+  showTripSelectionModal.value = false;
+  selectTrip(tripId);
+
+  if (isMobile.value) {
+    scrollToSeats();
+  }
+};
+
 onMounted(() => {
   window.addEventListener('resize', () => {
     isMobile.value = window.innerWidth < 768;
@@ -980,7 +989,7 @@ onMounted(() => {
           <div v-if="filteredTrips.length > 0">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div v-for="trip in filteredTrips" :key="trip.id"
-                   @click="selectTrip(trip.id)"
+                   @click="selectTripFromModal(trip.id)"
                    :class="[
                      'group p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 bg-white dark:bg-slate-900 hover:shadow-lg',
                      selectedTripId === trip.id 
