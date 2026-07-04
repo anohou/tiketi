@@ -38,6 +38,7 @@ deployment/
     ├── dump-db.sh
     ├── generate-env.sh
     ├── healthcheck.sh
+    ├── php-shell.sh
     ├── provision-db.sh
     ├── repair-tenant-bootstrap.sh
     ├── rbac.config.sh
