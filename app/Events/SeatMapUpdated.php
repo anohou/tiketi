@@ -32,6 +32,7 @@ class SeatMapUpdated implements ShouldBroadcastNow
         $channelNames = [
             'trip.'.$this->trip->id,
             'trips.global',
+            'network.global',
         ];
 
         $route = $this->trip->route;

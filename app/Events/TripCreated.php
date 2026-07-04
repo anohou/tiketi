@@ -56,6 +56,7 @@ class TripCreated implements ShouldBroadcastNow
 
         // Broadcast to global channel for admins/executives
         $channels[] = new PrivateChannel('trips.global');
+        $channels[] = new PrivateChannel('network.global');
 
         return array_unique($channels, SORT_REGULAR);
     }

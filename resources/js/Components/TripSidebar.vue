@@ -35,6 +35,10 @@ const seatMap = ref(null);
 const seatMapLoading = ref(false);
 const showRouteSchemaModal = ref(false);
 const selectedRouteSchemaTrip = ref(null);
+let realtimeFallbackInterval = null;
+let realtimeChannels = [];
+
+const isSameTripId = (a, b) => String(a) === String(b);
 
 // Zoom controls
 const zoomLevel = ref(1);
@@ -111,6 +115,48 @@ const fetchSeatMap = async (tripId) => {
     }
 };
 
+const getAssignedStationIds = () => {
+    const assignments = page.props.auth.user?.station_assignments || [];
+    return [...new Set(assignments
+        .map(assignment => assignment.station_id)
+        .filter(Boolean)
+        .map(stationId => String(stationId)))];
+};
+
+const applyRealtimeSeatUpdate = (e = {}) => {
+    const tripId = e.trip_id || e.trip?.id;
+    if (!tripId) return;
+
+    ticketingStore.pulseTrip(tripId, {
+        action: e.action || 'ticket.updated',
+        sourceStationId: e.source_station_id || null,
+        changedSeats: e.changedSeats || [],
+    });
+
+    if (selectedTripId.value && isSameTripId(selectedTripId.value, tripId)) {
+        ticketingStore.notifySeatMapChanged();
+        syncSelectedTripSilently();
+    }
+};
+
+const isEchoConnected = () => {
+    try {
+        return window.Echo?.connector?.pusher?.connection?.state === 'connected';
+    } catch (error) {
+        return false;
+    }
+};
+
+const syncSelectedTripSilently = async () => {
+    if (!selectedTripId.value) return;
+    try {
+        const response = await axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }));
+        seatMap.value = response.data;
+    } catch (error) {
+        console.error('Fallback seat map sync failed:', error);
+    }
+};
+
 const selectTrip = (trip) => {
     if (selectedTripId.value === trip.id) {
         // Only deselect if not on ticketing page
@@ -150,10 +196,41 @@ const formatTime = (dateString) => {
 
 onMounted(() => {
     fetchTrips();
+
+    const echo = window.Echo;
+    if (echo) {
+        const stationIds = getAssignedStationIds();
+
+        stationIds.forEach((stationId) => {
+            echo.private(`station.${stationId}`)
+                .listen('.SeatMapUpdated', applyRealtimeSeatUpdate)
+                .listen('.TripCreated', (e) => {
+                    if (e.trip?.id) {
+                        ticketingStore.pulseTrip(e.trip.id, { action: 'trip.created' });
+                    }
+                });
+            realtimeChannels.push(`station.${stationId}`);
+        });
+
+        echo.private('network.global')
+            .listen('.SeatMapUpdated', applyRealtimeSeatUpdate)
+            .listen('.TripCreated', (e) => {
+                if (e.trip?.id) {
+                    ticketingStore.pulseTrip(e.trip.id, { action: 'trip.created' });
+                }
+            });
+        realtimeChannels.push('network.global');
+    }
+
+    realtimeFallbackInterval = setInterval(() => {
+        if (selectedTripId.value && !isEchoConnected()) {
+            syncSelectedTripSilently();
+        }
+    }, 5000);
 });
 
 watch(() => ticketingStore.selectedTripId, (newId) => {
-    if (newId && newId !== selectedTripId.value) {
+    if (newId && !isSameTripId(newId, selectedTripId.value)) {
         selectedTripId.value = newId;
         fetchSeatMap(newId);
     }
@@ -219,7 +296,7 @@ watch(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('trip_id');
 }, (newId) => {
-    if (newId && newId !== selectedTripId.value) {
+    if (newId && !isSameTripId(newId, selectedTripId.value)) {
         selectedTripId.value = newId;
         fetchSeatMap(newId);
     }
@@ -233,7 +310,15 @@ onMounted(() => {
 
 import { onUnmounted } from 'vue';
 onUnmounted(() => {
+    if (realtimeFallbackInterval) clearInterval(realtimeFallbackInterval);
     if (refreshInterval) clearInterval(refreshInterval);
+    const echo = window.Echo;
+    if (echo) {
+        realtimeChannels.forEach((channelName) => {
+            echo.leave(channelName);
+        });
+    }
+    realtimeChannels = [];
 });
 
 // The selected trip object (from trips array)

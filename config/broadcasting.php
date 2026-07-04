@@ -1,7 +1,7 @@
 <?php
 
 $configuredBroadcastConnection = env('BROADCAST_CONNECTION');
-$reverbEnabled = filter_var(env('REVERB_ENABLED', false), FILTER_VALIDATE_BOOL);
+$reverbEnabled = filter_var(env('REVERB_ENABLED', true), FILTER_VALIDATE_BOOL);
 $reverbConfigured = filled(env('REVERB_APP_ID'))
     && filled(env('REVERB_APP_KEY'))
     && filled(env('REVERB_APP_SECRET'))

@@ -82,6 +82,20 @@ onMounted(() => {
       })
       subscribedChannels.push('trips.global')
     }
+
+    if (['admin', 'executive', 'supervisor', 'seller'].includes(page.props.auth.user?.role)) {
+      echo.private('network.global').listen('.SeatMapUpdated', (e) => {
+        const tripId = e.trip_id || e.trip?.id
+        if (tripId) {
+          ticketingStore.pulseTrip(tripId, {
+            action: e.action || 'ticket.updated',
+            sourceStationId: e.source_station_id || null,
+            changedSeats: e.changedSeats || [],
+          })
+        }
+      })
+      subscribedChannels.push('network.global')
+    }
   }
 })
 

@@ -22,3 +22,7 @@ Broadcast::channel('station.{stationId}', function ($user, $stationId) {
 Broadcast::channel('trips.global', function ($user) {
     return in_array($user->role, ['admin', 'executive']);
 });
+
+Broadcast::channel('network.global', function ($user) {
+    return in_array($user->role, ['admin', 'executive', 'supervisor', 'seller'], true);
+});

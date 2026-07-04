@@ -196,6 +196,9 @@ export function useTicketing(props, options = {}) {
   const currentTripChannel = ref(null);
   const currentStationChannels = ref([]);
   const recentRealtimeEventSignatures = new Map();
+  let realtimeFallbackInterval = null;
+
+  const isSameTripId = (a, b) => String(a) === String(b);
 
   const hasRecentlyProcessedRealtimeEvent = (e = {}) => {
     const tripId = e.trip_id || e.trip?.id || 'unknown';
@@ -235,7 +238,7 @@ export function useTicketing(props, options = {}) {
     const freed = changedSeats.filter(s => s.status === 'available').length;
     const delta = occupied - freed;
 
-    if (selectedTripId.value === tripId) {
+    if (isSameTripId(selectedTripId.value, tripId)) {
       fetchSeatMap({ silent: true });
       ticketingStore.notifySeatMapChanged();
       if (selectedFare.value) {
@@ -314,6 +317,13 @@ export function useTicketing(props, options = {}) {
         .listen('.TripCreated', applyRealtimeTripCreated);
       currentStationChannels.value = [...currentStationChannels.value, 'trips.global'];
     }
+
+    if (['admin', 'executive', 'supervisor', 'seller'].includes(page.props.auth.user?.role)) {
+      echo.private('network.global')
+        .listen('.SeatMapUpdated', applyRealtimeSeatMapUpdate)
+        .listen('.TripCreated', applyRealtimeTripCreated);
+      currentStationChannels.value = [...currentStationChannels.value, 'network.global'];
+    }
   };
 
   const unsubscribeStationChannels = () => {
@@ -324,6 +334,40 @@ export function useTicketing(props, options = {}) {
       echo.leave(channelName);
     });
     currentStationChannels.value = [];
+  };
+
+  const isEchoConnected = () => {
+    try {
+      return window.Echo?.connector?.pusher?.connection?.state === 'connected';
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const syncCurrentTripSilently = async () => {
+    if (!selectedTripId.value) return;
+
+    try {
+      const response = await axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }));
+      seatMap.value = response.data;
+    } catch (error) {
+      console.error('Sync seat map fallback failed:', error);
+    }
+  };
+
+  const ensureRealtimeFallback = () => {
+    if (realtimeFallbackInterval) {
+      clearInterval(realtimeFallbackInterval);
+      realtimeFallbackInterval = null;
+    }
+
+    if (!selectedTripId.value) return;
+
+    realtimeFallbackInterval = setInterval(() => {
+      if (!isEchoConnected()) {
+        syncCurrentTripSilently();
+      }
+    }, 5000);
   };
 
   // =============================================
@@ -1195,7 +1239,7 @@ export function useTicketing(props, options = {}) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('trip_id');
   }, (tripId) => {
-    if (tripId && tripId !== selectedTripId.value) {
+    if (tripId && !isSameTripId(tripId, selectedTripId.value)) {
       selectTrip(tripId);
     }
   }, { immediate: true });
@@ -1244,6 +1288,10 @@ export function useTicketing(props, options = {}) {
       selectedSeatNumber.value = null;
       fetchSeatMap();
       resetZoom();
+      ensureRealtimeFallback();
+    } else if (realtimeFallbackInterval) {
+      clearInterval(realtimeFallbackInterval);
+      realtimeFallbackInterval = null;
     }
   });
 
@@ -1324,6 +1372,7 @@ export function useTicketing(props, options = {}) {
   onUnmounted(() => {
     unsubscribeTripChannel();
     unsubscribeStationChannels();
+    if (realtimeFallbackInterval) clearInterval(realtimeFallbackInterval);
     if (clockInterval) clearInterval(clockInterval);
   });
 
