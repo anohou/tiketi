@@ -18,26 +18,16 @@ class SellerDashboardController extends Controller
 
         if ($user->role === 'admin' || $user->role === 'supervisor') {
             $trips = Trip::with(['route', 'vehicle.vehicleType'])
-                ->orderBy('departure_at', 'asc')
+                ->upcomingFirst()
                 ->limit(10)
                 ->get();
             $routes = BusRoute::all();
         } else {
             // Unifier avec la logique de TicketingController: Basé sur les stations assignées
-            $assignedStationIds = UserStationAssignment::where('user_id', $user->id)
-                ->where('active', true)
-                ->pluck('station_id')
-                ->toArray();
+            $assignedStationIds = $user->getActiveStationIds();
 
-            $routes = BusRoute::with(['originStation', 'destinationStation'])
-                ->where(function ($query) use ($assignedStationIds) {
-                    $query->whereIn('origin_station_id', $assignedStationIds)
-                        ->orWhereIn('destination_station_id', $assignedStationIds)
-                        ->orWhereHas('routeStopOrders', function ($q) use ($assignedStationIds) {
-                            $q->whereIn('station_id', $assignedStationIds);
-                        });
-                })
-                ->where('active', true)
+            $routes = $user->accessibleRoutesQuery()
+                ->with(['originStation', 'destinationStation'])
                 ->get()
                 ->map(function ($route) use ($assignedStationIds) {
                     // Determine if route should be displayed in reverse direction
@@ -61,7 +51,7 @@ class SellerDashboardController extends Controller
             $trips = Trip::with(['route', 'vehicle.vehicleType'])
                 ->whereIn('route_id', $routeIds)
                 ->where('departure_at', '>=', now())
-                ->orderBy('departure_at', 'asc')
+                ->upcomingFirst()
                 ->limit(10)
                 ->get();
 

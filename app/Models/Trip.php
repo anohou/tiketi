@@ -32,7 +32,7 @@ class Trip extends Model
         'settings' => 'array',
     ];
 
-    protected $appends = ['total_seats', 'available_seats', 'display_name'];
+    protected $appends = ['total_seats', 'available_seats', 'occupied_seats_count', 'sold_tickets_count', 'display_name'];
 
     /**
      * Get the display name for this trip (origin -> destination)
@@ -72,6 +72,22 @@ class Trip extends Model
         }
 
         return max(0, $total - $occupied);
+    }
+
+    public function getOccupiedSeatsCountAttribute(): int
+    {
+        return max(0, $this->total_seats - $this->available_seats);
+    }
+
+    public function getSoldTicketsCountAttribute(): int
+    {
+        if ($this->relationLoaded('tickets')) {
+            return $this->tickets->where('status', '!=', 'cancelled')->count();
+        }
+
+        return Ticket::where('trip_id', $this->id)
+            ->where('status', '!=', 'cancelled')
+            ->count();
     }
 
     /**
@@ -129,6 +145,14 @@ class Trip extends Model
         });
     }
 
+    /**
+     * Order trips with upcoming departures first, then past trips, each by time.
+     */
+    public function scopeUpcomingFirst($query)
+    {
+        return $query->orderByRaw('CASE WHEN departure_at < ? THEN 1 ELSE 0 END, departure_at ASC', [now()]);
+    }
+
     protected static function generateTripCode(): string
     {
         do {
@@ -166,5 +190,37 @@ class Trip extends Model
     public function tripSeatOccupancies()
     {
         return $this->hasMany(TripSeatOccupancy::class);
+    }
+
+    /**
+     * Récupère l'équipage qui était affecté au véhicule à la date de départ du voyage.
+     * Retourne une collection de VehicleCrewAssignment avec la relation crewMember chargée.
+     */
+    public function getCrewAttribute()
+    {
+        if (! $this->vehicle_id || ! $this->departure_at) {
+            return collect();
+        }
+
+        return VehicleCrewAssignment::where('vehicle_id', $this->vehicle_id)
+            ->atDate($this->departure_at)
+            ->with('crewMember')
+            ->get();
+    }
+
+    /**
+     * Récupère le chauffeur du voyage (basé sur l'affectation véhicule à la date de départ)
+     */
+    public function getDriverAttribute()
+    {
+        return $this->crew->firstWhere('role', 'driver')?->crewMember;
+    }
+
+    /**
+     * Récupère l'assistant du voyage (basé sur l'affectation véhicule à la date de départ)
+     */
+    public function getAssistantAttribute()
+    {
+        return $this->crew->firstWhere('role', 'assistant')?->crewMember;
     }
 }

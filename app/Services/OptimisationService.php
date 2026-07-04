@@ -145,6 +145,14 @@ class OptimisationService
             }
         }
 
+        // Si le voyage est verrouillé et qu'on vend depuis une gare intermédiaire,
+        // appliquer la règle de vente de la gare:
+        // - avant le départ: uniquement les sièges qui se libèrent à cette gare
+        // - après le départ: sièges libres + sièges qui se libèrent à cette gare
+        if ($trip->isSalesClosed() && $boardingStationId && $boardingStationId !== $trip->origin_station_id) {
+            $availableSeats = app(TripSegmentService::class)->sellableSeatsForStation($trip, $boardingStationId);
+        }
+
         if ($troncon === 'short') {
             $frontZoneSeats = $this->filterSeatsByPhysicalZone($availableSeats, $seatMapInfo, 'front');
             if (! empty($frontZoneSeats)) {
@@ -840,10 +848,16 @@ class OptimisationService
      */
     public function getTripOccupancyStats(string $tripId): array
     {
-        $trip = Trip::with('vehicle.vehicleType')->findOrFail($tripId);
+        $trip = Trip::with(['vehicle.vehicleType', 'tripSeatOccupancies.ticket'])->findOrFail($tripId);
 
         $totalSeats = $trip->vehicle->vehicleType->seat_count;
-        $occupiedSeats = Ticket::where('trip_id', $tripId)
+        $occupiedSeats = $trip->tripSeatOccupancies
+            ->filter(fn ($occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->pluck('seat_number')
+            ->unique()
+            ->count();
+
+        $soldTickets = Ticket::where('trip_id', $tripId)
             ->where('status', '!=', 'cancelled')
             ->count();
 
@@ -852,6 +866,8 @@ class OptimisationService
         return [
             'total_seats' => $totalSeats,
             'occupied_seats' => $occupiedSeats,
+            'occupied_seats_count' => $occupiedSeats,
+            'sold_tickets_count' => $soldTickets,
             'available_seats' => $totalSeats - $occupiedSeats,
             'occupancy_rate' => round($occupancyRate, 2),
             'booking_type' => $trip->booking_type,

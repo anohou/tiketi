@@ -7,7 +7,6 @@ use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\Trip;
-use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
@@ -28,21 +27,18 @@ class TicketingController extends Controller
     private function getTicketingData(?string $selectedTripId = null): array
     {
         $user = auth()->user();
-        $isAdmin = $user->role === 'admin';
+        $isAdmin = $user->isAdmin();
 
-        $assignedStationIds = $isAdmin ? [] : UserStationAssignment::where('user_id', $user->id)
-            ->where('active', true)
-            ->pluck('station_id')
-            ->toArray();
-
+        $assignedStationIds = $user->getActiveStationIds();
         $hasActiveAssignment = $isAdmin || count($assignedStationIds) > 0;
-        $assignedStation = (! $isAdmin && $hasActiveAssignment)
-            ? Station::find($assignedStationIds[0])?->name
+        $assignedStationModel = (! $isAdmin && $hasActiveAssignment)
+            ? Station::find($assignedStationIds[0])
             : null;
+        $assignedStation = $assignedStationModel?->name;
 
         $trips = $this->loadTrips($isAdmin, $assignedStationIds, $selectedTripId);
         $routeFares = $this->loadFares($isAdmin, $assignedStationIds);
-        $routes = $this->loadRoutes($isAdmin, $assignedStationIds);
+        $routes = $this->loadRoutes($isAdmin);
 
         $this->enrichTripsWithSeatCounts($trips);
 
@@ -55,24 +51,29 @@ class TicketingController extends Controller
             'vehicles' => Vehicle::with('vehicleType')->where('active', true)->orderBy('identifier')->get(['id', 'identifier', 'seat_count', 'vehicle_type_id']),
             'destinations' => $destinations,
             'hasActiveAssignment' => $hasActiveAssignment,
+            'assignedStationId' => $assignedStationModel?->id,
             'assignedStation' => $assignedStation,
         ];
     }
 
     private function loadTrips(bool $isAdmin, array $assignedStationIds, ?string $selectedTripId = null)
     {
+        $user = auth()->user();
         $showHistory = request()->boolean('show_history');
 
-        $baseQuery = Trip::withCount('tripSeatOccupancies as occupied_seats')
-            ->orderBy('departure_at', $showHistory ? 'desc' : 'asc');
+        $baseQuery = Trip::withCount('tripSeatOccupancies as occupied_seats');
 
         if ($showHistory) {
             // Unlimited past trips for history
-            $tripsQuery = (clone $baseQuery)->where('departure_at', '<', now()->subHours(1));
+            $tripsQuery = (clone $baseQuery)
+                ->where('departure_at', '<', now()->subHours(1))
+                ->orderBy('departure_at', 'desc');
         } else {
             // Standard active trips
-            $hours = (in_array(auth()->user()->role, ['admin', 'supervisor', 'superadmin'])) ? 48 : 1;
-            $tripsQuery = (clone $baseQuery)->where('departure_at', '>=', now()->subHours($hours));
+            $hours = (in_array($user->role, ['admin', 'supervisor', 'superadmin'])) ? 48 : 1;
+            $tripsQuery = (clone $baseQuery)
+                ->where('departure_at', '>=', now()->subHours($hours))
+                ->upcomingFirst();
         }
 
         $withRelations = [
@@ -82,15 +83,11 @@ class TicketingController extends Controller
         ];
 
         if ($isAdmin) {
-            $finalQuery = $baseQuery->with($withRelations);
+            $finalQuery = $showHistory
+                ? $tripsQuery->with($withRelations)
+                : (clone $baseQuery)->with($withRelations)->upcomingFirst();
         } else {
-            $assignedRouteIds = Route::where(function ($query) use ($assignedStationIds) {
-                $query->whereIn('origin_station_id', $assignedStationIds)
-                    ->orWhereHas('routeStopOrders', function ($q) use ($assignedStationIds) {
-                        $q->whereIn('station_id', $assignedStationIds);
-                    });
-            })
-                ->where('active', true)
+            $assignedRouteIds = $user->accessibleRoutesQuery()
                 ->pluck('id')
                 ->toArray();
 
@@ -104,7 +101,7 @@ class TicketingController extends Controller
 
         $trips = $finalQuery->get();
 
-        // If a specific trip was requested and it's not in the list (e.g. it passed more than 1h ago), fetch and add it
+        // If a specific trip was requested and it's not in the list, fetch and add it
         if ($selectedTripId && ! $trips->contains('id', $selectedTripId)) {
             $requestedTrip = Trip::withCount('tripSeatOccupancies as occupied_seats')
                 ->with([
@@ -161,18 +158,14 @@ class TicketingController extends Controller
         })->values();
     }
 
-    private function loadRoutes(bool $isAdmin, array $assignedStationIds)
+    private function loadRoutes(bool $isAdmin)
     {
         if ($isAdmin) {
             return Route::orderBy('name')->get(['id', 'name']);
         }
 
-        return Route::with(['originDestination', 'targetDestination'])
-            ->where(function ($query) use ($assignedStationIds) {
-                $query->whereIn('origin_station_id', $assignedStationIds)
-                    ->orWhereIn('destination_station_id', $assignedStationIds);
-            })
-            ->where('active', true)
+        return auth()->user()->accessibleRoutesQuery()
+            ->with(['originDestination', 'targetDestination'])
             ->orderBy('name')
             ->get();
     }
@@ -253,73 +246,5 @@ class TicketingController extends Controller
                 'name' => $city,
             ];
         });
-    }
-
-    public function getSeatMap($tripId)
-    {
-        $trip = Trip::with(['vehicle.vehicleType', 'tripSeatOccupancies.ticket.toStation', 'route.routeStopOrders'])->findOrFail($tripId);
-
-        $vehicleType = $trip->vehicle->vehicleType;
-        $seatCount = $trip->vehicle->seat_count;
-        $occupiedSeats = $trip->tripSeatOccupancies
-            ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status !== 'cancelled')
-            ->pluck('seat_number')
-            ->unique()
-            ->toArray();
-
-        $stationIndices = app(TripSegmentService::class)->stationIndices($trip);
-        $totalStops = count($stationIndices);
-
-        $seatMapService = app(SeatMapService::class);
-        $seatMap = $seatMapService->ensureGrid($vehicleType->seat_map ?? [], [
-            'seat_count' => $seatCount,
-            'seat_configuration' => $vehicleType->seat_configuration ?? '2+2',
-            'door_positions' => $vehicleType->door_positions ?? [],
-            'last_row_seats' => $vehicleType->last_row_seats ?? 5,
-        ]);
-
-        foreach ($seatMap as &$row) {
-            foreach ($row as &$seat) {
-                if (($seat['type'] ?? null) !== 'seat' || ! isset($seat['number'])) {
-                    continue;
-                }
-
-                $seatNumber = $seat['number'];
-                $occupancy = $trip->tripSeatOccupancies->firstWhere('seat_number', $seatNumber);
-                $seat['isOccupied'] = in_array($seatNumber, $occupiedSeats);
-
-                if ($seat['isOccupied'] && $occupancy?->ticket) {
-                    $stopIndex = $stationIndices[$occupancy->ticket->to_station_id] ?? 0;
-                    $seat['color'] = $this->getStopColor($stopIndex, $totalStops);
-                    $seat['destination_name'] = $occupancy->ticket->toStation->name ?? 'Inconnu';
-                    $seat['ticket_id'] = $occupancy->ticket->id;
-                    $seat['ticket_uuid'] = $occupancy->ticket->uuid ?? null;
-                    $seat['ticket_number'] = $occupancy->ticket->ticket_number;
-                } else {
-                    $seat['color'] = '#94A3B8';
-                    $seat['destination_name'] = null;
-                }
-            }
-        }
-
-        return response()->json([
-            'seat_map' => $seatMap,
-            'vehicle_type' => $vehicleType,
-            'total_seats' => $seatCount,
-            'occupied_seats' => count($occupiedSeats),
-            'available_seats' => $seatCount - count($occupiedSeats),
-        ]);
-    }
-
-    private function getStopColor(int $stopIndex, int $totalStops): string
-    {
-        if ($totalStops <= 1) {
-            return '#3B82F6';
-        }
-
-        $ratio = $stopIndex / ($totalStops - 1);
-        $lightness = 92 - ($ratio * 50);
-
-        return 'hsl(220, 100%, '.round($lightness, 2).'%)';
     }
 }

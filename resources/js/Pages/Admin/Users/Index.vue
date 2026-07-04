@@ -8,6 +8,10 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import ConfirmationModal from '@/Components/ConfirmationModal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
+import EmptyState from '@/Components/EmptyState.vue';
+import { toastStore } from '@/Stores/toastStore.js';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 
@@ -232,16 +236,26 @@ const submit = () => {
   });
 };
 
-const deleteUser = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-    router.delete(route('admin.users.destroy', id), {
-      onSuccess: () => {
-        if (selectedUser.value?.id === id) {
-          selectedUser.value = null;
-        }
-      },
-    });
-  }
+const showDeleteUserModal = ref(false);
+const userIdToDelete = ref(null);
+
+const confirmDeleteUser = (id) => {
+  userIdToDelete.value = id;
+  showDeleteUserModal.value = true;
+};
+
+const deleteUser = () => {
+  if (!userIdToDelete.value) return;
+  showDeleteUserModal.value = false;
+  router.delete(route('admin.users.destroy', userIdToDelete.value), {
+    onSuccess: () => {
+      if (selectedUser.value?.id === userIdToDelete.value) {
+        selectedUser.value = null;
+      }
+      toastStore.success('Utilisateur supprimé avec succès');
+      userIdToDelete.value = null;
+    },
+  });
 };
 
 // Assignment methods
@@ -350,10 +364,23 @@ const saveNewPassword = () => {
   });
 };
 
-const removeAssignment = (assignmentId) => {
-  if (!confirm('Retirer cette affectation ?')) return;
-  router.delete(route('admin.assignments.destroy', assignmentId), {
-    preserveScroll: true
+const showRemoveAssignmentModal = ref(false);
+const assignmentIdToRemove = ref(null);
+
+const confirmRemoveAssignment = (assignmentId) => {
+  assignmentIdToRemove.value = assignmentId;
+  showRemoveAssignmentModal.value = true;
+};
+
+const removeAssignment = () => {
+  if (!assignmentIdToRemove.value) return;
+  showRemoveAssignmentModal.value = false;
+  router.delete(route('admin.assignments.destroy', assignmentIdToRemove.value), {
+    preserveScroll: true,
+    onSuccess: () => {
+      toastStore.success('Affectation retirée avec succès');
+      assignmentIdToRemove.value = null;
+    }
   });
 };
 
@@ -366,11 +393,14 @@ const toggleAssignmentActive = (assignment) => {
   });
 };
 
-const toggleUserActive = (user, event) => {
+const showToggleActiveModal = ref(false);
+const userToToggleActive = ref(null);
+const toggleActiveEvent = ref(null);
+
+const confirmToggleUserActive = (user, event) => {
   let targetUser = user;
   let targetEvent = event;
 
-  // Handle case where first arg is Event (implicit call)
   if (user && user.target && !user.id) {
     targetEvent = user;
     targetUser = selectedUser.value;
@@ -380,21 +410,40 @@ const toggleUserActive = (user, event) => {
 
   if (!targetUser) return;
 
-  const action = targetUser.active !== false ? 'désactiver' : 'activer';
-  
-  if (!confirm(`Êtes-vous sûr de vouloir ${action} cet utilisateur ?`)) {
-    if (targetEvent && targetEvent.target) {
-      targetEvent.target.checked = !targetEvent.target.checked;
-    }
-    return;
-  }
+  userToToggleActive.value = targetUser;
+  toggleActiveEvent.value = targetEvent;
+  showToggleActiveModal.value = true;
+};
 
+const cancelToggleUserActive = () => {
+  showToggleActiveModal.value = false;
+  if (toggleActiveEvent.value && toggleActiveEvent.value.target) {
+    toggleActiveEvent.value.target.checked = !toggleActiveEvent.value.target.checked;
+  }
+  userToToggleActive.value = null;
+  toggleActiveEvent.value = null;
+};
+
+const toggleUserActive = () => {
+  if (!userToToggleActive.value) return;
+  const targetUser = userToToggleActive.value;
+  const targetEvent = toggleActiveEvent.value;
+  
+  showToggleActiveModal.value = false;
+  
   router.put(route('admin.users.toggle-active', targetUser.id), {}, {
     preserveScroll: true,
+    onSuccess: () => {
+      toastStore.success(`Statut de l'utilisateur mis à jour`);
+      userToToggleActive.value = null;
+      toggleActiveEvent.value = null;
+    },
     onError: () => {
       if (targetEvent && targetEvent.target) {
         targetEvent.target.checked = !targetEvent.target.checked;
       }
+      userToToggleActive.value = null;
+      toggleActiveEvent.value = null;
     }
   });
 };
@@ -403,18 +452,24 @@ const getRoleLabel = (role) => {
   const labels = {
     admin: 'Administrateur',
     supervisor: 'Superviseur',
-    seller: 'Vendeur'
+    seller: 'Vendeur',
+    accountant: 'Comptable',
+    executive: 'Direction',
+    fleet_manager: 'Gestionnaire de flotte'
   };
   return labels[role] || role;
 };
 
 const getRoleColor = (role) => {
   const colors = {
-    admin: 'bg-red-100 text-red-800',
-    supervisor: 'bg-blue-100 text-blue-800',
-    seller: 'bg-green-100 text-green-800'
+    admin: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    supervisor: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    seller: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    accountant: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    executive: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300',
+    fleet_manager: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400'
   };
-  return colors[role] || 'bg-gray-100 text-gray-800';
+  return colors[role] || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
 };
 
 // Export/Print configuration
@@ -451,13 +506,13 @@ const handlePrint = () => {
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
               <AccountMultiple class="text-green-600" :size="28" />
             </div>
             Gestion des Utilisateurs
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -470,16 +525,16 @@ const handlePrint = () => {
 
         <!-- Middle Column - Users List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvel Utilisateur">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouvel Utilisateur">
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
@@ -489,7 +544,7 @@ const handlePrint = () => {
                   @click="roleFilter = ''"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === '' ? 'bg-green-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                    roleFilter === '' ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                   ]"
                 >
                   Tous
@@ -498,7 +553,7 @@ const handlePrint = () => {
                   @click="roleFilter = 'admin'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'admin' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                    roleFilter === 'admin' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Admin
@@ -507,7 +562,7 @@ const handlePrint = () => {
                   @click="roleFilter = 'supervisor'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'supervisor' ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    roleFilter === 'supervisor' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Superviseur
@@ -516,14 +571,23 @@ const handlePrint = () => {
                   @click="roleFilter = 'seller'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'seller' ? 'bg-gray-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    roleFilter === 'seller' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Vendeur
                 </button>
+                <button 
+                  @click="roleFilter = 'fleet_manager'"
+                  :class="[
+                    'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
+                    roleFilter === 'fleet_manager' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  ]"
+                >
+                  Fleet Manager
+                </button>
               </div>
               <div class="flex justify-end mt-2">
-                <ExportPrintButtons 
+                  <ExportPrintButtons 
                   :disabled="filteredUsers.length === 0"
                   small
                   @export="handleExport"
@@ -534,47 +598,52 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredUsers.length === 0" class="p-4 text-center text-gray-500">
-                Aucun utilisateur trouvé.
+              <div v-if="filteredUsers.length === 0" class="p-4">
+                <EmptyState
+                  title="Aucun utilisateur trouvé"
+                  message="Vous pouvez en créer un en cliquant sur le bouton '+'"
+                  :icon="Account"
+                />
               </div>
               <div v-else>
                 <div v-for="user in filteredUsers" :key="user.id" 
                   @click="selectUser(user)"
                   :class="[
-                    'p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0',
-                    user.active === false ? 'opacity-60' : ''
+                    'p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 last:border-0 border-l-4',
+                    user.active === false ? 'opacity-60' : '',
+                    isSelected(user) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800'
                   ]"
-                  :style="{
-                    backgroundColor: isSelected(user) ? '#f0fdf4' : '#ffffff',
-                    borderLeft: isSelected(user) ? '4px solid #16a34a' : '4px solid #fed7aa'
-                  }"
                 >
                   <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
-                        <h3 :class="['text-sm font-semibold truncate', isSelected(user) ? 'text-green-800' : 'text-gray-800', user.active === false ? 'line-through' : '']">{{ user.name }}</h3>
-                        <span v-if="user.active === false" class="px-1.5 py-0.5 bg-red-100 text-red-600 text-[8px] rounded shrink-0">Inactif</span>
+                        <h3 :class="['text-sm font-semibold truncate', isSelected(user) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200', user.active === false ? 'line-through' : '']">{{ user.name }}</h3>
+                        <span v-if="user.active === false" class="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[8px] rounded shrink-0">Inactif</span>
                       </div>
-                      <p class="text-[10px] text-gray-500 mt-1 truncate">{{ user.email }}</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 truncate">{{ user.email }}</p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0 ml-2">
                       <!-- Role Badge -->
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[9px] font-medium',
-                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
-                        user.role === 'supervisor' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                        user.role === 'admin' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' : 
+                        user.role === 'supervisor' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                        user.role === 'seller' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                        user.role === 'accountant' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                        user.role === 'executive' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300' :
+                        user.role === 'fleet_manager' ? 'bg-emerald-100 dark:bg-emerald-950/45 text-emerald-800 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                       ]">
-                        {{ user.role }}
+                        {{ getRoleLabel(user.role) }}
                       </span>
                       <!-- Active Toggle in List -->
                       <label @click.stop class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
                         <input 
                           type="checkbox" 
                           :checked="user.active !== false"
-                          @change="toggleUserActive(user, $event)"
+                          @change="confirmToggleUserActive(user, $event)"
                           class="sr-only peer" 
                         />
-                        <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
+                        <div class="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
                       </label>
                     </div>
                   </div>
@@ -587,26 +656,28 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedUser" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <Account class="h-16 w-16 text-orange-200 mb-4" />
-            <p class="text-lg">Sélectionnez un utilisateur pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
-              ou créez un nouvel utilisateur
-            </button>
+          <div v-if="!selectedUser" class="h-full bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center">
+            <EmptyState
+              title="Sélectionnez un utilisateur"
+              message="Sélectionnez un utilisateur dans la liste ou créez-en un nouveau."
+              actionText="Créer un utilisateur"
+              @action="openCreateModal"
+              :icon="Account"
+            />
           </div>
 
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">{{ selectedUser.name }}</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedUser.name }}</h2>
                 <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteUser(selectedUser.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -615,19 +686,19 @@ const handlePrint = () => {
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">EMAIL</span>
-                  <div class="text-lg font-medium text-gray-900 break-all">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">EMAIL</span>
+                  <div class="text-lg font-medium text-gray-900 dark:text-slate-100 break-all">
                     {{ selectedUser.email }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">TÉLÉPHONE</span>
-                  <div class="text-lg font-medium text-gray-900">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">TÉLÉPHONE</span>
+                  <div class="text-lg font-medium text-gray-900 dark:text-slate-100">
                     {{ selectedUser.telephone || 'Non renseigné' }}
                   </div>
                 </div>
                 <div class="col-span-12">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">RÔLE</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">RÔLE</span>
                   <div>
                     <span :class="[
                        'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
@@ -640,11 +711,11 @@ const handlePrint = () => {
                 
                 <!-- Active Status -->
                 <div class="col-span-12">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
                   <div class="flex items-center gap-3">
                     <span :class="[
                       'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
-                      selectedUser.active !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      selectedUser.active !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     ]">
                       {{ selectedUser.active !== false ? 'Actif' : 'Inactif' }}
                     </span>
@@ -652,20 +723,20 @@ const handlePrint = () => {
                       <input 
                         type="checkbox" 
                         :checked="selectedUser.active !== false"
-                        @change="toggleUserActive(null, $event)"
+                        @change="confirmToggleUserActive(null, $event)"
                         class="sr-only peer" 
                       />
-                      <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                      <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 font-medium"></div>
                     </label>
                   </div>
                 </div>
 
                 <!-- Password Reset -->
                 <div class="col-span-12">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">SÉCURITÉ</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">SÉCURITÉ</span>
                   <button 
                     @click="openResetPasswordModal"
-                    class="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium w-full md:w-auto justify-center"
+                    class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium w-full md:w-auto justify-center"
                   >
                     <Refresh class="h-4 w-4" />
                     Générer un nouveau mot de passe
@@ -675,16 +746,16 @@ const handlePrint = () => {
             </div>
 
             <!-- Related Tables - Tabbed Section -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <!-- Tabs Header -->
-              <div class="flex border-b border-orange-200 bg-gradient-to-r from-green-50 to-orange-50/30">
+              <div class="flex border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50/40">
                 <button 
                   @click="activeTab = 'assignments'"
                   :class="[
                     'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
                     activeTab === 'assignments' 
-                      ? 'border-green-600 text-green-700 bg-white' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      ? 'border-emerald-600 text-emerald-700 bg-white' 
+                      : 'border-transparent text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:text-slate-300'
                   ]"
                 >
                   <OfficeBuilding class="h-4 w-4" />
@@ -698,18 +769,18 @@ const handlePrint = () => {
                 <div v-if="activeTab === 'assignments'">
                   <!-- Add Button -->
                   <div class="flex justify-between items-center mb-4">
-                    <p class="text-sm text-gray-500">Gares où cet utilisateur peut vendre des billets</p>
+                    <p class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">Gares où cet utilisateur peut vendre des billets</p>
                     <button 
                       @click="openAssignmentModal" 
-                      class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                    >
+                    class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
                       <Plus class="h-4 w-4" />
                       Ajouter
                     </button>
                   </div>
 
                   <!-- Empty State -->
-                  <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-gray-400">
+                  <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-orange-400">
                     <OfficeBuilding class="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>Aucune gare affectée</p>
                   </div>
@@ -721,28 +792,28 @@ const handlePrint = () => {
                       :key="assignment.id"
                       :class="[
                         'flex items-center justify-between p-3 rounded-lg border',
-                        assignment.active !== false ? 'bg-gray-50 border-gray-100' : 'bg-gray-100 border-gray-200 opacity-60'
+                        assignment.active !== false ? 'bg-slate-50 border-slate-100' : 'bg-slate-100 border-slate-200 opacity-60'
                       ]"
                     >
-                      <div class="flex items-center gap-3 border-orange-50">
+                      <div class="flex items-center gap-3">
                         <div :class="[
                           'w-8 h-8 flex items-center justify-center rounded-full',
-                          assignment.active !== false ? 'bg-orange-100 text-orange-700' : 'bg-gray-200 text-gray-500'
+                          assignment.active !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500'
                         ]">
                           <OfficeBuilding class="h-4 w-4" />
                         </div>
                         <div>
-                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-gray-800' : 'text-gray-500']">
+                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-slate-800 dark:text-slate-200 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500']">
                             {{ assignment.station?.name }}
                           </p>
-                          <p class="text-[10px] text-gray-500">{{ assignment.station?.city }}</p>
+                          <p class="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ assignment.station?.city }}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-2">
                         <!-- Edit Button -->
                         <button 
                           @click="openEditAssignmentModal(assignment)" 
-                          class="p-1.5 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
                           title="Modifier"
                         >
                           <Pencil class="h-4 w-4" />
@@ -755,12 +826,12 @@ const handlePrint = () => {
                             @change="toggleAssignmentActive(assignment)"
                             class="sr-only peer" 
                           />
-                          <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                          <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
                         </label>
                         <!-- Delete Button -->
                         <button 
-                          @click="removeAssignment(assignment.id)" 
-                          class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          @click="confirmRemoveAssignment(assignment.id)" 
+                          class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                           title="Retirer"
                         >
                           <Trash2 class="h-4 w-4" />
@@ -779,12 +850,12 @@ const handlePrint = () => {
     <!-- User Modal -->
     <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
-        {{ isEditing ? 'Modifier l\'Utilisateur' : 'Nouvel Utilisateur' }}
+        {{ isEditing ? "Modifier l'Utilisateur" : "Nouvel Utilisateur" }}
       </template>
       <template #content>
         <div class="space-y-4">
           <div v-if="!isEditing" class="p-4 bg-gray-50 rounded-lg border border-gray-100 mb-4">
-            <p class="text-sm text-gray-600">
+            <p class="text-sm text-gray-600 dark:text-slate-350 dark:text-slate-350">
               L'administration générera automatiquement le mot de passe du compte à la création.
               Vous pourrez le copier juste après l'enregistrement.
             </p>
@@ -814,18 +885,21 @@ const handlePrint = () => {
             <select
               id="role"
               v-model="form.role"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="seller">Vendeur</option>
               <option value="supervisor">Superviseur</option>
               <option value="admin">Administrateur</option>
+              <option value="fleet_manager">Gestionnaire de flotte</option>
+              <option value="accountant">Comptable</option>
+              <option value="executive">Direction</option>
             </select>
             <InputError :message="errors.role" />
           </div>
 
-          <div v-if="isEditing" class="border-t border-gray-100 pt-4 mt-4">
-            <h3 class="text-sm font-medium text-gray-900 mb-3">Sécurité</h3>
+          <div v-if="isEditing" class="border-t border-gray-100 dark:border-slate-800 pt-4 mt-4">
+            <h3 class="text-sm font-medium text-gray-900 dark:text-slate-100 mb-3">Sécurité</h3>
             <div class="space-y-4">
               <!-- Password field when editing (hidden, optional) -->
               <div>
@@ -858,13 +932,13 @@ const handlePrint = () => {
       <template #title>Utilisateur créé avec succès</template>
       <template #content>
         <div class="text-center py-4">
-          <div class="mb-4">
-            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-              <Check class="h-6 w-6 text-green-600" />
+            <div class="mb-4">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 mb-4">
+              <Check class="h-6 w-6 text-emerald-600" />
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Compte utilisateur créé</h3>
+            <h3 class="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100">Compte utilisateur créé</h3>
             <div class="mt-2 px-7 py-3">
-              <p class="text-sm text-gray-500">
+              <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
                 Voici le mot de passe généré pour ce nouvel utilisateur. Copiez-le avant de fermer cette fenêtre.
               </p>
             </div>
@@ -874,15 +948,15 @@ const handlePrint = () => {
             <TextInput
               v-model="createdPassword"
               type="text"
-              class="w-full pr-12 text-center font-mono bg-gray-50"
+              class="w-full pr-12 text-center font-mono bg-slate-50"
               readonly
             />
             <div class="absolute inset-y-0 right-0 flex items-center">
               <button
                 type="button"
                 @click="copyCreatedPasswordToClipboard"
-                class="h-full px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-r-md transition-colors border-l"
-                :class="{ 'text-green-500 hover:text-green-600': createdPasswordCopied }"
+                class="h-full px-3 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-350 dark:text-slate-350 hover:bg-slate-100 rounded-r-md transition-colors border-l"
+                :class="{ 'text-emerald-500 hover:text-emerald-600': createdPasswordCopied }"
                 title="Copier"
               >
                 <Check v-if="createdPasswordCopied" class="h-5 w-5" />
@@ -891,7 +965,7 @@ const handlePrint = () => {
             </div>
           </div>
 
-          <p v-if="createdPasswordCopied" class="text-xs text-green-600 mt-2 font-medium">
+          <p v-if="createdPasswordCopied" class="text-xs text-emerald-600 mt-2 font-medium">
             Mot de passe copié !
           </p>
         </div>
@@ -905,7 +979,7 @@ const handlePrint = () => {
 
     <!-- Assignment Modal -->
     <DialogModal :show="showAssignmentModal" @close="closeAssignmentModal" maxWidth="md">
-      <template #title>{{ isEditingAssignment ? 'Modifier l\'Affectation' : 'Affecter une Gare' }}</template>
+      <template #title>{{ isEditingAssignment ? "Modifier l'Affectation" : "Affecter une Gare" }}</template>
       <template #content>
         <div class="space-y-4">
           <div>
@@ -913,7 +987,7 @@ const handlePrint = () => {
             <select
               id="station_id"
               v-model="assignmentForm.station_id"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Choisir une gare...</option>
@@ -929,7 +1003,7 @@ const handlePrint = () => {
             <InputError :message="errors.station_id" />
           </div>
           
-          <div v-if="!isEditingAssignment && availableStations.length === 0" class="text-center py-4 text-gray-500">
+          <div v-if="!isEditingAssignment && availableStations.length === 0" class="text-center py-4 text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
             <p>Toutes les gares sont déjà affectées à cet utilisateur.</p>
           </div>
         </div>
@@ -951,13 +1025,13 @@ const handlePrint = () => {
       <template #title>Générer un nouveau mot de passe</template>
       <template #content>
         <div class="space-y-4">
-          <div v-if="passwordSaved" class="p-4 bg-green-50 text-green-700 rounded-lg flex items-center gap-2 mb-4">
+          <div v-if="passwordSaved" class="p-4 bg-emerald-50 text-emerald-700 rounded-lg flex items-center gap-2 mb-4">
             <Check class="h-5 w-5" />
             <p>Le mot de passe a été mis à jour avec succès.</p>
           </div>
 
-          <div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
-            <h4 class="text-sm font-medium text-gray-700 mb-2">Nouveau mot de passe</h4>
+          <div class="p-4 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100">
+            <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300 mb-2">Nouveau mot de passe</h4>
             <div class="flex gap-2">
               <div class="relative flex-1">
                 <TextInput 
@@ -969,10 +1043,10 @@ const handlePrint = () => {
                 <button 
                   type="button"
                   @click="copyNewPassword"
-                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-green-600 transition-colors"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors"
                   :title="newPasswordCopied ? 'Copié!' : 'Copier'"
                 >
-                  <Check v-if="newPasswordCopied" class="h-5 w-5 text-green-600" />
+                  <Check v-if="newPasswordCopied" class="h-5 w-5 text-emerald-600" />
                   <ContentCopy v-else class="h-5 w-5" />
                 </button>
               </div>
@@ -980,21 +1054,21 @@ const handlePrint = () => {
                 v-if="!passwordSaved"
                 type="button"
                 @click="newPassword = generatePassword(); newPasswordCopied = false;"
-                class="p-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-gray-600 transition-colors"
+                class="p-2 bg-white border border-slate-200 hover:bg-slate-50 dark:bg-slate-950 rounded-lg text-slate-600 dark:text-slate-350 dark:text-slate-350 transition-colors"
                 title="Générer un autre"
               >
                 <Refresh class="h-5 w-5" />
               </button>
             </div>
-            <p v-if="newPasswordCopied" class="text-xs text-green-600 mt-1 font-medium">Mot de passe copié!</p>
+            <p v-if="newPasswordCopied" class="text-xs text-emerald-600 mt-1 font-medium">Mot de passe copié!</p>
           </div>
           
-          <div class="text-sm text-gray-500">
+          <div class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
             <p class="flex items-start gap-2" v-if="!passwordSaved">
-              <span class="text-orange-500 mt-0.5">⚠️</span>
+              <span class="text-amber-500 mt-0.5">⚠️</span>
               En enregistrant, le mot de passe actuel de l'utilisateur sera remplacé par ce nouveau mot de passe. Assurez-vous de le communiquer à l'utilisateur.
             </p>
-            <p v-else class="font-medium text-gray-700">
+            <p v-else class="font-medium text-slate-700 dark:text-slate-300 dark:text-slate-300">
               Veuillez copier le mot de passe ci-dessus avant de fermer cette fenêtre. Il ne sera plus visible après.
             </p>
           </div>
@@ -1014,6 +1088,33 @@ const handlePrint = () => {
         </template>
       </template>
     </DialogModal>
+    <!-- Custom Confirmation Modals -->
+    <ConfirmationModal :show="showDeleteUserModal" @close="showDeleteUserModal = false">
+        <template #title>Supprimer l'utilisateur</template>
+        <template #content>Êtes-vous sûr de vouloir supprimer cet utilisateur de manière définitive ?</template>
+        <template #footer>
+            <SecondaryButton @click="showDeleteUserModal = false">Annuler</SecondaryButton>
+            <DangerButton class="ml-3" @click="deleteUser">Oui, Supprimer</DangerButton>
+        </template>
+    </ConfirmationModal>
+
+    <ConfirmationModal :show="showRemoveAssignmentModal" @close="showRemoveAssignmentModal = false">
+        <template #title>Retirer l'affectation</template>
+        <template #content>Êtes-vous sûr de vouloir retirer cette affectation de gare pour cet utilisateur ?</template>
+        <template #footer>
+            <SecondaryButton @click="showRemoveAssignmentModal = false">Annuler</SecondaryButton>
+            <DangerButton class="ml-3" @click="removeAssignment">Oui, Retirer</DangerButton>
+        </template>
+    </ConfirmationModal>
+
+    <ConfirmationModal :show="showToggleActiveModal" @close="cancelToggleUserActive">
+        <template #title>Modifier le statut</template>
+        <template #content>Êtes-vous sûr de vouloir changer le statut d'activation de cet utilisateur ?</template>
+        <template #footer>
+            <SecondaryButton @click="cancelToggleUserActive">Annuler</SecondaryButton>
+            <PrimaryButton class="ml-3" @click="toggleUserActive">Confirmer</PrimaryButton>
+        </template>
+    </ConfirmationModal>
   </MainNavLayout>
 </template>
 
@@ -1025,18 +1126,10 @@ const handlePrint = () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  background: #94a3b8;
 }
 </style>

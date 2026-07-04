@@ -1,7 +1,7 @@
 <template>
     <div>
-        <div class="min-h-screen bg-green-50">
-            <nav class="bg-white border-b border-orange-200">
+        <div class="min-h-screen bg-green-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+            <nav class="border-b border-orange-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                 <!-- Primary Navigation Menu -->
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex justify-between h-16">
@@ -38,7 +38,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
-                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200">
+                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('seller.dashboard')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
                                                 Sell Tickets
@@ -62,7 +62,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
-                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200">
+                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('admin.stations.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
                                                 Stations
@@ -89,6 +89,9 @@
                         </div>
 
                         <div class="hidden sm:flex sm:items-center sm:ml-6">
+                            <div class="mr-3">
+                                <ThemeToggle />
+                            </div>
                             <!-- Settings Dropdown -->
                             <div class="ml-3 relative">
                                 <Dropdown align="right" width="48">
@@ -100,6 +103,7 @@
                                                        text-sm leading-4 font-medium rounded-md text-green-700 
                                                        bg-white hover:text-green-800 hover:bg-green-50 
                                                        focus:outline-none focus:bg-green-50 
+                                                       dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:bg-slate-800
                                                        transition ease-in-out duration-150"
                                             >
                                                 {{ $page.props.auth.user.name }}
@@ -142,11 +146,14 @@
 
                         <!-- Hamburger -->
                         <div class="-mr-2 flex items-center sm:hidden">
+                            <div class="mr-2">
+                                <ThemeToggle />
+                            </div>
                             <button
                                 @click="showingNavigationDropdown = !showingNavigationDropdown"
                                 class="inline-flex items-center justify-center p-2 rounded-md 
                                        text-green-600 hover:text-green-700 hover:bg-green-50 
-                                       focus:outline-none focus:bg-green-50 transition duration-150 ease-in-out"
+                                       focus:outline-none focus:bg-green-50 transition duration-150 ease-in-out dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800 dark:focus:bg-slate-800"
                             >
                                 <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                     <path
@@ -238,12 +245,12 @@
                     </div>
 
                     <!-- Responsive Settings Options -->
-                    <div class="pt-4 pb-1 border-t border-orange-200">
+                    <div class="pt-4 pb-1 border-t border-orange-200 dark:border-slate-800">
                         <div class="px-4">
-                            <div class="font-medium text-base text-green-800">
+                            <div class="font-medium text-base text-green-800 dark:text-slate-100">
                                 {{ $page.props.auth.user.name }}
                             </div>
-                            <div class="font-medium text-sm text-orange-600">
+                            <div class="font-medium text-sm text-orange-600 dark:text-slate-400">
                                 {{ $page.props.auth.user.email }}
                             </div>
                         </div>
@@ -269,7 +276,7 @@
             </nav>
 
             <!-- Page Heading -->
-            <header class="bg-white shadow border-b border-orange-200" v-if="$slots.header">
+            <header class="bg-white shadow border-b border-orange-200 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20" v-if="$slots.header">
                 <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>
@@ -289,6 +296,7 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
+import ThemeToggle from '@/Components/ThemeToggle.vue';
 import Earth from 'vue-material-design-icons/Earth.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';

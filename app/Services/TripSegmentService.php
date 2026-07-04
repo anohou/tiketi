@@ -15,7 +15,7 @@ class TripSegmentService
      */
     public function stationIndices(Trip $trip): array
     {
-        $trip->loadMissing(['route.routeStopOrders']);
+        $trip->loadMissing(['route.routeStopOrders.station']);
 
         $route = $trip->route;
         if (! $route) {
@@ -49,7 +49,7 @@ class TripSegmentService
 
     public function isReversed(Trip $trip): bool
     {
-        $trip->loadMissing(['route.routeStopOrders']);
+        $trip->loadMissing(['route.routeStopOrders.station']);
 
         $route = $trip->route;
         if (! $route || ! $trip->origin_station_id || ! $trip->destination_station_id) {
@@ -139,6 +139,125 @@ class TripSegmentService
         $trip->loadMissing(['tripSeatOccupancies.ticket']);
 
         return $this->overlappingSeatNumbers($trip->tripSeatOccupancies, $indices, $start, $end);
+    }
+
+    /**
+     * Returns the seats that are truly available to sell from a station:
+     * seats freed there by prior passengers, minus seats already resold from that station.
+     */
+    public function freedSeatsForStation(Trip $trip, string $stationId): array
+    {
+        $trip->loadMissing(['route.routeStopOrders.station', 'tripSeatOccupancies.ticket']);
+
+        $effectiveSalesStations = $this->effectiveSalesStationIdsByStation($trip);
+        $effectiveStationId = $effectiveSalesStations[$stationId] ?? null;
+        if ($effectiveStationId !== $stationId) {
+            return [];
+        }
+
+        $freedSeats = $trip->tripSeatOccupancies
+            ->filter(function (TripSeatOccupancy $occupancy) use ($stationId, $effectiveSalesStations) {
+                $ticket = $occupancy->ticket;
+
+                return $ticket
+                    && $ticket->status !== 'cancelled'
+                    && ($effectiveSalesStations[$ticket->to_station_id] ?? null) === $stationId;
+            })
+            ->pluck('seat_number')
+            ->map(fn ($seatNumber) => (int) $seatNumber)
+            ->unique()
+            ->values()
+            ->all();
+
+        $resoldSeats = $trip->tripSeatOccupancies
+            ->filter(function (TripSeatOccupancy $occupancy) use ($stationId) {
+                $ticket = $occupancy->ticket;
+
+                return $ticket
+                    && $ticket->status !== 'cancelled'
+                    && $ticket->from_station_id === $stationId;
+            })
+            ->pluck('seat_number')
+            ->map(fn ($seatNumber) => (int) $seatNumber)
+            ->unique()
+            ->values()
+            ->all();
+
+        return array_values(array_diff($freedSeats, $resoldSeats));
+    }
+
+    /**
+     * Returns the seats that can be sold at a station.
+     * Before departure, this is limited to seats freed at that station.
+     * After departure, it also includes seats still empty on the vehicle.
+     */
+    public function sellableSeatsForStation(Trip $trip, string $stationId): array
+    {
+        $freedSeats = $this->freedSeatsForStation($trip, $stationId);
+
+        if ($trip->status !== 'departed') {
+            return $freedSeats;
+        }
+
+        $trip->loadMissing(['vehicle.vehicleType', 'tripSeatOccupancies.ticket']);
+        $seatCount = $trip->vehicle?->vehicleType?->seat_count ?? $trip->vehicle?->seat_count ?? 0;
+
+        $occupiedSeatNumbers = $trip->tripSeatOccupancies
+            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->pluck('seat_number')
+            ->map(fn ($seatNumber) => (int) $seatNumber)
+            ->unique()
+            ->values()
+            ->all();
+
+        $emptySeats = [];
+        for ($seatNumber = 1; $seatNumber <= $seatCount; $seatNumber++) {
+            if (! in_array($seatNumber, $occupiedSeatNumbers, true)) {
+                $emptySeats[] = $seatNumber;
+            }
+        }
+
+        return array_values(array_unique(array_merge($emptySeats, $freedSeats)));
+    }
+
+    /**
+     * Returns the nearest station on the route, at or before the given station,
+     * that is allowed to sell tickets.
+     */
+    public function effectiveSalesStationIdForStation(Trip $trip, string $stationId): ?string
+    {
+        $effectiveSalesStations = $this->effectiveSalesStationIdsByStation($trip);
+
+        return $effectiveSalesStations[$stationId] ?? null;
+    }
+
+    /**
+     * Returns station_id => effective seller station_id, following route order.
+     */
+    public function effectiveSalesStationIdsByStation(Trip $trip): array
+    {
+        $trip->loadMissing(['route.routeStopOrders.station']);
+
+        $stationIndices = $this->stationIndices($trip);
+        $orderedStops = ($trip->route?->routeStopOrders ?? collect())
+            ->sortBy(fn ($order) => $stationIndices[$order->station_id] ?? PHP_INT_MAX)
+            ->values();
+        $effectiveSalesStations = [];
+        $lastSellableStationId = null;
+
+        foreach ($orderedStops as $order) {
+            if (! array_key_exists($order->station_id, $stationIndices)) {
+                continue;
+            }
+
+            if (($order->station?->can_sell_tickets ?? true) === true) {
+                $lastSellableStationId = $order->station_id;
+            }
+
+            $effectiveSalesStations[$order->station_id] = $lastSellableStationId;
+        }
+
+        return $effectiveSalesStations;
     }
 
     public function fareAmount(string $fromStationId, string $toStationId): ?int

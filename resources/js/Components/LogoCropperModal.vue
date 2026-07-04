@@ -1,18 +1,18 @@
 <template>
     <teleport to="body">
         <div class="fixed inset-0 z-[10000]">
-            <div class="fixed inset-0 bg-black bg-opacity-50" @click="$emit('showModal', false)"></div>
+            <div class="fixed inset-0 bg-slate-900/35 backdrop-blur-sm" @click="$emit('showModal', false)"></div>
             <div class="fixed inset-0 z-[10001] overflow-y-auto">
                 <div class="flex flex-col min-h-full justify-center items-center py-2">
                     <div
-                        class="transform overflow-hidden rounded-lg bg-white shadow-2xl transition-all max-w-xl w-full mx-4">
+                        class="transform overflow-hidden rounded-3xl border border-white/70 bg-white/95 shadow-[0_24px_70px_rgba(15,23,42,0.16)] transition-all max-w-xl w-full mx-4">
                         <!-- Modal Header -->
-                        <div class="flex items-center py-4 px-4 border-b border-b-gray-300">
-                            <div class="text-lg font-bold text-gray-800 w-full">
+                        <div class="flex items-center py-4 px-5 border-b border-slate-200 bg-slate-50/80">
+                            <div class="text-lg font-bold text-slate-900 w-full">
                                 {{ modalTitle }}
                             </div>
                             <button @click="$emit('showModal', false)"
-                                class="rounded-full p-1.5 bg-gray-200 hover:bg-gray-300 cursor-pointer" type="button">
+                                class="rounded-full p-1.5 bg-slate-100 hover:bg-slate-200 cursor-pointer text-slate-600" type="button">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                                     stroke="currentColor" class="w-6 h-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -21,11 +21,11 @@
                         </div>
 
                         <!-- Modal Body -->
-                        <div class="flex flex-col items-center bg-white px-4 pb-4 pt-2">
+                        <div class="flex flex-col items-center bg-white/95 px-4 pb-4 pt-2">
                             <!-- Upload Button -->
                             <div class="w-full mb-4">
                                 <label for="logo-image-input"
-                                    class="flex items-center justify-center gap-2 bg-green-50 hover:bg-green-100 font-medium p-3 rounded-lg text-green-600 w-full cursor-pointer border border-green-200">
+                                    class="flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 font-medium p-3 rounded-xl text-emerald-700 w-full cursor-pointer border border-emerald-200">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                         stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -40,8 +40,8 @@
                             <div class="w-full max-w-md mx-auto"
                                 :class="{ 'h-64': !uploadedImage, 'min-h-64': uploadedImage }">
                                 <div v-if="!uploadedImage"
-                                    class="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg border border-gray-200">
-                                    <div class="text-gray-400 text-center">
+                                    class="w-full h-full flex items-center justify-center bg-slate-50 rounded-2xl border border-slate-200">
+                                    <div class="text-slate-400 text-center">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                             stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-2">
                                             <path stroke-linecap="round" stroke-linejoin="round"
@@ -50,18 +50,18 @@
                                         <p>Aucune image sélectionnée</p>
                                     </div>
                                 </div>
-                                <Cropper v-if="uploadedImage" class="object-cover rounded-lg" ref="cropper"
+                                <Cropper v-if="uploadedImage" class="object-cover rounded-2xl" ref="cropper"
                                     :stencil-props="{ aspectRatio }" :src="uploadedImage" />
                             </div>
 
                             <!-- Action Buttons -->
                             <div class="flex gap-4 w-full mt-4">
                                 <button @click="$emit('showModal', false)" type="button"
-                                    class="flex-1 justify-center rounded-md py-2 text-gray-600 hover:text-gray-800 font-medium hover:shadow-sm hover:bg-gray-100 focus:outline-none focus:ring-0 border border-gray-300">
+                                    class="flex-1 justify-center rounded-xl py-2 text-slate-700 hover:text-slate-900 font-medium hover:shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-0 border border-slate-200">
                                     Annuler
                                 </button>
                                 <button v-if="uploadedImage" @click="uploadLogo" type="button"
-                                    class="flex-1 rounded-md bg-green-600 py-2 text-white font-medium shadow-sm hover:bg-green-700 focus:outline-none focus:ring-0"
+                                    class="flex-1 rounded-xl bg-emerald-600 py-2 text-white font-medium shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-0"
                                     :disabled="uploading">
                                     <span v-if="uploading" class="flex items-center justify-center">
                                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
@@ -79,7 +79,7 @@
                             </div>
 
                             <!-- Error Message -->
-                            <div v-if="error" class="mt-3 w-full text-center text-red-500 text-sm">
+                            <div v-if="error" class="mt-3 w-full text-center text-rose-500 text-sm">
                                 {{ error }}
                             </div>
                         </div>

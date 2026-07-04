@@ -43,6 +43,10 @@ class AuthenticatedSessionController extends Controller
             return redirect()->route('landlord.tenants.index');
         }
 
+        if ($request->user()->role === 'fleet_manager') {
+            return redirect()->route('fleet.dashboard');
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

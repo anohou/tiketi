@@ -34,6 +34,22 @@
         }
         .summary span { margin-right: 20px; }
         .summary strong { color: #16a34a; }
+        .group-row td {
+            background: #dcfce7;
+            color: #166534;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 7px;
+            letter-spacing: 0.3px;
+            border-bottom: 1px solid #bbf7d0;
+            border-top: 1px solid #bbf7d0;
+            padding: 5px 6px;
+        }
+        .subtotal-row td {
+            background: #f8fafc;
+            font-weight: bold;
+            border-bottom: 1px solid #e5e7eb;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -74,7 +90,11 @@
     <div class="header">
         <h1>{{ config('app.name') }} — Rapport Tickets</h1>
         <div class="meta">
-            Periode : {{ $startDate }} -> {{ $endDate }}
+            @if(!empty($periodLabel))
+                Periode : {{ $periodLabel }}
+            @else
+                Periode : {{ $startDate }} -> {{ $endDate }}
+            @endif
             &nbsp;|&nbsp; Genere le {{ $generatedAt }}
             @if(!empty($trip))
                 &nbsp;|&nbsp; Code trajet : {{ $trip->code ?? '-' }}
@@ -86,6 +106,9 @@
         <span><strong>Total tickets :</strong> {{ $tickets->count() }}</span>
         <span><strong>Total ventes :</strong> {{ number_format($totalAmount, 0, ',', ' ') }} FCFA</span>
         <span><strong>Prix moyen :</strong> {{ $tickets->count() > 0 ? number_format($totalAmount / $tickets->count(), 0, ',', ' ') : 0 }} FCFA</span>
+        @if(isset($groupedTickets) && $groupedTickets->count() > 0)
+            <span><strong>Gares :</strong> {{ $groupedTickets->count() }}</span>
+        @endif
     </div>
 
     <table>
@@ -104,22 +127,38 @@
             </tr>
         </thead>
         <tbody>
-            @foreach($tickets as $ticket)
-            <tr>
-                <td>{{ $ticket->ticket_number }}</td>
-                <td>{{ $ticket->created_at->format('d/m/Y H:i') }}</td>
-                <td>{{ $ticket->fromStation?->name ?? '-' }}</td>
-                <td>{{ $ticket->toStation?->name ?? '-' }}</td>
-                <td>{{ $ticket->seat_number ?? '-' }}</td>
-                <td>{{ $ticket->boarding_group ?? '-' }}</td>
-                <td>{{ $ticket->seller?->name ?? '-' }}</td>
-                <td>{{ $ticket->passenger_name ?? 'Anonyme' }}</td>
-                <td style="text-align:right">{{ number_format($ticket->price, 0, ',', ' ') }}</td>
-                <td class="{{ $ticket->status === 'cancelled' ? 'status-annule' : 'status-valide' }}">
-                    {{ $ticket->status === 'cancelled' ? 'Annule' : 'Valide' }}
-                </td>
-            </tr>
-            @endforeach
+            @forelse($groupedTickets as $group)
+                <tr class="group-row">
+                    <td colspan="10">
+                        Gare de départ : {{ $group['station_name'] }} - {{ $group['count'] }} ticket(s) - {{ number_format($group['amount'], 0, ',', ' ') }} FCFA
+                    </td>
+                </tr>
+                @foreach($group['tickets'] as $ticket)
+                    <tr>
+                        <td>{{ $ticket->ticket_number }}</td>
+                        <td>{{ $ticket->created_at->format('d/m/Y H:i') }}</td>
+                        <td>{{ $ticket->fromStation?->name ?? '-' }}</td>
+                        <td>{{ $ticket->toStation?->name ?? '-' }}</td>
+                        <td>{{ $ticket->seat_number ?? '-' }}</td>
+                        <td>{{ $ticket->boarding_group ?? '-' }}</td>
+                        <td>{{ $ticket->seller?->name ?? '-' }}</td>
+                        <td>{{ $ticket->passenger_name ?? 'Anonyme' }}</td>
+                        <td style="text-align:right">{{ number_format($ticket->price, 0, ',', ' ') }}</td>
+                        <td class="{{ $ticket->status === 'cancelled' ? 'status-annule' : 'status-valide' }}">
+                            {{ $ticket->status === 'cancelled' ? 'Annule' : 'Valide' }}
+                        </td>
+                    </tr>
+                @endforeach
+                <tr class="subtotal-row">
+                    <td colspan="8" style="text-align:right; padding-right:10px;">Sous-total {{ $group['station_name'] }}</td>
+                    <td style="text-align:right">{{ number_format($group['amount'], 0, ',', ' ') }}</td>
+                    <td></td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="10" style="text-align:center; padding:12px;">Aucun ticket vendu</td>
+                </tr>
+            @endforelse
             <tr class="total-row">
                 <td colspan="8" style="text-align:right; padding-right:10px;">TOTAL</td>
                 <td style="text-align:right">{{ number_format($totalAmount, 0, ',', ' ') }}</td>

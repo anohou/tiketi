@@ -279,6 +279,210 @@ class TicketingFlowTest extends TestCase
         $this->assertNotContains($suggestedSeat, range(34, 49));
     }
 
+    public function test_closed_trip_suggests_only_seats_freed_at_boarding_station(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $trip->update(['sales_control' => 'closed']);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [1],
+        ])->assertCreated();
+
+        // Seat 3 remains empty, but it should not be suggested for a locked trip.
+        $response = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 1,
+        ]))->assertOk();
+
+        $this->assertSame(1, $response->json('suggested_seats.0.seat_number'));
+    }
+
+    public function test_closed_trip_reuse_drops_a_seat_once_it_is_resold_on_the_same_segment(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture('semi_intelligent');
+
+        $trip->update(['sales_control' => 'closed']);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [13],
+        ])->assertCreated();
+
+        $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 1,
+        ]))->assertOk();
+
+        $this->assertSame(13, $first->json('suggested_seats.0.seat_number'));
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [13],
+        ])->assertCreated();
+
+        $second = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 1,
+        ]))->assertOk();
+
+        $this->assertNotSame(13, $second->json('suggested_seats.0.seat_number'));
+    }
+
+    public function test_closed_trip_keeps_the_other_freed_seat_when_one_is_resold(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $seatMapService = app(SeatMapService::class);
+        $vehicleData = [
+            'total_capacity' => 54,
+            'door_count' => 2,
+            'door_side' => 'right',
+            'door_width' => 2,
+            'seat_configuration' => '2+2',
+        ];
+        $metadata = $seatMapService->calculateMetadata($vehicleData);
+
+        $trip->vehicle->vehicleType->update([
+            'seat_count' => $metadata['seat_count'],
+            'seat_configuration' => '2+2',
+            'door_positions' => $metadata['door_positions'],
+            'last_row_seats' => $metadata['last_row_seats'],
+            'seat_map' => $seatMapService->generateSeatMap(array_merge($vehicleData, $metadata)),
+        ]);
+        $trip->vehicle->update(['seat_count' => $metadata['seat_count']]);
+        $trip->update(['sales_control' => 'closed']);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [13, 36],
+        ])->assertCreated();
+
+        $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 2,
+        ]))->assertOk();
+
+        $firstSuggestions = collect($first->json('suggested_seats'))->pluck('seat_number')->all();
+        $this->assertContains(13, $firstSuggestions);
+        $this->assertContains(36, $firstSuggestions);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [13],
+        ])->assertCreated();
+
+        $second = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 2,
+        ]))->assertOk();
+
+        $secondSuggestions = collect($second->json('suggested_seats'))->pluck('seat_number')->all();
+        $this->assertContains(36, $secondSuggestions);
+        $this->assertNotContains(13, $secondSuggestions);
+    }
+
+    public function test_departed_trip_suggestions_keep_all_unsold_and_freed_seats(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $seatMapService = app(SeatMapService::class);
+        $vehicleData = [
+            'total_capacity' => 54,
+            'door_count' => 2,
+            'door_side' => 'right',
+            'door_width' => 2,
+            'seat_configuration' => '2+2',
+        ];
+        $metadata = $seatMapService->calculateMetadata($vehicleData);
+
+        $trip->vehicle->vehicleType->update([
+            'seat_count' => $metadata['seat_count'],
+            'seat_configuration' => '2+2',
+            'door_positions' => $metadata['door_positions'],
+            'last_row_seats' => $metadata['last_row_seats'],
+            'seat_map' => $seatMapService->generateSeatMap(array_merge($vehicleData, $metadata)),
+        ]);
+        $trip->vehicle->update(['seat_count' => $metadata['seat_count']]);
+        $trip->update(['sales_control' => 'closed', 'status' => 'departed']);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [13, 36],
+        ])->assertCreated();
+
+        $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 2,
+        ]))->assertOk();
+
+        $firstSuggestions = collect($first->json('suggested_seats'))->pluck('seat_number')->all();
+        $this->assertContains(13, $firstSuggestions);
+        $this->assertContains(36, $firstSuggestions);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [13],
+        ])->assertCreated();
+
+        $second = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['b']->id,
+            'quantity' => 2,
+        ]))->assertOk();
+
+        $secondSuggestions = collect($second->json('suggested_seats'))->pluck('seat_number')->all();
+        $this->assertContains(36, $secondSuggestions);
+        $this->assertNotContains(13, $secondSuggestions);
+    }
+
+    public function test_non_selling_stop_reassigns_freed_seats_to_previous_selling_station(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $stations['b']->update(['can_sell_tickets' => false]);
+        $trip->update(['sales_control' => 'closed', 'status' => 'departed']);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [13],
+        ])->assertCreated();
+
+        $seatMap = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/seat-map?".http_build_query([
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['c']->id,
+        ]))->assertOk();
+
+        $sellableA = collect($seatMap->json("sellable_seats_by_station.{$stations['a']->id}"))->map(fn ($seat) => (int) $seat)->all();
+        $sellableB = collect($seatMap->json("sellable_seats_by_station.{$stations['b']->id}"))->map(fn ($seat) => (int) $seat)->all();
+
+        $this->assertContains(13, $sellableA);
+        $this->assertNotContains(13, $sellableB);
+    }
+
     public function test_route_stop_management_syncs_terminal_stations(): void
     {
         $admin = User::factory()->create([

@@ -20,6 +20,7 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Car from 'vue-material-design-icons/Car.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import SeatMapPreview from '@/Components/SeatMapPreview.vue';
+import VehicleTypeFormFields from '@/Components/VehicleTypeFormFields.vue';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -33,21 +34,11 @@ const props = defineProps({
 // State
 const search = ref('');
 const selectedVehicleType = ref(null);
+const modalVehicleType = ref(null);
 const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
-
-const form = ref({
-  name: '',
-  seat_count: '',
-  seat_configuration: '2+2',
-  door_positions_text: '',
-  door_side: 'right',
-  door_width: 2,
-  last_row_seats: '',
-  active: true
-});
 
 // Computed
 const filteredVehicleTypes = computed(() => {
@@ -82,16 +73,7 @@ const selectVehicleType = (vehicleType) => {
 
 const openCreateModal = () => {
   isEditing.value = false;
-  form.value = {
-    name: '',
-    seat_count: '',
-    seat_configuration: '2+2',
-    door_positions_text: '',
-    door_side: 'right',
-    door_width: 2,
-    last_row_seats: '',
-    active: true
-  };
+  modalVehicleType.value = null;
   errors.value = {};
   showModal.value = true;
 };
@@ -99,16 +81,7 @@ const openCreateModal = () => {
 const openEditModal = () => {
   if (!selectedVehicleType.value) return;
   isEditing.value = true;
-  form.value = {
-    name: selectedVehicleType.value.name,
-    seat_count: selectedVehicleType.value.seat_count.toString(),
-    seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
-    door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
-    door_side: selectedVehicleType.value.door_side || 'right',
-    door_width: selectedVehicleType.value.door_width || 2,
-    last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
-    active: selectedVehicleType.value.active !== undefined ? Boolean(selectedVehicleType.value.active) : true
-  };
+  modalVehicleType.value = selectedVehicleType.value;
   errors.value = {};
   showModal.value = true;
 };
@@ -116,15 +89,9 @@ const openEditModal = () => {
 const duplicateVehicleType = () => {
   if (!selectedVehicleType.value) return;
   isEditing.value = false; // It's a new creation
-  form.value = {
+  modalVehicleType.value = {
+    ...selectedVehicleType.value,
     name: selectedVehicleType.value.name + ' (Copie)',
-    seat_count: selectedVehicleType.value.seat_count.toString(),
-    seat_configuration: selectedVehicleType.value.seat_configuration || '2+2',
-    door_positions_text: selectedVehicleType.value.door_positions ? selectedVehicleType.value.door_positions.join(', ') : '',
-    door_side: selectedVehicleType.value.door_side || 'right',
-    door_width: selectedVehicleType.value.door_width || 2,
-    last_row_seats: selectedVehicleType.value.last_row_seats ? selectedVehicleType.value.last_row_seats.toString() : '',
-    active: true
   };
   errors.value = {};
   showModal.value = true;
@@ -132,97 +99,8 @@ const duplicateVehicleType = () => {
 
 const closeModal = () => {
   showModal.value = false;
-  form.value = {
-    name: '',
-    seat_count: '',
-    seat_configuration: '2+2',
-    door_positions_text: '',
-    door_side: 'right',
-    door_width: 2,
-    last_row_seats: '',
-    active: true
-  };
+  modalVehicleType.value = null;
   errors.value = {};
-};
-
-const submit = () => {
-  processing.value = true;
-  errors.value = {};
-
-  const payload = {
-    ...form.value,
-    door_positions: form.value.door_positions_text 
-      ? form.value.door_positions_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-      : [],
-    door_positions_text: undefined
-  };
-
-  const url = isEditing.value
-    ? route('admin.vehicle-types.update', selectedVehicleType.value.id)
-    : route('admin.vehicle-types.store');
-
-  const method = isEditing.value ? 'put' : 'post';
-
-  router[method](url, payload, {
-    onSuccess: () => {
-      processing.value = false;
-      closeModal();
-    },
-    onError: (newErrors) => {
-      processing.value = false;
-      errors.value = newErrors;
-    }
-  });
-};
-
-const recalculateMetadata = () => {
-  const seatCount = parseInt(form.value.seat_count) || 0;
-  const configStr = form.value.seat_configuration || '2+2';
-  const doorSide = form.value.door_side || 'right';
-  const doorWidth = parseInt(form.value.door_width) || 2;
-
-  const parts = configStr.split('+').map(Number);
-  const leftCount = parts[0] || 2;
-  const rightCount = parts[1] || 2;
-  const slotsPerRow = leftCount + rightCount;
-
-  if (seatCount <= 0 || slotsPerRow <= 0) {
-    return;
-  }
-
-  // Optional helper: suggest a default set of door positions without
-  // modifying the manually entered capacity. The admin keeps full control
-  // over the final seat count.
-  const approxRows = Math.max(2, Math.ceil(seatCount / slotsPerRow));
-  const doorPositions = [0];
-
-  const middleRow = Math.floor(approxRows / 2);
-  const mStart = Math.max(1, (middleRow - 1) * slotsPerRow + 1);
-  if (doorSide === 'right') {
-    for (let i = 0; i < Math.min(doorWidth, rightCount); i++) {
-      doorPositions.push(mStart + leftCount + i);
-    }
-  } else {
-    for (let i = 0; i < Math.min(doorWidth, leftCount); i++) {
-      doorPositions.push(mStart + i);
-    }
-  }
-
-  const backRow = approxRows - 4;
-  if (backRow > middleRow) {
-    const bStart = Math.max(1, (backRow - 1) * slotsPerRow + 1);
-    if (doorSide === 'right') {
-      for (let i = 0; i < Math.min(doorWidth, rightCount); i++) {
-        doorPositions.push(bStart + leftCount + i);
-      }
-    } else {
-      for (let i = 0; i < Math.min(doorWidth, leftCount); i++) {
-        doorPositions.push(bStart + i);
-      }
-    }
-  }
-
-  form.value.door_positions_text = [...new Set(doorPositions)].sort((a, b) => a - b).join(', ');
 };
 
 const deleteVehicleType = (id) => {
@@ -239,94 +117,6 @@ const deleteVehicleType = (id) => {
     });
   }
 };
-
-// Live Preview Logic (Purely from form values)
-const liveSeatMap = computed(() => {
-  const seatCount = parseInt(form.value.seat_count) || 0;
-  const configStr = form.value.seat_configuration || '2+2';
-  const doorPositions = form.value.door_positions_text 
-    ? form.value.door_positions_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
-    : [];
-  const lastRowSeats = parseInt(form.value.last_row_seats) || 5;
-
-  const parts = configStr.split('+').map(Number);
-  const leftCount = parts[0] || 2;
-  const rightCount = parts[1] || 2;
-  const slotsPerRow = leftCount + rightCount;
-
-  const seatMap = [];
-  let currentSeatNum = 1;
-  let rowIndex = 0;
-  let filledSeats = 0;
-  const targetSeats = seatCount;
-  const seatsBeforeLast = targetSeats - lastRowSeats;
-
-  while (filledSeats < seatsBeforeLast) {
-    const row = [];
-    const rowStartSlot = (rowIndex - 1) * slotsPerRow + 1;
-
-    if (rowIndex === 0) {
-      row.push({ type: 'driver', label: 'Chauffeur' });
-      for (let i = 1; i < leftCount; i++) row.push({ type: 'empty' });
-    } else {
-      for (let i = 0; i < leftCount; i++) {
-        const currentSlot = rowStartSlot + i;
-        if (doorPositions.includes(currentSlot)) {
-          row.push({ type: 'door' });
-        } else if (filledSeats < seatsBeforeLast) {
-          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-          filledSeats++;
-        } else {
-          row.push({ type: 'empty' });
-        }
-      }
-    }
-
-    row.push({ type: 'aisle' });
-
-    if (rowIndex === 0) {
-      if (doorPositions.includes(0)) {
-        for (let i = 1; i < rightCount; i++) row.push({ type: 'empty' });
-        row.push({ type: 'door', label: 'Porte' });
-      } else {
-        for (let i = 0; i < rightCount; i++) {
-          if (filledSeats < seatsBeforeLast) {
-            row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-            filledSeats++;
-          } else {
-            row.push({ type: 'empty' });
-          }
-        }
-      }
-    } else {
-      for (let i = 0; i < rightCount; i++) {
-        const currentSlot = rowStartSlot + leftCount + i;
-        if (doorPositions.includes(currentSlot)) {
-          row.push({ type: 'door' });
-        } else if (filledSeats < seatsBeforeLast) {
-          row.push({ type: 'seat', number: (currentSeatNum++).toString() });
-          filledSeats++;
-        } else {
-          row.push({ type: 'empty' });
-        }
-      }
-    }
-    seatMap.push(row);
-    rowIndex++;
-    if (rowIndex > 100) break; // Safety
-  }
-
-  const remaining = targetSeats - filledSeats;
-  if (remaining > 0) {
-    const lastRow = [];
-    for (let i = 0; i < remaining; i++) {
-      lastRow.push({ type: 'seat', number: (currentSeatNum++).toString() });
-    }
-    seatMap.push(lastRow);
-  }
-
-  return seatMap;
-});
 
 // Export/Print configuration
 const typeColumns = {
@@ -360,13 +150,13 @@ const handlePrint = () => {
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <Car class="text-green-600" :size="28" />
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <Car class="text-emerald-600" :size="28" />
             </div>
             Gestion des Types de Véhicules
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -379,16 +169,16 @@ const handlePrint = () => {
 
         <!-- Middle Column - Vehicle Types List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Type">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouveau Type">
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
@@ -404,22 +194,19 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-gray-500">
+              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
                 Aucun type de véhicule trouvé.
               </div>
               <div v-else>
                 <div v-for="vehicleType in filteredVehicleTypes" :key="vehicleType.id" 
                   @click="selectVehicleType(vehicleType)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
-                  :style="{
-                    backgroundColor: isSelected(vehicleType) ? '#f0fdf4' : '#ffffff',
-                    borderLeft: isSelected(vehicleType) ? '4px solid #16a34a' : '4px solid #fed7aa'
-                  }"
+                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
+                  :class="[isSelected(vehicleType) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div>
-                      <h3 :class="['font-semibold', isSelected(vehicleType) ? 'text-green-800' : 'text-gray-800']">{{ vehicleType.name }}</h3>
-                      <p class="text-xs text-gray-500 mt-1">{{ vehicleType.seat_count }} sièges</p>
+                      <h3 :class="['font-semibold', isSelected(vehicleType) ? 'text-emerald-800' : 'text-slate-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicleType.name }}</h3>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ vehicleType.seat_count }} sièges</p>
                     </div>
                   </div>
                 </div>
@@ -431,10 +218,10 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedVehicleType" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedVehicleType" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+            <MapMarkerRadius class="h-16 w-16 text-slate-200 mb-4" />
             <p class="text-lg">Sélectionnez un type pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez un nouveau type
             </button>
           </div>
@@ -442,24 +229,24 @@ const handlePrint = () => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">{{ selectedVehicleType.name }}</h2>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ selectedVehicleType.name }}</h2>
                 <div class="flex items-center gap-2">
                   <span :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedVehicleType.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    selectedVehicleType.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   ]">
                     {{ selectedVehicleType.active ? 'Actif' : 'Inactif' }}
                   </span>
-                  <button @click="duplicateVehicleType" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                  <button @click="duplicateVehicleType" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
                     <ContentCopy class="h-5 w-5" />
                   </button>
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteVehicleType(selectedVehicleType.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="deleteVehicleType(selectedVehicleType.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -468,38 +255,38 @@ const handlePrint = () => {
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">CAPACITÉ</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">CAPACITÉ</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.seat_count }} places
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">CONFIGURATION</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">CONFIGURATION</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.seat_configuration || '2+2' }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">DERNIÈRE RANGÉE</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">DERNIÈRE RANGÉE</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.last_row_seats || 'Standard' }}
                   </div>
                 </div>
                 <div class="col-span-4">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">PORTES</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">PORTES</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.door_positions?.join(', ') || 'Aucune' }}
                   </div>
                 </div>
                 <div class="col-span-4">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">CÔTÉ</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">CÔTÉ</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.door_side === 'left' ? 'Gauche' : 'Droite' }}
                   </div>
                 </div>
                 <div class="col-span-4">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">LARGEUR</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">LARGEUR</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicleType.door_width || 2 }} slots
                   </div>
                 </div>
@@ -507,8 +294,11 @@ const handlePrint = () => {
 
               <!-- Seat Map Preview Section -->
               <div class="mt-8">
-                <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-4">PLAN DE SIÈGES / SEAT MAP</span>
-                <SeatMapPreview :seatMap="selectedVehicleType.seat_map" />
+                <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-4">PLAN DE SIÈGES / SEAT MAP</span>
+                <SeatMapPreview
+                  :seatMap="selectedVehicleType.seat_map"
+                  :seatConfiguration="selectedVehicleType.seat_configuration"
+                />
               </div>
             </div>
           </div>
@@ -517,99 +307,27 @@ const handlePrint = () => {
     </div>
 
     <!-- Modal -->
-    <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal" maxWidth="3xl">
+    <DialogModal :show="showModal" @close="closeModal" maxWidth="6xl">
       <template #title>
         {{ isEditing ? 'Modifier le Type de Véhicule' : 'Nouveau Type de Véhicule' }}
       </template>
       <template #content>
-        <div class="space-y-6">
-          <!-- Top Section: Form Fields -->
-          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-            <div class="md:col-span-2">
-              <InputLabel for="name" value="Nom du Type" />
-              <TextInput v-model="form.name" id="name" class="w-full text-sm" placeholder="Ex: Autocar Standard" />
-              <InputError :message="errors.name" />
-            </div>
-
-            <div>
-              <InputLabel for="seat_count" value="Places" />
-              <TextInput v-model="form.seat_count" id="seat_count" type="number" min="1" class="w-full text-sm" />
-              <InputError :message="errors.seat_count" />
-            </div>
-
-            <div>
-              <InputLabel for="seat_configuration" value="Config" />
-              <TextInput v-model="form.seat_configuration" id="seat_configuration" class="w-full text-sm" placeholder="2+2" />
-              <InputError :message="errors.seat_configuration" />
-            </div>
-
-            <div>
-              <InputLabel for="door_side" value="Côté Portes" />
-              <select v-model="form.door_side" id="door_side" class="w-full text-sm border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-md shadow-sm">
-                <option value="right">Droite</option>
-                <option value="left">Gauche</option>
-              </select>
-              <InputError :message="errors.door_side" />
-            </div>
-
-            <div>
-              <InputLabel for="door_width" value="Largeur P." />
-              <TextInput v-model="form.door_width" id="door_width" type="number" min="1" max="3" class="w-full text-sm" />
-              <InputError :message="errors.door_width" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end mt-4">
-            <div class="md:col-span-1">
-              <div class="flex items-center justify-between mb-1">
-                <InputLabel for="door_positions" value="Positions Manuelles" />
-                <button @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-bold flex items-center gap-1" title="Proposer des positions de portes">
-                  <span class="rotate-180">↺</span> SUGGÉRER
-                </button>
-              </div>
-              <TextInput v-model="form.door_positions_text" id="door_positions" class="w-full text-sm" placeholder="1, 23" />
-              <p class="mt-1 text-[11px] text-gray-500">
-                Ce champ reste libre. Le bouton suggère seulement des portes, il ne modifie plus le nombre de places.
-              </p>
-              <InputError :message="errors.door_positions" />
-            </div>
-
-            <div class="md:col-span-1">
-              <InputLabel for="last_row_seats" value="Dernière Rangée" />
-              <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" class="w-full text-sm" placeholder="5" />
-              <InputError :message="errors.last_row_seats" />
-            </div>
-
-            <div class="md:col-span-1 flex items-center h-full pt-6">
-              <input type="checkbox" v-model="form.active" id="type_active" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
-              <label for="type_active" class="ml-2 text-sm text-gray-600 font-medium">Type Actif</label>
-            </div>
-          </div>
-
-          <!-- Bottom Section: Horizontal Live Preview -->
-          <div class="bg-gray-50/50 rounded-2xl border border-gray-100 p-4 flex flex-col h-[400px]">
-            <div class="flex items-center justify-between mb-3 shrink-0">
-              <span class="text-[10px] text-gray-400 uppercase tracking-widest font-black">APERÇU DU PLAN DE SIÈGES (VUE HORIZONTALE)</span>
-              <div v-if="liveSeatMap.length > 0" class="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-black rounded uppercase">
-                Généré en direct
-              </div>
-            </div>
-            
-            <div class="flex-1 overflow-auto custom-scrollbar flex items-center justify-center">
-              <div v-if="liveSeatMap.length > 0" class="w-full py-2">
-                <SeatMapPreview :seatMap="liveSeatMap" orientation="horizontal" />
-              </div>
-              <div v-else class="text-center text-gray-400">
-                <p class="text-[10px]">Entrez les paramètres pour voir le plan</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <VehicleTypeFormFields
+          :vehicle-type="modalVehicleType"
+          :errors="errors"
+          :submit-url="isEditing ? route('admin.vehicle-types.update', selectedVehicleType.id) : route('admin.vehicle-types.store')"
+          :submit-method="isEditing ? 'put' : 'post'"
+          :back-url="route('admin.vehicle-types.index')"
+          submit-label="Enregistrer"
+          cancel-label="Annuler"
+          :on-success="closeModal"
+          :on-cancel="closeModal"
+          :hide-header="true"
+        />
       </template>
       <template #footer>
         <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
-        <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
+        <PrimaryButton class="ml-3" type="submit" form="vehicle-type-form" :disabled="processing">
           {{ isEditing ? 'Mettre à jour' : 'Enregistrer' }}
         </PrimaryButton>
       </template>
@@ -625,10 +343,10 @@ const handlePrint = () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
+  background: #94a3b8;
 }
 </style>

@@ -71,13 +71,13 @@ const disconnect = () => {
 
       <!-- Header -->
       <div class="px-6 pt-6 pb-4 shrink-0">
-        <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
-          <div class="p-2 bg-green-100 rounded-xl">
-            <GiftOutline class="text-green-600" :size="28" />
+        <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
+          <div class="p-2 bg-green-100 dark:bg-emerald-950/40 rounded-xl">
+            <GiftOutline class="text-green-600 dark:text-emerald-450" :size="28" />
           </div>
           Fidélisation
         </h1>
-        <p class="text-gray-500 mt-1">Intégration Okohi — récompensez vos clients à chaque voyage</p>
+        <p class="text-gray-500 dark:text-slate-455 mt-1">Intégration Okohi — récompensez vos clients à chaque voyage</p>
       </div>
 
       <!-- Body -->
@@ -104,43 +104,43 @@ const disconnect = () => {
 
               <!-- Status banner -->
               <div
-                :class="isConnected ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'"
+                :class="isConnected ? 'bg-green-50 border-green-200 dark:bg-emerald-950/20 dark:border-emerald-800' : 'bg-gray-50 border-gray-200 dark:bg-slate-950/40 dark:border-slate-800'"
                 class="border rounded-xl p-4 flex items-center gap-3"
               >
-                <CheckCircle v-if="isConnected" class="text-green-500 shrink-0" :size="22" />
-                <AlertCircle v-else class="text-gray-400 shrink-0" :size="22" />
+                <CheckCircle v-if="isConnected" class="text-green-500 dark:text-green-400 shrink-0" :size="22" />
+                <AlertCircle v-else class="text-gray-400 dark:text-slate-500 shrink-0" :size="22" />
                 <div>
-                  <p class="text-sm font-bold" :class="isConnected ? 'text-green-800' : 'text-gray-600'">
+                  <p class="text-sm font-bold" :class="isConnected ? 'text-green-800 dark:text-emerald-300' : 'text-gray-600 dark:text-slate-300'">
                     {{ isConnected ? 'Intégration active' : 'Non connecté' }}
                   </p>
-                  <p v-if="!isConnected" class="text-[11px] text-gray-400 mt-0.5">
+                  <p v-if="!isConnected" class="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">
                     Saisissez le code Okohi pour activer la fidélisation
                   </p>
                 </div>
               </div>
 
               <!-- Flash success -->
-              <div v-if="flash.success" class="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
+              <div v-if="flash.success" class="bg-green-50 border border-green-200 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
                 {{ flash.success }}
               </div>
 
               <!-- Connection form -->
-              <div v-if="!isConnected" class="bg-white rounded-xl border border-orange-200 shadow-sm p-5 space-y-4">
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">Connecter Okohi</p>
+              <div v-if="!isConnected" class="bg-white dark:bg-slate-900 rounded-xl border border-orange-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+                <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide">Connecter Okohi</p>
 
                 <div>
-                  <label class="block text-xs font-bold text-gray-600 mb-1">Code de connexion (4 chiffres)</label>
+                  <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Code de connexion (4 chiffres)</label>
                   <input
                     v-model="code"
                     type="text"
                     inputmode="numeric"
                     maxlength="4"
                     placeholder="1234"
-                    class="w-full rounded-lg border-orange-200 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono tracking-widest text-center text-lg"
+                    class="w-full rounded-lg border-orange-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono tracking-widest text-center text-lg"
                     :class="{ 'border-red-400': errors.code }"
                   />
                   <InputError class="mt-1" :message="errors.code" />
-                  <p class="text-[11px] text-gray-400 mt-1">
+                  <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
                     Dans Okohi : <strong>Modification de l'établissement → Intégration API → Apps Partenaires → Connecter</strong>.
                   </p>
                 </div>
@@ -148,7 +148,7 @@ const disconnect = () => {
                 <button
                   @click="connect"
                   :disabled="processing || code.length !== 4"
-                  class="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-100 flex items-center justify-center gap-2"
+                  class="w-full py-3 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors shadow-lg shadow-green-100 dark:shadow-emerald-950/20 flex items-center justify-center gap-2"
                 >
                   <Loader v-if="processing" :size="20" class="animate-spin" />
                   <LinkVariant v-else :size="20" />
@@ -160,24 +160,24 @@ const disconnect = () => {
               <div v-if="isConnected" class="space-y-4">
 
                 <!-- Verify URL -->
-                <div class="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <p class="text-xs font-bold text-green-700 uppercase tracking-wide mb-2">
+                <div class="bg-green-50 border border-green-200 dark:bg-emerald-950/20 dark:border-emerald-900/40 rounded-xl p-4">
+                  <p class="text-xs font-bold text-green-700 dark:text-emerald-300 uppercase tracking-wide mb-2">
                     Votre URL de vérification
                   </p>
                   <div class="flex items-center gap-2">
-                    <code class="flex-1 text-[11px] bg-white border border-green-100 rounded-lg px-3 py-2 font-mono break-all text-gray-800 leading-relaxed select-all">{{ verifyUrl }}</code>
+                    <code class="flex-1 text-[11px] bg-white border border-green-100 dark:bg-slate-950 dark:border-slate-800 rounded-lg px-3 py-2 font-mono break-all text-gray-800 dark:text-slate-300 leading-relaxed select-all">{{ verifyUrl }}</code>
                     <button
                       @click="copyVerifyUrl"
                       type="button"
                       :title="copied ? 'Copié !' : 'Copier'"
-                      class="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 h-9 rounded-lg border border-green-300 bg-white hover:bg-green-100 text-green-600 font-bold text-[11px] transition-colors whitespace-nowrap"
+                      class="shrink-0 flex items-center justify-center gap-1.5 px-3 py-2 h-9 rounded-lg border border-green-300 dark:border-emerald-800 bg-white dark:bg-slate-900 hover:bg-green-100 dark:hover:bg-slate-800 text-green-600 dark:text-emerald-400 font-bold text-[11px] transition-colors whitespace-nowrap"
                     >
                       <Check v-if="copied" :size="14" />
                       <ContentCopy v-else :size="14" />
                       <span>{{ copied ? 'Copié !' : 'Copier' }}</span>
                     </button>
                   </div>
-                  <p class="text-[11px] text-green-700 mt-2 leading-relaxed">
+                  <p class="text-[11px] text-green-700 dark:text-emerald-400 mt-2 leading-relaxed">
                     Okohi appellera cette URL pour valider les tickets avant de créditer les points.
                   </p>
                 </div>
@@ -186,7 +186,7 @@ const disconnect = () => {
                 <button
                   @click="confirmDisconnect"
                   :disabled="processing"
-                  class="w-full py-3 bg-white hover:bg-red-50 disabled:opacity-60 text-red-500 font-bold rounded-xl transition-colors border border-red-200 flex items-center justify-center gap-2"
+                  class="w-full py-3 bg-white dark:bg-slate-900 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-60 text-red-500 font-bold rounded-xl transition-colors border border-red-200 dark:border-red-900/30 flex items-center justify-center gap-2"
                 >
                   <Loader v-if="processing" :size="20" class="animate-spin" />
                   <Delete v-else :size="20" />
@@ -198,67 +198,67 @@ const disconnect = () => {
 
             <!-- Right column -->
             <div class="space-y-4">
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Comment connecter Okohi</p>
+              <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm p-5">
+                <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide mb-4">Comment connecter Okohi</p>
                 <ol class="space-y-4">
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 font-black text-xs flex items-center justify-center shrink-0">1</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">1</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Dans l'app <strong>Okohi</strong>, allez dans <strong>Modification de l'établissement → Intégration API → Apps Partenaires</strong> et cliquez <strong>Connecter</strong> à côté de <em>Tiketi</em>.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 font-black text-xs flex items-center justify-center shrink-0">2</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">2</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Okohi génère un <strong>code à 4 chiffres</strong> valable 24h. Copiez-le.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 font-black text-xs flex items-center justify-center shrink-0">3</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">3</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Saisissez le code dans le formulaire ci-contre et cliquez <strong>Connecter</strong>.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-green-100 text-green-700 font-black text-xs flex items-center justify-center shrink-0">4</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">4</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       L'intégration est active. Le QR code sur chaque ticket imprimé permet au client de scanner et gagner des points automatiquement.
                     </p>
                   </li>
                 </ol>
               </div>
 
-              <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Comment ça fonctionne</p>
+              <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm p-5">
+                <p class="text-xs font-bold text-gray-500 dark:text-slate-455 uppercase tracking-wide mb-4">Comment ça fonctionne</p>
                 <ol class="space-y-4">
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">A</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">A</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Le guichetier imprime un ticket → le QR code contient le lien Okohi avec le numéro de ticket, le montant et le timestamp.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">B</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">B</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Le client scanne le QR code avec l'application <strong>Okohi</strong>.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">C</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">C</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Okohi appelle votre URL de vérification pour confirmer que le ticket est valide.
                     </p>
                   </li>
                   <li class="flex gap-3">
-                    <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0">D</span>
-                    <p class="text-xs text-gray-600 leading-relaxed pt-0.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center shrink-0">D</span>
+                    <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">
                       Tiketi confirme le ticket → Okohi attribue les points au client.
                     </p>
                   </li>
                 </ol>
               </div>
             </div>
-
+ 
           </div>
         </div>
       </div>
@@ -267,27 +267,27 @@ const disconnect = () => {
 
     <!-- Confirmation modal -->
     <Teleport to="body">
-      <div v-if="showConfirm" class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+      <div v-if="showConfirm" class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/35 backdrop-blur-sm px-4">
+        <div class="bg-white/95 dark:bg-slate-900 rounded-3xl border border-white/70 dark:border-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.16)] p-6 w-full max-w-sm">
           <div class="flex items-center gap-3 mb-4">
-            <div class="p-2 bg-red-100 rounded-xl shrink-0">
-              <AlertOutline class="text-red-500" :size="22" />
+            <div class="p-2 bg-rose-100 dark:bg-rose-950/40 rounded-xl shrink-0">
+              <AlertOutline class="text-rose-500" :size="22" />
             </div>
-            <h3 class="text-base font-black text-gray-900">Déconnecter Okohi ?</h3>
+            <h3 class="text-base font-black text-slate-900 dark:text-slate-100">Déconnecter Okohi ?</h3>
           </div>
-          <p class="text-sm text-gray-600 leading-relaxed mb-6">
+          <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
             Les QR codes des prochains tickets n'auront plus de lien Okohi. Les tickets déjà imprimés ne sont pas affectés.
           </p>
           <div class="flex gap-3">
             <button
               @click="showConfirm = false"
-              class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-sm hover:bg-gray-50 transition-colors"
+              class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               Annuler
             </button>
             <button
               @click="disconnect"
-              class="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-sm transition-colors"
+              class="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition-colors"
             >
               Déconnecter
             </button>
@@ -302,6 +302,6 @@ const disconnect = () => {
 <style scoped>
 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #fed7aa; border-radius: 10px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #fdba74; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 </style>

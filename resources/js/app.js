@@ -5,8 +5,11 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { initializeTheme } from '@/Composables/useTheme.js';
 
 const appName = import.meta.env.VITE_APP_NAME || 'SysGeTrans';
+
+initializeTheme();
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

@@ -96,4 +96,41 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Station::class, 'user_station_assignments');
     }
+
+    public function vehicleAssignments()
+    {
+        return $this->hasMany(UserVehicleAssignment::class);
+    }
+
+    public function assignedVehicles()
+    {
+        return $this->belongsToMany(Vehicle::class, 'user_vehicle_assignments');
+    }
+
+    public function getActiveStationIds(): array
+    {
+        return $this->stationAssignments()
+            ->where('active', true)
+            ->pluck('station_id')
+            ->toArray();
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function accessibleRoutesQuery()
+    {
+        if ($this->isAdmin()) {
+            return \App\Models\Route::where('active', true);
+        }
+        $stationIds = $this->getActiveStationIds();
+        return \App\Models\Route::where('active', true)
+            ->where(function ($q) use ($stationIds) {
+                $q->whereIn('origin_station_id', $stationIds)
+                  ->orWhereIn('destination_station_id', $stationIds)
+                  ->orWhereHas('routeStopOrders', fn($sq) => $sq->whereIn('station_id', $stationIds));
+            });
+    }
 }

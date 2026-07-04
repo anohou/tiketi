@@ -17,8 +17,8 @@ class Route extends Model
         'name',
         'origin_destination_id',
         'target_destination_id',
-        'origin_station_id', // Optional/Deprecated?
-        'destination_station_id', // Optional/Deprecated?
+        'origin_station_id',
+        'destination_station_id',
         'active',
         'settings',
     ];

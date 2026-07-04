@@ -43,6 +43,7 @@ class SeatMapService
         $seatCount = (int) ($data['seat_count'] ?? 0);
         $doorPositions = $data['door_positions'] ?? [];
         $lastRowSeats = (int) ($data['last_row_seats'] ?? 5);
+        $lastRowSeats = max(1, $lastRowSeats);
 
         $seatMap = [];
         $currentSeatNum = 1;
@@ -197,7 +198,7 @@ class SeatMapService
         return [
             'door_positions' => $doorPositions,
             'seat_count' => $totalCapacity - count($doorPositions),
-            'last_row_seats' => ($configStr === '3+2') ? 6 : 5,
+            'last_row_seats' => $slotsPerRow + 1,
         ];
     }
 }

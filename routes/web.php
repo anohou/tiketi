@@ -2,6 +2,12 @@
 
 use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Fleet\CrewMemberController;
+use App\Http\Controllers\Fleet\FleetAssignmentController;
+use App\Http\Controllers\Fleet\FleetDashboardController;
+use App\Http\Controllers\Fleet\FleetVehicleController;
+use App\Http\Controllers\Fleet\FleetVehicleTypeController;
+use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SupervisorDashboardController;
 use Illuminate\Support\Facades\Route;
@@ -27,17 +33,30 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
+    $user = request()->user();
+
+    if (! $user) {
+        return redirect()->route('login');
+    }
+
+    return match ($user->role) {
+        'superadmin' => redirect()->route('landlord.tenants.index'),
+        'admin' => redirect()->route('admin.dashboard'),
+        'fleet_manager' => redirect()->route('fleet.dashboard'),
+        'supervisor' => redirect()->route('supervisor.dashboard'),
+        'seller' => redirect()->route('seller.dashboard'),
+        'accountant' => redirect()->route('accountant.reports'),
+        'executive' => redirect()->route('executive.analytics'),
+        default => redirect()->route('login'),
+    };
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-Route::get('/home', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('home');
+
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    // Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::get('/help', fn () => Inertia::render('Help/Index'))->name('help.index');
 
     // =========================================
@@ -129,6 +148,23 @@ Route::middleware('auth')->group(function () {
     // =========================================
     Route::prefix('executive')->middleware('role:admin,executive')->name('executive.')->group(function () {
         Route::get('/analytics', [\App\Http\Controllers\Executive\AnalyticsController::class, 'index'])->name('analytics');
+    });
+
+    // =========================================
+    // FLEET MANAGER ROUTES - Vehicle Registry & Seat Maps
+    // =========================================
+    Route::prefix('fleet')->middleware('role:admin,fleet_manager')->name('fleet.')->group(function () {
+        Route::get('/', [FleetDashboardController::class, 'index'])->name('dashboard');
+
+        Route::resource('vehicles', FleetVehicleController::class);
+        Route::put('vehicles/{vehicle}/toggle-active', [FleetVehicleController::class, 'toggleActive'])->name('vehicles.toggle-active');
+
+        Route::resource('vehicle-types', FleetVehicleTypeController::class);
+        Route::resource('assignments', FleetAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
+
+        // Crew management
+        Route::resource('crew-members', CrewMemberController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('crew-assignments', VehicleCrewAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
     });
 
     // =========================================

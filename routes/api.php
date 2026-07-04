@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\VehicleController;
+use App\Http\Controllers\Api\DashboardController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -49,16 +50,5 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Dashboard stats
-    Route::get('/dashboard/stats', function () {
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'total_trips_today' => \App\Models\Trip::whereDate('departure_at', today())->count(),
-                'total_tickets_today' => \App\Models\Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->count(),
-                'total_revenue_today' => \App\Models\Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->sum('price'),
-                'occupancy_rate' => 0, // À implémenter
-            ],
-            'message' => 'Statistiques récupérées avec succès',
-        ]);
-    });
+    Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 });

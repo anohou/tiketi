@@ -58,8 +58,8 @@ const handleInput = (event) => {
       :value="localValue"
       @input="handleInput"
       type="tel"
-      class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
-      :class="{ 'border-red-500': error }"
+      class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm bg-white text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:border-emerald-400 dark:placeholder:text-slate-500"
+      :class="{ 'border-red-500 dark:border-red-500/70': error }"
       placeholder="XX XX XX XX XX"
       
     />

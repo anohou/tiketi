@@ -43,9 +43,12 @@ class SupervisorDashboardController extends Controller
             ->whereIn('origin_station_id', $stationIds)
             ->where('departure_at', '>=', now())
             ->where('departure_at', '<=', now()->addHours(24))
+            ->withCount(['tickets as tickets_count' => function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            }])
             ->with([
                 'route:id,name',
-                'vehicle:id,license_plate,vehicle_type_id',
+                'vehicle:id,identifier,vehicle_type_id',
                 'vehicle.vehicleType:id,seat_count',
                 'destinationStation:id,name',
                 'originStation:id,name',
@@ -55,8 +58,9 @@ class SupervisorDashboardController extends Controller
             ->map(function ($trip) {
                 // Calculate occupancy percentage
                 $total = $trip->total_seats;
-                $sold = $total - $trip->available_seats;
-                $percent = $total > 0 ? round(($sold / $total) * 100) : 0;
+                $occupied = $trip->occupied_seats_count;
+                $ticketsSold = $trip->tickets_count ?? $trip->sold_tickets_count;
+                $percent = $total > 0 ? round(($occupied / $total) * 100) : 0;
                 $minsToDeparture = now()->diffInMinutes($trip->departure_at, false);
 
                 return [
@@ -66,11 +70,12 @@ class SupervisorDashboardController extends Controller
                     'origin' => $trip->originStation->name ?? '?',
                     'departure_time' => $trip->departure_at->format('H:i'),
                     'departure_timestamp' => $trip->departure_at->timestamp,
-                    'license_plate' => $trip->vehicle->license_plate ?? null,
+                    'license_plate' => $trip->vehicle->identifier ?? null,
                     'occupancy_percent' => $percent,
                     'available_seats' => $trip->available_seats,
                     'total_seats' => $total,
-                    'sold_seats' => $sold,
+                    'occupied_seats' => $occupied,
+                    'tickets_sold' => $ticketsSold,
                     'status' => $trip->status,
                     'mins_to_departure' => max(0, $minsToDeparture),
                     'alert_level' => $this->calculateAlertLevel($trip, $percent),

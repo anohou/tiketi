@@ -75,13 +75,13 @@ const submit = () => {
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
               <Printer class="text-green-600" :size="28" />
             </div>
             Impression des Tickets
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -94,8 +94,8 @@ const submit = () => {
 
         <!-- Middle Column - Preview -->
         <div class="col-span-12 md:col-span-5 h-full overflow-y-auto custom-scrollbar">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 sticky top-0 bg-white z-10 shrink-0">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 sticky top-0 bg-white z-10 shrink-0">
               <h2 class="text-lg font-semibold text-green-700">Aperçu du Ticket</h2>
             </div>
 
@@ -175,7 +175,7 @@ const submit = () => {
 
         <!-- Right Column - Form -->
         <div class="col-span-12 md:col-span-5 h-full overflow-y-auto custom-scrollbar">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-4 h-full flex flex-col">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-4 h-full flex flex-col">
             <h2 class="text-lg font-semibold text-green-700 mb-4 shrink-0">
               Configuration
             </h2>
@@ -313,7 +313,7 @@ const submit = () => {
             </form>
 
             <!-- Submit Button (Fixed at bottom) -->
-            <div class="pt-4 border-t border-orange-200 shrink-0">
+            <div class="pt-4 border-t border-orange-200 dark:border-slate-800 shrink-0">
               <button
                 @click="submit"
                 class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2"
@@ -339,10 +339,10 @@ const submit = () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
+  background: #94a3b8;
 }
 </style>

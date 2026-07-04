@@ -23,39 +23,43 @@ const verificationLinkSent = computed(
 
 <template>
     <GuestLayout>
-        <Head title="Email Verification" />
+        <Head title="Vérification de l'e-mail" />
 
-        <div class="mb-4 text-sm text-gray-600">
-            Thanks for signing up! Before getting started, could you verify your
-            email address by clicking on the link we just emailed to you? If you
-            didn't receive the email, we will gladly send you another.
-        </div>
-
-        <div
-            class="mb-4 text-sm font-medium text-green-600"
-            v-if="verificationLinkSent"
-        >
-            A new verification link has been sent to the email address you
-            provided during registration.
-        </div>
-
-        <form @submit.prevent="submit">
-            <div class="mt-4 flex items-center justify-between">
-                <PrimaryButton
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Resend Verification Email
-                </PrimaryButton>
-
-                <Link
-                    :href="route('logout')"
-                    method="post"
-                    as="button"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                    >Log Out</Link
-                >
+        <div class="mx-auto max-w-md">
+            <div class="mb-8 text-center">
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600">Validation</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900">Vérifiez votre adresse e-mail</h1>
+                <p class="mt-2 text-sm leading-6 text-slate-500">
+                    Un lien de validation vous a été envoyé. Cliquez dessus pour activer votre compte.
+                </p>
             </div>
-        </form>
+
+            <div
+                class="mb-4 text-sm font-medium text-emerald-600"
+                v-if="verificationLinkSent"
+            >
+                Un nouveau lien de vérification a été envoyé à l'adresse e-mail fournie lors de l'inscription.
+            </div>
+
+            <form @submit.prevent="submit" class="space-y-5">
+                <div class="flex items-center justify-between pt-2">
+                    <Link
+                        :href="route('logout')"
+                        method="post"
+                        as="button"
+                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                    >
+                        Déconnexion
+                    </Link>
+
+                    <PrimaryButton
+                        :class="{ 'opacity-25': form.processing }"
+                        :disabled="form.processing"
+                    >
+                        Renvoyer le lien
+                    </PrimaryButton>
+                </div>
+            </form>
+        </div>
     </GuestLayout>
 </template>

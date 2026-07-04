@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Ticket;
 use App\Models\Route;
 use App\Models\Trip;
 use App\Services\OptimisationService;
@@ -21,7 +22,9 @@ class TripController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Trip::withCount('tripSeatOccupancies as occupied_seats')
+        $query = Trip::withCount(['tickets as tickets_count' => function ($q) {
+            $q->where('status', '!=', 'cancelled');
+        }])
             ->with([
                 'route.originStation',
                 'route.destinationStation',
@@ -29,13 +32,10 @@ class TripController extends Controller
                 'vehicle.vehicleType',
             ])
             ->where('departure_at', '>=', now())
-            ->orderBy('departure_at');
+            ->upcomingFirst();
 
         if ($user && $user->role === 'seller') {
-            $assignedStationIds = \App\Models\UserStationAssignment::where('user_id', $user->id)
-                ->where('active', true)
-                ->pluck('station_id')
-                ->toArray();
+            $assignedStationIds = $user->getActiveStationIds();
 
             // Filtrer par route - tous les voyages passant par les stations assignées sont visibles
             // Le contrôle sales_control s'applique uniquement au moment de la vente
@@ -60,10 +60,12 @@ class TripController extends Controller
             'route.routeStopOrders.station',
             'vehicle.vehicleType',
         ])
-            ->withCount('tripSeatOccupancies as occupied_seats')
+            ->withCount(['tickets as tickets_count' => function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            }])
             ->where('route_id', $routeId)
             ->whereDate('departure_at', $date)
-            ->orderBy('departure_at')
+            ->upcomingFirst()
             ->get();
     }
 
@@ -77,7 +79,9 @@ class TripController extends Controller
             'originStation',
             'destinationStation',
         ])
-            ->withCount('tripSeatOccupancies as occupied_seats')
+            ->withCount(['tickets as tickets_count' => function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            }])
             ->findOrFail($id);
     }
 
@@ -108,8 +112,10 @@ class TripController extends Controller
             'occupancy' => [
                 'total_seats' => $stats['total_seats'],
                 'occupied_seats' => $stats['occupied_seats'],
+                'occupied_seats_count' => $stats['occupied_seats_count'],
                 'available_seats' => $stats['available_seats'],
                 'occupancy_rate' => $stats['occupancy_rate'],
+                'sold_tickets_count' => $stats['sold_tickets_count'],
             ],
         ]);
     }
@@ -170,12 +176,15 @@ class TripController extends Controller
 
         })->keyBy('seat_number')->map(function ($occupancy) use ($stationIndices, $totalStops) {
             $ticketToStation = $occupancy->ticket->toStation;
+            $ticketFromIdx = $stationIndices[$occupancy->ticket->from_station_id] ?? 0;
             $ticketToIdx = $stationIndices[$occupancy->ticket->to_station_id] ?? null;
-            $stopIndex = $ticketToIdx !== null ? $ticketToIdx : max(0, $totalStops - 1);
+
+            $fromIdx = $ticketFromIdx;
+            $toIdx = $ticketToIdx !== null ? $ticketToIdx : max(0, $totalStops - 1);
 
             return [
                 'destination_name' => $ticketToStation->name ?? 'Inconnu',
-                'color' => $this->getStopColor($stopIndex, $totalStops),
+                'color' => $this->getStopColor($fromIdx, $toIdx, $totalStops),
             ];
         });
 
@@ -222,35 +231,66 @@ class TripController extends Controller
             $seatMap[] = $processedRow;
         }
 
+        // Collect which seat numbers are truly available at each station:
+        // freed there, minus seats already resold from that station.
+        $freedSeatsByStation = [];
+        $sellableSeatsByStation = [];
+        foreach (array_keys($stationIndices) as $stationId) {
+            $freedSeats = $segments->freedSeatsForStation($trip, $stationId);
+            $sellableSeats = $segments->sellableSeatsForStation($trip, $stationId);
+
+            if (! empty($freedSeats)) {
+                $freedSeatsByStation[$stationId] = $freedSeats;
+            }
+            if (! empty($sellableSeats)) {
+                $sellableSeatsByStation[$stationId] = $sellableSeats;
+            }
+        }
+
         return response()->json([
             'seat_map' => $seatMap,
             'total_seats' => $seatCount, // Total capacity
             'occupied_seats_count' => $occupiedSeatsLookup->count(),
             'available_seats_count' => $seatCount - $occupiedSeatsLookup->count(),
+            'sold_tickets_count' => Ticket::where('trip_id', $trip->id)
+                ->where('status', '!=', 'cancelled')
+                ->count(),
             'vehicle_type' => $vehicleType,
+            'freed_seats_by_station' => $freedSeatsByStation,
+            'sellable_seats_by_station' => $sellableSeatsByStation,
         ]);
     }
 
     /**
-     * Determines the color for a stop based on its index in the route.
-     * Uses blue gradient: light blue for close destinations, dark blue for far destinations
+     * Determines the color for a stop based on the departure and destination station indices.
+     * Hue represents the departure station, lightness represents the distance/progress to the destination.
      */
-    private function getStopColor(int $stopIndex, int $totalStops): string
+    private function getStopColor(int $fromIdx, int $toIdx, int $totalStops): string
     {
-        if ($totalStops <= 1) {
-            return '#3B82F6';
-        } // Blue-500 default
+        $hues = [
+            220, // 0: Blue (Origin)
+            270, // 1: Purple
+            25,  // 2: Orange
+            165, // 3: Teal
+            330, // 4: Rose
+            195, // 5: Cyan
+            140, // 6: Green
+            350, // 7: Red
+        ];
 
-        // Normalize the order between 0 and 1
-        $ratio = $stopIndex / ($totalStops - 1); // 0 = origin, 1 = last stop
+        $hue = $hues[$fromIdx % count($hues)];
 
-        // Blue gradient
-        // HSL: 220 (Blue)
-        // Saturation: 100%
-        // Lightness: From 92% (closest) to 42% (furthest)
+        $remainingStops = $totalStops - 1 - $fromIdx;
+        if ($remainingStops <= 0) {
+            $ratio = 1.0;
+        } else {
+            $ratio = ($toIdx - $fromIdx) / $remainingStops;
+            $ratio = max(0.0, min(1.0, $ratio));
+        }
 
-        $lightness = 92 - ($ratio * 50); // 92 -> 42
+        // Lightness varies from 88% (very close) to 43% (furthest terminus)
+        $lightness = 88 - ($ratio * 45);
 
-        return 'hsl(220, 100%, '.round($lightness, 2).'%)';
+        return "hsl({$hue}, 90%, " . round($lightness, 2) . "%)";
     }
 }

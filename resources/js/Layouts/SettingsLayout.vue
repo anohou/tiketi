@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
+import ThemeToggle from '@/Components/ThemeToggle.vue';
 import Earth from 'vue-material-design-icons/Earth.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
@@ -50,9 +51,9 @@ const menuItems = computed(() => [
 ]);
 </script>
 <template>
-  <div class="min-h-screen bg-green-50">
+  <div class="min-h-screen bg-green-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
     <!-- Top Navigation Bar -->
-    <div class="bg-white border-b border-orange-200 shadow-sm">
+    <div class="border-b border-orange-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <!-- Logo -->
@@ -89,11 +90,12 @@ const menuItems = computed(() => [
           </div>
 
           <!-- User Menu -->
-          <div class="flex items-center">
+          <div class="flex items-center gap-3">
+            <ThemeToggle />
             <Dropdown align="right" width="48">
               <template #trigger>
                 <span class="inline-flex rounded-md">
-                  <button type="button" class="inline-flex items-center px-3 py-2 border border-orange-200 text-sm leading-4 font-medium rounded-md text-green-700 bg-white hover:text-green-800 hover:bg-green-50 focus:outline-none focus:bg-green-50 transition ease-in-out duration-150">
+                  <button type="button" class="inline-flex items-center px-3 py-2 border border-orange-200 text-sm leading-4 font-medium rounded-md text-green-700 bg-white hover:text-green-800 hover:bg-green-50 focus:outline-none focus:bg-green-50 transition ease-in-out duration-150 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:bg-slate-800">
                     {{ $page.props.auth.user.name }}
                     <svg class="ml-2 -mr-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -119,9 +121,9 @@ const menuItems = computed(() => [
     <!-- Main Content Area -->
     <div class="flex">
       <!-- Left Sidebar - Configuration Menu -->
-      <div class="w-64 bg-white border-r border-orange-200 min-h-screen">
+      <div class="w-64 bg-white border-r border-orange-200 min-h-screen dark:border-slate-800 dark:bg-slate-900">
         <div class="p-4">
-          <h2 class="text-lg font-semibold text-green-700 mb-4 flex items-center">
+          <h2 class="text-lg font-semibold text-green-700 mb-4 flex items-center dark:text-emerald-300">
             <Settings class="mr-2" :size="24"/>
             Configurations
           </h2>
@@ -146,14 +148,14 @@ const menuItems = computed(() => [
       </div>
 
       <!-- Center - List/Content Area -->
-      <div class="flex-1 bg-green-50">
+      <div class="flex-1 bg-green-50 dark:bg-slate-950">
         <div class="p-6">
           <slot />
         </div>
       </div>
 
       <!-- Right - Form/Details Panel (if needed) -->
-      <div v-if="$slots.sidebar" class="w-96 bg-white border-l border-orange-200">
+      <div v-if="$slots.sidebar" class="w-96 bg-white border-l border-orange-200 dark:border-slate-800 dark:bg-slate-900">
         <div class="p-6">
           <slot name="sidebar" />
         </div>

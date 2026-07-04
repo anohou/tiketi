@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useForm, Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
+import SettingsMenu from '@/Components/SettingsMenu.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
 import CloudUpload from 'vue-material-design-icons/CloudUpload.vue';
@@ -23,132 +24,248 @@ const form = useForm({
 });
 
 const logoPreview = ref(props.tenant.logo_url || null);
+const logoName = ref('');
+const logoMessage = ref('');
+const MAX_UPLOAD_BYTES = 1.8 * 1024 * 1024;
 
-const handleLogoChange = (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    form.logo = file;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      logoPreview.value = e.target.result;
+const compressImage = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+
+  reader.onerror = () => reject(new Error('Impossible de lire le fichier.'));
+  reader.onload = () => {
+    const image = new Image();
+    image.onerror = () => reject(new Error('Impossible de charger l’image.'));
+    image.onload = async () => {
+      try {
+        const maxDimension = 1400;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d');
+        if (! context) {
+          resolve(file);
+          return;
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+
+        const targetType = 'image/webp';
+        const toBlob = () => new Promise((blobResolve) => {
+          canvas.toBlob((blob) => blobResolve(blob), targetType, 0.88);
+        });
+
+        let blob = await toBlob();
+        if (! blob) {
+          resolve(file);
+          return;
+        }
+
+        if (blob.size > MAX_UPLOAD_BYTES) {
+          blob = await new Promise((blobResolve) => {
+            canvas.toBlob((nextBlob) => blobResolve(nextBlob), targetType, 0.7);
+          }) || blob;
+        }
+
+        if (blob.size > MAX_UPLOAD_BYTES) {
+          reject(new Error('Le logo dépasse encore la limite de 2 Mo après optimisation.'));
+          return;
+        }
+
+        resolve(new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.webp`, { type: targetType }));
+      } catch (error) {
+        reject(error);
+      }
     };
-    reader.readAsDataURL(file);
+    image.src = reader.result;
+  };
+
+  reader.readAsDataURL(file);
+});
+
+const handleLogoChange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    form.clearErrors('logo');
+    logoMessage.value = file.size > MAX_UPLOAD_BYTES
+      ? 'Fichier supérieur à 2 Mo. Il sera compressé automatiquement avant envoi.'
+      : '';
+
+    const optimizedFile = file.size > MAX_UPLOAD_BYTES && file.type.startsWith('image/')
+      ? await compressImage(file)
+      : file;
+
+    form.logo = optimizedFile;
+    logoName.value = optimizedFile.name === file.name ? file.name : `${file.name} → ${optimizedFile.name}`;
+    if (file.size > MAX_UPLOAD_BYTES) {
+      logoMessage.value = 'Fichier compressé pour respecter la limite d’upload du serveur (2 Mo).';
+    }
+  } catch (error) {
+    logoMessage.value = '';
+    form.setError('logo', error?.message || 'Le logo est trop volumineux. Essayez un fichier plus petit que 2 Mo.');
+    return;
   }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    logoPreview.value = event.target.result;
+  };
+  reader.readAsDataURL(form.logo);
 };
 
 const submit = () => {
-    // We use a POST request even for updates when uploading files
-    form.post(route('admin.settings.enterprise.update'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            // Optional: show a toast or success message
-        }
-    });
+  form.post(route('admin.settings.enterprise.update'), {
+    preserveScroll: true,
+    forceFormData: true,
+  });
 };
 </script>
 
 <template>
-  <MainNavLayout>
-    <div class="max-w-4xl mx-auto px-4 py-8">
-      <!-- Back Link -->
-      <Link :href="route('admin.settings.index')" class="inline-flex items-center text-sm font-medium text-gray-500 hover:text-green-600 mb-6 transition-colors">
-        <ChevronLeft :size="20" />
-        Retour aux paramètres
-      </Link>
-
-      <!-- Header -->
-      <div class="mb-8">
-        <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
-          <div class="p-2 bg-blue-100 rounded-xl">
-            <OfficeBuilding class="text-blue-600" :size="28" />
-          </div>
-          Informations Enterprise
-        </h1>
-        <p class="text-gray-500 mt-2">Personnalisez l'identité de votre compagnie de transport sur la plateforme.</p>
+  <MainNavLayout :fullHeight="true">
+    <div class="flex flex-col h-full w-full overflow-hidden">
+      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+        <div>
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
+            <div class="p-2 bg-green-100 dark:bg-emerald-950/40 rounded-xl">
+              <OfficeBuilding class="text-green-600 dark:text-emerald-450" :size="28" />
+            </div>
+            Informations Entreprise
+          </h1>
+          <p class="text-gray-500 dark:text-slate-450 mt-1">Personnalisez l'identité de votre compagnie de transport sur la plateforme.</p>
+        </div>
+        <div class="flex gap-2">
+          <Link
+            :href="route('admin.settings.index')"
+            class="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
+          >
+            Retour
+          </Link>
+        </div>
       </div>
 
-      <div class="grid gap-8 grid-cols-1 md:grid-cols-3">
-        <!-- Left Column: Logo Preview -->
-        <div class="md:col-span-1">
-          <h3 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Logo de l'entreprise</h3>
-          <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center">
-            <div class="relative group">
-              <div class="w-40 h-40 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden transition-all group-hover:border-green-300">
-                <template v-if="logoPreview">
-                  <img :src="logoPreview" class="w-full h-full object-contain" alt="Logo preview" />
-                </template>
-                <template v-else>
-                  <OfficeBuilding :size="64" class="text-gray-200" />
-                </template>
+      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
+        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
+          <SettingsMenu />
+        </div>
+
+        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm p-6 h-full flex flex-col">
+            <h3 class="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">Logo de l'entreprise</h3>
+            <div class="flex-1 flex flex-col items-center justify-center">
+              <div class="relative group">
+                <div class="w-40 h-40 bg-gray-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden transition-all group-hover:border-green-300 dark:group-hover:border-emerald-800">
+                  <template v-if="logoPreview">
+                    <img :src="logoPreview" class="w-full h-full object-contain" alt="Logo preview" />
+                  </template>
+                  <template v-else>
+                    <OfficeBuilding :size="64" class="text-gray-200 dark:text-slate-800" />
+                  </template>
+                </div>
+                <label class="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-2xl">
+                  <input type="file" @change="handleLogoChange" class="hidden" accept="image/*" />
+                </label>
               </div>
-              <label class="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-2xl">
-                <input type="file" @change="handleLogoChange" class="hidden" accept="image/*" />
-              </label>
+
+              <div class="mt-5 w-full rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950/40 p-4 space-y-3">
+                <div class="flex items-start gap-3">
+                  <CloudUpload class="text-green-600 dark:text-emerald-450 shrink-0 mt-0.5" :size="20" />
+                  <div>
+                    <p class="text-sm font-bold text-gray-900 dark:text-slate-100">Logo et identité visuelle</p>
+                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Cliquez sur la zone pour remplacer le logo de l'entreprise. Le rendu est utilisé dans l'ensemble de l'application.
+                    </p>
+                  </div>
+                </div>
+                <div class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2">
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-slate-450">Fichier sélectionné</p>
+                  <p class="mt-1 text-sm text-gray-700 dark:text-slate-300 truncate">{{ logoName || 'Aucun fichier sélectionné' }}</p>
+                </div>
+                <p v-if="logoMessage" class="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                  {{ logoMessage }}
+                </p>
+                <InputError :message="form.errors.logo" />
+              </div>
             </div>
-            <p class="text-xs text-gray-400 text-center mt-4 leading-relaxed">
-              Cliquez sur l'image pour charger un nouveau logo.<br> Format recommandé: PNG ou SVG (carré ou horizontal).
+
+            <p class="text-xs text-gray-400 dark:text-slate-500 text-center mt-4 leading-relaxed">
+              Format recommandé: PNG ou SVG. Un logo carré ou horizontal fonctionne le mieux.
             </p>
           </div>
         </div>
 
-        <!-- Right Column: Form -->
-        <div class="md:col-span-2">
-           <form @submit.prevent="submit" class="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-              <div class="grid grid-cols-1 gap-6">
-                <!-- Name -->
-                <div>
-                  <InputLabel for="name" value="Nom de l'entreprise" />
-                  <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    placeholder="Ex: Transport Express"
-                  />
-                  <InputError class="mt-2" :message="form.errors.name" />
-                </div>
+        <div class="col-span-12 md:col-span-6 flex flex-col h-full min-h-0">
+          <form
+            @submit.prevent="submit"
+            enctype="multipart/form-data"
+            class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6 h-full flex flex-col"
+          >
+            <div class="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-100">Paramètres de la compagnie</h2>
+                <p class="text-sm text-gray-500 dark:text-slate-450 mt-1">Mettre à jour le nom, les coordonnées et le logo.</p>
+              </div>
+              <div v-if="form.recentlySuccessful" class="hidden lg:flex items-center gap-2 text-green-600 dark:text-green-400 font-bold text-sm shrink-0">
+                <CheckCircle :size="20" />
+                Enregistré
+              </div>
+            </div>
 
-                <!-- Email -->
-                <div>
-                  <InputLabel for="email" value="Email de contact" />
-                  <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    placeholder="contact@entreprise.com"
-                  />
-                  <InputError class="mt-2" :message="form.errors.email" />
-                </div>
-
-                <!-- Phone -->
-                <div>
-                  <InputLabel for="phone" value="Téléphone" />
-                  <TextInput
-                    id="phone"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.phone"
-                    placeholder="+225 ..."
-                  />
-                  <InputError class="mt-2" :message="form.errors.phone" />
-                </div>
+            <div class="grid grid-cols-1 gap-5 flex-1 min-h-0">
+              <div>
+                <InputLabel for="name" value="Nom de l'entreprise" />
+                <TextInput
+                  id="name"
+                  type="text"
+                  class="mt-1 block w-full"
+                  v-model="form.name"
+                  required
+                  placeholder="Ex: Transport Express"
+                />
+                <InputError class="mt-2" :message="form.errors.name" />
               </div>
 
-              <!-- Action Buttons -->
-              <div class="pt-6 border-t border-gray-50 flex items-center justify-between">
-                <div v-if="form.recentlySuccessful" class="flex items-center gap-2 text-green-600 font-bold text-sm animate-in fade-in slide-in-from-left-4">
-                  <CheckCircle :size="20" />
-                  Paramètres enregistrés !
-                </div>
-                <div v-else></div>
-
-                <PrimaryButton :class="{ 'opacity-25': form.processing }" :disabled="form.processing" class="bg-green-600 hover:bg-green-700 shadow-lg shadow-green-600/20 px-8 py-3 rounded-xl">
-                  Enregistrer les modifications
-                </PrimaryButton>
+              <div>
+                <InputLabel for="email" value="Email de contact" />
+                <TextInput
+                  id="email"
+                  type="email"
+                  class="mt-1 block w-full"
+                  v-model="form.email"
+                  placeholder="contact@entreprise.com"
+                />
+                <InputError class="mt-2" :message="form.errors.email" />
               </div>
-           </form>
+
+              <div>
+                <InputLabel for="phone" value="Téléphone" />
+                <TextInput
+                  id="phone"
+                  type="text"
+                  class="mt-1 block w-full"
+                  v-model="form.phone"
+                  placeholder="+225 ..."
+                />
+                <InputError class="mt-2" :message="form.errors.phone" />
+              </div>
+            </div>
+
+            <div class="pt-6 border-t border-gray-100 dark:border-slate-800 flex items-center justify-end">
+              <PrimaryButton
+                :class="{ 'opacity-25': form.processing }"
+                :disabled="form.processing"
+                class="bg-green-600 dark:bg-emerald-600 hover:bg-green-700 dark:hover:bg-emerald-700 shadow-lg shadow-green-600/20 dark:shadow-emerald-950/20 px-8 py-3 rounded-xl"
+              >
+                Enregistrer les modifications
+              </PrimaryButton>
+            </div>
+          </form>
         </div>
       </div>
     </div>

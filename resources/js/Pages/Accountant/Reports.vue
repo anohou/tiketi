@@ -70,17 +70,17 @@ const formatDateTime = (dateString) => {
     <Head title="Rapports Financiers" />
     
     <MainNavLayout>
-        <div class="max-w-7xl mx-auto space-y-6">
+        <div class="max-w-7xl mx-auto space-y-6 text-slate-900 dark:text-slate-100">
             <!-- Header -->
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
-                        <div class="p-2 bg-green-100 rounded-xl">
-                            <FileDocument class="text-green-600" :size="28" />
+                    <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3 dark:text-slate-100">
+                        <div class="p-2 bg-green-100 rounded-xl dark:bg-green-900/25">
+                            <FileDocument class="text-green-600 dark:text-green-400" :size="28" />
                         </div>
                         Rapports Financiers
                     </h1>
-                    <p class="text-gray-500 mt-1">Analyse détaillée des ventes et revenus</p>
+                    <p class="text-gray-500 mt-1 dark:text-slate-400">Analyse détaillée des ventes et revenus</p>
                 </div>
                 
                 <button 
@@ -93,33 +93,33 @@ const formatDateTime = (dateString) => {
             </div>
 
             <!-- Filters -->
-            <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <div class="flex items-center gap-2 mb-4 text-gray-700 font-bold">
+            <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+                <div class="flex items-center gap-2 mb-4 text-gray-700 font-bold dark:text-slate-200">
                     <Filter :size="20" />
                     Filtres
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Date début</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Date début</label>
                         <input 
                             type="date" 
                             v-model="filterForm.start_date"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Date fin</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Date fin</label>
                         <input 
                             type="date" 
                             v-model="filterForm.end_date"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Station</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Station</label>
                         <select 
                             v-model="filterForm.station_id"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         >
                             <option value="">Toutes les stations</option>
                             <option v-for="station in stations" :key="station.id" :value="station.id">
@@ -128,10 +128,10 @@ const formatDateTime = (dateString) => {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Vendeur</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">Vendeur</label>
                         <select 
                             v-model="filterForm.seller_id"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         >
                             <option value="">Tous les vendeurs</option>
                             <option v-for="seller in sellers" :key="seller.id" :value="seller.id">
@@ -143,7 +143,7 @@ const formatDateTime = (dateString) => {
                 <div class="mt-4 flex justify-end">
                     <button 
                         @click="applyFilters"
-                        class="px-5 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium transition-colors"
+                        class="px-5 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-lg font-medium transition-colors dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                     >
                         Appliquer les filtres
                     </button>
@@ -189,52 +189,52 @@ const formatDateTime = (dateString) => {
             <!-- Revenue Breakdown -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- By Seller -->
-                <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                    <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
-                        <Account :size="20" class="text-gray-500" />
+                <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+                    <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
+                        <Account :size="20" class="text-gray-500 dark:text-slate-400" />
                         Revenus par Vendeur
                     </h3>
                     <div class="space-y-3">
                         <div 
                             v-for="item in revenueBySeller" 
                             :key="item.seller_id"
-                            class="flex items-center justify-between p-3 bg-gray-50 rounded-xl"
+                            class="flex items-center justify-between p-3 bg-gray-50 rounded-xl dark:bg-slate-800/70"
                         >
                             <div>
-                                <div class="font-bold text-gray-900">{{ item.seller?.name || 'Inconnu' }}</div>
-                                <div class="text-sm text-gray-500">{{ item.count }} tickets</div>
+                                <div class="font-bold text-gray-900 dark:text-slate-100">{{ item.seller?.name || 'Inconnu' }}</div>
+                                <div class="text-sm text-gray-500 dark:text-slate-400">{{ item.count }} tickets</div>
                             </div>
                             <div class="text-right">
                                 <div class="font-black text-green-600">{{ formatCurrency(item.total) }} F</div>
                             </div>
                         </div>
-                        <div v-if="revenueBySeller.length === 0" class="text-center py-6 text-gray-400">
+                        <div v-if="revenueBySeller.length === 0" class="text-center py-6 text-gray-400 dark:text-slate-500">
                             Aucune donnée disponible
                         </div>
                     </div>
                 </div>
 
                 <!-- By Station -->
-                <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                    <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
-                        <OfficeBuilding :size="20" class="text-gray-500" />
+                <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+                    <h3 class="font-bold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
+                        <OfficeBuilding :size="20" class="text-gray-500 dark:text-slate-400" />
                         Revenus par Station
                     </h3>
                     <div class="space-y-3">
                         <div 
                             v-for="item in revenueByStation" 
                             :key="item.station_id"
-                            class="flex items-center justify-between p-3 bg-gray-50 rounded-xl"
+                            class="flex items-center justify-between p-3 bg-gray-50 rounded-xl dark:bg-slate-800/70"
                         >
                             <div>
-                                <div class="font-bold text-gray-900">{{ item.station_name }}</div>
-                                <div class="text-sm text-gray-500">{{ item.count }} tickets</div>
+                                <div class="font-bold text-gray-900 dark:text-slate-100">{{ item.station_name }}</div>
+                                <div class="text-sm text-gray-500 dark:text-slate-400">{{ item.count }} tickets</div>
                             </div>
                             <div class="text-right">
                                 <div class="font-black text-green-600">{{ formatCurrency(item.total) }} F</div>
                             </div>
                         </div>
-                        <div v-if="revenueByStation.length === 0" class="text-center py-6 text-gray-400">
+                        <div v-if="revenueByStation.length === 0" class="text-center py-6 text-gray-400 dark:text-slate-500">
                             Aucune donnée disponible
                         </div>
                     </div>
@@ -242,20 +242,20 @@ const formatDateTime = (dateString) => {
             </div>
 
             <!-- Tickets Table -->
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div class="px-5 py-4 border-b border-gray-100">
-                    <h3 class="font-bold text-gray-900">Détail des Tickets</h3>
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+                <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+                    <h3 class="font-bold text-gray-900 dark:text-slate-100">Détail des Tickets</h3>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full">
-                        <thead class="bg-gray-50 text-left">
+                        <thead class="bg-gray-50 text-left dark:bg-slate-800/60">
                             <tr>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">N° Ticket</th>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Route</th>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Trajet</th>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendeur</th>
-                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Montant</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-slate-400">N° Ticket</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-slate-400">Date</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-slate-400">Route</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-slate-400">Trajet</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider dark:text-slate-400">Vendeur</th>
+                                <th class="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-right dark:text-slate-400">Montant</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">

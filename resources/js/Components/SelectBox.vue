@@ -64,13 +64,13 @@ defineExpose({ focus: () => select.value.focus() });
 
 <template>
     <select ref="select"
-        class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
-        :class="{ 'text-gray-500': !modelValue }" :value="modelValue" :disabled="disabled"
+        class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm bg-white text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:border-emerald-400"
+        :class="{ 'text-slate-400 dark:text-slate-500': !modelValue }" :value="modelValue" :disabled="disabled"
         @change="$emit('update:modelValue', $event.target.value)">
-        <option value="" disabled selected>{{ placeholder }}</option>
-        <option v-if="showAllOption" :value="allOptionValue">{{ allOptionLabel }}</option>
-        <option v-for="option in options" :key="option[valueKey]" :value="option[valueKey]">
-            <span v-if="code" class="text-gray-500 text-xs">{{ option["code"] }} : </span>
+        <option value="" disabled selected class="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-400">{{ placeholder }}</option>
+        <option v-if="showAllOption" :value="allOptionValue" class="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">{{ allOptionLabel }}</option>
+        <option v-for="option in options" :key="option[valueKey]" :value="option[valueKey]" class="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+            <span v-if="code" class="text-slate-400 dark:text-slate-500 text-xs">{{ option["code"] }} : </span>
             <span v-if="first_name">{{ option["last_name"] }} {{ option["first_name"] }} </span>
             <span v-else-if="amount">{{ option[labelKey].toLocaleString() }} FCFA </span>
             <span v-else>{{ option[labelKey] }}</span>

@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { toastStore } from '@/Stores/toastStore.js';
 
 /**
  * Composable for exporting data to Excel/CSV and printing lists
@@ -13,7 +14,7 @@ export function useExportPrint() {
      */
     const exportToExcel = (data, columns, filename = 'export') => {
         if (!data || data.length === 0) {
-            alert('Aucune donnée à exporter');
+            toastStore.warning('Aucune donnée à exporter');
             return;
         }
 
@@ -65,7 +66,7 @@ export function useExportPrint() {
      */
     const exportToCsv = (data, columns, filename = 'export') => {
         if (!data || data.length === 0) {
-            alert('Aucune donnée à exporter');
+            toastStore.warning('Aucune donnée à exporter');
             return;
         }
 
@@ -116,7 +117,7 @@ export function useExportPrint() {
      */
     const printList = (data, columns, title = 'Liste') => {
         if (!data || data.length === 0) {
-            alert('Aucune donnée à imprimer');
+            toastStore.warning('Aucune donnée à imprimer');
             return;
         }
 

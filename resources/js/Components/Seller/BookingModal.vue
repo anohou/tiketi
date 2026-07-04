@@ -76,8 +76,8 @@ const dragOffset = ref({ x: 0, y: 0 });
 const modalPosition = ref({ x: 0, y: 0 });
 
 const STORAGE_KEY = 'tiketi.bookingModal.position';
-const DEFAULT_MODAL_WIDTH = 416;
-const DEFAULT_MODAL_HEIGHT = 640;
+const DEFAULT_MODAL_WIDTH = 384;
+const DEFAULT_MODAL_HEIGHT = 600;
 const EDGE_MARGIN = 16;
 
 const getViewportBounds = () => ({
@@ -265,11 +265,11 @@ const totalLabel = computed(() => {
 <template>
   <div
     v-if="visible"
-    class="fixed inset-0 z-[1010] bg-black/10 p-4"
+    class="fixed inset-0 z-[1010] bg-black/10 dark:bg-black/40 p-3 md:p-4"
   >
     <div
       ref="modalRef"
-      class="absolute bg-white/85 rounded-2xl shadow-2xl border border-white/50 w-full max-w-2xl md:w-[26rem] md:max-w-none max-h-[90vh] overflow-hidden backdrop-blur-sm"
+      class="absolute bg-white/90 dark:bg-slate-900/90 rounded-3xl shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40 border border-white/60 dark:border-slate-800/80 w-full max-w-xl md:w-[24rem] md:max-w-none max-h-[84vh] overflow-hidden backdrop-blur-sm"
       :style="{
         left: `${modalPosition.x}px`,
         top: `${modalPosition.y}px`,
@@ -277,23 +277,23 @@ const totalLabel = computed(() => {
     >
       <div
         ref="dragHandleRef"
-        class="p-5 border-b border-white/60 flex items-center justify-between bg-white/70 cursor-move select-none"
+        class="p-4 border-b border-white/60 dark:border-slate-800/80 flex items-center justify-between bg-white/70 dark:bg-slate-900/70 cursor-move select-none"
         @mousedown="startDragging"
       >
         <div>
-          <h3 class="text-xl font-black text-gray-900">
+          <h3 class="text-lg font-black text-gray-900 dark:text-slate-100">
             {{ isDestinationMode ? 'Choisir une destination' : 'Informations Passager' }}
           </h3>
-          <p class="text-sm text-gray-500">
+          <p class="text-xs text-gray-500 dark:text-slate-400">
             Siège {{ selectedSeatNumber }} sélectionné
           </p>
         </div>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer">
           <Close class="w-6 h-6" />
         </button>
       </div>
 
-      <div class="overflow-y-auto p-4 max-h-[calc(90vh-88px)]">
+      <div class="overflow-y-auto p-3 md:p-4 max-h-[calc(84vh-76px)]">
         <template v-if="isDestinationMode">
           <div v-if="availableFares.length > 0" class="grid gap-3">
             <button
@@ -302,19 +302,19 @@ const totalLabel = computed(() => {
               type="button"
               @click="$emit('select-fare', fare)"
               class="text-left relative overflow-hidden rounded-2xl transition-all duration-200 border-2 border-transparent shadow-sm hover:shadow-lg active:scale-[0.99]"
-              :style="{ backgroundColor: fare.color || '#4F46E5' }"
+              :style="{ backgroundColor: fare.color || '#0f766e' }"
             >
-              <div class="p-4 flex items-center justify-between gap-4">
+              <div class="p-3 md:p-4 flex items-center justify-between gap-3 md:gap-4">
                 <div class="min-w-0">
-                  <div class="text-lg font-black truncate" :style="{ color: fare.textColor || '#FFFFFF' }">
+                  <div class="text-base md:text-lg font-black truncate" :style="{ color: fare.textColor || '#FFFFFF' }">
                     {{ fare.to_station?.name }}
                   </div>
-                  <div class="text-xs font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
+                  <div class="text-[11px] md:text-xs font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
                     → depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}
                   </div>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="text-2xl font-black" :style="{ color: fare.textColor || '#FFFFFF' }">
+                  <div class="text-xl md:text-2xl font-black" :style="{ color: fare.textColor || '#FFFFFF' }">
                     {{ fare.amount.toLocaleString('fr-FR') }}
                   </div>
                   <div class="text-[10px] font-bold" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">FCFA</div>
@@ -322,61 +322,60 @@ const totalLabel = computed(() => {
               </div>
             </button>
           </div>
-          <div v-else class="p-8 text-center text-gray-500">
+          <div v-else class="p-8 text-center text-gray-500 dark:text-slate-400">
             Aucune destination disponible pour ce voyage.
           </div>
         </template>
 
-        <div v-else class="bg-white/50 border border-white/60 rounded-2xl p-4 mb-4 shadow-sm">
+        <div v-else class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-sm">
           <div class="text-center">
-            <div v-if="seatsToBook.length > 1" class="text-3xl font-bold text-blue-600 mb-2">{{ seatLabel }}</div>
-            <div v-else class="text-3xl font-bold text-blue-600 mb-2">{{ seatLabel }}</div>
-            <div class="text-sm text-gray-600">{{ routeLabel }}</div>
-            <div class="text-2xl font-bold text-green-600 mt-2">{{ amountLabel }}</div>
+            <div class="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1 md:mb-2">{{ seatLabel }}</div>
+            <div class="text-xs md:text-sm text-gray-600 dark:text-slate-300">{{ routeLabel }}</div>
+            <div class="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{{ amountLabel }}</div>
 
-            <div class="mt-4 flex items-center justify-center gap-3 bg-white/35 rounded-2xl p-3 border border-white/60">
-              <span class="text-sm font-medium text-gray-700">Quantité:</span>
-              <div class="flex items-center bg-white/85 rounded-xl border border-white/70 shadow-sm overflow-hidden">
+            <div class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
+              <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Quantité:</span>
+              <div class="flex items-center bg-white/85 dark:bg-slate-900/85 rounded-xl border border-white/70 dark:border-slate-800/80 shadow-sm overflow-hidden">
                 <button
                   type="button"
                   @click="ticketQuantityModel = Math.max(1, ticketQuantityModel - 1)"
-                  class="px-3 py-1 text-gray-600 hover:bg-green-50 rounded-l-xl border-r border-white/70"
+                  class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-l-xl border-r border-white/70 dark:border-slate-800/80"
                 >-</button>
                 <input
                   v-model.number="ticketQuantityModel"
                   type="number"
                   min="1"
                   max="10"
-                  class="w-12 py-1 text-center border-0 focus:ring-0 text-gray-900 font-bold"
+                  class="w-12 py-1 text-center border-0 focus:ring-0 text-gray-900 dark:text-slate-100 bg-transparent font-bold"
                 />
                 <button
                   type="button"
                   @click="ticketQuantityModel = Math.min(10, ticketQuantityModel + 1)"
-                  class="px-3 py-1 text-gray-600 hover:bg-green-50 rounded-r-xl border-l border-white/70"
+                  class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-r-xl border-l border-white/70 dark:border-slate-800/80"
                 >+</button>
               </div>
             </div>
-            <div v-if="ticketQuantityModel > 1" class="text-sm font-bold text-blue-700 mt-2">
+            <div v-if="ticketQuantityModel > 1" class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300 mt-2">
               Total: {{ totalLabel }}
             </div>
           </div>
 
           <button
             @click="showPassengerFieldsModel = !showPassengerFieldsModel"
-            class="w-full flex items-center justify-between p-3 bg-white/55 hover:bg-white/75 rounded-xl mb-4 transition-colors border border-white/60"
+            class="w-full flex items-center justify-between p-3 bg-white/55 dark:bg-slate-950/40 hover:bg-white/75 dark:hover:bg-slate-900/50 rounded-xl mb-3 md:mb-4 transition-colors border border-white/60 dark:border-slate-800/80"
           >
-            <span class="text-sm font-medium text-gray-700">Informations passager (optionnel)</span>
-            <ChevronDown :class="{ 'rotate-180': showPassengerFieldsModel }" class="w-5 h-5 text-gray-500 transition-transform" />
+            <span class="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300">Informations passager (optionnel)</span>
+            <ChevronDown :class="{ 'rotate-180': showPassengerFieldsModel }" class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-transform" />
           </button>
 
-          <div v-show="showPassengerFieldsModel" class="space-y-4 mb-4">
+          <div v-show="showPassengerFieldsModel" class="space-y-3 mb-3 md:mb-4">
             <div>
               <InputLabel for="passenger_name" value="Nom du passager" />
               <TextInput
                 id="passenger_name"
                 v-model="passengerForm.name"
                 type="text"
-                class="mt-1 block w-full rounded-xl border-orange-100 focus:border-green-500 focus:ring-green-500"
+                class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                 placeholder="Nom complet"
               />
               <InputError class="mt-2" :message="passengerFormErrors.name" />
@@ -388,26 +387,26 @@ const totalLabel = computed(() => {
                 id="passenger_phone"
                 v-model="passengerForm.phone"
                 type="tel"
-                class="mt-1 block w-full rounded-xl border-orange-100 focus:border-green-500 focus:ring-green-500"
+                class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
                 placeholder="Ex: 0102030405"
               />
               <InputError class="mt-2" :message="passengerFormErrors.phone" />
             </div>
           </div>
 
-          <form @submit.prevent="$emit('confirm')" class="sticky bottom-0 bg-white/95 backdrop-blur-sm pt-4 pb-2">
+          <form @submit.prevent="$emit('confirm')" class="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pt-3 md:pt-4 pb-2">
             <div class="flex items-center justify-end space-x-3">
               <button
                 type="button"
                 @click="$emit('close')"
-                class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                class="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 :disabled="processing"
-                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                class="px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm"
               >
                 <div v-if="processing" class="animate-spin mr-2"><Refresh :size="20" /></div>
                 <Printer v-else :size="16" class="mr-2" />

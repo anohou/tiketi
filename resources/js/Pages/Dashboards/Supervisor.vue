@@ -346,12 +346,12 @@ watch(() => props.alerts, (newAlerts) => {
 
                 <!-- Occupancy Bar -->
                 <div>
-                   <div class="flex justify-between text-xs font-medium mb-2">
+                    <div class="flex justify-between text-xs font-medium mb-2">
                       <span :class="trip.occupancy_percent < 50 && trip.mins_to_departure < 30 ? 'text-red-600 font-bold' : 'text-gray-600'">
-                        {{ trip.sold_seats || 0 }}/{{ trip.total_seats }} places ({{ trip.occupancy_percent }}%)
+                        {{ trip.tickets_sold || 0 }} billets vendus • {{ trip.occupied_seats || 0 }}/{{ trip.total_seats }} sièges occupés ({{ trip.occupancy_percent }}%)
                       </span>
                       <span class="text-gray-400">{{ trip.available_seats }} libres</span>
-                   </div>
+                    </div>
                    <!-- Multi-segment bar -->
                    <div class="h-3 bg-gray-100 rounded-full overflow-hidden flex">
                       <div class="h-full transition-all duration-500 rounded-l-full relative"

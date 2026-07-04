@@ -21,17 +21,18 @@ class AdminDashboardController extends Controller
         $thisMonth = Carbon::now()->startOfMonth();
         $yesterday = Carbon::yesterday();
 
-        // Calculate statistics
-        $totalSales = Ticket::count();
-        $todaySales = Ticket::whereDate('created_at', $today)->count();
-        $yesterdaySales = Ticket::whereDate('created_at', $yesterday)->count();
-        $monthlySales = Ticket::where('created_at', '>=', $thisMonth)->count();
+        // Calculate statistics (exclude cancelled tickets)
+        $activeTickets = Ticket::where('status', '!=', 'cancelled');
+        $totalSales = (clone $activeTickets)->count();
+        $todaySales = (clone $activeTickets)->whereDate('created_at', $today)->count();
+        $yesterdaySales = (clone $activeTickets)->whereDate('created_at', $yesterday)->count();
+        $monthlySales = (clone $activeTickets)->where('created_at', '>=', $thisMonth)->count();
 
-        // Revenue calculations (assuming each ticket has a price)
-        $totalRevenue = Ticket::sum('price') ?? 0;
-        $todayRevenue = Ticket::whereDate('created_at', $today)->sum('price') ?? 0;
-        $yesterdayRevenue = Ticket::whereDate('created_at', $yesterday)->sum('price') ?? 0;
-        $monthlyRevenue = Ticket::where('created_at', '>=', $thisMonth)->sum('price') ?? 0;
+        // Revenue calculations (exclude cancelled tickets)
+        $totalRevenue = (clone $activeTickets)->sum('price') ?? 0;
+        $todayRevenue = (clone $activeTickets)->whereDate('created_at', $today)->sum('price') ?? 0;
+        $yesterdayRevenue = (clone $activeTickets)->whereDate('created_at', $yesterday)->sum('price') ?? 0;
+        $monthlyRevenue = (clone $activeTickets)->where('created_at', '>=', $thisMonth)->sum('price') ?? 0;
 
         // Growth calculations
         $salesGrowth = $yesterdaySales > 0 ? round((($todaySales - $yesterdaySales) / $yesterdaySales) * 100, 1) : 0;
@@ -46,6 +47,10 @@ class AdminDashboardController extends Controller
         $totalStations = Station::count();
         $activeStations = Station::where('active', true)->count();
         $totalRoutes = Route::count();
+        $totalDestinations = \App\Models\Destination::count();
+        $totalVehicleTypes = \App\Models\VehicleType::count();
+        $totalFares = \App\Models\RouteFare::count();
+        $totalAssignments = \App\Models\UserStationAssignment::count();
 
         // User statistics by role
         $usersByRole = User::selectRaw('role, COUNT(*) as count')
@@ -55,6 +60,7 @@ class AdminDashboardController extends Controller
 
         $totalUsers = User::count();
         $activeUsers = User::where('active', true)->count();
+        $fleetManagers = User::where('role', 'fleet_manager')->count();
 
         // System Health Metrics
         $systemHealth = [
@@ -131,7 +137,12 @@ class AdminDashboardController extends Controller
                 'supervisors' => $usersByRole['supervisor'] ?? 0,
                 'accountants' => $usersByRole['accountant'] ?? 0,
                 'executives' => $usersByRole['executive'] ?? 0,
+                'fleetManagers' => $fleetManagers,
                 'admins' => $usersByRole['admin'] ?? 0,
+                'totalDestinations' => $totalDestinations,
+                'totalVehicleTypes' => $totalVehicleTypes,
+                'totalFares' => $totalFares,
+                'totalAssignments' => $totalAssignments,
             ],
             'systemHealth' => $systemHealth,
             'charts' => [
@@ -149,6 +160,7 @@ class AdminDashboardController extends Controller
                 ['label' => 'Tarifs', 'href' => '/admin/route-fares', 'icon' => 'fare'],
                 ['label' => 'Utilisateurs', 'href' => '/admin/users', 'icon' => 'user', 'count' => $totalUsers],
                 ['label' => 'Assignations', 'href' => '/admin/assignments', 'icon' => 'assignment'],
+                ['label' => 'Gestionnaire de flotte', 'href' => '/fleet', 'icon' => 'fleet'],
                 ['label' => 'Config. Tickets', 'href' => '/admin/ticket-settings', 'icon' => 'settings'],
             ],
         ]);

@@ -27,21 +27,28 @@ const submit = () => {
         onFinish: () => form.reset('password'),
     });
 };
-
 </script>
 
 <template>
     <GuestLayout>
-        <Head title="Log in" />
+        <Head title="Connexion" />
 
         <div class="mx-auto max-w-md">
-            <div v-if="status" class="mb-4 text-sm font-medium text-green-600">
+            <div v-if="status" class="mb-4 text-sm font-medium text-emerald-600">
                 {{ status }}
             </div>
 
-            <form @submit.prevent="submit">
+            <div class="mb-8 text-center">
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600">Espace sécurisé</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900">Connexion à TIKÊTI</h1>
+                <p class="mt-2 text-sm leading-6 text-slate-500">
+                    Accédez à vos outils de billetterie, de flotte et de supervision en quelques secondes.
+                </p>
+            </div>
+
+            <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="email" value="Email" />
+                    <InputLabel for="email" value="Adresse e-mail" />
 
                     <TextInput
                         id="email"
@@ -56,8 +63,8 @@ const submit = () => {
                     <InputError class="mt-2" :message="form.errors.email" />
                 </div>
 
-                <div class="mt-4">
-                    <InputLabel for="password" value="Password" />
+                <div>
+                    <InputLabel for="password" value="Mot de passe" />
 
                     <TextInput
                         id="password"
@@ -71,28 +78,28 @@ const submit = () => {
                     <InputError class="mt-2" :message="form.errors.password" />
                 </div>
 
-                <div class="mt-4 block">
+                <div class="flex items-center justify-between">
                     <label class="flex items-center">
                         <Checkbox name="remember" v-model:checked="form.remember" />
-                        <span class="ms-2 text-sm text-gray-600">Remember me</span>
+                        <span class="ms-2 text-sm text-slate-600">Rester connecté</span>
                     </label>
-                </div>
 
-                <div class="mt-4 flex items-center justify-end">
                     <Link
                         v-if="canResetPassword"
                         :href="route('password.request')"
-                        class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
-                        Forgot your password?
+                        Mot de passe oublié ?
                     </Link>
+                </div>
 
+                <div class="pt-2">
                     <PrimaryButton
-                        class="ms-4"
+                        class="w-full justify-center bg-emerald-600 hover:bg-emerald-700"
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Log in
+                        Se connecter
                     </PrimaryButton>
                 </div>
             </form>

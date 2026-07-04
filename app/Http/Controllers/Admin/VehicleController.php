@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Traits\ManagesVehicles;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use Illuminate\Http\Request;
@@ -10,20 +11,31 @@ use Inertia\Inertia;
 
 class VehicleController extends Controller
 {
+    use ManagesVehicles;
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $vehicles = Vehicle::with(['vehicleType', 'trips.route'])
+        $vehicles = Vehicle::with([
+            'vehicleType',
+            'trips.route',
+            'currentCrew.crewMember',
+        ])
             ->withCount('trips')
             ->orderBy('identifier')
             ->paginate(50);
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
 
+        $crewMembers = \App\Models\CrewMember::where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'role', 'phone', 'license_number']);
+
         return Inertia::render('Admin/Vehicles/Index', [
             'vehicles' => $vehicles,
             'vehicleTypes' => $vehicleTypes,
+            'crewMembers' => $crewMembers,
         ]);
     }
 
@@ -42,15 +54,7 @@ class VehicleController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'identifier' => 'required|string|unique:vehicles,identifier',
-            'maker' => 'nullable|string|max:255',
-            'vehicle_type_id' => 'required|uuid|exists:vehicle_types,id',
-            'seat_count' => 'required|integer|min:1',
-            'active' => 'boolean',
-            'inactive_reason' => 'nullable|string|required_if:active,false',
-        ]);
-        Vehicle::create($data);
+        $this->performStoreVehicle($request);
 
         return redirect()->route('admin.vehicles.index');
     }
@@ -79,15 +83,7 @@ class VehicleController extends Controller
      */
     public function update(Request $request, Vehicle $vehicle)
     {
-        $data = $request->validate([
-            'identifier' => 'required|string|max:255|unique:vehicles,identifier,'.($vehicle->id ?? ''),
-            'maker' => 'nullable|string|max:255',
-            'vehicle_type_id' => 'required|exists:vehicle_types,id',
-            'seat_count' => 'required|integer|min:1',
-            'active' => 'boolean',
-            'inactive_reason' => 'nullable|string|required_if:active,false',
-        ]);
-        $vehicle->update($data);
+        $this->performUpdateVehicle($request, $vehicle);
 
         return redirect()->route('admin.vehicles.index');
     }
@@ -97,7 +93,7 @@ class VehicleController extends Controller
      */
     public function destroy(Vehicle $vehicle)
     {
-        $vehicle->delete();
+        $this->performDestroyVehicle($vehicle);
 
         return back();
     }

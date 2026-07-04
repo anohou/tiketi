@@ -62,8 +62,10 @@ class OptimisationController extends Controller
                     'occupancy' => [
                         'total_seats' => $stats['total_seats'],
                         'occupied_seats' => $stats['occupied_seats'],
+                        'occupied_seats_count' => $stats['occupied_seats_count'],
                         'available_seats' => $stats['available_seats'],
                         'occupancy_rate' => $stats['occupancy_rate'],
+                        'sold_tickets_count' => $stats['sold_tickets_count'],
                     ],
                 ],
                 'message' => count($suggestions) > 0

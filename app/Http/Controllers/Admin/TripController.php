@@ -11,30 +11,7 @@ use Inertia\Inertia;
 
 class TripController extends Controller
 {
-    /**
-     * Get routes accessible to the current user.
-     * For bidirectional routes, a seller can access routes where their assigned station
-     * is either the origin OR the destination.
-     */
-    private function getAccessibleRoutesQuery()
-    {
-        $user = auth()->user();
 
-        if ($user->role === 'admin') {
-            return Route::where('active', true);
-        }
-
-        $stationIds = $user->stationAssignments()->where('active', true)->pluck('station_id');
-
-        // Allow access to routes where the user's station is origin OR destination
-        return Route::where('active', true)->where(function ($query) use ($stationIds) {
-            $query->whereIn('origin_station_id', $stationIds)
-                ->orWhereIn('destination_station_id', $stationIds)
-                ->orWhereHas('routeStopOrders', function ($subQuery) use ($stationIds) {
-                    $subQuery->whereIn('station_id', $stationIds);
-                });
-        });
-    }
 
     /**
      * Display a listing of the resource.
@@ -42,11 +19,54 @@ class TripController extends Controller
     public function index()
     {
         $trips = Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders', 'vehicle', 'tickets.toStation'])
-            ->withCount(['tickets', 'tripSeatOccupancies as occupied_seats'])
-            ->orderBy('departure_at', 'desc')
+            ->withCount(['tickets as tickets_count' => function ($q) {
+                $q->where('status', '!=', 'cancelled');
+            }])
+            ->upcomingFirst()
             ->paginate(20);
 
-        $routes = $this->getAccessibleRoutesQuery()
+        // Charger l'équipage pour chaque voyage (via les affectations véhicule à la date de départ) sans requête N+1
+        $vehicleIds = $trips->pluck('vehicle_id')->unique()->filter()->toArray();
+        if (!empty($vehicleIds)) {
+            $minDate = $trips->min('departure_at');
+            $maxDate = $trips->max('departure_at');
+
+            $assignments = \App\Models\VehicleCrewAssignment::whereIn('vehicle_id', $vehicleIds)
+                ->where(function($query) use ($minDate) {
+                    $query->whereNull('assigned_to')
+                          ->orWhere('assigned_to', '>=', $minDate);
+                })
+                ->where('assigned_from', '<=', $maxDate)
+                ->with('crewMember')
+                ->get();
+
+            $trips->getCollection()->transform(function ($trip) use ($assignments) {
+                $tripCrew = $assignments->filter(function ($assignment) use ($trip) {
+                    return $assignment->vehicle_id === $trip->vehicle_id
+                        && $assignment->assigned_from <= $trip->departure_at
+                        && (is_null($assignment->assigned_to) || $assignment->assigned_to >= $trip->departure_at);
+                });
+
+                $trip->crew_info = $tripCrew->map(fn ($assignment) => [
+                    'role' => $assignment->role,
+                    'crew_member' => $assignment->crewMember ? [
+                        'id' => $assignment->crewMember->id,
+                        'name' => $assignment->crewMember->name,
+                        'phone' => $assignment->crewMember->phone,
+                        'role' => $assignment->crewMember->role,
+                    ] : null,
+                ])->values();
+
+                return $trip;
+            });
+        } else {
+            $trips->getCollection()->transform(function ($trip) {
+                $trip->crew_info = collect();
+                return $trip;
+            });
+        }
+
+        $routes = auth()->user()->accessibleRoutesQuery()
             ->with(['originStation', 'destinationStation'])
             ->orderBy('name')
             ->get();
@@ -65,7 +85,7 @@ class TripController extends Controller
      */
     public function create()
     {
-        $routes = $this->getAccessibleRoutesQuery()
+        $routes = auth()->user()->accessibleRoutesQuery()
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -89,7 +109,7 @@ class TripController extends Controller
                 'exists:routes,id',
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this route
-                    $exists = $this->getAccessibleRoutesQuery()->where('id', $value)->exists();
+                    $exists = auth()->user()->accessibleRoutesQuery()->where('id', $value)->exists();
                     if (! $exists) {
                         $fail('Vous n\'avez pas accès à cet itinéraire (station non assignée).');
                     }
@@ -101,6 +121,14 @@ class TripController extends Controller
             'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
             'sales_control' => 'nullable|in:open,closed',
         ]);
+
+        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+        if ($vehicle->isInsuranceExpired($data['departure_at'])) {
+            return back()->withErrors([
+                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage (' 
+                    . $vehicle->insurance_expiry_date->format('d/m/Y') . ').',
+            ]);
+        }
 
         // Set default status if not provided
         $data['status'] = $data['status'] ?? 'scheduled';
@@ -124,10 +152,7 @@ class TripController extends Controller
             $data['destination_station_id'] = $defaultDestinationStationId;
         } else {
             // For sellers/supervisors, check their assigned stations
-            $assignedStationIds = \App\Models\UserStationAssignment::where('user_id', $user->id)
-                ->where('active', true)
-                ->pluck('station_id')
-                ->toArray();
+            $assignedStationIds = $user->getActiveStationIds();
 
             // If seller's station is the route's destination (but not origin), reverse the direction
             $isReversed = in_array($defaultDestinationStationId, $assignedStationIds)
@@ -190,6 +215,14 @@ class TripController extends Controller
             'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
             'sales_control' => 'nullable|in:open,closed',
         ]);
+
+        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+        if ($vehicle->isInsuranceExpired($data['departure_at'])) {
+            return back()->withErrors([
+                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage (' 
+                    . $vehicle->insurance_expiry_date->format('d/m/Y') . ').',
+            ]);
+        }
         $trip->update($data);
 
         return redirect()->route('admin.trips.index');

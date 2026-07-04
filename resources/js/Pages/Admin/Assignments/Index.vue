@@ -187,13 +187,13 @@ const deleteAssignment = (id) => {
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
               <AccountCheck class="text-green-600" :size="28" />
             </div>
             Affectations Utilisateurs
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -206,13 +206,13 @@ const deleteAssignment = (id) => {
 
         <!-- Middle Column - Assignments List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
+            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Affectation">
@@ -231,24 +231,21 @@ const deleteAssignment = (id) => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500">
+              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
                 Aucune affectation trouvée.
               </div>
               <div v-else>
                 <div v-for="assignment in filteredAssignments" :key="assignment.id" 
                   @click="selectAssignment(assignment)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
-                  :style="{
-                    backgroundColor: isSelected(assignment) ? '#f0fdf4' : '#ffffff',
-                    borderLeft: isSelected(assignment) ? '4px solid #16a34a' : '4px solid #fed7aa'
-                  }"
+                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
+                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">
-                      <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800']">
+                      <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
                         {{ assignment.user?.name }}
                       </h3>
-                      <p class="text-[10px] text-gray-500 mt-0.5">{{ assignment.station?.name }} - {{ assignment.station?.city }}</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{{ assignment.station?.name }} - {{ assignment.station?.city }}</p>
                     </div>
                     <span :class="[
                       'shrink-0 ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
@@ -266,7 +263,7 @@ const deleteAssignment = (id) => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedAssignment" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
+          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
             <AccountCheck class="h-16 w-16 text-orange-200 mb-4" />
             <p class="text-lg">Sélectionnez une affectation pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
@@ -277,12 +274,12 @@ const deleteAssignment = (id) => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Détails de l'Affectation</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">Détails de l'Affectation</h2>
                 <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
                   <button @click="deleteAssignment(selectedAssignment.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
@@ -294,11 +291,11 @@ const deleteAssignment = (id) => {
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6 border-r border-gray-100 pr-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">UTILISATEUR</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">UTILISATEUR</span>
+                  <div class="text-xl font-bold text-gray-900 dark:text-slate-100 leading-tight">
                     {{ selectedAssignment.user?.name }}
                   </div>
-                  <div class="text-sm text-gray-500 mt-1">
+                  <div class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
                     {{ selectedAssignment.user?.email }}
                   </div>
                   <div class="mt-2">
@@ -308,16 +305,16 @@ const deleteAssignment = (id) => {
                   </div>
                 </div>
                 <div class="col-span-6 pl-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">GARE</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">GARE</span>
+                  <div class="text-xl font-bold text-gray-900 dark:text-slate-100 leading-tight">
                     {{ selectedAssignment.station?.name }}
                   </div>
-                  <div class="text-sm text-gray-500 mt-1">
+                  <div class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
                     {{ selectedAssignment.station?.city }}
                   </div>
                 </div>
-                <div class="col-span-12 pt-4 border-t border-gray-100">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
+                <div class="col-span-12 pt-4 border-t border-gray-100 dark:border-slate-800">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
                   <div>
                     <span :class="[
                        'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
@@ -337,7 +334,7 @@ const deleteAssignment = (id) => {
     <!-- Modal -->
     <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
-        {{ isEditing ? 'Modifier l\'Affectation' : 'Nouvelle Affectation' }}
+        {{ isEditing ? "Modifier l'Affectation" : "Nouvelle Affectation" }}
       </template>
       <template #content>
         <div class="space-y-4">
@@ -410,10 +407,10 @@ const deleteAssignment = (id) => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
+  background: #94a3b8;
 }
 </style>

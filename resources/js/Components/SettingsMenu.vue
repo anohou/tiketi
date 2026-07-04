@@ -1,39 +1,5 @@
-<template>
-    <!-- Desktop Menu -->
-    <div class="hidden md:block bg-white rounded-lg border border-orange-200 shadow-sm p-3">
-        <h2 class="text-lg font-semibold text-green-700 mb-3">Menu Paramètres</h2>
-        <nav class="space-y-1">
-            <Link v-for="item in settingsMenu" :key="item.route" :href="route(item.route)" :class="[
-                'flex items-center px-3 py-2 text-sm rounded-lg transition-colors',
-                route().current(item.route)
-                    ? 'bg-orange-100 text-orange-700 font-medium'
-                    : 'text-gray-600 hover:bg-green-50 hover:text-green-700'
-            ]">
-                <component :is="item.icon" class="w-5 h-5 mr-2" />
-                {{ item.name }}
-            </Link>
-        </nav>
-    </div>
-
-    <!-- Mobile Menu -->
-    <div class="md:hidden bg-white rounded-lg border border-orange-200 shadow-sm p-3">
-        <h2 class="text-lg font-semibold text-green-700 mb-3">Menu Paramètres</h2>
-        <select v-model="selectedRoute" 
-                @change="navigateToRoute"
-                class="w-full rounded-lg border-orange-200 focus:border-orange-400 focus:ring focus:ring-orange-200 focus:ring-opacity-50">
-            <option v-for="item in settingsMenu" 
-                    :key="item.route" 
-                    :value="item.route"
-                    :selected="route().current(item.route)">
-                {{ item.name }}
-            </option>
-        </select>
-    </div>
-</template>
-
 <script setup>
-import { ref, onMounted } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import SectionMenu from '@/Components/SectionMenu.vue';
 import Router from 'vue-material-design-icons/Router.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Car from 'vue-material-design-icons/Car.vue';
@@ -45,28 +11,27 @@ import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Cash from 'vue-material-design-icons/Cash.vue';
 import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
-
-const selectedRoute = ref('');
+import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
+import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 
 const settingsMenu = [
-    { name: 'Villes', route: 'admin.destinations.index', icon: MapMarkerRadius },
-    { name: 'Gares / Destinations', route: 'admin.stations.index', icon: OfficeBuilding },
-    { name: 'Trajets', route: 'admin.routes.index', icon: Router },
-    { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus },
-    { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car },
-    { name: 'Voyages', route: 'admin.trips.index', icon: Calendar },
-    { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash },
-    { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple },
-    { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup },
-    { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer },
-    { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
+  { name: 'Entreprise', route: 'admin.settings.enterprise', icon: OfficeBuilding },
+  { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
+  { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer },
+  { name: 'Villes', route: 'admin.destinations.index', icon: MapMarkerRadius },
+  { name: 'Gares / Destinations', route: 'admin.stations.index', icon: OfficeBuilding },
+  { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash },
+  { name: 'Trajets', route: 'admin.routes.index', icon: Router },
+  { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car },
+  { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus },
+  { name: 'Voyages', route: 'admin.trips.index', icon: Calendar },
+  { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple },
+  { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup },
+  { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat },
+  { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal },
 ];
-
-onMounted(() => {
-    selectedRoute.value = settingsMenu.find(item => route().current(item.route))?.route || settingsMenu[0].route;
-});
-
-const navigateToRoute = () => {
-    router.visit(route(selectedRoute.value));
-};
 </script>
+
+<template>
+  <SectionMenu title="Menu Paramètres" :items="settingsMenu" />
+</template>

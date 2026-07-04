@@ -21,6 +21,7 @@ import InputLabel from '@/Components/InputLabel.vue'
 import DialogModal from '@/Components/DialogModal.vue'
 import SecondaryButton from '@/Components/SecondaryButton.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
+import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue'
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue'
 import { useExportPrint } from '@/Composables/useExportPrint'
 import Router from 'vue-material-design-icons/Router.vue'
@@ -58,6 +59,7 @@ const errors = ref({});
 const showRouteModal = ref(false);
 const showStopModal = ref(false);
 const showFareModal = ref(false);
+const showRouteDiagramModal = ref(false);
 const isEditingRoute = ref(false);
 
 // Foldable Sections State
@@ -128,6 +130,50 @@ const matchedFares = computed(() => {
   });
 });
 
+const routeDiagramStops = computed(() => {
+  if (!selectedRoute.value) return [];
+
+  const routeStops = selectedRoute.value.route_stop_orders || selectedRoute.value.routeStopOrders || [];
+  return [...routeStops]
+    .sort((a, b) => {
+      const aIndex = Number(a.stop_index ?? a.stopIndex ?? 0);
+      const bIndex = Number(b.stop_index ?? b.stopIndex ?? 0);
+      return aIndex - bIndex;
+    })
+    .map((order, index) => ({
+      id: order.id,
+      index: index + 1,
+      name: order.station?.name || 'Arrêt',
+      city: order.station?.city || order.station?.destination?.name || 'Ville inconnue',
+      code: order.station?.code || ''
+    }));
+});
+
+const routeDiagramNodes = computed(() => {
+  const stops = routeDiagramStops.value;
+  const usableWidth = 880;
+  const step = stops.length > 1 ? usableWidth / (stops.length - 1) : 0;
+  const compact = stops.length > 6;
+  const mini = stops.length > 10;
+  const labelSize = mini ? 10 : compact ? 11 : 13;
+  const maxNameLength = mini ? 12 : compact ? 16 : 22;
+
+  const shorten = (value, limit) => {
+    if (!value) return '';
+    return value.length > limit ? `${value.slice(0, Math.max(0, limit - 1))}…` : value;
+  };
+
+  return stops.map((stop, index) => ({
+    ...stop,
+    x: 60 + (index * step),
+    labelY: index % 2 === 0 ? 82 : 170,
+    labelSize,
+    displayName: shorten(stop.name, maxNameLength),
+    isFirst: index === 0,
+    isLast: index === stops.length - 1,
+  }));
+});
+
 // Methods - Route Selection
 const isSelected = (route) => {
   if (!selectedRoute.value) return false;
@@ -139,6 +185,7 @@ const selectRoute = (route) => {
   showStops.value = false;
   showFares.value = false;
   showTrips.value = false;
+  showRouteDiagramModal.value = false;
 };
 
 // Methods - Route Actions
@@ -151,6 +198,7 @@ const openCreateRouteModal = () => {
     active: true
   };
   errors.value = {};
+  processing.value = false;
   showRouteModal.value = true;
 };
 
@@ -164,6 +212,7 @@ const openEditRouteModal = () => {
     active: selectedRoute.value.active
   };
   errors.value = {};
+  processing.value = false;
   showRouteModal.value = true;
 };
 
@@ -177,6 +226,7 @@ const duplicateRoute = () => {
     active: true
   };
   errors.value = {};
+  processing.value = false;
   showRouteModal.value = true;
 };
 
@@ -189,6 +239,16 @@ const closeRouteModal = () => {
     active: true
   };
   errors.value = {};
+  processing.value = false;
+};
+
+const openRouteDiagramModal = () => {
+  if (!selectedRoute.value) return;
+  showRouteDiagramModal.value = true;
+};
+
+const closeRouteDiagramModal = () => {
+  showRouteDiagramModal.value = false;
 };
 
 const submitRoute = () => {
@@ -203,13 +263,14 @@ const submitRoute = () => {
 
   router[method](url, routeForm.value, {
     onSuccess: () => {
-      processing.value = false;
       closeRouteModal();
       // If created, we might want to select it, but for now let's just close
     },
     onError: (newErrors) => {
-      processing.value = false;
       errors.value = newErrors;
+    },
+    onFinish: () => {
+      processing.value = false;
     }
   });
 };
@@ -398,13 +459,13 @@ const handlePrint = () => {
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
+          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class="p-2 bg-green-100 rounded-xl">
-              <Router class="text-green-600" :size="28" />
+              <Router class="text-emerald-600" :size="28" />
             </div>
             Gestion des Trajets
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -417,16 +478,16 @@ const handlePrint = () => {
 
         <!-- Middle Column - Routes List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateRouteModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Route">
+                <button @click="openCreateRouteModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouvelle Route">
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
@@ -442,33 +503,30 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredRoutes.length === 0" class="p-4 text-center text-gray-500">
+              <div v-if="filteredRoutes.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
                 Aucune route trouvée.
               </div>
               <div v-else>
                 <div v-for="routeItem in filteredRoutes" :key="routeItem.id" 
                   @click="selectRoute(routeItem)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
-                  :style="{
-                    backgroundColor: isSelected(routeItem) ? '#f0fdf4' : '#ffffff',
-                    borderLeft: isSelected(routeItem) ? '4px solid #16a34a' : '4px solid #fed7aa'
-                  }"
+                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
+                  :class="[isSelected(routeItem) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div>
-                      <h3 :class="['font-semibold', isSelected(routeItem) ? 'text-green-800' : 'text-gray-800']">{{ routeItem.name }}</h3>
-                      <p class="text-xs text-gray-500 mt-1">
+                      <h3 :class="['font-semibold', isSelected(routeItem) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">{{ routeItem.name }}</h3>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
                         {{ routeItem.origin_destination?.name }} → {{ routeItem.target_destination?.name }}
                       </p>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                         <span :class="[
                           'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                          routeItem.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          routeItem.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                         ]">
                           {{ routeItem.active ? 'Actif' : 'Inactif' }}
                         </span>
-                        <span class="text-[10px] text-gray-400">
+                        <span class="text-[10px] text-orange-400">
                           {{ routeItem.trips_count || 0 }} voyages
                         </span>
                     </div>
@@ -482,10 +540,10 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedRoute" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <OfficeBuilding class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedRoute" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+            <OfficeBuilding class="h-16 w-16 text-slate-200 mb-4" />
             <p class="text-lg">Sélectionnez une route pour voir les détails</p>
-            <button @click="openCreateRouteModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateRouteModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez une nouvelle route
             </button>
           </div>
@@ -493,24 +551,27 @@ const handlePrint = () => {
           <!-- View Details & Related -->
           <div v-else class="space-y-4">
             <!-- Route Details Card -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">{{ selectedRoute.name }}</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedRoute.name }}</h2>
                 <div class="flex items-center gap-2">
+                  <button @click="openRouteDiagramModal" class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors">
+                    Schéma
+                  </button>
                   <span :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedRoute.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    selectedRoute.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   ]">
                     {{ selectedRoute.active ? 'Actif' : 'Inactif' }}
                   </span>
-                  <button @click="duplicateRoute" class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Dupliquer">
+                  <button @click="duplicateRoute" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
                     <ContentCopy class="h-5 w-5" />
                   </button>
-                  <button @click="openEditRouteModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditRouteModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteRoute(selectedRoute.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="deleteRoute(selectedRoute.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -519,14 +580,14 @@ const handlePrint = () => {
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">DÉPART</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">DÉPART</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedRoute.origin_destination?.name }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">ARRIVÉE</span>
-                  <div class="text-xl font-bold text-gray-900 leading-tight">
+                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">ARRIVÉE</span>
+                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedRoute.target_destination?.name }}
                   </div>
                 </div>
@@ -535,36 +596,36 @@ const handlePrint = () => {
             </div>
 
             <!-- Stops Section -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
-              <div @click="showStops = !showStops" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div @click="showStops = !showStops" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
                 <div class="flex items-center gap-2">
-                  <OfficeBuilding class="h-5 w-5 text-orange-500" />
-                  <h3 class="font-semibold text-gray-700">
+                  <OfficeBuilding class="h-5 w-5 text-emerald-500" />
+                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
                     Stations Escale ({{ (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length }})
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click.stop="openAddStopModal" class="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Ajouter une destination">
+                    <button @click.stop="openAddStopModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter une destination">
                         <Plus class="h-4 w-4" />
                     </button>
-                    <component :is="showStops ? ChevronDown : ChevronRight" class="h-5 w-5 text-gray-400" />
+                    <component :is="showStops ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
                 </div>
               </div>
               
-              <div v-if="showStops" class="p-4 border-t border-orange-100">
+              <div v-if="showStops" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
                 <div class="space-y-2">
-                  <div v-if="(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length === 0" class="text-sm text-gray-500 text-center py-2">
+                  <div v-if="(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
                     Aucune destination configurée.
                   </div>
                   <div v-for="(order, idx) in (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || [])" :key="order.id" 
-                    class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
+                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
                     <div class="flex items-center gap-3">
-                      <span class="w-6 h-6 flex items-center justify-center bg-orange-100 text-orange-800 text-xs font-bold rounded-full">
+                      <span class="w-6 h-6 flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
                         {{ idx + 1 }}
                       </span>
                       <div>
-                        <p class="text-sm font-medium text-gray-800">{{ order.station?.name }}</p>
-                        <p class="text-xs text-gray-500">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
+                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ order.station?.name }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-1">
@@ -572,7 +633,7 @@ const handlePrint = () => {
                       <button 
                         v-if="idx > 0"
                         @click="moveStopUp(idx)" 
-                        class="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                        class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
                         title="Monter">
                         <ArrowUp class="h-4 w-4" />
                       </button>
@@ -581,7 +642,7 @@ const handlePrint = () => {
                       <button 
                         v-if="idx < (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length - 1"
                         @click="moveStopDown(idx)" 
-                        class="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded"
+                        class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
                         title="Descendre">
                         <ArrowDown class="h-4 w-4" />
                       </button>
@@ -597,38 +658,38 @@ const handlePrint = () => {
             </div>
 
             <!-- Fares Section -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
-              <div @click="showFares = !showFares" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div @click="showFares = !showFares" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
                 <div class="flex items-center gap-2">
-                  <Cash class="h-5 w-5 text-green-600" />
-                  <h3 class="font-semibold text-gray-700">
+                  <Cash class="h-5 w-5 text-emerald-600" />
+                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
                     Tarifs ({{ matchedFares.length }})
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click.stop="openAddFareModal" class="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Ajouter un tarif">
+                    <button @click.stop="openAddFareModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter un tarif">
                         <Plus class="h-4 w-4" />
                     </button>
-                    <component :is="showFares ? ChevronDown : ChevronRight" class="h-5 w-5 text-gray-400" />
+                    <component :is="showFares ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
                 </div>
               </div>
               
-              <div v-if="showFares" class="p-4 border-t border-orange-100">
+              <div v-if="showFares" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
                 <div class="space-y-2">
-                  <div v-if="matchedFares.length === 0" class="text-sm text-gray-500 text-center py-2">
+                  <div v-if="matchedFares.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
                     Aucun tarif correspondant aux destinations de cette route.
                   </div>
                   <div v-for="fare in matchedFares" :key="fare.id" 
-                    class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
-                    <div class="text-sm">
-                      <span class="font-medium">{{ fare.from_station?.name }}</span>
-                      <span v-if="fare.is_bidirectional" class="text-orange-500 mx-1">↔</span>
-                      <span v-else class="text-gray-400 mx-1">→</span>
-                      <span class="font-medium">{{ fare.to_station?.name }}</span>
+                    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                    <div class="text-sm min-w-0">
+                      <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.from_station?.name }}</span>
+                      <span v-if="fare.is_bidirectional" class="text-emerald-500 mx-1">↔</span>
+                      <span v-else class="text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mx-1">→</span>
+                      <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.to_station?.name }}</span>
                     </div>
-                    <div class="flex items-center gap-3">
-                      <span class="font-bold text-green-700">{{ fare.amount?.toLocaleString() }} FCFA</span>
-                      <button @click="removeFare(fare.id)" class="text-red-400 hover:text-red-600">
+                    <div class="flex items-center gap-3 shrink-0">
+                      <span class="font-bold text-emerald-700 whitespace-nowrap">{{ fare.amount?.toLocaleString() }} FCFA</span>
+                      <button @click="removeFare(fare.id)" class="text-rose-400 hover:text-rose-600">
                         <Trash2 class="h-4 w-4" />
                       </button>
                     </div>
@@ -638,40 +699,40 @@ const handlePrint = () => {
             </div>
 
             <!-- Trips/Voyages Section -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm overflow-hidden">
-              <div @click="showTrips = !showTrips" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div @click="showTrips = !showTrips" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
                 <div class="flex items-center gap-2">
-                  <Bus class="h-5 w-5 text-blue-600" />
-                  <h3 class="font-semibold text-gray-700">
+                  <Bus class="h-5 w-5 text-emerald-600" />
+                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
                     Voyages ({{ selectedRoute.trips_count || (selectedRoute.trips || []).length }})
                   </h3>
                 </div>
-                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-gray-400" />
+                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
               </div>
               
-              <div v-if="showTrips" class="p-4 border-t border-orange-100">
+              <div v-if="showTrips" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
                 <div class="space-y-2">
-                  <div v-if="!selectedRoute.trips || selectedRoute.trips.length === 0" class="text-sm text-gray-500 text-center py-2">
+                  <div v-if="!selectedRoute.trips || selectedRoute.trips.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
                     Aucun voyage programmé sur cette route.
                   </div>
                   <div v-for="trip in selectedRoute.trips" :key="trip.id" 
-                    class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-100">
+                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
                     <div class="flex items-center gap-3">
-                      <Bus class="h-5 w-5 text-blue-500" />
+                      <Bus class="h-5 w-5 text-emerald-500" />
                       <div>
-                        <p class="text-sm font-medium text-gray-800">{{ trip.vehicle?.identifier || 'Véhicule' }}</p>
-                        <p class="text-xs text-gray-500">
+                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.vehicle?.identifier || 'Véhicule' }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
                           {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                         </p>
                       </div>
                     </div>
                     <span :class="[
                       'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      trip.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
-                      trip.status === 'departed' ? 'bg-purple-100 text-purple-800' :
-                      trip.status === 'arrived' ? 'bg-green-100 text-green-800' :
-                      trip.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
+                      trip.status === 'scheduled' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
+                      trip.status === 'departed' ? 'bg-emerald-100 text-emerald-800' :
+                      trip.status === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
+                      trip.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                      'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300'
                     ]">
                       {{ trip.status === 'scheduled' ? 'Programmé' :
                          trip.status === 'departed' ? 'Effectué' :
@@ -695,7 +756,7 @@ const handlePrint = () => {
       </template>
       <template #content>
         <div class="space-y-4">
-          <div>
+            <div>
             <InputLabel for="name" value="Nom de la route" />
             <TextInput v-model="routeForm.name" id="name" class="w-full" />
             <InputError :message="errors.name" />
@@ -704,7 +765,7 @@ const handlePrint = () => {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <InputLabel for="origin" value="Ville de Départ" />
-              <select v-model="routeForm.origin_destination_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+              <select v-model="routeForm.origin_destination_id" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100">
                 <option value="">Choisir...</option>
                 <option v-for="d in destinations" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
@@ -712,7 +773,7 @@ const handlePrint = () => {
             </div>
             <div>
               <InputLabel for="dest" value="Ville d'Arrivée" />
-              <select v-model="routeForm.target_destination_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+              <select v-model="routeForm.target_destination_id" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100">
                 <option value="">Choisir...</option>
                 <option v-for="d in destinations" :key="d.id" :value="d.id">{{ d.name }}</option>
               </select>
@@ -721,8 +782,8 @@ const handlePrint = () => {
           </div>
 
           <div class="flex items-center">
-            <input type="checkbox" v-model="routeForm.active" id="active" class="rounded border-gray-300 text-green-600 shadow-sm focus:ring-green-500">
-            <label for="active" class="ml-2 text-sm text-gray-600">Route Active</label>
+            <input type="checkbox" v-model="routeForm.active" id="active" class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring-emerald-500">
+            <label for="active" class="ml-2 text-sm text-slate-600 dark:text-slate-350 dark:text-slate-350">Route Active</label>
           </div>
         </div>
       </template>
@@ -740,7 +801,7 @@ const handlePrint = () => {
       <template #content>
         <div>
           <InputLabel for="stop" value="Sélectionner une station" />
-          <select v-model="stopForm.station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 mt-1">
+          <select v-model="stopForm.station_id" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500 mt-1 dark:bg-slate-950 dark:text-slate-100">
             <option value="">Choisir...</option>
             <option v-for="station in stations" :key="station.id" :value="station.id">
               {{ station.name }} ({{ station.city }})
@@ -762,16 +823,16 @@ const handlePrint = () => {
         <div class="space-y-4">
           <div>
             <InputLabel for="from" value="Gare de départ" />
-            <select v-model="fareForm.from_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 bg-gray-100" disabled>
+            <select v-model="fareForm.from_station_id" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500 bg-slate-100 dark:bg-slate-900 dark:text-slate-450" disabled>
               <option value="">Choisir...</option>
               <option v-for="station in stations" :key="station.id" :value="station.id">{{ station.name }}</option>
             </select>
-            <p class="mt-1 text-xs text-gray-500">Le départ est automatiquement défini.</p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Le départ est automatiquement défini.</p>
             <InputError :message="errors.from_station_id" />
           </div>
           <div>
             <InputLabel for="to" value="Gare d'arrivée" />
-            <select v-model="fareForm.to_station_id" class="w-full border-gray-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500">
+            <select v-model="fareForm.to_station_id" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100">
               <option value="">Choisir une station...</option>
               <option v-for="station in stations" :key="station.id" :value="station.id">{{ station.name }}</option>
             </select>
@@ -789,6 +850,38 @@ const handlePrint = () => {
         <PrimaryButton class="ml-3" @click="addFare" :disabled="processing">Ajouter</PrimaryButton>
       </template>
     </DialogModal>
+
+    <!-- Route Diagram Modal -->
+    <DialogModal :show="showRouteDiagramModal" @close="closeRouteDiagramModal" maxWidth="5xl">
+      <template #title>
+        Schéma du trajet - {{ selectedRoute?.name }}
+      </template>
+      <template #content>
+        <div v-if="routeDiagramStops.length === 0" class="py-8 text-center text-slate-500 dark:text-slate-400">
+          Aucun arrêt n’est encore configuré pour cette route.
+        </div>
+        <div v-else class="space-y-4">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+              Départ: {{ selectedRoute.origin_destination?.name }}
+            </span>
+            <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              Arrivée: {{ selectedRoute.target_destination?.name }}
+            </span>
+            <span class="px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+              {{ routeDiagramStops.length }} arrêt(s)
+            </span>
+          </div>
+          <RouteSchemaDiagram
+            :stops="routeDiagramStops"
+            variant="endpoints"
+          />
+        </div>
+      </template>
+      <template #footer>
+        <SecondaryButton @click="closeRouteDiagramModal">Fermer</SecondaryButton>
+      </template>
+    </DialogModal>
   </MainNavLayout>
 </template>
 
@@ -800,10 +893,10 @@ const handlePrint = () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
+  background: #94a3b8;
 }
 </style>

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('destinations', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
-            $table->string('city')->nullable(); // Optional detail if needed, or redundant if name is city
+            $table->text('description')->nullable();
             $table->string('region')->nullable();
             $table->boolean('is_active')->default(true);
             $table->json('settings')->nullable();

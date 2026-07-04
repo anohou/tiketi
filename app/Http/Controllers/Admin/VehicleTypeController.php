@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Traits\ManagesVehicleTypes;
 use App\Models\VehicleType;
+use App\Services\SeatMapService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class VehicleTypeController extends Controller
 {
+    use ManagesVehicleTypes;
+
     protected $seatMapService;
 
-    public function __construct(\App\Services\SeatMapService $seatMapService)
+    public function __construct(SeatMapService $seatMapService)
     {
         $this->seatMapService = $seatMapService;
     }
@@ -41,19 +45,7 @@ class VehicleTypeController extends Controller
      */
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string|unique:vehicle_types,name',
-            'seat_count' => 'required|integer|min:1',
-            'seat_configuration' => 'required|string', // e.g., "2+2"
-            'door_positions' => 'nullable|array', // e.g., [1, 23, 24]
-            'door_positions.*' => 'integer',
-            'door_side' => 'nullable|string|in:left,right',
-            'door_width' => 'nullable|integer|min:1|max:3',
-            'last_row_seats' => 'nullable|integer|min:1',
-            'active' => 'nullable|boolean',
-        ]);
-        $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
-        VehicleType::create($data);
+        $this->performStoreVehicleType($request, $this->seatMapService);
 
         return redirect()->route('admin.vehicle-types.index');
     }
@@ -81,19 +73,7 @@ class VehicleTypeController extends Controller
      */
     public function update(Request $request, VehicleType $vehicleType)
     {
-        $data = $request->validate([
-            'name' => 'required|string|unique:vehicle_types,name,'.$vehicleType->id.',id',
-            'seat_count' => 'required|integer|min:1',
-            'seat_configuration' => 'required|string',
-            'door_positions' => 'nullable|array',
-            'door_positions.*' => 'integer',
-            'door_side' => 'nullable|string|in:left,right',
-            'door_width' => 'nullable|integer|min:1|max:3',
-            'last_row_seats' => 'nullable|integer|min:1',
-            'active' => 'nullable|boolean',
-        ]);
-        $data['seat_map'] = $this->seatMapService->generateSeatMap($data);
-        $vehicleType->update($data);
+        $this->performUpdateVehicleType($request, $vehicleType, $this->seatMapService);
 
         return redirect()->route('admin.vehicle-types.index');
     }
@@ -103,7 +83,7 @@ class VehicleTypeController extends Controller
      */
     public function destroy(VehicleType $vehicleType)
     {
-        $vehicleType->delete();
+        $this->performDestroyVehicleType($vehicleType);
 
         return back();
     }

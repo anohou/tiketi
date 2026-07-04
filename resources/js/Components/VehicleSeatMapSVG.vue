@@ -30,6 +30,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  sellableSeatNumbers: {
+    type: Array,
+    default: () => []
+  },
+  sellableSeatBorderColor: {
+    type: String,
+    default: null
+  },
   verticalMode: {
     type: Boolean,
     default: false
@@ -46,6 +54,12 @@ watch(() => props.showSuggestions, (newVal) => {
 }, { immediate: true });
 
 const emit = defineEmits(['seat-click']);
+
+const sellableSeatSet = computed(() => new Set(
+  (props.sellableSeatNumbers || [])
+    .map((seatNumber) => Number(seatNumber))
+    .filter((seatNumber) => Number.isFinite(seatNumber))
+));
 
 // Constantes pour le design SVG
 const SEAT_WIDTH = 40;
@@ -270,6 +284,35 @@ const getSeatColor = (seat) => {
   return '#94A3B8';
 };
 
+const getSeatStrokeColor = (seat) => {
+  if (isSelected(seat.number)) return '#FFFFFF';
+  if (isSuggestedSeat(seat)) return '#16A34A';
+  if (seat.isOccupied && sellableSeatSet.value.has(Number(seat.number)) && props.sellableSeatBorderColor) {
+    return props.sellableSeatBorderColor;
+  }
+  return '#475569';
+};
+
+const getSeatStrokeWidth = (seat) => {
+  if (isSelected(seat.number) || isSuggestedSeat(seat)) return 3;
+  if (seat.isOccupied && sellableSeatSet.value.has(Number(seat.number)) && props.sellableSeatBorderColor) {
+    return 4;
+  }
+  return 2;
+};
+
+const isSellableOccupiedSeat = (seat) => {
+  return Boolean(
+    seat.isOccupied
+    && sellableSeatSet.value.has(Number(seat.number))
+    && props.sellableSeatBorderColor
+  );
+};
+
+const isSuggestedSeat = (seat) => {
+  return isSuggested(seat.number);
+};
+
 const isSuggested = (seatNumber) => {
   if (!props.showSuggestions || !props.suggestedSeats || props.suggestedSeats.length === 0) return false;
   return props.suggestedSeats.some(s => {
@@ -375,7 +418,7 @@ const handleSeatClick = (seat) => {
         
         <!-- Suggestion Glow (Behind seat) -->
         <rect 
-          v-if="isSuggested(seat.number) && !seat.isOccupied"
+          v-if="isSuggestedSeat(seat)"
           :x="seat.x - 4" 
           :y="seat.y - 4" 
           :width="SEAT_WIDTH + 8" 
@@ -388,15 +431,30 @@ const handleSeatClick = (seat) => {
           :style="{ animationDelay: `${getSuggestionRank(seat.number) * 0.1}s` }"
         />
 
+        <!-- Sellable seat halo (occupied seats that can be resold from the current station) -->
+        <rect
+          v-if="isSellableOccupiedSeat(seat)"
+          :x="seat.x - 3"
+          :y="seat.y - 3"
+          :width="SEAT_WIDTH + 6"
+          :height="SEAT_HEIGHT + 6"
+          fill="none"
+          :stroke="props.sellableSeatBorderColor"
+          stroke-width="4"
+          stroke-opacity="0.55"
+          rx="10"
+          class="sellable-pulse pointer-events-none"
+        />
+
         <!-- Seat Base (Color) -->
         <rect 
           :x="seat.x" 
           :y="seat.y" 
           :width="SEAT_WIDTH" 
           :height="SEAT_HEIGHT"
-          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#475569')"
-          :stroke-width="isSelected(seat.number) ? 3 : (isSuggested(seat.number) ? 3 : 2)"
+          :fill="isSuggestedSeat(seat) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="getSeatStrokeColor(seat)"
+          :stroke-width="getSeatStrokeWidth(seat)"
           rx="6"
           class="pointer-events-none"
         />
@@ -407,8 +465,8 @@ const handleSeatClick = (seat) => {
           :y="seat.y + 3" 
           :width="SEAT_WIDTH - 6" 
           :height="SEAT_HEIGHT * 0.4"
-          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#334155')"
+          :fill="isSuggestedSeat(seat) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="getSeatStrokeColor(seat)"
           stroke-width="1"
           rx="4"
           class="pointer-events-none"
@@ -420,15 +478,15 @@ const handleSeatClick = (seat) => {
           :y="seat.y + SEAT_HEIGHT * 0.45" 
           :width="SEAT_WIDTH - 6" 
           :height="SEAT_HEIGHT * 0.5"
-          :fill="isSuggested(seat.number) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
-          :stroke="isSelected(seat.number) ? '#FFFFFF' : (isSuggested(seat.number) && !seat.isOccupied ? '#16A34A' : '#334155')"
+          :fill="isSuggestedSeat(seat) && !seat.isOccupied ? '#4ADE80' : getSeatColor(seat)"
+          :stroke="getSeatStrokeColor(seat)"
           stroke-width="1"
           rx="3"
           class="pointer-events-none"
         />
 
         <!-- Suggestion Badge (On Top of Seat Visuals) -->
-        <g v-if="isSuggested(seat.number) && !seat.isOccupied" class="pointer-events-none">
+        <g v-if="isSuggestedSeat(seat)" class="pointer-events-none">
           <circle
             :cx="seat.x + SEAT_WIDTH - 2"
             :cy="seat.y + 2"
@@ -475,7 +533,7 @@ const handleSeatClick = (seat) => {
           ]"
           @click.stop="handleSeatClick(seat)"
         >
-          <title>{{ seat.isOccupied ? `Occupé - ${seat.destination_name}` : (isSuggested(seat.number) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`) }}</title>
+          <title>{{ seat.isOccupied ? (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Occupé jusqu'à la gare de départ` : `Occupé - ${seat.destination_name}`) : (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`) }}</title>
         </rect>
       </g>
       
@@ -534,7 +592,27 @@ const handleSeatClick = (seat) => {
 @reference "../../css/app.css";
 
 .vehicle-svg-container {
-  @apply w-full h-full flex items-start justify-center bg-white rounded-lg p-0;
+  @apply w-full h-full flex items-start justify-center bg-white dark:bg-slate-900 rounded-lg p-0 border border-transparent dark:border-slate-800;
+}
+
+:deep(.dark rect[fill="#E0F2FE"]) {
+  fill: #0f172a !important;
+}
+
+:deep(.dark rect[fill="#CBD5E1"]) {
+  fill: #334155 !important;
+}
+
+:deep(.dark text.fill-slate-700) {
+  fill: #94a3b8 !important;
+}
+
+:deep(.dark text.fill-slate-800) {
+  fill: #e2e8f0 !important;
+}
+
+:deep(.dark rect[fill="white"]) {
+  fill: #1e293b !important;
 }
 
 /* Pulsing animation for suggested seats */
@@ -551,6 +629,27 @@ const handleSeatClick = (seat) => {
 
 .suggestion-pulse {
   animation: suggestion-pulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+@keyframes sellable-pulse {
+  0% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+}
+
+.sellable-pulse {
+  animation: sellable-pulse 1.9s ease-in-out infinite;
   transform-origin: center;
   transform-box: fill-box;
 }

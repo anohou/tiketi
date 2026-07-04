@@ -49,22 +49,27 @@ class SettingsController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:20',
-            'logo' => 'nullable|image|max:2048',
+            'logo' => 'nullable|file|mimetypes:image/png,image/jpeg,image/webp,image/svg+xml|max:5120',
         ]);
 
         if ($request->hasFile('logo')) {
             $file = $request->file('logo');
+            $directory = public_path('logos');
+
+            if (! is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
 
             // Delete old logo if exists
             if ($tenant->logo_url) {
-                $oldPath = public_path(str_replace('/logos/', 'logos/', $tenant->logo_url));
+                $oldPath = public_path(ltrim(str_replace('/logos/', 'logos/', $tenant->logo_url), '/'));
                 if (file_exists($oldPath)) {
                     @unlink($oldPath);
                 }
             }
 
             $filename = time().'_'.$file->getClientOriginalName();
-            $file->move(public_path('logos'), $filename);
+            $file->move($directory, $filename);
             $tenant->logo_url = '/logos/'.$filename;
         }
 

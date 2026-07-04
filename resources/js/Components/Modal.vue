@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import ToastContainer from './ToastContainer.vue';
 
 const props = defineProps({
     show: {
@@ -64,6 +65,10 @@ const maxWidthClass = computed(() => {
         'lg': 'sm:max-w-lg',
         'xl': 'sm:max-w-xl',
         '2xl': 'sm:max-w-2xl',
+        '3xl': 'sm:max-w-3xl',
+        '4xl': 'sm:max-w-4xl',
+        '5xl': 'sm:max-w-5xl',
+        '6xl': 'sm:max-w-6xl',
     }[props.maxWidth];
 });
 </script>
@@ -81,7 +86,7 @@ const maxWidthClass = computed(() => {
                     leave-to-class="opacity-0"
                 >
                     <div v-show="show" class="fixed inset-0 z-[1001] transform transition-all" @click="close">
-                        <div class="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75" />
+                        <div class="absolute inset-0 bg-slate-900/35 backdrop-blur-sm dark:bg-slate-950/70" />
                     </div>
                 </transition>
 
@@ -93,10 +98,11 @@ const maxWidthClass = computed(() => {
                     leave-from-class="opacity-100 translate-y-0 sm:scale-100"
                     leave-to-class="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
-                    <div v-show="show" class="relative z-[1002] mb-6 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full sm:mx-auto" :class="maxWidthClass">
+                    <div v-show="show" class="relative z-[1002] mb-6 flex max-h-[90vh] flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.16)] transition-all sm:mx-auto sm:w-full dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40" :class="maxWidthClass">
                         <slot v-if="showSlot"/>
                     </div>
                 </transition>
+                <ToastContainer />
             </div>
         </dialog>
     </teleport>

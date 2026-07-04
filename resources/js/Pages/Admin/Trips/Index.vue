@@ -10,6 +10,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
+import { toastStore } from '@/Stores/toastStore.js';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -19,6 +20,8 @@ import Plus from 'vue-material-design-icons/Plus.vue';
 import MapClock from 'vue-material-design-icons/MapClock.vue';
 import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
+import FileExcel from 'vue-material-design-icons/FileExcel.vue';
+import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -47,6 +50,8 @@ const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
+const exportingTripExcel = ref(false);
+const exportingTripPdf = ref(false);
 
 const form = ref({
   route_id: '',
@@ -57,11 +62,11 @@ const form = ref({
 
 // Status options
 const statusOptions = [
-  { value: 'scheduled', label: 'Programmé', color: 'bg-blue-100 text-blue-800' },
-  { value: 'boarding', label: 'Embarquement', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'departed', label: 'Effectué', color: 'bg-purple-100 text-purple-800' },
-  { value: 'arrived', label: 'Arrivé', color: 'bg-green-100 text-green-800' },
-  { value: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-800' }
+  { value: 'scheduled', label: 'Programmé', color: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300' },
+  { value: 'boarding', label: 'Embarquement', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400' },
+  { value: 'departed', label: 'Effectué', color: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300' },
+  { value: 'arrived', label: 'Arrivé', color: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300' },
+  { value: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400' }
 ];
 
 // Unique departures and arrivals for filters
@@ -131,18 +136,24 @@ const filteredTrips = computed(() => {
 const getStatusInfo = (status, departureAt) => {
   // If departure is in the past and status is still scheduled, show as "Effectué"
   if (departureAt && new Date(departureAt) < new Date() && status === 'scheduled') {
-    return { value: 'departed', label: 'Effectué', color: 'bg-purple-100 text-purple-800' };
+    return { value: 'departed', label: 'Effectué', color: 'bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300' };
   }
-  return statusOptions.find(s => s.value === status) || { label: status, color: 'bg-gray-100 text-gray-800' };
+  return statusOptions.find(s => s.value === status) || { label: status, color: 'bg-gray-100 text-gray-800 dark:text-slate-200 dark:text-slate-200 dark:bg-slate-800 dark:text-slate-300' };
 };
 
 // Calculate destination breakdown with percentage
+const visibleTickets = computed(() => {
+  return (selectedTrip.value?.tickets || []).filter(ticket => ticket.status !== 'cancelled');
+});
+
+const hasVisibleTickets = computed(() => visibleTickets.value.length > 0);
+
 const destinationBreakdown = computed(() => {
-  if (!selectedTrip.value?.tickets) return [];
+  if (!visibleTickets.value.length) return [];
   
-  const totalTickets = selectedTrip.value.tickets.length;
+  const totalTickets = visibleTickets.value.length;
   const breakdown = new Map();
-  selectedTrip.value.tickets.forEach(ticket => {
+  visibleTickets.value.forEach(ticket => {
     const destName = ticket.to_station?.name || ticket.toStation?.name || 'Inconnu';
     const current = breakdown.get(destName) || { count: 0, revenue: 0 };
     current.count++;
@@ -173,7 +184,7 @@ const toggleTicketSort = (field) => {
 
 // Tickets ordered by selected field
 const orderedTickets = computed(() => {
-  if (!selectedTrip.value?.tickets) return [];
+  if (!visibleTickets.value.length) return [];
   
   // Build stop index map from route (handle both snake_case and camelCase)
   const stopIndexMap = new Map();
@@ -188,7 +199,7 @@ const orderedTickets = computed(() => {
     }
   });
   
-  return [...selectedTrip.value.tickets].sort((a, b) => {
+  return [...visibleTickets.value].sort((a, b) => {
     let comparison = 0;
     
     switch (ticketSortBy.value) {
@@ -215,15 +226,15 @@ const orderedTickets = computed(() => {
 // Fill percentage
 const fillPercentage = computed(() => {
   if (!selectedTrip.value?.vehicle?.seat_count) return 0;
-  const occupied = selectedTrip.value.occupied_seats || 0;
+  const occupied = selectedTrip.value.occupied_seats_count || selectedTrip.value.occupied_seats || 0;
   const total = selectedTrip.value.vehicle.seat_count;
   return Math.round((occupied / total) * 100);
 });
 
 // Total revenue
 const totalRevenue = computed(() => {
-  if (!selectedTrip.value?.tickets) return 0;
-  return selectedTrip.value.tickets.reduce((sum, t) => sum + (t.price || 0), 0);
+  if (!visibleTickets.value.length) return 0;
+  return visibleTickets.value.reduce((sum, t) => sum + (t.price || 0), 0);
 });
 
 // Watchers
@@ -347,6 +358,71 @@ const deleteTrip = (id) => {
   }
 };
 
+const ticketColumns = {
+  ticket_number: 'N° Ticket',
+  created_at: 'Date vente',
+  from_station_name: 'Départ',
+  to_station_name: 'Arrivée',
+  seat_number: 'Place',
+  boarding_group: 'Zone',
+  price: 'Prix (FCFA)',
+  seller_name: 'Vendeur',
+  passenger_name: 'Passager',
+  passenger_phone: 'Téléphone',
+  status_label: 'Statut'
+};
+
+const buildSelectedTripTicketData = () => {
+  return visibleTickets.value.map(ticket => ({
+    ticket_number: ticket.ticket_number || '-',
+    created_at: formatDate(ticket.created_at),
+    from_station_name: ticket.fromStation?.name || ticket.from_station?.name || '-',
+    to_station_name: ticket.toStation?.name || ticket.to_station?.name || '-',
+    seat_number: ticket.seat_number ?? ticket.seatNumber ?? '-',
+    boarding_group: ticket.boarding_group || '-',
+    price: ticket.price || 0,
+    seller_name: ticket.seller?.name || '-',
+    passenger_name: ticket.passenger_name || 'Anonyme',
+    passenger_phone: ticket.passenger_phone || '-',
+    status_label: ticket.status === 'cancelled' ? 'Annulé' : 'Valide'
+  }));
+};
+
+const exportSelectedTicketsToExcel = () => {
+  if (!hasVisibleTickets.value) {
+    toastStore.warning('Aucun ticket à exporter pour ce voyage');
+    return;
+  }
+
+  exportingTripExcel.value = true;
+  try {
+    exportToExcel(
+      buildSelectedTripTicketData(),
+      ticketColumns,
+      `tickets_${selectedTrip.value.code || selectedTrip.value.id}`
+    );
+  } finally {
+    exportingTripExcel.value = false;
+  }
+};
+
+const exportSelectedTicketsToPdf = () => {
+  if (!hasVisibleTickets.value) {
+    toastStore.warning('Aucun ticket à exporter pour ce voyage');
+    return;
+  }
+
+  exportingTripPdf.value = true;
+  try {
+    const url = route('tickets.export-pdf', { trip_id: selectedTrip.value.id });
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } finally {
+    window.setTimeout(() => {
+      exportingTripPdf.value = false;
+    }, 600);
+  }
+};
+
 // Export/Print configuration
 const tripColumns = {
   code: 'Code',
@@ -354,7 +430,7 @@ const tripColumns = {
   departure_at: 'Départ',
   'vehicle.identifier': 'Véhicule',
   status: 'Statut',
-  tickets_count: 'Tickets'
+  tickets_count: 'Tickets vendus'
 };
 
 const handleExport = () => {
@@ -380,17 +456,17 @@ const handlePrint = () => {
 
 <template>
   <MainNavLayout :fullHeight="true">
-    <div class="flex flex-col h-full w-full overflow-hidden">
+    <div class="flex flex-col h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <Calendar class="text-green-600" :size="28" />
+          <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
+            <div class="p-2 bg-emerald-100 dark:bg-emerald-950/50 rounded-2xl shadow-sm">
+              <Calendar class="text-green-600 dark:text-green-400" :size="28" />
             </div>
             Gestion des Voyages
           </h1>
-          <p class="text-gray-500 mt-1">Paramètres du système</p>
+          <p class="text-slate-500 dark:text-slate-400 mt-1">Paramètres du système</p>
         </div>
       </div>
 
@@ -403,16 +479,16 @@ const handlePrint = () => {
 
         <!-- Middle Column - Trips List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 shrink-0">
+            <div class="border-b border-slate-200/80 dark:border-slate-800 p-3 bg-gradient-to-r from-emerald-50 via-white to-cyan-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900/50 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 rounded-lg focus:outline-none focus:border-orange-400 text-sm" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-400 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Voyage">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm" title="Nouveau Voyage">
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
@@ -422,24 +498,24 @@ const handlePrint = () => {
                 <input 
                   type="date" 
                   v-model="dateFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] focus:outline-none focus:border-emerald-400 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                   title="Filtrer par date"
                 />
                 <select 
                   v-model="departureFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] focus:outline-none focus:border-emerald-400 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                 >
-                  <option value="">Départ</option>
-                  <option v-for="station in uniqueDepartures" :key="station.id" :value="station.id">
+                  <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Départ</option>
+                  <option v-for="station in uniqueDepartures" :key="station.id" :value="station.id" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                     {{ station.name }}
                   </option>
                 </select>
                 <select 
                   v-model="arrivalFilter"
-                  class="px-2 py-1 border border-orange-200 rounded text-[10px] focus:outline-none focus:border-orange-400"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] focus:outline-none focus:border-emerald-400 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                 >
-                  <option value="">Arrivée</option>
-                  <option v-for="station in uniqueArrivals" :key="station.id" :value="station.id">
+                  <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Arrivée</option>
+                  <option v-for="station in uniqueArrivals" :key="station.id" :value="station.id" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                     {{ station.name }}
                   </option>
                 </select>
@@ -448,7 +524,7 @@ const handlePrint = () => {
                 <button 
                   v-if="dateFilter || departureFilter || arrivalFilter"
                   @click="clearFilters" 
-                  class="text-[10px] text-orange-600 hover:text-orange-800"
+                  class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300"
                 >
                   Effacer les filtres
                 </button>
@@ -465,28 +541,29 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredTrips.length === 0" class="p-4 text-center text-gray-500">
+              <div v-if="filteredTrips.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400">
                 Aucun voyage trouvé.
               </div>
               <div v-else>
                 <div v-for="trip in filteredTrips" :key="trip.id" 
                   @click="selectTrip(trip)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 last:border-0"
-                  :style="{
-                    backgroundColor: isSelected(trip) ? '#f0fdf4' : '#ffffff',
-                    borderLeft: isSelected(trip) ? '4px solid #16a34a' : '4px solid #fed7aa'
-                  }"
+                  class="p-3 cursor-pointer transition-all border-b border-slate-100 dark:border-slate-800/40 last:border-0 hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                  :class="[
+                    isSelected(trip) 
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-l-4 border-l-emerald-500' 
+                      : 'bg-white/80 dark:bg-slate-900/50 border-l-4 border-l-transparent'
+                  ]"
                 >
                   <div class="flex justify-between items-start">
                       <div class="flex-1 min-w-0">
-                        <h3 :class="['font-semibold truncate', isSelected(trip) ? 'text-green-800' : 'text-gray-800']">
+                        <h3 :class="['font-semibold truncate', isSelected(trip) ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-800 dark:text-slate-200']">
                           {{ trip.route?.name }}
                         </h3>
-                        <p class="text-[10px] text-green-600 font-semibold mt-1">
+                        <p class="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
                           {{ trip.code || 'Code en attente' }}
                         </p>
-                        <p class="text-[10px] text-gray-500 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
-                        <p class="text-[10px] text-gray-400">{{ trip.vehicle?.identifier }}</p>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{{ formatShortDate(trip.departure_at) }}</p>
+                        <p class="text-[10px] text-slate-400 dark:text-slate-500">{{ trip.vehicle?.identifier }}</p>
                       </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
@@ -495,8 +572,8 @@ const handlePrint = () => {
                       ]">
                         {{ getStatusInfo(trip.status, trip.departure_at).label }}
                       </span>
-                      <span class="text-[10px] text-gray-500">
-                        {{ trip.tickets_count || 0 }} tickets
+                      <span class="text-[10px] text-slate-500 dark:text-slate-400">
+                        {{ trip.tickets_count || 0 }} tickets vendus
                       </span>
                     </div>
                   </div>
@@ -509,10 +586,10 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedTrip" class="bg-white rounded-lg border border-orange-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
-            <MapClock class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedTrip" class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
+            <MapClock class="h-16 w-16 text-emerald-200 dark:text-slate-700 mb-4" />
             <p class="text-lg">Sélectionnez un voyage pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium">
               ou créez un nouveau voyage
             </button>
           </div>
@@ -520,54 +597,77 @@ const handlePrint = () => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+            <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="p-6">
               <!-- Header Row -->
-              <div class="flex justify-between items-start mb-6">
+              <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-4 mb-6">
                 <div>
-                  <h2 class="text-2xl font-bold text-gray-800">{{ selectedTrip.route?.name }}</h2>
-                  <p class="text-sm font-semibold text-green-600">{{ selectedTrip.code || 'Code en attente' }}</p>
-                  <p class="text-sm text-gray-500">{{ formatDate(selectedTrip.departure_at) }}</p>
+                  <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold mb-3 dark:bg-emerald-950/30 dark:text-emerald-300">
+                    <Ticket class="h-4 w-4" />
+                    Détail du voyage
+                  </div>
+                  <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ selectedTrip.route?.name }}</h2>
+                  <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ selectedTrip.code || 'Code en attente' }}</p>
+                  <p class="text-sm text-slate-500 dark:text-slate-400">{{ formatDate(selectedTrip.departure_at) }}</p>
                 </div>
-                <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Modifier">
+                <div class="flex flex-wrap items-center gap-2">
+                  <button
+                    @click="exportSelectedTicketsToExcel"
+                    :disabled="exportingTripExcel || !hasVisibleTickets"
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    title="Exporter les tickets en Excel"
+                  >
+                    <FileExcel :size="18" />
+                    <span class="text-sm font-medium">Excel</span>
+                  </button>
+                  <button
+                    @click="exportSelectedTicketsToPdf"
+                    :disabled="exportingTripPdf || !hasVisibleTickets"
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    title="Exporter les tickets en PDF"
+                  >
+                    <FilePdfBox :size="18" />
+                    <span class="text-sm font-medium">PDF</span>
+                  </button>
+                  <button @click="openEditModal" class="p-2 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-xl transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteTrip(selectedTrip.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="deleteTrip(selectedTrip.id)" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
               <!-- Stats Row -->
-              <div class="grid grid-cols-4 gap-4 mb-6">
-                <div class="bg-blue-50 rounded-lg p-3 text-center">
-                  <p class="text-2xl font-bold text-blue-700">{{ selectedTrip.tickets_count || 0 }}</p>
-                  <p class="text-xs text-blue-600">Tickets vendus</p>
+              <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                <div class="rounded-2xl p-4 text-center bg-gradient-to-br from-blue-50 to-blue-100/80 dark:from-blue-950/30 dark:to-blue-950/10 border border-blue-100 dark:border-blue-900/30">
+                  <p class="text-2xl font-black text-blue-700 dark:text-blue-300">{{ selectedTrip.tickets_count || 0 }}</p>
+                  <p class="text-xs font-medium text-blue-600 dark:text-blue-400">Tickets vendus</p>
                 </div>
-                <div class="bg-green-50 rounded-lg p-3 text-center">
-                  <p class="text-2xl font-bold text-green-700">{{ fillPercentage }}%</p>
-                  <p class="text-xs text-green-600">Remplissage</p>
+                <div class="rounded-2xl p-4 text-center bg-gradient-to-br from-emerald-50 to-emerald-100/80 dark:from-emerald-950/30 dark:to-emerald-950/10 border border-emerald-100 dark:border-emerald-900/30">
+                  <p class="text-2xl font-black text-emerald-700 dark:text-emerald-300">{{ selectedTrip.occupied_seats_count || 0 }}/{{ selectedTrip.vehicle?.seat_count || 0 }}</p>
+                  <p class="text-xs font-medium text-emerald-600 dark:text-emerald-400">Sièges occupés</p>
                 </div>
-                <div class="bg-orange-50 rounded-lg p-3 text-center">
-                  <p class="text-2xl font-bold text-orange-700">{{ selectedTrip.vehicle?.seat_count || 0 }}</p>
-                  <p class="text-xs text-orange-600">Places totales</p>
+                <div class="rounded-2xl p-4 text-center bg-gradient-to-br from-amber-50 to-amber-100/80 dark:from-amber-950/30 dark:to-amber-950/10 border border-amber-100 dark:border-amber-900/30">
+                  <p class="text-2xl font-black text-amber-700 dark:text-amber-300">{{ fillPercentage }}%</p>
+                  <p class="text-xs font-medium text-amber-600 dark:text-amber-400">Remplissage</p>
                 </div>
-                <div class="bg-purple-50 rounded-lg p-3 text-center">
-                  <p class="text-2xl font-bold text-purple-700">{{ formatMoney(totalRevenue) }}</p>
-                  <p class="text-xs text-purple-600">Revenus</p>
+                <div class="rounded-2xl p-4 text-center bg-gradient-to-br from-fuchsia-50 to-fuchsia-100/80 dark:from-fuchsia-950/30 dark:to-fuchsia-950/10 border border-fuchsia-100 dark:border-fuchsia-900/30 col-span-2">
+                  <p class="text-2xl font-black text-fuchsia-700 dark:text-fuchsia-300">{{ formatMoney(totalRevenue) }}</p>
+                  <p class="text-xs font-medium text-fuchsia-600 dark:text-fuchsia-400">Revenus</p>
                 </div>
               </div>
 
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-4">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">VÉHICULE</span>
-                  <div class="text-lg font-medium text-gray-900">
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-1">VÉHICULE</span>
+                  <div class="text-lg font-medium text-slate-900 dark:text-slate-100">
                     {{ selectedTrip.vehicle?.identifier }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-1">STATUT</span>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-1">STATUT</span>
                   <span :class="[
                     'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
                     getStatusInfo(selectedTrip.status, selectedTrip.departure_at).color
@@ -576,16 +676,17 @@ const handlePrint = () => {
                   </span>
                 </div>
               </div>
+              </div>
             </div>
 
             <!-- Destination Breakdown -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-4">
-              <h3 class="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <Ticket class="h-5 w-5 text-green-600" />
+            <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4">
+              <h3 class="font-semibold text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <Ticket class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 Répartition par Destination
               </h3>
               
-              <div v-if="destinationBreakdown.length === 0" class="text-center py-4 text-gray-400">
+              <div v-if="destinationBreakdown.length === 0" class="text-center py-4 text-slate-400 dark:text-slate-500">
                 Aucun ticket vendu
               </div>
               
@@ -593,74 +694,79 @@ const handlePrint = () => {
                 <div 
                   v-for="dest in destinationBreakdown" 
                   :key="dest.name"
-                  class="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
+                  class="flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl"
                 >
                   <div class="flex items-center gap-3 flex-1">
-                    <span class="font-medium text-gray-800 text-sm">{{ dest.name }}</span>
-                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">
+                    <span class="font-medium text-slate-800 dark:text-slate-200 text-sm">{{ dest.name }}</span>
+                    <span class="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold rounded-full">
                       {{ dest.count }}
                     </span>
-                    <span class="text-[10px] text-gray-500">({{ dest.percentage }}%)</span>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-400">({{ dest.percentage }}%)</span>
                   </div>
-                  <span class="text-sm text-gray-600 font-medium">{{ formatMoney(dest.revenue) }}</span>
+                  <span class="text-sm text-slate-600 dark:text-slate-300 font-medium">{{ formatMoney(dest.revenue) }}</span>
                 </div>
               </div>
             </div>
 
             <!-- Tickets List -->
-            <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-4">
-              <h3 class="font-semibold text-gray-700 mb-3">Liste des Tickets</h3>
+            <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4">
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <h3 class="font-semibold text-slate-700 dark:text-slate-200">Liste des Tickets</h3>
+                <span class="text-xs text-slate-500 dark:text-slate-400">
+                  {{ visibleTickets.length }} ticket(s)
+                </span>
+              </div>
               
-              <div v-if="!selectedTrip.tickets || selectedTrip.tickets.length === 0" class="text-center py-4 text-gray-400">
+              <div v-if="!hasVisibleTickets" class="text-center py-4 text-slate-400 dark:text-slate-500">
                 Aucun ticket vendu
               </div>
               
               <div v-else class="overflow-x-auto">
                 <table class="w-full text-sm">
-                  <thead class="bg-gray-50">
+                  <thead class="bg-slate-50 dark:bg-slate-950/50">
                     <tr>
-                      <th class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase">N°</th>
+                      <th class="px-3 py-2 text-left text-[10px] font-medium text-slate-500 uppercase">N°</th>
                       <th 
-                        class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-left text-[10px] font-medium text-slate-500 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 select-none"
                         @click="toggleTicketSort('seat')"
                       >
                         <span class="flex items-center gap-1">
                           Place
-                          <span :class="ticketSortBy === 'seat' ? 'text-green-600' : 'text-gray-300'">
+                          <span :class="ticketSortBy === 'seat' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-600'">
                             {{ ticketSortBy === 'seat' ? (ticketSortAsc ? '↑' : '↓') : '↕' }}
                           </span>
                         </span>
                       </th>
                       <th 
-                        class="px-3 py-2 text-left text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-left text-[10px] font-medium text-slate-500 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 select-none"
                         @click="toggleTicketSort('distance')"
                       >
                         <span class="flex items-center gap-1">
                           Destination
-                          <span :class="ticketSortBy === 'distance' ? 'text-green-600' : 'text-gray-300'">
+                          <span :class="ticketSortBy === 'distance' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-600'">
                             {{ ticketSortBy === 'distance' ? (ticketSortAsc ? '↑' : '↓') : '↕' }}
                           </span>
                         </span>
                       </th>
                       <th 
-                        class="px-3 py-2 text-right text-[10px] font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                        class="px-3 py-2 text-right text-[10px] font-medium text-slate-500 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 select-none"
                         @click="toggleTicketSort('price')"
                       >
                         <span class="flex items-center justify-end gap-1">
                           Prix
-                          <span :class="ticketSortBy === 'price' ? 'text-green-600' : 'text-gray-300'">
+                          <span :class="ticketSortBy === 'price' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-300 dark:text-slate-600'">
                             {{ ticketSortBy === 'price' ? (ticketSortAsc ? '↑' : '↓') : '↕' }}
                           </span>
                         </span>
                       </th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-gray-100 text-xs">
-                    <tr v-for="ticket in orderedTickets" :key="ticket.id" class="hover:bg-gray-50">
-                      <td class="px-3 py-2 font-mono">{{ ticket.ticket_number }}</td>
-                      <td class="px-3 py-2">{{ ticket.seat_number }}</td>
-                      <td class="px-3 py-2">{{ ticket.to_station?.name || ticket.toStation?.name || '-' }}</td>
-                      <td class="px-3 py-2 text-right font-medium">{{ formatMoney(ticket.price) }}</td>
+                  <tbody class="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                    <tr v-for="ticket in orderedTickets" :key="ticket.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td class="px-3 py-2 font-mono text-slate-800 dark:text-slate-200">{{ ticket.ticket_number }}</td>
+                      <td class="px-3 py-2 text-slate-700 dark:text-slate-300">{{ ticket.seat_number }}</td>
+                      <td class="px-3 py-2 text-slate-700 dark:text-slate-300">{{ ticket.to_station?.name || ticket.toStation?.name || '-' }}</td>
+                      <td class="px-3 py-2 text-right font-medium text-slate-800 dark:text-slate-200">{{ formatMoney(ticket.price) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -683,14 +789,15 @@ const handlePrint = () => {
             <select
               id="route_id"
               v-model="form.route_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
-              <option value="">Sélectionner une route</option>
+              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner une route</option>
               <option
                 v-for="r in routes"
                 :key="r.id"
                 :value="r.id"
+                class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               >
                 {{ r.name }} ({{ r.origin_station?.name || r.originStation?.name || r.route_stop_orders?.[0]?.station?.name || r.routeStopOrders?.[0]?.station?.name || 'Départ' }} → {{ r.destination_station?.name || r.destinationStation?.name || r.route_stop_orders?.[r.route_stop_orders.length - 1]?.station?.name || r.routeStopOrders?.[r.routeStopOrders.length - 1]?.station?.name || 'Arrivée' }})
               </option>
@@ -703,14 +810,15 @@ const handlePrint = () => {
             <select
               id="vehicle_id"
               v-model="form.vehicle_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
-              <option value="">Sélectionner un véhicule</option>
+              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner un véhicule</option>
               <option
                 v-for="vehicle in vehicles"
                 :key="vehicle.id"
                 :value="vehicle.id"
+                class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               >
                 {{ vehicle.identifier }}
               </option>
@@ -729,9 +837,9 @@ const handlePrint = () => {
             <select
               id="status"
               v-model="form.status"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
             >
-              <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+              <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                 {{ opt.label }}
               </option>
             </select>
@@ -757,10 +865,10 @@ const handlePrint = () => {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #fed7aa;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #fdba74;
+  background: #94a3b8;
 }
 </style>
