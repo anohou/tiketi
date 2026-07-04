@@ -155,7 +155,7 @@ class OptimisationService
 
         if ($troncon === 'short') {
             $frontZoneSeats = $this->filterSeatsByPhysicalZone($availableSeats, $seatMapInfo, 'front');
-            if (! empty($frontZoneSeats)) {
+            if (count($frontZoneSeats) >= $maxSuggestions) {
                 $availableSeats = $frontZoneSeats;
             }
         }

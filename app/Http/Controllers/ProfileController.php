@@ -67,6 +67,19 @@ class ProfileController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
-        abort(403, 'La suppression de compte est désactivée.');
+        $request->validate([
+            'password' => ['required', 'current_password'],
+        ]);
+
+        $user = $request->user();
+
+        \Illuminate\Support\Facades\Auth::logout();
+
+        $user->delete();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return Redirect::to('/');
     }
 }

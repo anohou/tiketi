@@ -312,7 +312,7 @@ class TicketingFlowTest extends TestCase
             'trip_id' => $trip->id,
             'from_station_id' => $stations['a']->id,
             'to_station_id' => $stations['b']->id,
-            'seats' => [13],
+            'seats' => [3],
         ])->assertCreated();
 
         $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
@@ -321,13 +321,13 @@ class TicketingFlowTest extends TestCase
             'quantity' => 1,
         ]))->assertOk();
 
-        $this->assertSame(13, $first->json('suggested_seats.0.seat_number'));
+        $this->assertSame(3, $first->json('suggested_seats.0.seat_number'));
 
         $this->actingAs($admin)->postJson('/seller/tickets', [
             'trip_id' => $trip->id,
             'from_station_id' => $stations['b']->id,
             'to_station_id' => $stations['c']->id,
-            'seats' => [13],
+            'seats' => [3],
         ])->assertCreated();
 
         $second = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
@@ -336,7 +336,7 @@ class TicketingFlowTest extends TestCase
             'quantity' => 1,
         ]))->assertOk();
 
-        $this->assertNotSame(13, $second->json('suggested_seats.0.seat_number'));
+        $this->assertNotSame(3, $second->json('suggested_seats.0.seat_number'));
     }
 
     public function test_closed_trip_keeps_the_other_freed_seat_when_one_is_resold(): void
@@ -432,7 +432,7 @@ class TicketingFlowTest extends TestCase
         $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
             'destination_station_id' => $stations['c']->id,
             'boarding_station_id' => $stations['b']->id,
-            'quantity' => 2,
+            'quantity' => 50,
         ]))->assertOk();
 
         $firstSuggestions = collect($first->json('suggested_seats'))->pluck('seat_number')->all();
@@ -449,7 +449,7 @@ class TicketingFlowTest extends TestCase
         $second = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
             'destination_station_id' => $stations['c']->id,
             'boarding_station_id' => $stations['b']->id,
-            'quantity' => 2,
+            'quantity' => 50,
         ]))->assertOk();
 
         $secondSuggestions = collect($second->json('suggested_seats'))->pluck('seat_number')->all();
@@ -468,7 +468,7 @@ class TicketingFlowTest extends TestCase
             'trip_id' => $trip->id,
             'from_station_id' => $stations['a']->id,
             'to_station_id' => $stations['b']->id,
-            'seats' => [13],
+            'seats' => [3],
         ])->assertCreated();
 
         $seatMap = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/seat-map?".http_build_query([
@@ -479,8 +479,8 @@ class TicketingFlowTest extends TestCase
         $sellableA = collect($seatMap->json("sellable_seats_by_station.{$stations['a']->id}"))->map(fn ($seat) => (int) $seat)->all();
         $sellableB = collect($seatMap->json("sellable_seats_by_station.{$stations['b']->id}"))->map(fn ($seat) => (int) $seat)->all();
 
-        $this->assertContains(13, $sellableA);
-        $this->assertNotContains(13, $sellableB);
+        $this->assertContains(3, $sellableA);
+        $this->assertNotContains(3, $sellableB);
     }
 
     public function test_route_stop_management_syncs_terminal_stations(): void

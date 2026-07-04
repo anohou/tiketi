@@ -155,35 +155,42 @@ class TripSegmentService
             return [];
         }
 
-        $freedSeats = $trip->tripSeatOccupancies
-            ->filter(function (TripSeatOccupancy $occupancy) use ($stationId, $effectiveSalesStations) {
-                $ticket = $occupancy->ticket;
+        $mappedStations = [];
+        foreach ($effectiveSalesStations as $xId => $effId) {
+            if ($effId === $stationId) {
+                $mappedStations[] = $xId;
+            }
+        }
 
-                return $ticket
-                    && $ticket->status !== 'cancelled'
-                    && ($effectiveSalesStations[$ticket->to_station_id] ?? null) === $stationId;
-            })
-            ->pluck('seat_number')
-            ->map(fn ($seatNumber) => (int) $seatNumber)
-            ->unique()
-            ->values()
-            ->all();
+        $totalFreed = [];
+        foreach ($mappedStations as $xId) {
+            $freedAtX = $trip->tripSeatOccupancies
+                ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
+                    $ticket = $occupancy->ticket;
 
-        $resoldSeats = $trip->tripSeatOccupancies
-            ->filter(function (TripSeatOccupancy $occupancy) use ($stationId) {
-                $ticket = $occupancy->ticket;
+                    return $ticket && $ticket->status !== 'cancelled' && $ticket->to_station_id === $xId;
+                })
+                ->pluck('seat_number')
+                ->map(fn ($seatNumber) => (int) $seatNumber)
+                ->unique()
+                ->toArray();
 
-                return $ticket
-                    && $ticket->status !== 'cancelled'
-                    && $ticket->from_station_id === $stationId;
-            })
-            ->pluck('seat_number')
-            ->map(fn ($seatNumber) => (int) $seatNumber)
-            ->unique()
-            ->values()
-            ->all();
+            $resoldAtX = $trip->tripSeatOccupancies
+                ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
+                    $ticket = $occupancy->ticket;
 
-        return array_values(array_diff($freedSeats, $resoldSeats));
+                    return $ticket && $ticket->status !== 'cancelled' && $ticket->from_station_id === $xId;
+                })
+                ->pluck('seat_number')
+                ->map(fn ($seatNumber) => (int) $seatNumber)
+                ->unique()
+                ->toArray();
+
+            $netFreedAtX = array_diff($freedAtX, $resoldAtX);
+            $totalFreed = array_merge($totalFreed, $netFreedAtX);
+        }
+
+        return array_values(array_unique($totalFreed));
     }
 
     /**
