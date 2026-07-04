@@ -8,12 +8,18 @@ import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Seat from 'vue-material-design-icons/Seat.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
+import Routes from 'vue-material-design-icons/Routes.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Minus from 'vue-material-design-icons/Minus.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
+import DialogModal from '@/Components/DialogModal.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue';
 import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
+import SkeletonLoader from '@/Components/SkeletonLoader.vue';
+import EmptyState from '@/Components/EmptyState.vue';
 
 const props = defineProps({
     initialSelectedTripId: {
@@ -27,6 +33,8 @@ const loading = ref(false);
 const selectedTripId = ref(props.initialSelectedTripId);
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
+const showRouteSchemaModal = ref(false);
+const selectedRouteSchemaTrip = ref(null);
 
 // Zoom controls
 const zoomLevel = ref(1);
@@ -59,12 +67,25 @@ const fetchTrips = async () => {
     loading.value = true;
     try {
         const response = await axios.get(route('trips.index'));
-        // Filter for today or future trips
-        const now = new Date().setHours(0, 0, 0, 0);
-        trips.value = response.data.filter(trip => {
-            const departure = new Date(trip.departure_at).getTime();
-            return departure >= now;
-        });
+        const now = Date.now();
+
+        trips.value = response.data
+            .filter(trip => {
+                const departure = new Date(trip.departure_at).getTime();
+                return departure >= new Date().setHours(0, 0, 0, 0);
+            })
+            .sort((a, b) => {
+                const aDeparture = new Date(a.departure_at).getTime();
+                const bDeparture = new Date(b.departure_at).getTime();
+                const aPast = aDeparture < now;
+                const bPast = bDeparture < now;
+
+                if (aPast !== bPast) {
+                    return aPast ? 1 : -1;
+                }
+
+                return aDeparture - bDeparture;
+            });
     } catch (error) {
         console.error("Erreur lors de la récupération des voyages:", error);
     } finally {
@@ -220,6 +241,145 @@ const selectedTrip = computed(() => {
     return trips.value.find(t => t.id === selectedTripId.value);
 });
 
+const assignedStation = computed(() => page.props.assignedStations?.[0] || null);
+const assignedStationId = computed(() => assignedStation.value?.id || null);
+const isTripHighlighted = (tripId) => !!ticketingStore.tripHighlights?.[String(tripId)];
+
+const buildTripStationIndices = (trip) => {
+    const routeObj = trip?.route;
+    if (!routeObj) return {};
+
+    const orderedStationIds = [];
+    const addStation = (stationId) => {
+        if (stationId && !orderedStationIds.includes(stationId)) {
+            orderedStationIds.push(stationId);
+        }
+    };
+
+    addStation(routeObj.origin_station_id);
+    const stops = [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+    stops.forEach((stop) => addStation(stop.station_id || stop.station?.id));
+    addStation(routeObj.destination_station_id);
+
+    const isReversedTrip = trip?.origin_station_id &&
+        routeObj.origin_station_id &&
+        trip.origin_station_id !== routeObj.origin_station_id;
+
+    const directionStations = isReversedTrip ? [...orderedStationIds].reverse() : orderedStationIds;
+
+    return directionStations.reduce((map, stationId, index) => {
+        map[stationId] = index;
+        return map;
+    }, {});
+};
+
+const routeHuePalette = [
+    220,
+    270,
+    25,
+    165,
+    330,
+    195,
+    140,
+    350,
+];
+
+const getContrastingTextColor = (backgroundColor) => {
+    if (typeof backgroundColor !== 'string') return '#FFFFFF';
+    const color = backgroundColor.trim().toLowerCase();
+    const hexMatch = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hexMatch) {
+        const hex = hexMatch[1].length === 3
+            ? hexMatch[1].split('').map((char) => char + char).join('')
+            : hexMatch[1];
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.62 ? '#0F172A' : '#FFFFFF';
+    }
+    return '#FFFFFF';
+};
+
+const getRouteStationColor = (stationIndex) => {
+    const safeIndex = Number.isFinite(stationIndex) && stationIndex >= 0 ? stationIndex : 0;
+    const hue = routeHuePalette[safeIndex % routeHuePalette.length];
+    const lightness = safeIndex === 0 ? 44 : Math.max(40, 52 - (safeIndex * 2));
+
+    return {
+        bg: `hsl(${hue}, 80%, ${lightness}%)`,
+        fg: '#FFFFFF',
+    };
+};
+
+const currentStationPalette = computed(() => {
+    if (!selectedTrip.value || !assignedStationId.value) return null;
+
+    const stationIndexMap = buildTripStationIndices(selectedTrip.value);
+    const stationIndex = stationIndexMap[assignedStationId.value];
+    if (stationIndex === undefined) return null;
+
+    return getRouteStationColor(stationIndex);
+});
+
+const currentStationSellableSeatNumbers = computed(() => {
+    if (!assignedStationId.value) return [];
+    const sellableSeatsByStation = seatMap.value?.sellable_seats_by_station || {};
+    return (sellableSeatsByStation[assignedStationId.value] || [])
+        .map((seatNumber) => Number(seatNumber))
+        .filter((seatNumber) => Number.isFinite(seatNumber));
+});
+
+const currentStationSellableSeatBorderColor = computed(() => currentStationPalette.value?.bg || null);
+
+const getTripRouteSchema = (trip) => {
+    const routeObj = trip?.route;
+    if (!routeObj) return [];
+
+    const orderedStationIds = [];
+    const orderedStations = [];
+    const addStation = (station) => {
+        const stationId = station?.id || station?.station_id || station;
+        if (!stationId || orderedStationIds.includes(stationId)) return;
+        orderedStationIds.push(stationId);
+        orderedStations.push(station);
+    };
+
+    addStation(routeObj.origin_station || { id: routeObj.origin_station_id, name: routeObj.origin_station?.name });
+    const stops = [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+    stops.forEach((stop) => addStation(stop.station || { id: stop.station_id, name: stop.station?.name }));
+    addStation(routeObj.destination_station || { id: routeObj.destination_station_id, name: routeObj.destination_station?.name });
+
+    const stationIndexMap = buildTripStationIndices(trip);
+    return orderedStations.map((station, index) => {
+        const stationId = station?.id || station?.station_id;
+        const palette = getRouteStationColor(stationIndexMap[stationId] ?? index);
+        return {
+            id: stationId,
+            name: station?.name || 'Station',
+            color: palette.bg,
+            textColor: getContrastingTextColor(palette.bg),
+        };
+    });
+};
+
+const selectedRouteSchemaStops = computed(() => {
+    if (!selectedRouteSchemaTrip.value) return [];
+    return getTripRouteSchema(selectedRouteSchemaTrip.value);
+});
+
+const openRouteSchemaModal = (trip) => {
+    if (!trip) return;
+    selectedRouteSchemaTrip.value = trip;
+    showRouteSchemaModal.value = true;
+};
+
+const closeRouteSchemaModal = () => {
+    showRouteSchemaModal.value = false;
+};
+
 const filteredTrips = computed(() => {
     let result = trips.value;
     const destName = ticketingStore.selectedDestinationId;
@@ -239,8 +399,25 @@ watch(seatMap, () => { seatMapKey.value++; });
 
 // Vehicle type: prefer seatMap response (always available), fallback to trip data
 const vehicleType = computed(() => {
-    return seatMap.value?.vehicle_type || selectedTrip.value?.vehicle?.vehicle_type;
+    return seatMap.value?.vehicle_type
+        || seatMap.value?.type
+        || selectedTrip.value?.vehicle?.vehicle_type
+        || selectedTrip.value?.vehicle?.vehicleType
+        || null;
 });
+
+const resolvedVehicleType = computed(() => {
+    if (vehicleType.value) return vehicleType.value;
+
+    return {
+        seat_configuration: '2+2',
+        door_positions: [],
+        seat_map: [],
+        seat_count: seatMap.value?.total_seats || selectedTrip.value?.vehicle?.seat_count || 0,
+    };
+});
+
+const seatMapReady = computed(() => Boolean(seatMap.value && seatStats.value));
 
 const selectedSeatColor = '#22C55E';
 
@@ -249,7 +426,8 @@ const seatStats = computed(() => {
     if (!seatMap.value || !seatMap.value.seat_map) return null;
     return {
         total: seatMap.value.total_seats || 0,
-        occupied: seatMap.value.occupied_seats_count || seatMap.value.occupied_seats || 0,
+        soldTickets: seatMap.value.sold_tickets_count || seatMap.value.tickets_count || 0,
+        occupiedSeats: seatMap.value.occupied_seats_count || seatMap.value.occupied_seats || 0,
         available: seatMap.value.available_seats_count || seatMap.value.available_seats || 0
     };
 });
@@ -262,24 +440,24 @@ const getOccupancyRate = (available, total) => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-white border-l border-orange-100 overflow-hidden shadow-xl w-[320px]">
+    <div class="flex flex-col h-full bg-white border-l border-slate-200 overflow-hidden shadow-xl w-[320px] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30">
         <!-- Header -->
-        <div class="p-5 bg-gradient-to-br from-green-50 to-orange-50/30 border-b border-orange-50 flex items-center justify-between shrink-0">
+        <div class="p-5 bg-gradient-to-br from-emerald-50 to-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950">
             <div>
-                <h2 class="text-base font-black text-gray-800 flex items-center gap-2">
-                    <Bus :size="20" class="text-green-600" />
+                <h2 class="text-base font-black text-slate-800 flex items-center gap-2 dark:text-slate-100">
+                    <Bus :size="20" class="text-emerald-600 dark:text-emerald-400" />
                     Voyages
                 </h2>
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Plan & Occupations</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider dark:text-slate-400">Plan & Occupations</p>
             </div>
             <div class="flex items-center gap-2">
-                <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-orange-100 transition-all text-gray-400 hover:text-green-600 disabled:opacity-50">
+                <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-emerald-600 disabled:opacity-50 dark:hover:bg-slate-800">
                     <Refresh :size="18" :class="{ 'animate-spin': loading }" />
                 </button>
                 <Link
                     v-if="selectedTripId"
                     :href="route('seller.ticketing.horizontal', { trip_id: selectedTripId })"
-                    class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-orange-100 transition-all text-gray-400 hover:text-blue-600"
+                    class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     title="Vue horizontale"
                 >
                     <svg viewBox="0 0 24 24" aria-hidden="true" class="w-[18px] h-[18px]">
@@ -296,64 +474,78 @@ const getOccupancyRate = (available, total) => {
         <template v-if="isTicketingPage">
             <div class="flex-1 flex flex-col overflow-hidden">
                 <!-- Compact selected trip info -->
-                <div v-if="selectedTrip" class="px-3 py-2 bg-green-50/50 border-b border-green-100">
+                <div v-if="selectedTrip" class="px-3 py-2 bg-emerald-50/60 border-b border-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/10">
                     <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse shrink-0"></div>
-                        <div class="text-xs font-bold text-gray-900 truncate">{{ selectedTrip.display_name || selectedTrip.route?.name }}</div>
+                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
+                        <div class="text-xs font-bold text-slate-900 whitespace-normal break-words leading-snug dark:text-slate-100">{{ selectedTrip.display_name || selectedTrip.route?.name }}</div>
                     </div>
-                <div class="flex items-center gap-2 mt-0.5 pl-3.5">
-                    <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">{{ selectedTrip.vehicle?.identifier }}</span>
-                    <span class="text-[10px] font-bold text-gray-400">{{ formatTime(selectedTrip.departure_at) }}</span>
+                    <div class="flex items-center gap-2 mt-0.5 pl-3.5 flex-wrap">
+                        <span class="text-[10px] font-black text-emerald-700 uppercase tracking-widest dark:text-emerald-300">{{ selectedTrip.vehicle?.identifier }}</span>
+                        <span class="text-[10px] font-bold text-slate-400 dark:text-slate-400">{{ formatTime(selectedTrip.departure_at) }}</span>
+                        <button
+                            type="button"
+                            @click.stop="openRouteSchemaModal(selectedTrip)"
+                            class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-white hover:text-emerald-800 dark:border-emerald-900/60 dark:bg-slate-950/40 dark:text-emerald-300 dark:hover:border-emerald-700"
+                            title="Voir le schéma du trajet"
+                        >
+                            <Routes :size="12" />
+                            Schéma
+                        </button>
+                    </div>
                 </div>
-            </div>
 
                 <!-- Loading State -->
-                <div v-if="seatMapLoading" class="flex-1 flex flex-col items-center justify-center">
-                    <div class="animate-spin mb-2"><Refresh :size="24" class="text-green-600" /></div>
-                    <span class="text-xs text-gray-500">Chargement du plan...</span>
+                <div v-if="seatMapLoading" class="flex-1 p-4 bg-white dark:bg-slate-900">
+                    <SkeletonLoader type="list" :count="4" />
                 </div>
 
                 <!-- Seat Map -->
-                <template v-else-if="seatMap && seatStats && vehicleType">
+                <template v-else-if="seatMapReady">
                     <!-- Stats Row -->
-                    <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100 shrink-0">
+                    <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
                         <div class="flex items-center gap-1 text-xs">
-                            <span class="font-bold text-gray-500">Cap</span>
-                            <span class="font-black text-gray-800">{{ seatStats.total }}</span>
-                            <span class="mx-1 text-gray-300">|</span>
+                            <span class="font-bold text-gray-500 dark:text-slate-400">Cap</span>
+                            <span class="font-black text-gray-800 dark:text-slate-100">{{ seatStats.total }}</span>
+                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
+                            <span class="font-bold text-blue-500">Bil</span>
+                            <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
+                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
                             <span class="font-bold text-red-500">Occ</span>
-                            <span class="font-black text-red-600">{{ seatStats.occupied }}</span>
-                            <span class="mx-1 text-gray-300">|</span>
-                            <span class="font-bold text-green-500">Lib</span>
-                            <span class="font-black text-green-600">{{ seatStats.available }}</span>
-                            <span class="mx-1 text-gray-300">|</span>
-                            <span class="font-bold text-blue-500">Occ</span>
-                            <span class="font-black text-blue-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
+                            <span class="font-black text-red-600">{{ seatStats.occupiedSeats }}</span>
+                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-emerald-500">Lib</span>
+                                <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
+                                <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-sky-500">Occ</span>
+                                <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                         </div>
                         <!-- Zoom Controls -->
-                        <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
-                            <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom -">
+                        <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200 dark:border-slate-700 dark:bg-slate-900">
+                            <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
                                 <Minus :size="12" class="text-gray-600" />
                             </button>
-                            <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center">{{ Math.round(zoomLevel * 100) }}%</span>
-                            <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom +">
+                            <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center dark:text-slate-400">{{ Math.round(zoomLevel * 100) }}%</span>
+                            <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom +">
                                 <Plus :size="12" class="text-gray-600" />
                             </button>
                         </div>
                     </div>
 
                     <!-- Seat Map SVG - Full remaining height -->
-                    <div class="flex-1 bg-white relative overflow-auto">
+                    <div class="flex-1 bg-white relative overflow-auto dark:bg-slate-900">
                         <div class="w-full h-full flex items-center justify-center"
                              :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }">
                             <VehicleSeatMapSVG
+                                v-if="seatMapReady"
                                 :key="seatMapKey"
                                 :seat-map="seatMap"
-                                :vehicle-type="vehicleType"
+                                :vehicle-type="resolvedVehicleType"
                                 :suggested-seats="ticketingStore.suggestedSeats"
                                 :selected-seat="ticketingStore.selectedSeat"
                                 :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
+                                :sellable-seat-numbers="currentStationSellableSeatNumbers"
+                                :sellable-seat-border-color="currentStationSellableSeatBorderColor"
                                 @seat-click="handleSeatClick"
                                 class="w-full h-full"
                             />
@@ -362,7 +554,7 @@ const getOccupancyRate = (available, total) => {
                 </template>
 
                 <!-- No trip selected -->
-                <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4">
+                <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4 dark:text-slate-500">
                     <Bus :size="32" class="mb-2 opacity-30" />
                     <p class="text-xs text-center">Sélectionnez un voyage pour voir le plan</p>
                 </div>
@@ -371,92 +563,122 @@ const getOccupancyRate = (available, total) => {
 
         <!-- OTHER PAGES: Show full trip list with expandable seat maps -->
         <div v-else class="flex-1 overflow-y-auto p-3 space-y-3">
-            <div v-if="loading && trips.length === 0" class="flex flex-col items-center justify-center py-10 text-gray-400">
-                <div class="animate-spin mb-2"><Refresh :size="32" /></div>
-                <span>Chargement des voyages...</span>
+            <div v-if="loading && trips.length === 0" class="p-4 bg-white rounded-2xl dark:bg-slate-900">
+                <SkeletonLoader type="list" :count="5" />
             </div>
 
-            <div v-else-if="trips.length === 0" class="text-center py-10 text-gray-500 italic px-4">
-                Aucun voyage disponible pour le moment.
+            <div v-else-if="trips.length === 0" class="py-6">
+                <EmptyState
+                    title="Aucun voyage disponible"
+                    message="Aucun voyage n'est programmé pour le moment."
+                    :icon="Bus"
+                />
             </div>
 
-            <div v-else-if="filteredTrips.length === 0" class="text-center py-10 text-gray-500 italic px-4">
-                Aucun voyage ne correspond à cette destination.
+            <div v-else-if="filteredTrips.length === 0" class="py-6">
+                <EmptyState
+                    title="Aucun résultat"
+                    message="Aucun voyage ne correspond à la destination sélectionnée."
+                    :icon="Bus"
+                />
             </div>
 
             <div v-else v-for="trip in filteredTrips" :key="trip.id"
                 class="border-2 rounded-2xl overflow-hidden transition-all duration-300"
-                :class="selectedTripId === trip.id ? 'border-green-500 shadow-lg' : 'border-transparent bg-gray-50 hover:border-orange-200 hover:bg-white hover:shadow-md'"
+                :class="[
+                  selectedTripId === trip.id
+                    ? 'border-emerald-500 shadow-lg'
+                    : isTripHighlighted(trip.id)
+                      ? 'border-amber-400 shadow-xl shadow-amber-200/60 ring-2 ring-amber-200 dark:ring-amber-900/40 dark:shadow-amber-950/20'
+                      : 'border-transparent bg-slate-50 hover:border-emerald-200 hover:bg-white hover:shadow-md dark:bg-slate-900 dark:hover:border-emerald-800 dark:hover:bg-slate-800'
+                ]"
             >
                 <!-- Trip Summary Header -->
                 <div @click="selectTrip(trip)"
                     class="p-3 cursor-pointer"
-                    :class="selectedTripId === trip.id ? 'bg-green-50/50' : ''"
+                    :class="[
+                      selectedTripId === trip.id ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : '',
+                      isTripHighlighted(trip.id) ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''
+                    ]"
                 >
                     <div class="flex items-center gap-2 mb-1">
-                        <Bus :size="16" :class="selectedTripId === trip.id ? 'text-green-600' : 'text-gray-400'" />
-                        <div class="text-sm font-bold text-gray-900 tracking-tight leading-snug">{{ trip.display_name || trip.route?.name }}</div>
+                        <Bus :size="16" :class="selectedTripId === trip.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'" />
+                        <div class="text-sm font-bold text-slate-900 tracking-tight leading-snug whitespace-normal break-words dark:text-slate-100">{{ trip.display_name || trip.route?.name }}</div>
                         <span
                             :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
                             class="text-xs shrink-0"
                         >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
-                        <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                        <span v-if="isTripHighlighted(trip.id)" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <button
+                            type="button"
+                            @click.stop="openRouteSchemaModal(trip)"
+                            class="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-600 shadow-sm transition-all hover:border-emerald-200 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-emerald-800 dark:hover:text-emerald-300"
+                            title="Voir le schéma du trajet"
+                        >
+                            <Routes :size="12" />
+                            Schéma
+                        </button>
                     </div>
                     <div class="flex items-center gap-3 pl-6">
-                        <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                        <span class="text-[10px] font-black text-emerald-700 uppercase tracking-widest dark:text-emerald-300">
                             {{ trip.vehicle?.identifier }}
                         </span>
-                        <span class="text-[10px] font-bold text-gray-400">
+                        <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">
                             {{ formatTime(trip.departure_at) }}
                         </span>
-                        <ChevronRight v-if="selectedTripId !== trip.id" :size="14" class="text-gray-400 ml-auto" />
+                        <ChevronRight v-if="selectedTripId !== trip.id" :size="14" class="text-slate-400 ml-auto dark:text-slate-500" />
                     </div>
                 </div>
 
                 <!-- Expanded Content (Seat Map) -->
-                <div v-if="selectedTripId === trip.id" class="border-t border-green-100 bg-white">
-                    <div v-if="seatMapLoading" class="flex flex-col items-center justify-center py-8">
-                        <div class="animate-spin mb-2"><Refresh :size="24" class="text-green-600" /></div>
-                        <span class="text-xs text-gray-500">Chargement du plan...</span>
+                <div v-if="selectedTripId === trip.id" class="border-t border-emerald-100 bg-white dark:border-emerald-900/40 dark:bg-slate-900">
+                    <div v-if="seatMapLoading" class="p-4 bg-white dark:bg-slate-900">
+                        <SkeletonLoader type="list" :count="3" />
                     </div>
 
                     <div v-else-if="seatMap">
                         <!-- Compact Stats Row -->
-                        <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100">
-                            <div class="flex items-center gap-1 text-xs">
-                                <span class="font-bold text-gray-500">Cap</span>
-                                <span class="font-black text-gray-800">{{ seatStats.total }}</span>
-                                <span class="mx-1 text-gray-300">|</span>
-                                <span class="font-bold text-red-500">Occ</span>
-                                <span class="font-black text-red-600">{{ seatStats.occupied }}</span>
-                                <span class="mx-1 text-gray-300">|</span>
-                                <span class="font-bold text-green-500">Lib</span>
-                                <span class="font-black text-green-600">{{ seatStats.available }}</span>
+                        <div class="px-3 py-2 flex items-center justify-between bg-slate-50 border-b border-slate-100 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div class="flex items-center gap-1 text-xs">
+                            <span class="font-bold text-slate-500 dark:text-slate-400">Cap</span>
+                            <span class="font-black text-slate-800 dark:text-slate-100">{{ seatStats.total }}</span>
+                            <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-blue-500">Bil</span>
+                                <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
+                                <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-rose-500">Occ</span>
+                                <span class="font-black text-rose-600">{{ seatStats.occupiedSeats }}</span>
+                                <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-emerald-500">Lib</span>
+                                <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
                             </div>
-                            <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200">
-                                <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom -">
-                                    <Minus :size="12" class="text-gray-600" />
+                            <div class="flex items-center gap-0.5 bg-white rounded border border-slate-200 dark:border-slate-700 dark:bg-slate-900">
+                                <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-slate-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
+                                    <Minus :size="12" class="text-slate-600" />
                                 </button>
-                                <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center">{{ Math.round(zoomLevel * 100) }}%</span>
-                                <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all" title="Zoom +">
-                                    <Plus :size="12" class="text-gray-600" />
+                                <span class="text-[10px] font-bold text-slate-500 px-1 min-w-[32px] text-center dark:text-slate-400">{{ Math.round(zoomLevel * 100) }}%</span>
+                                <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-slate-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom +">
+                                    <Plus :size="12" class="text-slate-600" />
                                 </button>
                             </div>
                         </div>
 
                         <!-- Interactive Seat Map -->
-                        <div class="bg-white relative overflow-auto" style="height: calc(100vh - 220px); min-height: 400px;">
+                        <div class="bg-white relative overflow-auto dark:bg-slate-900" style="height: calc(100vh - 220px); min-height: 400px;">
                             <div class="w-full h-full flex items-center justify-center"
                                  :style="{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }">
                                 <VehicleSeatMapSVG
-                                    v-if="vehicleType"
-                                    :key="seatMapKey"
-                                    :seat-map="seatMap"
-                                    :vehicle-type="vehicleType"
-                                    :suggested-seats="ticketingStore.suggestedSeats"
-                                    :selected-seat="ticketingStore.selectedSeat"
-                                    :selected-color="selectedSeatColor"
+                                v-if="seatMapReady"
+                                :key="seatMapKey"
+                                :seat-map="seatMap"
+                                :vehicle-type="resolvedVehicleType"
+                                :suggested-seats="ticketingStore.suggestedSeats"
+                                :selected-seat="ticketingStore.selectedSeat"
+                                :selected-color="selectedSeatColor"
                                     :show-suggestions="ticketingStore.showSuggestions"
+                                    :sellable-seat-numbers="currentStationSellableSeatNumbers"
+                                    :sellable-seat-border-color="currentStationSellableSeatBorderColor"
                                     @seat-click="handleSeatClick"
                                     class="w-full h-full"
                                 />
@@ -464,10 +686,10 @@ const getOccupancyRate = (available, total) => {
                         </div>
 
                         <!-- "Vendre" button -->
-                        <div class="p-3 border-t border-gray-100">
+                        <div class="p-3 border-t border-slate-100 dark:border-slate-800">
                             <button
                                 @click="router.visit(route('seller.ticketing', { trip_id: trip.id }))"
-                                class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-green-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+                                class="w-full bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <Seat :size="14" />
                                 Vendre sur ce voyage
@@ -477,6 +699,43 @@ const getOccupancyRate = (available, total) => {
                 </div>
             </div>
         </div>
+
+        <DialogModal :show="showRouteSchemaModal" @close="closeRouteSchemaModal" maxWidth="5xl">
+            <template #title>
+                <div class="flex flex-col gap-1">
+                    <span class="text-2xl font-bold text-slate-900 dark:text-slate-100">Schéma du trajet</span>
+                    <span v-if="selectedRouteSchemaTrip" class="text-sm text-slate-500 dark:text-slate-400">
+                        {{ selectedRouteSchemaTrip.display_name || selectedRouteSchemaTrip.route?.name }}
+                    </span>
+                </div>
+            </template>
+            <template #content>
+                <div v-if="!selectedRouteSchemaTrip" class="py-8 text-center text-slate-500 dark:text-slate-400">
+                    Aucun voyage sélectionné.
+                </div>
+                <div v-else-if="selectedRouteSchemaStops.length === 0" class="py-8 text-center text-slate-500 dark:text-slate-400">
+                    Aucun arrêt n’est encore configuré pour ce trajet.
+                </div>
+                <div v-else class="space-y-4">
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
+                            Trajet: {{ selectedRouteSchemaTrip.display_name || selectedRouteSchemaTrip.route?.name }}
+                        </span>
+                        <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">
+                            {{ selectedRouteSchemaStops.length }} gare(s)
+                        </span>
+                    </div>
+                    <RouteSchemaDiagram
+                        :stops="selectedRouteSchemaStops"
+                        variant="colored"
+                        class="shadow-sm"
+                    />
+                </div>
+            </template>
+            <template #footer>
+                <SecondaryButton @click="closeRouteSchemaModal">Fermer</SecondaryButton>
+            </template>
+        </DialogModal>
     </div>
 </template>
 
@@ -489,10 +748,10 @@ div::-webkit-scrollbar-track {
     background: transparent;
 }
 div::-webkit-scrollbar-thumb {
-    background: rgba(234, 88, 12, 0.1);
+    background: rgba(16, 185, 129, 0.12);
     border-radius: 10px;
 }
 div:hover::-webkit-scrollbar-thumb {
-    background: rgba(234, 88, 12, 0.2);
+    background: rgba(16, 185, 129, 0.24);
 }
 </style>

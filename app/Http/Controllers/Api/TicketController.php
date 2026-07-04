@@ -61,7 +61,7 @@ class TicketController extends Controller
         // Restriction station vendeur
         $user = auth()->user();
         if ($user->role === 'seller') {
-            $assignedStationIds = $user->stationAssignments()->where('active', true)->pluck('station_id')->toArray();
+            $assignedStationIds = $user->getActiveStationIds();
 
             if (! in_array($fromStationId, $assignedStationIds)) {
                 return $this->errorResponse($request, 'Vous n\'êtes pas autorisé à vendre des tickets au départ de cette station.', 403);
@@ -160,13 +160,24 @@ class TicketController extends Controller
 
             // Broadcast seat map update
             try {
+                $broadcastTrip = Trip::with([
+                    'route.routeStopOrders',
+                    'originStation',
+                    'destinationStation',
+                    'vehicle.vehicleType',
+                ])->findOrFail($trip->id);
                 $changedSeats = array_map(fn ($t) => [
                     'seat_number' => $t->seat_number,
                     'status' => 'occupied',
                     'ticket_id' => $t->id,
                     'to_station_id' => $t->to_station_id,
                 ], $tickets);
-                event(new SeatMapUpdated($trip->id, $changedSeats));
+                event(new SeatMapUpdated(
+                    $broadcastTrip,
+                    $changedSeats,
+                    'ticket.created',
+                    $sellerStationId
+                ));
             } catch (\Exception $e) {
                 Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
             }
@@ -261,9 +272,12 @@ class TicketController extends Controller
             DB::commit();
 
             try {
-                event(new SeatMapUpdated($tripId, [
+                $trip = Trip::with(['route.routeStopOrders', 'originStation', 'destinationStation', 'vehicle.vehicleType'])->find($tripId);
+                if ($trip) {
+                    event(new SeatMapUpdated($trip, [
                     ['seat_number' => $seatNumber, 'status' => 'available'],
-                ]));
+                ], 'ticket.cancelled'));
+                }
             } catch (\Exception $e) {
                 Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
             }
@@ -296,38 +310,9 @@ class TicketController extends Controller
             ], 401);
         }
 
-        $ticketsQuery = Ticket::query()
-            ->with(['trip.route', 'trip.vehicle.vehicleType', 'seller', 'fromStation', 'toStation'])
-            ->orderBy('created_at', 'desc');
-
-        // Filter by date range if provided
-        if ($request->filled('start_date')) {
-            $ticketsQuery->whereDate('created_at', '>=', $request->get('start_date'));
-        } else {
-            $ticketsQuery->whereDate('created_at', today());
-        }
-        if ($request->filled('end_date')) {
-            $ticketsQuery->whereDate('created_at', '<=', $request->get('end_date'));
-        }
-
-        // Filter by trip_id if provided
-        if ($request->filled('trip_id')) {
-            $ticketsQuery->where('trip_id', $request->get('trip_id'));
-        }
-
-        // Sellers can only export their own tickets
-        if ($user->role === 'seller') {
-            $ticketsQuery->where('seller_id', $user->id);
-        }
-
-        // Filter by status
-        if ($request->filled('status')) {
-            $ticketsQuery->where('status', $request->get('status'));
-        } else {
-            $ticketsQuery->where('status', '!=', 'cancelled');
-        }
-
-        $tickets = $ticketsQuery->get();
+        $tickets = app(\App\Services\TicketQueryService::class)
+            ->getFilteredTicketsQuery($request, $user)
+            ->get();
 
         $exportData = $tickets->map(function ($ticket) {
             return [

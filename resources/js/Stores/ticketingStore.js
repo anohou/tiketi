@@ -12,6 +12,8 @@ export const ticketingStore = reactive({
     lastRevertedSeat: null,
     clickTimestamp: 0,
     selectedDestinationId: '',
+    tripHighlights: {},
+    _tripHighlightTimers: {},
 
     setDestinationFilter(id) {
         this.selectedDestinationId = id;
@@ -52,6 +54,30 @@ export const ticketingStore = reactive({
     notifySeatReverted(seatOrSeats) {
         const seats = Array.isArray(seatOrSeats) ? seatOrSeats : [seatOrSeats];
         this.lastRevertedSeat = { seats, ts: Date.now() };
+    },
+
+    pulseTrip(tripId, payload = {}) {
+        if (!tripId) return;
+
+        const key = String(tripId);
+        this.tripHighlights = {
+            ...this.tripHighlights,
+            [key]: {
+                ...payload,
+                ts: Date.now(),
+            },
+        };
+
+        if (this._tripHighlightTimers[key]) {
+            clearTimeout(this._tripHighlightTimers[key]);
+        }
+
+        this._tripHighlightTimers[key] = setTimeout(() => {
+            const nextHighlights = { ...this.tripHighlights };
+            delete nextHighlights[key];
+            this.tripHighlights = nextHighlights;
+            delete this._tripHighlightTimers[key];
+        }, 4000);
     },
 
     clearSelection() {
