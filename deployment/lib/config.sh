@@ -177,7 +177,7 @@ DB_NAME="${DB_NAME:-$(_cfg database db_name)}"
 BACKUP_OUTPUT_DIR="${BACKUP_OUTPUT_DIR:-$(_cfg backup output_dir)}"
 
 # networks.*
-TRAEFIK_SWARM_NETWORK="${TRAEFIK_SWARM_NETWORK:-$(_cfg networks traefik_swarm_network)}"
+TRAEFIK_NETWORK="${TRAEFIK_NETWORK:-$(_cfg networks traefik_network)}"
 DB_NETWORK="${DB_NETWORK:-$(_cfg networks db)}"
 
 # traefik.*
@@ -245,7 +245,7 @@ export APP_NAME APP_SLUG APP_URL APP_DOMAIN FRONTEND_URL CORS_ALLOWED_ORIGINS AP
        TENANT_SMOKE_HOSTS CLOUDFLARE_CACHE_PURGE_PATHS \
        COMMON_ENV_PATH DB_ADMIN_ENV_PATH PROJECT_ENV_PATH \
        POSTGRES_CONTAINER MYSQL_CONTAINER DB_NAME BACKUP_OUTPUT_DIR \
-       TRAEFIK_SWARM_NETWORK DB_NETWORK \
+       TRAEFIK_NETWORK DB_NETWORK \
        TRAEFIK_CERT_RESOLVER TRAEFIK_DYNAMIC_DIR \
        NGINX_IMAGE QUEUE_WORKER_ENABLED SCHEDULER_ENABLED REVERB_ENABLED REVERB_PATH REVERB_PORT \
        CREATE_ADMIN_MODE CREATE_ADMIN_COMMAND CREATE_ADMIN_SYNC_COMMAND \
@@ -299,21 +299,21 @@ ensure_docker_networks() {
 
     traefik_container="$(docker ps --format '{{.Names}}' | grep 'traefik' | head -1 || true)"
 
-    if docker network inspect "${TRAEFIK_SWARM_NETWORK}" > /dev/null 2>&1; then
-        echo "[config] ✓ Traefik network '${TRAEFIK_SWARM_NETWORK}' exists" >&2
+    if docker network inspect "${TRAEFIK_NETWORK}" > /dev/null 2>&1; then
+        echo "[config] ✓ Traefik network '${TRAEFIK_NETWORK}' exists" >&2
     else
         if [[ -n "${traefik_container}" ]]; then
             traefik_networks="$(docker inspect "${traefik_container}" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{printf "%s " $name}}{{end}}' 2>/dev/null || true)"
-            echo "[config] ERROR: Traefik network '${TRAEFIK_SWARM_NETWORK}' not found." >&2
+            echo "[config] ERROR: Traefik network '${TRAEFIK_NETWORK}' not found." >&2
             echo "[config]   Running Traefik container '${traefik_container}' is attached to: ${traefik_networks:-<unknown>}" >&2
-            echo "[config]   Update TRAEFIK_SWARM_NETWORK to the ingress network Traefik actually uses." >&2
+            echo "[config]   Update TRAEFIK_NETWORK to the ingress network Traefik actually uses." >&2
             ok=false
         else
-            echo "[config] Traefik network '${TRAEFIK_SWARM_NETWORK}' not found — creating ..." >&2
-            if docker network create --driver bridge --label "managed-by=deployment-kit" "${TRAEFIK_SWARM_NETWORK}" > /dev/null; then
-                echo "[config] ✓ Created network: ${TRAEFIK_SWARM_NETWORK}" >&2
+            echo "[config] Traefik network '${TRAEFIK_NETWORK}' not found — creating ..." >&2
+            if docker network create --driver bridge --label "managed-by=deployment-kit" "${TRAEFIK_NETWORK}" > /dev/null; then
+                echo "[config] ✓ Created network: ${TRAEFIK_NETWORK}" >&2
             else
-                echo "[config] ERROR: Failed to create Traefik network '${TRAEFIK_SWARM_NETWORK}'" >&2
+                echo "[config] ERROR: Failed to create Traefik network '${TRAEFIK_NETWORK}'" >&2
                 ok=false
             fi
         fi

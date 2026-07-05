@@ -11,9 +11,14 @@ on:
         options:
           - production
           - staging
+  schedule:
+    - cron: "17 4 * * 1"
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.inputs.environment || 'production' }}

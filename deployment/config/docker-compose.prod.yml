@@ -41,7 +41,7 @@ services:
       DEPLOY_COLOR: "${DEPLOY_COLOR:-${COMPOSE_PROJECT_NAME}}"
     networks:
       app-network:
-      traefik_swarm_network:
+      traefik_network:
         aliases:
           - "${COMPOSE_PROJECT_NAME}-nginx"
     security_opt:
@@ -50,7 +50,7 @@ services:
       - ALL
     labels:
       - "traefik.enable=${TRAEFIK_DOCKER_ENABLE:-true}"
-      - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
 
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.server.port=8080"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}_http_service.loadbalancer.healthcheck.path=/readyz"
@@ -164,12 +164,12 @@ services:
     networks:
       app-network:
       db-network:
-      traefik_swarm_network:
+      traefik_network:
         aliases:
           - "${COMPOSE_PROJECT_NAME}-reverb"
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_SWARM_NETWORK}"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
       - "traefik.http.services.${COMPOSE_PROJECT_NAME}_reverb_service.loadbalancer.server.port=${REVERB_PORT:-6001}"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.entrypoints=websecure"
       - "traefik.http.routers.${COMPOSE_PROJECT_NAME}_reverb.rule=Host(`${APP_DOMAIN}`) && PathPrefix(`/app`)"
@@ -196,6 +196,6 @@ networks:
     external: true
     name: "${DB_NETWORK:?DB_NETWORK is required}"
 
-  traefik_swarm_network:
+  traefik_network:
     external: true
-    name: "${TRAEFIK_SWARM_NETWORK:?TRAEFIK_SWARM_NETWORK is required}"
+    name: "${TRAEFIK_NETWORK:?TRAEFIK_NETWORK is required}"

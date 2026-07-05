@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-07-05T05:27:03Z
+generated_at: 2026-07-05T09:44:47Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -45,7 +45,7 @@ parameters:
   db_network: anohou-prod_db
   postgres_container: anohou-prod-postgres-postgres-1
   mysql_container: anohou-prod-mysql-mysql-1
-  traefik_swarm_network: anohou-prod_ingress
+  traefik_network: anohou-prod_ingress
   toolkit_app_env_path: /srv/apps/anohou/prod/current/env/api.env
   db_admin_env_path: /srv/platform/postgres-server/anohou/prod/current/.env
   project_env_path: /srv/apps/anohou/prod/config/tiketi.env
@@ -93,9 +93,9 @@ managed_files:
   config/Dockerfile:
     sha256: 154f76fb76a67bc5f932007bd0720e5f57334848d57702a67da88d8c16862e3f
   config/config.yml:
-    sha256: ea4cf31c4afd96717a4c02c9c805194e436f13047b1a6852b15ee29cd742b8c9
+    sha256: bb39c48c63e6e3efa9d059ad92a63a12b1a11856e13d76dbd45bfa8e07c68935
   config/docker-compose.prod.yml:
-    sha256: 4bc3ade2852be34056fd0d8916dd6d36e0520be8efb4c62bfc999554eebd4d8c
+    sha256: 3fdfb97a9326ce4ed77756715847d91ca37ed09cf9043c6880d894fd9ffeccd7
   config/gateway-nginx.conf:
     sha256: f372e892bfd5c8516a5b243b4863cbaa1435a1e2f33ae8a2b5e68c76c85afcbf
   config/mysql-access-policy.yml:
@@ -111,13 +111,13 @@ managed_files:
   config/systemd/pull-deploy.timer:
     sha256: fc32ce3382febb07e7c298dfabd7c2c7bdbe7e67d481883321b3402711f3fbef
   config/template.env:
-    sha256: e5873cbd5fd561aa32d98858011c592793b013c0d169519f2c217244afdf469c
+    sha256: e33fe7c97ee365d26d901eb27d2c375ef16e26d04ec73c5b6cf87a08cb927dec
   config/www.conf:
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   lib/build-fingerprint.sh:
     sha256: 3ad68096c544e401d9637d2ff4e756bb0a9d9462c7ba0cffc2f7550bb4e6fa1c
   lib/config.sh:
-    sha256: 8c0a72be47b71b07c884fff68955a9e9c16a2f0fbaa16d1d8cac0c72a4b37cb3
+    sha256: 533107a1367bfbbd3fdc686b8861e011536bff37ded576e009ebe70542228e8b
   lib/mysql-access-policy.sh:
     sha256: 5616418e63e3b33836ef712421742d1deee5ca0ff3f03f0a912a06f26ab28f7b
   lib/mysql-app-db.sh:
@@ -153,7 +153,7 @@ managed_files:
   scripts/dump-mysql-db.sh:
     sha256: 981e034b18d64becf95141efdd2b35521a245e5cd8b64f18066596e131cbfe32
   scripts/generate-env.sh:
-    sha256: e0f41411d8ee4a5b3be62a5a22f18ee1d914c0885a93ad985c20fcc6995f1200
+    sha256: 5a5f58b15c314da162223eab59e01500aecd91b49b617b7e615fb0f43d68428f
   scripts/healthcheck.sh:
     sha256: c46a01a20c6a70f39cc8d222759529c8cf27ed5834efce2390c4aab7c0fd4308
   scripts/php-shell.sh:
@@ -204,11 +204,11 @@ managed_files:
     sha256: ddf6905c15ea02a3f5fce7ccfb8ba4cb8f012ae58ac57f6441e2351afd13329c
 managed_app_files:
   app/Console/Commands/CreateAdminUser.php:
-    sha256: 8e96c51c2aec10315415d489b153edd8d1998eaab5e6a35427657b94edaca885
+    sha256: 2af56dcdbb6ea6f1d26ec7d7693f0afaeb5e366a5f52c01d48b5cfa036210e05
 managed_project_files:
   .dockerignore:
     sha256: 8d0239404033140b11c20bd53bc2f60edca020d5f7d6140dbb0e100e2a83902f
   .github/workflows/build-and-push.yml:
-    sha256: 2ab3fa47f66d0208f105a730b35206dc55945095ce40c5c77fbff3812209db58
+    sha256: 689b15b8f89a4526d943004e0dc2ebfa6c930d0f3dee978d9b12808ed0f689b2
   .github/workflows/deploy.yml:
     sha256: a420767d78f2a91ac82bc53b86763af673468ee20ec586ee5f6f22e30b334f21
