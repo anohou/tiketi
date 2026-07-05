@@ -294,16 +294,28 @@ require_project_secret_value() {
 # ── Network readiness helper ──────────────────────────────────────────────────
 ensure_docker_networks() {
     local ok=true
+    local traefik_container=""
+    local traefik_networks=""
+
+    traefik_container="$(docker ps --format '{{.Names}}' | grep 'traefik' | head -1 || true)"
 
     if docker network inspect "${TRAEFIK_SWARM_NETWORK}" > /dev/null 2>&1; then
         echo "[config] ✓ Traefik network '${TRAEFIK_SWARM_NETWORK}' exists" >&2
     else
-        echo "[config] Traefik network '${TRAEFIK_SWARM_NETWORK}' not found — creating ..." >&2
-        if docker network create --driver bridge --label "managed-by=deployment-kit" "${TRAEFIK_SWARM_NETWORK}" > /dev/null; then
-            echo "[config] ✓ Created network: ${TRAEFIK_SWARM_NETWORK}" >&2
-        else
-            echo "[config] ERROR: Failed to create Traefik network '${TRAEFIK_SWARM_NETWORK}'" >&2
+        if [[ -n "${traefik_container}" ]]; then
+            traefik_networks="$(docker inspect "${traefik_container}" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{printf "%s " $name}}{{end}}' 2>/dev/null || true)"
+            echo "[config] ERROR: Traefik network '${TRAEFIK_SWARM_NETWORK}' not found." >&2
+            echo "[config]   Running Traefik container '${traefik_container}' is attached to: ${traefik_networks:-<unknown>}" >&2
+            echo "[config]   Update TRAEFIK_SWARM_NETWORK to the ingress network Traefik actually uses." >&2
             ok=false
+        else
+            echo "[config] Traefik network '${TRAEFIK_SWARM_NETWORK}' not found — creating ..." >&2
+            if docker network create --driver bridge --label "managed-by=deployment-kit" "${TRAEFIK_SWARM_NETWORK}" > /dev/null; then
+                echo "[config] ✓ Created network: ${TRAEFIK_SWARM_NETWORK}" >&2
+            else
+                echo "[config] ERROR: Failed to create Traefik network '${TRAEFIK_SWARM_NETWORK}'" >&2
+                ok=false
+            fi
         fi
     fi
 

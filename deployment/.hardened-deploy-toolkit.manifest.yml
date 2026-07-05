@@ -1,5 +1,5 @@
 template: laravel-deployment
-generated_at: 2026-06-28T03:52:10Z
+generated_at: 2026-07-05T05:27:03Z
 parameters:
   project_slug: tiketi
   project_name: Tiketi
@@ -117,7 +117,7 @@ managed_files:
   lib/build-fingerprint.sh:
     sha256: 3ad68096c544e401d9637d2ff4e756bb0a9d9462c7ba0cffc2f7550bb4e6fa1c
   lib/config.sh:
-    sha256: 005505c76351a35f4e4911e4c66b97685bbf840b1ad612b77b2e1fa8d6db88c1
+    sha256: 8c0a72be47b71b07c884fff68955a9e9c16a2f0fbaa16d1d8cac0c72a4b37cb3
   lib/mysql-access-policy.sh:
     sha256: 5616418e63e3b33836ef712421742d1deee5ca0ff3f03f0a912a06f26ab28f7b
   lib/mysql-app-db.sh:
