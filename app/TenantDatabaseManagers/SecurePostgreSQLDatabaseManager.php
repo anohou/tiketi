@@ -75,12 +75,6 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             $this->quoteIdentifier($appUser),
         ));
         $tenantProvisioner->statement(sprintf(
-            'ALTER ROLE %s IN DATABASE %s SET search_path = %s',
-            $this->quoteIdentifier($appUser),
-            $this->quoteIdentifier($name),
-            $this->quoteIdentifier($schema),
-        ));
-        $tenantProvisioner->statement(sprintf(
             'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA %s TO %s',
             $this->quoteIdentifier($schema),
             $this->quoteIdentifier($appUser),
@@ -117,6 +111,8 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
         Log::info('Tenant PostgreSQL database created', [
             'tenant_id' => $tenant->id,
             'database_name' => $name,
+            'search_path_schema' => $schema,
+            'search_path_strategy' => 'connection-or-role-default',
         ]);
 
         return true;
