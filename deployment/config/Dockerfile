@@ -38,6 +38,7 @@ ENV VITE_APP_ENV=${VITE_APP_ENV}
 ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
 ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
 ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+ENV NPM_CONFIG_PRODUCTION=false
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 ENV NPM_CONFIG_FUND=false
 ENV NPM_CONFIG_AUDIT=false
@@ -51,9 +52,15 @@ COPY . .
 RUN mkdir -p public/build \
     && if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
         if [ -f package-lock.json ]; then \
-            npm ci --ignore-scripts --no-audit --no-fund; \
+            npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
+                echo "npm ci failed; package-lock.json is likely out of sync with package.json or missing required dev dependencies for the asset build." >&2; \
+                exit 1; \
+            }; \
         else \
-            npm install --ignore-scripts --no-audit --no-fund; \
+            npm install --include=dev --ignore-scripts --no-audit --no-fund || { \
+                echo "npm install failed while preparing frontend assets." >&2; \
+                exit 1; \
+            }; \
         fi; \
         VITE_REVERB_APP_KEY="${PUBLIC_REVERB_APP_KEY}" npm run build; \
     else \

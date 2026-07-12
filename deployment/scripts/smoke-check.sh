@@ -14,7 +14,9 @@ RESTORED_URIS_FILE="${RESTORED_URIS_FILE:-${DEPLOY_DIR}/.deploy-state/restored-u
 PROBE_URL_HEADER="X-Deploy-Smoke: 1"
 RUN_EXTERNAL_SMOKE="${RUN_EXTERNAL_SMOKE:-false}"
 EXTERNAL_SMOKE_CHECK_APP_URL="${EXTERNAL_SMOKE_CHECK_APP_URL:-false}"
-EXTERNAL_SMOKE_TIMEOUT_SECONDS="${EXTERNAL_SMOKE_TIMEOUT_SECONDS:-30}"
+# Public edge routing can lag behind the on-host readiness checks during
+# promotion, especially when DNS/CDN/WAF layers are involved.
+EXTERNAL_SMOKE_TIMEOUT_SECONDS="${EXTERNAL_SMOKE_TIMEOUT_SECONDS:-120}"
 EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS="${EXTERNAL_SMOKE_RETRY_INTERVAL_SECONDS:-2}"
 
 log() { echo "[smoke] $(date '+%H:%M:%S') $*"; }
