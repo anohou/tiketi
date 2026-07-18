@@ -398,8 +398,8 @@ const showTripSidebar = computed(() => {
     if (user.role === 'accountant') return false;
     if (user.role === 'fleet_manager') return false;
     
-    // For admin, only show on ticketing pages
-    if (user.role === 'admin') {
+    // For admin and supervisor, only show on ticketing pages
+    if (['admin', 'supervisor'].includes(user.role)) {
         const path = window.location.pathname;
         if (!path.startsWith('/seller/ticketing') && !path.startsWith('/supervisor/ticketing')) {
             return false;
@@ -513,10 +513,10 @@ const navItems = computed(() => {
     });
   }
 
-  // Add settings menu only for admin
-  if (['admin'].includes(user.role)) {
+  // Add settings menu for Admin AND Supervisor
+  if (['admin', 'supervisor'].includes(user.role)) {
     baseItems.push({
-      route: 'admin.settings.index',
+      route: user.role === 'supervisor' ? 'supervisor.settings.index' : 'admin.settings.index',
       label: 'Paramétrage',
       icon: Settings
     });

@@ -3,8 +3,37 @@ const sharedGettingStarted = {
   category: 'Premiers pas',
   title: 'Démarrage rapide',
   description: 'Comprendre la logique générale de TIKETI, les rôles et la navigation.',
-  audience: ['admin', 'supervisor', 'seller', 'accountant', 'executive'],
+  audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
   image: '/images/help/help-center.png',
+  roleVariants: {
+    seller: {
+      description: 'Créer vos voyages autorisés, vendre les tickets et suivre les départs de votre gare.',
+      prependSections: [
+        {
+          title: 'Votre espace vendeur',
+          body: 'Votre aide privilégie la création des voyages de votre périmètre, la vente, l’impression et le traitement des incidents au guichet. Les routes proposées dépendent de vos affectations de gare.',
+        },
+      ],
+    },
+    supervisor: {
+      description: 'Créer et contrôler les voyages, suivre les gares et accompagner les agents de vente.',
+      prependSections: [
+        {
+          title: 'Votre espace superviseur',
+          body: 'Votre aide privilégie la préparation des départs, la visibilité multi-gare, le contrôle des ventes et la résolution des alertes opérationnelles.',
+        },
+      ],
+    },
+    admin: {
+      description: 'Configurer TIKETI, planifier les voyages et garantir un cadre fiable pour tous les utilisateurs.',
+      prependSections: [
+        {
+          title: 'Votre espace administrateur',
+          body: 'Votre aide couvre la configuration des données de base, la création complète des voyages, les permissions et le contrôle global de l’exploitation.',
+        },
+      ],
+    },
+  },
   sections: [
     {
       title: 'À quoi sert TIKETI',
@@ -34,7 +63,7 @@ const helpTopics = [
     category: 'Premiers pas',
     title: 'Aide contextuelle',
     description: 'Ouvrir l’aide depuis une page et obtenir la rubrique liée au travail en cours.',
-    audience: ['admin', 'supervisor', 'seller', 'accountant', 'executive'],
+    audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
     image: '/images/help/contextual-panel.png',
     sections: [
       {
@@ -57,15 +86,83 @@ const helpTopics = [
     id: 'ticketing',
     category: 'Billetterie',
     title: 'Vendre un ticket',
-    description: 'Choisir un voyage, sélectionner une destination, vendre la place et imprimer le ticket.',
+    description: 'Préparer le voyage, sélectionner une destination, vendre la place et imprimer le ticket.',
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.ticketing', 'seller.ticketing.horizontal', 'supervisor.ticketing'],
     pathPrefixes: ['/seller/ticketing', '/supervisor/ticketing'],
     image: '/images/help/ticketing-auto.png',
+    roleVariants: {
+      seller: {
+        description: 'Créer ou choisir votre voyage, sélectionner une destination, vendre la place et imprimer le ticket.',
+        prependSections: [
+          {
+            title: 'Créer votre voyage depuis votre espace de vente',
+            body: 'En tant que vendeur, vous pouvez créer un voyage pour les routes et les gares auxquelles vous êtes affecté. Le sens du voyage est déterminé à partir de votre gare lorsque cela est nécessaire.',
+            steps: [
+              'Depuis Accueil ou Voyages, cliquez sur Nouveau Voyage.',
+              'Choisissez une route disponible dans votre périmètre.',
+              'Sélectionnez le véhicule et renseignez la date et l’heure de départ.',
+              'Vérifiez le code proposé et le contrôle des ventes.',
+              'Activez les correspondances ou la réplication uniquement si l’exploitation le prévoit.',
+              'Cliquez sur Créer, puis sélectionnez le nouveau voyage pour commencer les ventes.',
+            ],
+          },
+          {
+            title: 'Si votre voyage ne s’affiche pas',
+            body: 'Vérifiez d’abord votre gare, la date et la route. Une route absente de la liste indique généralement qu’elle n’appartient pas à votre périmètre d’affectation.',
+            steps: [
+              'Actualisez la liste et vérifiez la date du départ.',
+              'Contrôlez votre gare active et vos affectations.',
+              'Vérifiez que le voyage vient d’être créé avec le bon horaire.',
+              'Demandez au superviseur ou à l’administrateur de contrôler la route si elle reste indisponible.',
+            ],
+          },
+        ],
+      },
+      supervisor: {
+        description: 'Créer ou contrôler un voyage, vendre sur le bon périmètre et superviser le départ.',
+        prependSections: [
+          {
+            title: 'Créer un voyage depuis la billetterie superviseur',
+            body: 'En tant que superviseur, vous pouvez créer un voyage depuis la billetterie. Votre visibilité plus large vous permet de préparer un départ pour les gares que vous supervisez.',
+            steps: [
+              'Ouvrez Billetterie puis cliquez sur Nouveau Voyage.',
+              'Choisissez la route et vérifiez son sens de circulation.',
+              'Sélectionnez le véhicule, la date et l’heure de départ.',
+              'Contrôlez le code, le mode de vente et les éventuelles correspondances.',
+              'Cliquez sur Créer et vérifiez que le voyage apparaît pour la gare concernée.',
+            ],
+          },
+          {
+            title: 'Contrôle avant l’ouverture des ventes',
+            body: 'Avant qu’un agent vende, vérifiez que le voyage utilise la bonne route, le bon véhicule et le bon horaire. Une correction est plus simple avant l’émission du premier ticket.',
+          },
+        ],
+      },
+      admin: {
+        description: 'Planifier ou choisir un voyage, contrôler sa configuration, puis vendre et imprimer les tickets.',
+        prependSections: [
+          {
+            title: 'Planifier le voyage avant la vente',
+            body: 'En tant qu’administrateur, vous pouvez créer le voyage depuis Paramétrage > Voyages pour disposer de tous les réglages, ou utiliser Nouveau Voyage depuis la billetterie pour une création rapide.',
+            steps: [
+              'Ouvrez Paramétrage puis Voyages, ou cliquez sur Nouveau Voyage dans Billetterie.',
+              'Choisissez la route, le véhicule, la date et l’heure de départ.',
+              'Vérifiez le code, le statut Planifié et les options d’exploitation.',
+              'Enregistrez puis contrôlez la présence du voyage dans la billetterie.',
+            ],
+          },
+          {
+            title: 'Contrôler ce que verront les agents',
+            body: 'La route détermine les destinations et les tarifs ; le véhicule détermine le plan de sièges. Vérifiez aussi les affectations des vendeurs si le voyage n’apparaît pas dans leur espace.',
+          },
+        ],
+      },
+    },
     sections: [
       {
         title: 'Flux de vente',
-        body: 'Commencez par sélectionner le voyage, puis la destination du passager. Le plan affiche les places disponibles, occupées, et les suggestions intelligentes.',
+        body: 'Une fois le voyage créé et visible, sélectionnez-le puis choisissez la destination du passager. Le plan affiche les places disponibles, occupées et les suggestions intelligentes.',
         steps: [
           'Choisissez le voyage dans la liste.',
           'Sélectionnez la destination du passager.',
@@ -176,9 +273,10 @@ const helpTopics = [
   {
     id: 'interface-flags',
     category: 'Lecture de l’interface',
+    contextPriority: -10,
     title: 'Drapeaux, badges et indicateurs',
     description: 'Comprendre les signaux visuels affichés dans TIKETI et les actions associées.',
-    audience: ['admin', 'supervisor', 'seller', 'accountant', 'executive'],
+    audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
     routes: ['seller.ticketing', 'seller.ticketing.horizontal', 'admin.trips.index', 'accountant.reports', 'executive.analytics'],
     pathPrefixes: ['/seller/ticketing', '/admin/trips', '/accountant/reports', '/executive/analytics'],
     image: '/images/help/ticketing-auto.png',
@@ -260,7 +358,8 @@ const helpTopics = [
     title: 'Annulation et libération des places',
     description: 'Annuler un ticket, conserver la trace et libérer une place pour une nouvelle vente.',
     audience: ['admin', 'supervisor', 'seller'],
-    pathPrefixes: ['/seller/tickets', '/seller/ticketing', '/supervisor'],
+    routes: ['seller.tickets.index', 'supervisor.compensations.index'],
+    pathPrefixes: ['/seller/tickets', '/seller/ticketing', '/supervisor/compensations'],
     sections: [
       {
         title: 'Principe',
@@ -368,8 +467,8 @@ const helpTopics = [
     title: 'Fidélité OKOHI',
     description: 'Connecter TIKETI à OKOHI pour attribuer des points ou visites après scan du ticket.',
     audience: ['admin'],
-    routes: ['admin.ticket-settings.index'],
-    pathPrefixes: ['/admin/ticket-settings'],
+    routes: ['admin.ticket-settings.index', 'admin.settings.loyalty'],
+    pathPrefixes: ['/admin/ticket-settings', '/admin/settings/loyalty'],
     image: '/images/help/ticket-settings.png',
     sections: [
       {
@@ -411,10 +510,28 @@ const helpTopics = [
     category: 'Administration',
     title: 'Paramétrage',
     description: 'Créer les gares, véhicules, trajets, tarifs, utilisateurs et affectations.',
-    audience: ['admin'],
-    routes: ['admin.settings.index'],
-    pathPrefixes: ['/admin/settings'],
+    audience: ['admin', 'supervisor'],
+    routes: ['admin.settings.index', 'supervisor.settings.index'],
+    pathPrefixes: ['/admin/settings', '/supervisor/settings'],
     image: '/images/help/route-detail.png',
+    roleVariants: {
+      supervisor: {
+        title: 'Paramétrage de supervision',
+        description: 'Accéder aux gares, utilisateurs et affectations utiles à votre périmètre.',
+        sections: [
+          {
+            title: 'Votre périmètre de paramétrage',
+            body: 'En tant que superviseur, vous disposez des réglages nécessaires au suivi des gares et des équipes. Les réglages structurels de l’entreprise restent sous la responsabilité de l’administrateur.',
+            steps: [
+              'Consultez les gares de votre périmètre.',
+              'Créez ou mettez à jour les utilisateurs autorisés.',
+              'Vérifiez les affectations des vendeurs aux bonnes gares.',
+              'Demandez à l’administrateur toute modification de route, tarif ou véhicule non disponible dans votre espace.',
+            ],
+          },
+        ],
+      },
+    },
     sections: [
       {
         title: 'Ordre conseillé',
@@ -434,9 +551,26 @@ const helpTopics = [
     category: 'Administration',
     title: 'Gares, destinations et trajets',
     description: 'Structurer le réseau de transport avant les ventes et contrôler l’ordre des destinations.',
-    audience: ['admin'],
-    pathPrefixes: ['/admin/stations', '/admin/routes', '/admin/destinations'],
+    audience: ['admin', 'supervisor'],
+    routes: ['supervisor.stations.index'],
+    pathPrefixes: ['/admin/stations', '/admin/routes', '/admin/destinations', '/supervisor/stations'],
     image: '/images/help/route-destination-order.png',
+    roleVariants: {
+      supervisor: {
+        title: 'Consulter les gares supervisées',
+        description: 'Comprendre les gares disponibles et leur impact sur les vendeurs et les voyages.',
+        sections: [
+          {
+            title: 'Gares et périmètre',
+            body: 'Une gare détermine les routes et voyages visibles par les vendeurs qui lui sont affectés. Contrôlez la gare d’un agent lorsqu’une route ou un voyage attendu ne s’affiche pas.',
+          },
+          {
+            title: 'Quand solliciter l’administrateur',
+            body: 'La modification de la structure d’une route, de l’ordre de ses arrêts ou des destinations relève de l’administration. Transmettez le nom de la route, la gare concernée et l’ordre attendu.',
+          },
+        ],
+      },
+    },
     sections: [
       {
         title: 'Gares et destinations',
@@ -516,8 +650,9 @@ const helpTopics = [
     category: 'Administration',
     title: 'Utilisateurs et affectations',
     description: 'Créer les comptes et limiter les vendeurs à leurs gares.',
-    audience: ['admin'],
-    pathPrefixes: ['/admin/users', '/admin/assignments'],
+    audience: ['admin', 'supervisor'],
+    routes: ['admin.users.index', 'admin.assignments.index', 'supervisor.users.index', 'supervisor.assignments.index'],
+    pathPrefixes: ['/admin/users', '/admin/assignments', '/supervisor/users', '/supervisor/assignments'],
     sections: [
       {
         title: 'Rôles',
@@ -540,14 +675,87 @@ const helpTopics = [
     category: 'Exploitation',
     title: 'Gestion des voyages',
     description: 'Planifier les départs, consulter l’occupation et suivre les tickets vendus.',
-    audience: ['admin', 'supervisor'],
-    routes: ['admin.trips.index', 'trips.index'],
-    pathPrefixes: ['/admin/trips', '/trips'],
+    audience: ['admin', 'supervisor', 'seller'],
+    routes: ['admin.trips.index', 'seller.dashboard', 'trips.index'],
+    pathPrefixes: ['/admin/trips', '/seller/dashboard', '/trips'],
     image: '/images/seat-map.png',
+    roleVariants: {
+      seller: {
+        title: 'Créer et préparer mes voyages',
+        description: 'Créer un départ dans votre périmètre, vérifier le véhicule et ouvrir les ventes.',
+        sections: [
+          {
+            title: 'Créer un voyage',
+            body: 'Le bouton Nouveau Voyage est disponible depuis votre accueil et depuis la page Voyages. La liste des routes respecte vos affectations de gare.',
+            steps: [
+              'Cliquez sur Nouveau Voyage.',
+              'Choisissez la route proposée pour votre gare.',
+              'Sélectionnez le véhicule prévu.',
+              'Renseignez la date et l’heure de départ.',
+              'Vérifiez le code et les options de vente.',
+              'Cliquez sur Créer puis ouvrez le voyage obtenu.',
+            ],
+          },
+          {
+            title: 'Contrôler avant le premier ticket',
+            body: 'Vérifiez la destination, l’heure et le plan de sièges. Si une route ou un véhicule manque, contactez le superviseur ou l’administrateur plutôt que de créer le départ avec une donnée incorrecte.',
+          },
+          {
+            title: 'Ventes intermédiaires',
+            body: 'Le contrôle des ventes indique si les ventes sont autorisées depuis les gares intermédiaires. Respectez la consigne définie pour le voyage.',
+          },
+        ],
+      },
+      supervisor: {
+        title: 'Créer et superviser les voyages',
+        description: 'Préparer les départs des gares supervisées et contrôler leur mise en vente.',
+        sections: [
+          {
+            title: 'Créer un voyage supervisé',
+            body: 'Depuis Billetterie, le bouton Nouveau Voyage permet de préparer un départ pour votre périmètre de supervision.',
+            steps: [
+              'Cliquez sur Nouveau Voyage dans Billetterie.',
+              'Choisissez la route et vérifiez le sens du départ.',
+              'Sélectionnez le véhicule, la date et l’heure.',
+              'Contrôlez le mode de vente, le code et les correspondances.',
+              'Créez le voyage puis vérifiez sa visibilité pour la gare et les vendeurs concernés.',
+            ],
+          },
+          {
+            title: 'Superviser l’ouverture des ventes',
+            body: 'Contrôlez l’occupation, les affectations et les données du départ avant le premier ticket. En cas d’erreur, faites corriger le voyage avant de demander aux agents de vendre.',
+          },
+          {
+            title: 'Ventes intermédiaires',
+            body: 'Le mode de contrôle des ventes détermine si les agents peuvent vendre seulement au départ ou aussi aux gares intermédiaires. Vérifiez qu’il correspond à la consigne d’exploitation.',
+          },
+        ],
+      },
+    },
     sections: [
       {
         title: 'Créer un voyage',
-        body: 'Un voyage relie un trajet, un véhicule et une heure de départ. Les ventes utilisent ensuite ce voyage comme support de réservation.',
+        body: 'Un voyage relie une route, un véhicule et une date et heure de départ. Il doit être créé avant la vente, car tous les tickets et toutes les occupations de sièges seront rattachés à ce départ précis.',
+        steps: [
+          'Ouvrez Paramétrage puis Voyages avec un compte administrateur.',
+          'Cliquez sur Nouveau Voyage.',
+          'Choisissez la route correspondant au sens réel du départ.',
+          'Affectez un véhicule actif avec le bon plan de sièges.',
+          'Renseignez la date, l’heure et vérifiez le code proposé.',
+          'Laissez le statut Planifié pour un nouveau départ.',
+          'Activez Voyage réplicable uniquement si ce départ doit être recréé automatiquement chaque jour.',
+          'Enregistrez et contrôlez sa présence dans la billetterie.',
+        ],
+      },
+      {
+        title: 'Informations à contrôler avant les ventes',
+        body: 'Une erreur de route, d’heure ou de véhicule se répercute sur les destinations, les tarifs et le plan de sièges. Faites ce contrôle avant qu’un premier ticket soit émis.',
+        steps: [
+          'Vérifiez l’origine, les arrêts et la destination finale de la route.',
+          'Vérifiez la date et l’heure locales du départ.',
+          'Vérifiez le véhicule, sa capacité et son assurance à la date du voyage.',
+          'Vérifiez le mode de vente et les éventuelles correspondances ouvertes.',
+        ],
       },
       {
         title: 'Ventes intermédiaires',
@@ -574,6 +782,69 @@ const helpTopics = [
     ],
   },
   {
+    id: 'fleet-operations',
+    category: 'Gestion de flotte',
+    title: 'Piloter la flotte et les équipages',
+    description: 'Tenir le parc à jour, préparer les plans de sièges et affecter les équipages.',
+    audience: ['admin', 'fleet_manager'],
+    routes: ['fleet.dashboard', 'fleet.vehicles.index', 'fleet.vehicle-types.index', 'fleet.crew-members.index', 'fleet.crew-assignments.index'],
+    pathPrefixes: ['/fleet'],
+    image: '/images/seat-map.png',
+    sections: [
+      {
+        title: 'Routine du responsable de flotte',
+        body: 'Le tableau de bord flotte regroupe les éléments qui doivent être prêts avant l’exploitation : véhicules actifs, plans de sièges cohérents, membres d’équipage disponibles et affectations valides.',
+        steps: [
+          'Contrôlez les alertes et les échéances depuis le tableau de bord.',
+          'Vérifiez que le véhicule prévu est actif et utilise le bon type de véhicule.',
+          'Contrôlez le plan de sièges et la position des portes.',
+          'Vérifiez la disponibilité des membres d’équipage.',
+          'Créez ou corrigez les affectations avant le départ.',
+        ],
+      },
+      {
+        title: 'Véhicule ou type de véhicule',
+        body: 'Le type de véhicule décrit le modèle et son plan de sièges. Le véhicule représente l’unité réelle du parc avec son immatriculation, son état et ses échéances. Corrigez le type si plusieurs véhicules doivent partager le même plan ; corrigez le véhicule si une seule unité est concernée.',
+      },
+      {
+        title: 'Affectations sans conflit',
+        body: 'Une affectation associe un véhicule ou un membre d’équipage à une période d’exploitation. Avant d’enregistrer, contrôlez les dates, le rôle de l’équipier et l’absence de chevauchement avec une autre mission.',
+      },
+      {
+        title: 'Quand rendre un élément inactif',
+        body: 'Rendez un véhicule ou un équipier inactif lorsqu’il ne doit plus être proposé dans les nouvelles affectations. Cette action conserve son historique. Vérifiez d’abord les voyages et affectations à venir qui pourraient encore en dépendre.',
+      },
+    ],
+  },
+  {
+    id: 'fleet-compliance',
+    category: 'Gestion de flotte',
+    title: 'Anticiper les indisponibilités de la flotte',
+    description: 'Contrôler les échéances, les conflits d’affectation et les éléments inactifs avant qu’ils ne bloquent un départ.',
+    audience: ['admin', 'fleet_manager'],
+    pathPrefixes: ['/fleet/vehicles', '/fleet/crew-members', '/fleet/crew-assignments'],
+    sections: [
+      {
+        title: 'Contrôle préventif',
+        body: 'Un véhicule techniquement présent dans le parc n’est pas nécessairement exploitable. Croisez son état actif, les échéances administratives, son type de véhicule et ses affectations futures avant de le confirmer pour un départ.',
+        steps: [
+          'Repérez les documents ou échéances qui approchent de leur date limite.',
+          'Vérifiez les véhicules et équipiers concernés par des départs à venir.',
+          'Préparez un remplacement avant de rendre un élément inactif.',
+          'Corrigez les affectations en conflit puis contrôlez de nouveau la période.',
+        ],
+      },
+      {
+        title: 'Analyser un conflit d’affectation',
+        body: 'Un conflit signifie généralement qu’un véhicule ou un équipier est déjà mobilisé sur une période qui se chevauche. Comparez les heures de début et de fin, le voyage concerné et le rôle attribué avant de modifier l’une des missions.',
+      },
+      {
+        title: 'Conserver la traçabilité',
+        body: 'Préférez le passage à l’état inactif à la suppression d’un élément déjà utilisé. Vous conservez ainsi l’historique des voyages et pouvez expliquer les anciennes affectations lors d’un contrôle.',
+      },
+    ],
+  },
+  {
     id: 'reports',
     category: 'Pilotage',
     title: 'Comptabilité et rapports',
@@ -594,6 +865,35 @@ const helpTopics = [
     ],
   },
   {
+    id: 'financial-control',
+    category: 'Pilotage',
+    title: 'Contrôler et rapprocher les recettes',
+    description: 'Passer du total affiché à un contrôle comptable explicable par période, vendeur et voyage.',
+    audience: ['admin', 'accountant'],
+    pathPrefixes: ['/accountant/reports'],
+    sections: [
+      {
+        title: 'Méthode de rapprochement',
+        body: 'Travaillez toujours sur une période fermée et conservez les mêmes filtres pendant le contrôle. Le total doit pouvoir être expliqué par les tickets vendus, les annulations et les opérations particulières de la période.',
+        steps: [
+          'Fixez la période et notez les filtres utilisés.',
+          'Comparez le total global avec le détail par vendeur ou par voyage.',
+          'Isolez les annulations, écarts ou montants atypiques.',
+          'Ouvrez le détail des tickets concernés avant de conclure.',
+          'Exportez le rapport contrôlé avec une référence de période.',
+        ],
+      },
+      {
+        title: 'Traiter un écart',
+        body: 'Ne corrigez pas un écart uniquement à partir du total. Identifiez d’abord le ticket, son statut, son vendeur, son heure d’émission et le voyage associé. Cette méthode distingue une annulation normale, une erreur de filtre et une anomalie à faire valider.',
+      },
+      {
+        title: 'Constituer une preuve de contrôle',
+        body: 'Conservez l’export, la période, les filtres et une courte justification pour chaque écart accepté. Le contrôle reste ainsi reproductible par un autre comptable ou par la direction.',
+      },
+    ],
+  },
+  {
     id: 'analytics',
     category: 'Pilotage',
     title: 'Analytics dirigeant',
@@ -605,6 +905,34 @@ const helpTopics = [
       {
         title: 'Lecture rapide',
         body: 'Les indicateurs montrent les ventes, les revenus, l’occupation et les trajets les plus performants pour la période sélectionnée.',
+      },
+    ],
+  },
+  {
+    id: 'decision-analysis',
+    category: 'Pilotage',
+    title: 'Transformer les indicateurs en décisions',
+    description: 'Comparer les périodes, distinguer tendance et incident, puis formuler une action mesurable.',
+    audience: ['admin', 'executive'],
+    pathPrefixes: ['/executive/analytics'],
+    sections: [
+      {
+        title: 'Lire une tendance correctement',
+        body: 'Un chiffre isolé décrit une situation, pas une tendance. Comparez des périodes de même durée et tenez compte des jours d’exploitation, des changements de capacité et des événements exceptionnels.',
+        steps: [
+          'Choisissez une période de référence comparable.',
+          'Observez ensemble revenu, volume de tickets et taux d’occupation.',
+          'Identifiez les trajets qui expliquent l’essentiel de la variation.',
+          'Vérifiez si la variation est durable ou liée à un événement ponctuel.',
+        ],
+      },
+      {
+        title: 'Passer du constat à l’action',
+        body: 'Formulez une action avec un responsable, une échéance et un indicateur de réussite. Exemple : ajuster la capacité d’un trajet pendant deux semaines et mesurer l’évolution de l’occupation et du revenu par départ.',
+      },
+      {
+        title: 'Éviter les conclusions trompeuses',
+        body: 'Une hausse du revenu peut venir d’un tarif plus élevé sans hausse de fréquentation. Un bon taux d’occupation peut aussi masquer trop peu de départs. Croisez toujours au moins deux indicateurs avant de décider.',
       },
     ],
   },
@@ -623,24 +951,195 @@ const helpTopics = [
       },
     ],
   },
+  {
+    id: 'transfer-pool',
+    category: 'Exploitation',
+    title: 'Gestion des correspondances',
+    description: 'Suivre les passagers en transit, valider leur présence et leur attribuer un siège pour la suite du voyage.',
+    audience: ['admin', 'supervisor', 'seller'],
+    routes: ['seller.transfer-pool.index'],
+    pathPrefixes: ['/seller/transfer-pool'],
+    sections: [
+      {
+        title: 'Principe des correspondances',
+        body: 'Les correspondances permettent à un passager d’effectuer un trajet combiné avec changement de véhicule dans une gare de transit (gare de transfert). Le passager dispose d’un ticket unique qui couvre tout son voyage.',
+      },
+      {
+        title: 'Valider la présence (Bouton Prêt)',
+        body: 'Dès que le passager arrive à la gare de correspondance, le vendeur doit marquer sa présence pour le voyage suivant. Cela signale au système qu’il est prêt à être placé dans le véhicule de connexion.',
+        steps: [
+          'Ouvrez le menu Correspondances.',
+          'Recherchez la correspondance du passager.',
+          'Cliquez sur Prêt / Présent pour valider sa présence.',
+        ],
+      },
+      {
+        title: 'Affectation automatique ou manuelle',
+        body: 'Après validation de la présence, le passager peut être affecté automatiquement ou manuellement à un voyage de connexion.',
+        steps: [
+          'Sélectionnez le voyage de connexion dans la liste.',
+          'L’affectation automatique place les passagers en transit sur les sièges libres les plus adaptés.',
+          'L’affectation manuelle permet de choisir précisément le siège pour chaque passager.',
+        ],
+      },
+    ],
+  },
 ];
 
-const defaultTopic = helpTopics[0];
+export const helpLevels = [
+  {
+    id: 'essential',
+    label: 'Essentiel',
+    shortLabel: 'Je débute',
+    description: 'Comprendre l’interface et réaliser les actions indispensables.',
+  },
+  {
+    id: 'independent',
+    label: 'Autonome',
+    shortLabel: 'Je pratique',
+    description: 'Maîtriser les tâches courantes et résoudre les incidents simples.',
+  },
+  {
+    id: 'advanced',
+    label: 'Avancé',
+    shortLabel: 'Je maîtrise',
+    description: 'Configurer, contrôler et comprendre les règles métier en profondeur.',
+  },
+];
 
-export function getHelpTopicsForRole(role) {
-  return helpTopics.filter((topic) => !topic.audience || topic.audience.includes(role));
+export const helpRoleLabels = {
+  admin: 'Administrateur',
+  fleet_manager: 'Responsable de flotte',
+  supervisor: 'Superviseur',
+  seller: 'Agent de vente',
+  accountant: 'Comptable',
+  executive: 'Direction',
+};
+
+const topicGuidance = {
+  'getting-started': { level: 'essential', duration: 5, outcome: 'Vous saurez vous repérer et identifier les modules utiles à votre rôle.' },
+  'contextual-help': { level: 'essential', duration: 2, outcome: 'Vous saurez obtenir une réponse sans quitter votre écran de travail.' },
+  'interface-flags': { level: 'independent', duration: 6, outcome: 'Vous saurez interpréter les couleurs, badges et états importants.' },
+  ticketing: { level: 'essential', duration: 10, outcome: 'Vous saurez vendre et imprimer un ticket en contrôlant chaque étape.' },
+  'bluetooth-printer': { level: 'independent', duration: 7, outcome: 'Vous saurez connecter l’imprimante et assurer une solution de secours.' },
+  'ticket-cancellation': { level: 'independent', duration: 6, outcome: 'Vous saurez traiter une annulation sans perdre la traçabilité.' },
+  'ticketing-common-issues': { level: 'independent', duration: 8, outcome: 'Vous saurez diagnostiquer les blocages les plus courants au guichet.' },
+  'seat-reuse': { level: 'independent', duration: 5, outcome: 'Vous comprendrez la disponibilité d’un siège sur plusieurs tronçons.' },
+  trips: { level: 'independent', duration: 8, outcome: 'Vous saurez préparer un départ et suivre son occupation.' },
+  supervisor: { level: 'independent', duration: 7, outcome: 'Vous saurez repérer les départs et actions qui demandent votre attention.' },
+  reports: { level: 'essential', duration: 7, outcome: 'Vous saurez contrôler une période de vente et produire un export.' },
+  analytics: { level: 'essential', duration: 5, outcome: 'Vous saurez lire rapidement les indicateurs de pilotage.' },
+  'fleet-operations': { level: 'independent', duration: 9, outcome: 'Vous saurez préparer les véhicules et équipages pour l’exploitation.' },
+  'fleet-compliance': { level: 'advanced', duration: 9, outcome: 'Vous saurez anticiper un blocage et documenter une décision d’indisponibilité.' },
+  'admin-settings': { level: 'essential', duration: 8, outcome: 'Vous connaîtrez l’ordre fiable pour initialiser TIKETI.' },
+  'stations-routes': { level: 'independent', duration: 10, outcome: 'Vous saurez structurer un trajet sans fausser les segments de vente.' },
+  vehicles: { level: 'independent', duration: 8, outcome: 'Vous saurez distinguer un véhicule de son type et fiabiliser son plan.' },
+  fares: { level: 'independent', duration: 5, outcome: 'Vous saurez créer un tarif utilisable dans le bon sens de voyage.' },
+  'users-assignments': { level: 'independent', duration: 7, outcome: 'Vous saurez donner à chaque utilisateur le bon périmètre d’accès.' },
+  'ticket-settings': { level: 'advanced', duration: 8, outcome: 'Vous saurez personnaliser les tickets et leurs options d’impression.' },
+  okohi: { level: 'advanced', duration: 10, outcome: 'Vous comprendrez et saurez sécuriser le parcours de fidélité OKOHI.' },
+  'suggestion-algorithm': { level: 'advanced', duration: 12, outcome: 'Vous saurez expliquer les suggestions et analyser un placement inattendu.' },
+  'financial-control': { level: 'advanced', duration: 10, outcome: 'Vous saurez expliquer un écart et constituer un contrôle comptable reproductible.' },
+  'decision-analysis': { level: 'advanced', duration: 8, outcome: 'Vous saurez relier une tendance à une action mesurable sans surinterpréter un chiffre isolé.' },
+  'transfer-pool': { level: 'independent', duration: 7, outcome: 'Vous saurez gérer les voyageurs en transit et affecter leurs places.' },
+};
+
+const routeContextLabels = {
+  'admin.dashboard': 'Tableau de bord administrateur',
+  'admin.trips.index': 'Page Voyages administrateur',
+  'seller.dashboard': 'Accueil vendeur',
+  'seller.ticketing': 'Page Voyages vendeur',
+  'seller.ticketing.horizontal': 'Billetterie horizontale',
+  'seller.tickets.index': 'Liste des tickets',
+  'supervisor.ticketing': 'Billetterie superviseur',
+  'supervisor.dashboard': 'Tour de contrôle',
+  'supervisor.control-tower': 'Tour de contrôle',
+  'supervisor.settings.index': 'Paramétrage superviseur',
+  'supervisor.stations.index': 'Gares supervisées',
+  'supervisor.users.index': 'Utilisateurs supervisés',
+  'supervisor.assignments.index': 'Affectations des vendeurs',
+  'supervisor.compensations.index': 'Compensations et annulations',
+  'accountant.reports': 'Page Rapports',
+  'executive.analytics': 'Tableau de bord direction',
+  'fleet.dashboard': 'Tableau de bord flotte',
+  'fleet.vehicles.index': 'Page Véhicules',
+  'admin.settings.index': 'Page Paramétrage',
+  'admin.ticket-settings.index': 'Paramètres des tickets',
+  'profile.edit': 'Mon profil',
+  'admin.settings.enterprise': 'Paramètres entreprise',
+  'admin.settings.loyalty': 'Paramètres fidélité (Okohi)',
+  'admin.destinations.index': 'Gestion des destinations',
+  'admin.stations.index': 'Gestion des gares',
+  'admin.routes.index': 'Gestion des trajets',
+  'admin.routes.stops.index': 'Configuration des arrêts',
+  'admin.route-fares.index': 'Gestion des tarifs',
+  'admin.users.index': 'Gestion des utilisateurs',
+  'admin.assignments.index': 'Affectations des vendeurs',
+  'admin.vehicle-types.index': 'Gestion des types de véhicule',
+  'admin.vehicles.index': 'Gestion des véhicules',
+  'fleet.vehicle-types.index': 'Types de véhicules',
+  'fleet.assignments.index': 'Affectations des véhicules',
+  'fleet.crew-members.index': 'Membres d’équipage',
+  'fleet.crew-assignments.index': 'Affectations des équipages',
+  'seller.transfer-pool.index': 'Bassin de correspondances',
+};
+
+const roleRouteContextLabels = {
+  admin: {
+    'seller.ticketing': 'Billetterie administrateur',
+    'seller.ticketing.horizontal': 'Billetterie administrateur',
+  },
+  seller: {
+    'seller.ticketing': 'Page Voyages vendeur',
+    'seller.ticketing.horizontal': 'Page Voyages vendeur',
+  },
+  supervisor: {
+    'supervisor.ticketing': 'Billetterie superviseur',
+  },
+};
+
+const enrichTopic = (topic, role = null, context = {}) => {
+  const roleVariant = role ? topic.roleVariants?.[role] : null;
+  const routeVariant = context.routeName ? topic.routeVariants?.[context.routeName] : null;
+  const variant = { ...(roleVariant || {}), ...(routeVariant || {}) };
+  const sections = variant.sections
+    || [...(variant.prependSections || []), ...(topic.sections || [])];
+
+  return {
+    ...topic,
+    ...variant,
+    sections,
+    level: variant.level || topicGuidance[topic.id]?.level || 'independent',
+    duration: variant.duration || topicGuidance[topic.id]?.duration || 5,
+    outcome: variant.outcome
+      || topicGuidance[topic.id]?.outcome
+      || `Vous saurez utiliser ${(variant.title || topic.title).toLowerCase()} dans votre travail quotidien.`,
+    roleLabel: helpRoleLabels[role] || 'Utilisateur',
+    contextLabel: roleRouteContextLabels[role]?.[context.routeName]
+      || routeContextLabels[context.routeName]
+      || 'Aide adaptée à cette page',
+  };
+};
+
+export function getHelpTopicsForRole(role, context = {}) {
+  return helpTopics
+    .filter((topic) => !topic.audience || topic.audience.includes(role))
+    .map((topic) => enrichTopic(topic, role, context));
 }
 
 export function findHelpTopic({ routeName, path, role }) {
-  const availableTopics = getHelpTopicsForRole(role);
+  const context = { routeName, path };
+  const availableTopics = getHelpTopicsForRole(role, context);
+  const bestMatch = (matches) => matches
+    .sort((left, right) => (right.contextPriority || 0) - (left.contextPriority || 0))[0];
 
-  return availableTopics.find((topic) => topic.routes?.some((route) => route === routeName))
-    || availableTopics.find((topic) => topic.pathPrefixes?.some((prefix) => path?.startsWith(prefix)))
-    || defaultTopic;
+  return bestMatch(availableTopics.filter((topic) => topic.routes?.some((route) => route === routeName)))
+    || bestMatch(availableTopics.filter((topic) => topic.pathPrefixes?.some((prefix) => path?.startsWith(prefix))))
+    || enrichTopic(helpTopics[0], role, context);
 }
 
 export function getAllHelpTopics() {
-  return helpTopics;
+  return helpTopics.map((topic) => enrichTopic(topic));
 }
 
 export function getHelpCategories(topics = helpTopics) {

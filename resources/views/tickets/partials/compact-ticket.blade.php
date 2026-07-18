@@ -1,9 +1,10 @@
 @php
-    $companyName = $settings->company_name ?? 'TSR CI';
+    $companyName = $settings->company_name ?? 'TEST TRANSPORT';
     $phoneNumbers = $settings->phone_numbers ?? ['(225) 0747471177', '0787298685'];
     $ccLabel = trim((string) ($settings->cc_label ?? ''));
     $footerMessages = $settings->footer_messages ?? ['Valable pour ce voyage', 'Non remboursable'];
     $baggagePolicyMessage = $settings->baggage_policy_message ?? "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.";
+    $tenantLogoUrl = tenant('logo_url');
 @endphp
 
 <div class="ticket">
@@ -13,23 +14,23 @@
                 <span class="company-logo-line">{{ $companyName }}</span>
             </div>
             <div class="company-details">
-                @foreach($phoneNumbers as $index => $phone)
+                @foreach($phoneNumbers as $phone)
                     @if($phone)
-                        {{ $index === 0 ? 'Tel' : 'Service Bagages' }}: {{ $phone }}<br>
+                        {{ $phone }}<br>
                     @endif
                 @endforeach
             </div>
         </div>
 
-        <div class="qr-block">
-            @if(! empty($qrCode))
-                <div class="qr-code">{!! $qrCode !!}</div>
+        <div class="logo-block">
+            @if($tenantLogoUrl)
+                <img class="tenant-logo" src="{{ $tenantLogoUrl }}" alt="{{ $companyName }} logo">
             @endif
         </div>
     </div>
 
     <div class="ticket-number-box">
-        <div class="ticket-label">N° TICKET DE VOYAGE</div>
+        <div class="ticket-label">N° TICKET</div>
         <div class="ticket-value">{{ $ticket->ticket_number }}</div>
     </div>
 
@@ -38,14 +39,8 @@
     @endif
 
     <div class="journey-box">
-        <div class="destination-panel">
-            <div class="destination-label">Destination passager</div>
-            <div class="destination-name">{{ strtoupper($ticket->finalDestinationStation?->name ?? $ticket->toStation->name) }}</div>
-        </div>
-
         <div class="route-lines">
             <div><strong>Depart:</strong> {{ $ticket->fromStation->name }}</div>
-            <div><strong>Arrivee:</strong> {{ $ticket->toStation->name }}</div>
             @if($ticket->finalDestinationStation)
                 <div><strong>Correspondance:</strong> {{ $ticket->transferStation?->name ?? $ticket->toStation->name }}</div>
                 <div><strong>Destination finale:</strong> {{ $ticket->finalDestinationStation->name }}</div>
@@ -54,18 +49,28 @@
             @endif
         </div>
 
+        <div class="destination-panel">
+            <div class="destination-label">Destination</div>
+            <div class="destination-name">{{ strtoupper($ticket->finalDestinationStation?->name ?? $ticket->toStation->name) }}</div>
+        </div>
+
         <div class="info-grid">
-            <div class="info-cell">{{ $ticket->created_at->format('d/m/Y H:i') }}</div>
-            <div class="info-cell">A</div>
+            <div class="info-cell date-cell">{{ $ticket->created_at->format('d/m/Y H:i') }}</div>
+            <div class="info-cell info-price-cell">
+                <span class="info-label">Prix</span>
+                {{ number_format($ticket->price, 0, ',', ' ') }}
+            </div>
         </div>
 
         <div class="summary-row">
-            <div class="summary-cell">Prix: {{ number_format($ticket->price, 0, ',', ' ') }}</div>
-            <div class="summary-cell center">Siege: <span class="seat-pill">{{ $ticket->seat_number }}</span></div>
-            <div class="summary-cell right">ALLER</div>
+            <div class="summary-cell center seat-block">
+                <span class="seat-label">Siege</span>
+                <span class="seat-pill">{{ $ticket->seat_number }}</span>
+            </div>
+            @if(! empty($qrCode))
+                <div class="summary-cell qr-summary"><div class="qr-code">{!! $qrCode !!}</div></div>
+            @endif
         </div>
-
-        <div class="zone-line">Zone d'embarquement : {{ $ticket->boarding_group ?? '1' }}</div>
     </div>
 
     <div class="footer">

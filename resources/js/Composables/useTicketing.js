@@ -156,9 +156,10 @@ export function useTicketing(props, options = {}) {
     const response = await axios.get(route('seller.tickets.show-data', { ticket: ticketId }));
     const ticket = response.data;
     const settings = response.data.settings || {
-      company_name: 'TSR CI',
+      company_name: 'TEST TRANSPORT',
       phone_numbers: ['+225 XX XX XX XX XX'],
       footer_messages: ['Valable pour ce voyage', 'Non remboursable'],
+      baggage_policy_message: "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",
       print_qr_code: true,
       qr_code_base_url: null,
     };
@@ -557,9 +558,9 @@ export function useTicketing(props, options = {}) {
 
   const canBookTickets = computed(() => {
     return selectedTripId.value &&
-           selectedFare.value &&
-           !processing.value &&
-           !isTripPassed.value;
+      selectedFare.value &&
+      !processing.value &&
+      !isTripPassed.value;
   });
 
   const seatStats = computed(() => {
@@ -642,7 +643,7 @@ export function useTicketing(props, options = {}) {
     const hslMatch = color.match(/^hsl\(\s*[\d.]+,\s*[\d.]+%?,\s*([\d.]+)%\s*\)$/i);
     if (hslMatch) {
       const lightness = Number.parseFloat(hslMatch[1]);
-      if (! Number.isNaN(lightness)) {
+      if (!Number.isNaN(lightness)) {
         return lightness > 62 ? '#0F172A' : '#FFFFFF';
       }
     }
@@ -733,13 +734,13 @@ export function useTicketing(props, options = {}) {
     const currentFilteredIds = filteredTrips.value.map(t => t.id);
     const index = currentFilteredIds.indexOf(tripId);
     if (index <= 0) return; // Cannot move up if at the top or not found
-    
+
     // Swap
     const newFilteredIds = [...currentFilteredIds];
     const temp = newFilteredIds[index];
     newFilteredIds[index] = newFilteredIds[index - 1];
     newFilteredIds[index - 1] = temp;
-    
+
     const nonVisibleIds = tripsOrder.value.filter(id => !currentFilteredIds.includes(id));
     saveTripsOrder([...newFilteredIds, ...nonVisibleIds]);
   };
@@ -748,13 +749,13 @@ export function useTicketing(props, options = {}) {
     const currentFilteredIds = filteredTrips.value.map(t => t.id);
     const index = currentFilteredIds.indexOf(tripId);
     if (index === -1 || index >= currentFilteredIds.length - 1) return; // Cannot move down if at the bottom
-    
+
     // Swap
     const newFilteredIds = [...currentFilteredIds];
     const temp = newFilteredIds[index];
     newFilteredIds[index] = newFilteredIds[index + 1];
     newFilteredIds[index + 1] = temp;
-    
+
     const nonVisibleIds = tripsOrder.value.filter(id => !currentFilteredIds.includes(id));
     saveTripsOrder([...newFilteredIds, ...nonVisibleIds]);
   };
@@ -1135,9 +1136,9 @@ export function useTicketing(props, options = {}) {
     const allSeats = seatsToBook.value.length > 0 ? [...seatsToBook.value] : [selectedSeatNumber.value];
     const connectionFare = finalDestinationStationId.value
       ? (props.connectionFares || []).find(fare =>
-          (fare.from_station_id === selectedFare.value.from_station_id && fare.to_station_id === finalDestinationStationId.value)
-          || (fare.is_bidirectional && fare.to_station_id === selectedFare.value.from_station_id && fare.from_station_id === finalDestinationStationId.value)
-        )
+        (fare.from_station_id === selectedFare.value.from_station_id && fare.to_station_id === finalDestinationStationId.value)
+        || (fare.is_bidirectional && fare.to_station_id === selectedFare.value.from_station_id && fare.from_station_id === finalDestinationStationId.value)
+      )
       : null;
     const totalAmt = (connectionFare?.amount ?? selectedFare.value.amount) * allSeats.length;
 
@@ -1234,11 +1235,11 @@ export function useTicketing(props, options = {}) {
     createTripForm.value.allows_open_connections = !!template.allows_open_connections;
     createTripForm.value.automatic_connection_allocation = template.automatic_connection_allocation;
     createTripForm.value.is_replicable = true;
-    
+
     const currentDatePart = createTripForm.value.departure_at
       ? createTripForm.value.departure_at.split('T')[0]
       : new Date().toISOString().split('T')[0];
-      
+
     createTripForm.value.departure_at = `${currentDatePart}T${template.time}`;
   };
 
@@ -1280,13 +1281,13 @@ export function useTicketing(props, options = {}) {
       if (routeObj) {
         const origin = routeObj.origin_station || routeObj.originStation;
         const destination = routeObj.destination_station || routeObj.destinationStation;
-        
+
         const originCode = origin?.code || (origin ? origin.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'TRP');
         const destinationCode = destination?.code || (destination ? destination.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'DST');
-        
+
         const timePart = departureAt.split('T')[1] ? departureAt.split('T')[1].replace(':', '') : '0000';
         const cleanTime = timePart.substring(0, 4);
-        
+
         createTripForm.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
       }
     }
@@ -1313,11 +1314,11 @@ export function useTicketing(props, options = {}) {
         pagination.value = null;
       } else {
         if (loadingMore.value) {
-           const existingIds = new Set(trips.value.map(t => t.id));
-           const newItems = newVal.data.filter(t => !existingIds.has(t.id));
-           trips.value = [...trips.value, ...newItems];
+          const existingIds = new Set(trips.value.map(t => t.id));
+          const newItems = newVal.data.filter(t => !existingIds.has(t.id));
+          trips.value = [...trips.value, ...newItems];
         } else {
-           trips.value = [...newVal.data];
+          trips.value = [...newVal.data];
         }
         pagination.value = newVal;
         loadingMore.value = false;

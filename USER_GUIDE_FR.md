@@ -28,7 +28,7 @@ En tant qu'administrateur de votre compagnie sur TIKETI, vous avez le contrôle 
 *Menu : Paramètres > Paramètres Ticket*
 
 C'est ici que vous définissez ce qui apparaîtra sur les reçus de vos clients :
-- **Nom de l'entreprise** : Ex: "TSR Transport".
+- **Nom de l'entreprise** : Ex: "TEST TRANSPORT".
 - **Coordonnées** : Vos numéros de téléphone pour le service client.
 - **Messages** : Informations légales ou promotionnelles en bas de ticket (ex: "Bon voyage", "Non remboursable").
 - **QR Code** : Activez l'impression du QR Code pour permettre aux superviseurs de valider les billets via l'application mobile.

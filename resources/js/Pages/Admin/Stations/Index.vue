@@ -512,18 +512,16 @@ const handlePrint = () => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouvelle Station">
+                <button v-if="$page.props.auth.user.role !== 'supervisor'" @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Station">
                   <Plus class="h-5 w-5" />
                 </button>
-              </div>
-              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredStations.length === 0"
-                  small
                   @export="handleExport"
                   @print="handlePrint"
                 />
               </div>
+
             </div>
 
             <div class="overflow-y-auto flex-1 custom-scrollbar">
@@ -602,15 +600,17 @@ const handlePrint = () => {
                     ]">
                       {{ selectedStation.active ? 'Active' : 'Inactive' }}
                     </span>
-                    <button @click="duplicateStation" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
-                      <ContentCopy class="h-5 w-5" />
-                    </button>
-                    <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
-                      <Pencil class="h-5 w-5" />
-                    </button>
-                    <button @click="confirmDeleteStation(selectedStation.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
-                      <Trash2 class="h-5 w-5" />
-                    </button>
+                    <div v-if="$page.props.auth.user.role !== 'supervisor'" class="flex items-center gap-2">
+                      <button @click="duplicateStation" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
+                        <ContentCopy class="h-5 w-5" />
+                      </button>
+                      <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
+                        <Pencil class="h-5 w-5" />
+                      </button>
+                      <button @click="confirmDeleteStation(selectedStation.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
+                        <Trash2 class="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

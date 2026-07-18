@@ -149,6 +149,34 @@ class BluetoothPrinter {
         return text.length > width ? text.slice(0, Math.max(0, width - 1)) + '.' : text;
     }
 
+    wrap(value, width = 32) {
+        const words = this.stripAccents(value).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+        const lines = [];
+        let currentLine = '';
+
+        words.forEach(word => {
+            if (word.length > width) {
+                if (currentLine) lines.push(currentLine);
+                for (let offset = 0; offset < word.length; offset += width) {
+                    lines.push(word.slice(offset, offset + width));
+                }
+                currentLine = '';
+                return;
+            }
+
+            const candidate = currentLine ? `${currentLine} ${word}` : word;
+            if (candidate.length > width) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = candidate;
+            }
+        });
+
+        if (currentLine) lines.push(currentLine);
+        return lines;
+    }
+
     line(char = '-', width = 32) {
         return char.repeat(width).slice(0, width) + '\n';
     }
@@ -179,7 +207,7 @@ class BluetoothPrinter {
         commands += this.ALIGN_CENTER;
         commands += this.SIZE_DOUBLE;
         commands += this.BOLD_ON;
-        commands += `${this.fit(settings.company_name || 'TSR CI', 16)}\n`;
+        commands += `${this.fit(settings.company_name || 'TEST TRANSPORT', 16)}\n`;
         commands += this.BOLD_OFF;
         commands += this.SIZE_NORMAL;
 
@@ -194,35 +222,42 @@ class BluetoothPrinter {
         // Ticket number
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;
+        commands += `${this.fit('N TICKET', width)}\n`;
         commands += `${this.fit(ticketData.ticket_number, width)}\n`;
         commands += this.BOLD_OFF;
 
         commands += this.line('-', width);
+        commands += this.ALIGN_LEFT;
+        commands += this.pair('DEPART', ticketData.from_stop, width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
-        commands += `${this.fit('DESTINATION PASSAGER', width)}\n`;
+        commands += `${this.fit('DESTINATION', width)}\n`;
         commands += this.SIZE_DOUBLE;
         commands += `${this.fit(ticketData.to_stop, 16)}\n`;
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_OFF;
 
+        commands += this.ALIGN_CENTER;
+        commands += this.BOLD_ON;
+        commands += this.SIZE_DOUBLE;
+        commands += `${this.fit(`${ticketData.date} ${ticketData.time}`, 16)}\n`;
+        commands += this.SIZE_NORMAL;
+        commands += this.BOLD_OFF;
         commands += this.ALIGN_LEFT;
-        commands += this.line('-', width);
-        commands += this.pair('DEPART', ticketData.from_stop, width);
-        commands += this.pair('ARRIVEE', ticketData.to_stop, width);
-        commands += this.pair('DATE', `${ticketData.date} ${ticketData.time}`, width);
         commands += this.pair('VEHICULE', ticketData.vehicle_number, width);
 
         commands += this.line('-', width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
         commands += this.SIZE_DOUBLE;
-        commands += `PLACE ${ticketData.seat_number}  Z${ticketData.boarding_group || '1'}\n`;
+        commands += `PLACE ${ticketData.seat_number}\n`;
         commands += this.BOLD_OFF;
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;
+        commands += this.SIZE_DOUBLE;
         commands += `${this.fit(ticketData.price, 12)} FCFA\n`;
         commands += this.BOLD_OFF;
+        commands += this.SIZE_NORMAL;
 
         commands += this.line('-', width);
 
@@ -254,6 +289,14 @@ class BluetoothPrinter {
             settings.footer_messages.slice(0, 2).forEach(message => {
                 commands += `${this.fit(message, width)}\n`;
             });
+        }
+
+        if (settings.baggage_policy_message) {
+            commands += this.ALIGN_LEFT;
+            this.wrap(`1. ${settings.baggage_policy_message}`, width).forEach(line => {
+                commands += `${line}\n`;
+            });
+            commands += this.ALIGN_CENTER;
         }
 
         commands += this.fit(ticketData.timestamp, width) + '\n';

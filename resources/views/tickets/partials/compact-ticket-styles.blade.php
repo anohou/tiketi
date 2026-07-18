@@ -37,7 +37,7 @@
     }
 
     .company-block,
-    .qr-block {
+    .logo-block {
         display: table-cell;
         vertical-align: top;
     }
@@ -67,30 +67,39 @@
         line-height: 1.25;
     }
 
-    .qr-block {
+    .logo-block {
         width: 25mm;
         text-align: right;
     }
 
+    .tenant-logo {
+        display: inline-block;
+        width: auto;
+        height: auto;
+        max-width: 22mm;
+        max-height: 22mm;
+        object-fit: contain;
+    }
+
     .qr-code {
         display: inline-block;
-        width: 22mm;
-        height: 22mm;
+        width: 16mm;
+        height: 16mm;
         overflow: hidden;
         line-height: 0;
     }
 
     .qr-code svg {
         display: block;
-        width: 22mm !important;
-        height: 22mm !important;
-        max-width: 22mm !important;
-        max-height: 22mm !important;
+        width: 16mm !important;
+        height: 16mm !important;
+        max-width: 16mm !important;
+        max-height: 16mm !important;
     }
 
     .ticket-number-box {
-        border: 2px solid #000;
-        padding: 2.5mm 2mm;
+        border-bottom: 1px solid #000;
+        padding: 1.5mm 0 2mm;
         text-align: center;
         margin-bottom: 2mm;
     }
@@ -117,15 +126,12 @@
     }
 
     .journey-box {
-        border: 2px solid #000;
-        padding: 2mm;
-        margin-bottom: 4mm;
+        margin-bottom: 2mm;
     }
 
     .destination-panel {
-        border: 2px solid #000;
-        padding: 2mm;
-        margin-bottom: 2mm;
+        padding: 1mm 0 1.5mm;
+        margin-bottom: 1mm;
         text-align: center;
     }
 
@@ -146,7 +152,7 @@
     .route-lines {
         font-size: 11px;
         line-height: 1.25;
-        margin-bottom: 2mm;
+        margin-bottom: 1mm;
     }
 
     .route-lines strong {
@@ -156,9 +162,10 @@
     .info-grid {
         display: table;
         width: 100%;
-        border: 2px solid #000;
+        border-top: 1px solid #000;
+        border-bottom: 1px solid #000;
         table-layout: fixed;
-        margin-bottom: 3mm;
+        margin-bottom: 2mm;
     }
 
     .info-cell {
@@ -171,20 +178,37 @@
     }
 
     .info-cell:first-child {
-        border-right: 2px solid #000;
-        width: 68%;
+        width: 58%;
+    }
+
+    .info-cell.date-cell {
+        font-size: 16px;
+        font-weight: 900;
+    }
+
+    .info-cell.info-price-cell {
+        font-size: 18px;
+        font-weight: 900;
+    }
+
+    .info-label {
+        display: block;
+        margin-bottom: 1mm;
+        font-size: 8px;
+        line-height: 1;
+        text-transform: uppercase;
     }
 
     .summary-row {
-        display: table;
+        display: flex;
         width: 100%;
-        table-layout: fixed;
-        margin-bottom: 3mm;
+        align-items: center;
+        justify-content: center;
+        gap: 6mm;
+        margin-bottom: 1mm;
     }
 
     .summary-cell {
-        display: table-cell;
-        vertical-align: middle;
         font-size: 14px;
         font-weight: 800;
     }
@@ -193,28 +217,37 @@
         text-align: center;
     }
 
-    .summary-cell.right {
-        text-align: right;
+    .seat-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .seat-label {
+        display: block;
+        margin-bottom: 1mm;
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .summary-cell.qr-summary {
+        width: 18mm;
+        text-align: center;
+        line-height: 0;
     }
 
     .seat-pill {
         display: inline-block;
-        min-width: 12mm;
+        min-width: 9mm;
         border: 2px solid #000;
         border-radius: 8mm;
-        padding: 1.5mm 3mm;
+        padding: 1mm 2mm;
         font-size: 17px;
         line-height: 1;
         text-align: center;
         font-weight: 900;
-    }
-
-    .zone-line {
-        text-align: center;
-        font-size: 16px;
-        font-weight: 900;
-        text-transform: uppercase;
-        margin-bottom: 1mm;
     }
 
     .footer {

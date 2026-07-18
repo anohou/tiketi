@@ -200,15 +200,15 @@ const isLicenseExpired = (member) => {
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <AccountHardHat class="text-green-600" :size="28" />
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <AccountHardHat class="text-emerald-600" :size="28" />
             </div>
             Gestion de l'Équipage
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Chauffeurs et assistants</p>
         </div>
         <div class="flex gap-2">
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700">
+          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
             <Plus class="inline mr-1" :size="18" /> Nouveau Membre
           </button>
         </div>
@@ -224,44 +224,43 @@ const isLicenseExpired = (member) => {
 
         <!-- Middle Column - Members List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input
                     type="text"
                     v-model="search"
                     placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100"
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Membre">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Membre">
                   <Plus class="h-5 w-5" />
                 </button>
+                <ExportPrintButtons
+                  :disabled="filteredMembers.length === 0"
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
               <div class="flex items-center justify-between">
                 <select
                   v-model="roleFilter"
-                  class="px-2 py-1 border border-orange-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-orange-400 dark:bg-slate-950 dark:text-slate-100"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-emerald-400 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Tous les rôles</option>
                   <option value="driver">Chauffeurs</option>
                   <option value="assistant">Assistants</option>
                 </select>
-                <ExportPrintButtons
-                  :disabled="filteredMembers.length === 0"
-                  small
-                  @export="handleExport"
-                  @print="handlePrint"
-                />
               </div>
             </div>
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredMembers.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredMembers.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
                 Aucun membre d'équipage trouvé.
               </div>
               <div v-else>
@@ -270,7 +269,7 @@ const isLicenseExpired = (member) => {
                   :key="member.id"
                   @click="selectMember(member)"
                   class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(member) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
+                  :class="[isSelected(member) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div class="flex items-center gap-3">
@@ -285,7 +284,7 @@ const isLicenseExpired = (member) => {
                         />
                       </div>
                       <div>
-                        <h3 :class="['font-semibold', isSelected(member) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
+                        <h3 :class="['font-semibold', isSelected(member) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
                           {{ member.name }}
                         </h3>
                         <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{{ member.phone || 'Pas de téléphone' }}</p>
@@ -295,12 +294,12 @@ const isLicenseExpired = (member) => {
                       <span :class="['px-2 py-0.5 rounded-full text-[9px] font-medium', getRoleColor(member.role)]">
                         {{ getRoleLabel(member.role) }}
                       </span>
-                      <span v-if="member.role === 'driver' && member.license_expiry_date && isLicenseExpired(member)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-800 text-center">
+                      <span v-if="member.role === 'driver' && member.license_expiry_date && isLicenseExpired(member)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800 text-center">
                         Permis exp.
                       </span>
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[9px] font-medium',
-                        member.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        member.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                       ]">
                         {{ member.active ? 'Actif' : 'Inactif' }}
                       </span>
@@ -315,17 +314,17 @@ const isLicenseExpired = (member) => {
         <!-- Right Column - Details -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedMember" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <AccountHardHat class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedMember" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
+            <AccountHardHat class="h-16 w-16 text-slate-300 mb-4" />
             <p class="text-lg">Sélectionnez un membre pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou ajoutez un nouveau membre
             </button>
           </div>
 
           <!-- Details -->
           <div v-else class="space-y-4">
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header -->
               <div class="flex justify-between items-start mb-6">
                 <div class="flex items-center gap-4">
@@ -349,7 +348,7 @@ const isLicenseExpired = (member) => {
                 <div class="flex items-center gap-2">
                   <span :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedMember.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    selectedMember.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   ]">
                     {{ selectedMember.active ? 'Actif' : 'Inactif' }}
                   </span>
@@ -394,11 +393,11 @@ const isLicenseExpired = (member) => {
               <!-- Current Vehicle Assignment -->
               <div class="mt-6 pt-6 border-t border-gray-100 dark:border-slate-800">
                 <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-3">VÉHICULE ACTUEL</span>
-                <div v-if="selectedMember.current_assignment" class="flex items-center gap-3 p-3 bg-green-50 dark:bg-emerald-950/30 rounded-lg border border-green-100">
-                  <Bus class="text-green-600" :size="22" />
+                <div v-if="selectedMember.current_assignment" class="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-100">
+                  <Bus class="text-emerald-600" :size="22" />
                   <div>
-                    <p class="font-semibold text-green-800">{{ selectedMember.current_assignment.vehicle?.identifier }}</p>
-                    <p class="text-xs text-green-600">
+                    <p class="font-semibold text-emerald-800">{{ selectedMember.current_assignment.vehicle?.identifier }}</p>
+                    <p class="text-xs text-emerald-600">
                       Depuis le {{ new Date(selectedMember.current_assignment.assigned_from).toLocaleDateString('fr-FR') }}
                     </p>
                   </div>
@@ -416,15 +415,15 @@ const isLicenseExpired = (member) => {
             </div>
 
             <!-- Stats -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-4">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 text-center">
                   <p class="text-2xl font-bold text-blue-700">{{ selectedMember.vehicle_assignments_count || 0 }}</p>
                   <p class="text-xs text-blue-600">Affectations totales</p>
                 </div>
-                <div class="bg-green-50 dark:bg-emerald-950/30 rounded-lg p-3 text-center">
-                  <p class="text-2xl font-bold text-green-700">{{ selectedMember.current_assignment ? '1' : '0' }}</p>
-                  <p class="text-xs text-green-600">Affectation en cours</p>
+                <div class="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-center">
+                  <p class="text-2xl font-bold text-emerald-700">{{ selectedMember.current_assignment ? '1' : '0' }}</p>
+                  <p class="text-xs text-emerald-600">Affectation en cours</p>
                 </div>
               </div>
             </div>
@@ -457,7 +456,7 @@ const isLicenseExpired = (member) => {
               <select
                 id="role"
                 v-model="form.role"
-                class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+                class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               >
                 <option value="driver">Chauffeur</option>
                 <option value="assistant">Assistant</option>
@@ -496,7 +495,7 @@ const isLicenseExpired = (member) => {
 
           <div class="flex items-center">
             <label class="flex items-center text-sm text-gray-700 dark:text-slate-300 dark:text-slate-300 cursor-pointer">
-              <input v-model="form.active" type="checkbox" class="rounded border-gray-300 text-green-600" />
+              <input v-model="form.active" type="checkbox" class="rounded border-gray-300 text-emerald-600" />
               <span class="ml-2">Membre actif</span>
             </label>
           </div>
@@ -507,7 +506,7 @@ const isLicenseExpired = (member) => {
               id="notes"
               v-model="form.notes"
               rows="3"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               placeholder="Informations complémentaires..."
             ></textarea>
             <InputError :message="errors.notes" />

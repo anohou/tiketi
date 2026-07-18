@@ -228,15 +228,15 @@ const handlePrint = () => {
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <SwapHorizontal class="text-green-600" :size="28" />
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <SwapHorizontal class="text-emerald-600" :size="28" />
             </div>
             Affectations Équipage
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Historique des affectations chauffeurs/assistants aux véhicules</p>
         </div>
         <div class="flex gap-2">
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700">
+          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
             <Plus class="inline mr-1" :size="18" /> Nouvelle Affectation
           </button>
         </div>
@@ -252,27 +252,32 @@ const handlePrint = () => {
 
         <!-- Middle Column - Assignments List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input
                     type="text"
                     v-model="search"
                     placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100"
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Affectation">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Affectation">
                   <Plus class="h-5 w-5" />
                 </button>
+                <ExportPrintButtons
+                  :disabled="filteredAssignments.length === 0"
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
               <div class="flex items-center gap-2">
                 <select
                   v-model="statusFilter"
-                  class="px-2 py-1 border border-orange-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-orange-400 dark:bg-slate-950 dark:text-slate-100"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-emerald-400 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Tous les statuts</option>
                   <option value="active">En cours</option>
@@ -280,26 +285,18 @@ const handlePrint = () => {
                 </select>
                 <select
                   v-model="roleFilter"
-                  class="px-2 py-1 border border-orange-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-orange-400 dark:bg-slate-950 dark:text-slate-100"
+                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-emerald-400 dark:bg-slate-950 dark:text-slate-100"
                 >
                   <option value="">Tous les rôles</option>
                   <option value="driver">Chauffeurs</option>
                   <option value="assistant">Assistants</option>
                 </select>
-                <div class="ml-auto">
-                  <ExportPrintButtons
-                    :disabled="filteredAssignments.length === 0"
-                    small
-                    @export="handleExport"
-                    @print="handlePrint"
-                  />
-                </div>
               </div>
             </div>
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
                 Aucune affectation trouvée.
               </div>
               <div v-else>
@@ -307,8 +304,8 @@ const handlePrint = () => {
                   v-for="assignment in filteredAssignments"
                   :key="assignment.id"
                   @click="selectAssignment(assignment)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : isActive(assignment) ? 'bg-white dark:bg-slate-900 border-l-green-300 dark:border-l-green-900' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
+                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 last:border-0"
+                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : isActive(assignment) ? 'bg-white dark:bg-slate-900 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div class="flex items-center gap-3">
@@ -323,7 +320,7 @@ const handlePrint = () => {
                         />
                       </div>
                       <div>
-                        <h3 :class="['font-semibold text-sm', isSelected(assignment) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
+                        <h3 :class="['font-semibold text-sm', isSelected(assignment) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
                           {{ assignment.crew_member?.name || 'Inconnu' }}
                         </h3>
                         <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1 mt-0.5">
@@ -342,7 +339,7 @@ const handlePrint = () => {
                       </span>
                       <span :class="[
                         'flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium',
-                        isActive(assignment) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
+                        isActive(assignment) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
                       ]">
                         <component :is="isActive(assignment) ? CheckCircle : CloseCircle" :size="10" />
                         {{ isActive(assignment) ? 'En cours' : 'Clôturée' }}
@@ -358,10 +355,10 @@ const handlePrint = () => {
         <!-- Right Column - Details -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <SwapHorizontal class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
+            <SwapHorizontal class="h-16 w-16 text-slate-300 mb-4" />
             <p class="text-lg">Sélectionnez une affectation pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez une nouvelle affectation
             </button>
           </div>
@@ -369,13 +366,13 @@ const handlePrint = () => {
           <!-- Details -->
           <div v-else class="space-y-4">
             <!-- Assignment Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">Détails de l'Affectation</h2>
                 <div class="flex items-center gap-2">
                   <span :class="[
                     'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold',
-                    isActive(selectedAssignment) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
+                    isActive(selectedAssignment) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
                   ]">
                     <component :is="isActive(selectedAssignment) ? CheckCircle : CloseCircle" :size="14" />
                     {{ isActive(selectedAssignment) ? 'En cours' : 'Clôturée' }}
@@ -430,10 +427,10 @@ const handlePrint = () => {
                 <div class="col-span-2 md:col-span-1">
                   <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">VÉHICULE</span>
                   <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <Bus class="text-green-600" :size="20" />
+                    <Bus class="text-emerald-600" :size="20" />
                     <div>
                       <p class="font-semibold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedAssignment.vehicle?.identifier }}</p>
-                      <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ selectedAssignment.vehicle?.vehicle_type?.name || '' }}</p>
+                      <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">{{ selectedAssignment.vehicle?.vehicle_type?.name || '' }}</p>
                     </div>
                   </div>
                 </div>
@@ -447,7 +444,7 @@ const handlePrint = () => {
                 </div>
                 <div>
                   <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">FIN</span>
-                  <p class="text-lg font-medium" :class="selectedAssignment.assigned_to ? 'text-gray-900 dark:text-slate-100' : 'text-green-600'">
+                  <p class="text-lg font-medium" :class="selectedAssignment.assigned_to ? 'text-gray-900 dark:text-slate-100' : 'text-emerald-600'">
                     {{ selectedAssignment.assigned_to ? formatDateTime(selectedAssignment.assigned_to) : 'En cours' }}
                   </p>
                 </div>
@@ -481,7 +478,7 @@ const handlePrint = () => {
             <select
               id="role"
               v-model="form.role"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               :disabled="isEditing"
             >
               <option value="driver">Chauffeur</option>
@@ -495,7 +492,7 @@ const handlePrint = () => {
             <select
               id="crew_member_id"
               v-model="form.crew_member_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Sélectionner...</option>
@@ -511,7 +508,7 @@ const handlePrint = () => {
             <select
               id="vehicle_id"
               v-model="form.vehicle_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Sélectionner un véhicule</option>
@@ -541,7 +538,7 @@ const handlePrint = () => {
               id="notes"
               v-model="form.notes"
               rows="2"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               placeholder="Informations complémentaires..."
             ></textarea>
             <InputError :message="errors.notes" />

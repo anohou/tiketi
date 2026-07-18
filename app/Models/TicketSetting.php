@@ -29,7 +29,7 @@ class TicketSetting extends Model
     {
         return static::query()->orderBy('id')->first() ?? static::create(
             [
-                'company_name' => 'TSR CI',
+                'company_name' => 'TEST TRANSPORT',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],
                 'baggage_policy_message' => "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",

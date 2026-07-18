@@ -497,18 +497,16 @@ const handlePrint = () => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateRouteModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouvelle Route">
+                <button @click="openCreateRouteModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Route">
                   <Plus class="h-5 w-5" />
                 </button>
-              </div>
-              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredRoutes.length === 0"
-                  small
                   @export="handleExport"
                   @print="handlePrint"
                 />
               </div>
+
             </div>
 
             <!-- List Content -->

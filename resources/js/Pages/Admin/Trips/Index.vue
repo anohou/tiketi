@@ -559,9 +559,14 @@ const handlePrint = () => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-400 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm" title="Nouveau Voyage">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm shrink-0" title="Nouveau Voyage">
                   <Plus class="h-5 w-5" />
                 </button>
+                <ExportPrintButtons 
+                  :disabled="filteredTrips.length === 0"
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
               
               <!-- Filters -->
@@ -591,22 +596,13 @@ const handlePrint = () => {
                   </option>
                 </select>
               </div>
-              <div class="flex items-center justify-between mt-2">
+              <div v-if="dateFilter || departureFilter || arrivalFilter" class="flex items-center justify-between mt-2">
                 <button 
-                  v-if="dateFilter || departureFilter || arrivalFilter"
                   @click="clearFilters" 
                   class="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300"
                 >
                   Effacer les filtres
                 </button>
-                <div class="ml-auto">
-                  <ExportPrintButtons 
-                    :disabled="filteredTrips.length === 0"
-                    small
-                    @export="handleExport"
-                    @print="handlePrint"
-                  />
-                </div>
               </div>
             </div>
 

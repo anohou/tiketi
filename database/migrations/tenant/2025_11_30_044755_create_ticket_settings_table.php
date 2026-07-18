@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('ticket_settings', function (Blueprint $table) {
             $table->id();
-            $table->text('company_name')->default('TSR CI');
+            $table->text('company_name')->default('TEST TRANSPORT');
             $table->json('phone_numbers')->nullable(); // Array of phone numbers
             $table->text('cc_label')->nullable();
             $table->json('footer_messages')->nullable(); // Array of footer messages

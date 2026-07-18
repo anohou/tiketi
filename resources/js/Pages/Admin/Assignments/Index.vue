@@ -1,6 +1,12 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
+
+const page = usePage();
+
+const routePrefix = computed(() => {
+  return page.props.auth.user.role === 'supervisor' ? 'supervisor' : 'admin';
+});
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -178,8 +184,8 @@ const submit = () => {
   errors.value = {};
 
   const url = isEditing.value
-    ? route('admin.assignments.update', selectedAssignment.value.id)
-    : route('admin.assignments.store');
+    ? route(`${routePrefix.value}.assignments.update`, selectedAssignment.value.id)
+    : route(`${routePrefix.value}.assignments.store`);
 
   const method = isEditing.value ? 'put' : 'post';
 
@@ -197,7 +203,7 @@ const submit = () => {
 
 const deleteAssignment = (id) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer cette affectation ?')) {
-    router.delete(route('admin.assignments.destroy', id), {
+    router.delete(route(`${routePrefix.value}.assignments.destroy`, id), {
       onSuccess: () => {
         if (selectedAssignment.value?.id === id) {
           selectedAssignment.value = null;
@@ -245,18 +251,16 @@ const deleteAssignment = (id) => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Affectation">
+                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shrink-0" title="Nouvelle Affectation">
                   <Plus class="h-5 w-5" />
                 </button>
-              </div>
-              <div class="flex justify-end mt-2">
                 <ExportPrintButtons 
                   :disabled="filteredAssignments.length === 0"
-                  small
                   @export="handleExport" 
                   @print="handlePrint" 
                 />
               </div>
+
             </div>
 
             <!-- List Content -->

@@ -30,6 +30,10 @@ import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 const { exportToExcel, printList } = useExportPrint();
 const page = usePage();
 
+const routePrefix = computed(() => {
+  return page.props.auth.user.role === 'supervisor' ? 'supervisor' : 'admin';
+});
+
 const props = defineProps({
   users: {
     type: Object,
@@ -211,8 +215,8 @@ const submit = () => {
   errors.value = {};
 
   const url = isEditing.value
-    ? route('admin.users.update', selectedUser.value.id)
-    : route('admin.users.store');
+    ? route(`${routePrefix.value}.users.update`, selectedUser.value.id)
+    : route(`${routePrefix.value}.users.store`);
 
   const method = isEditing.value ? 'put' : 'post';
 
@@ -247,7 +251,7 @@ const confirmDeleteUser = (id) => {
 const deleteUser = () => {
   if (!userIdToDelete.value) return;
   showDeleteUserModal.value = false;
-  router.delete(route('admin.users.destroy', userIdToDelete.value), {
+  router.delete(route(`${routePrefix.value}.users.destroy`, userIdToDelete.value), {
     onSuccess: () => {
       if (selectedUser.value?.id === userIdToDelete.value) {
         selectedUser.value = null;
@@ -289,7 +293,7 @@ const addAssignment = () => {
   
   if (isEditingAssignment.value && editingAssignment.value) {
     // Update existing assignment
-    router.put(route('admin.assignments.update', editingAssignment.value.id), {
+    router.put(route(`${routePrefix.value}.assignments.update`, editingAssignment.value.id), {
       user_id: selectedUser.value.id,
       station_id: assignmentForm.value.station_id,
       active: editingAssignment.value.active
@@ -306,7 +310,7 @@ const addAssignment = () => {
     });
   } else {
     // Create new assignment
-    router.post(route('admin.assignments.store'), {
+    router.post(route(`${routePrefix.value}.assignments.store`), {
       user_id: selectedUser.value.id,
       station_id: assignmentForm.value.station_id
     }, {
@@ -345,7 +349,7 @@ const copyNewPassword = async () => {
 
 const saveNewPassword = () => {
   processing.value = true;
-  router.put(route('admin.users.update', selectedUser.value.id), {
+  router.put(route(`${routePrefix.value}.users.update`, selectedUser.value.id), {
     name: selectedUser.value.name,
     email: selectedUser.value.email,
     telephone: selectedUser.value.telephone,
@@ -375,7 +379,7 @@ const confirmRemoveAssignment = (assignmentId) => {
 const removeAssignment = () => {
   if (!assignmentIdToRemove.value) return;
   showRemoveAssignmentModal.value = false;
-  router.delete(route('admin.assignments.destroy', assignmentIdToRemove.value), {
+  router.delete(route(`${routePrefix.value}.assignments.destroy`, assignmentIdToRemove.value), {
     preserveScroll: true,
     onSuccess: () => {
       toastStore.success('Affectation retirée avec succès');
@@ -385,7 +389,7 @@ const removeAssignment = () => {
 };
 
 const toggleAssignmentActive = (assignment) => {
-  router.put(route('admin.assignments.update', assignment.id), {
+  router.put(route(`${routePrefix.value}.assignments.update`, assignment.id), {
     station_id: assignment.station_id,
     active: !assignment.active
   }, {
@@ -431,7 +435,7 @@ const toggleUserActive = () => {
   
   showToggleActiveModal.value = false;
   
-  router.put(route('admin.users.toggle-active', targetUser.id), {}, {
+  router.put(route(`${routePrefix.value}.users.toggle-active`, targetUser.id), {}, {
     preserveScroll: true,
     onSuccess: () => {
       toastStore.success(`Statut de l'utilisateur mis à jour`);
@@ -534,9 +538,14 @@ const handlePrint = () => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors" title="Nouvel Utilisateur">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvel Utilisateur">
                   <Plus class="h-5 w-5" />
                 </button>
+                <ExportPrintButtons 
+                  :disabled="filteredUsers.length === 0"
+                  @export="handleExport"
+                  @print="handlePrint"
+                />
               </div>
               <!-- Role Filter -->
               <div class="flex gap-1 overflow-x-auto pb-1 no-scrollbar">
@@ -586,14 +595,7 @@ const handlePrint = () => {
                   Fleet Manager
                 </button>
               </div>
-              <div class="flex justify-end mt-2">
-                  <ExportPrintButtons 
-                  :disabled="filteredUsers.length === 0"
-                  small
-                  @export="handleExport"
-                  @print="handlePrint"
-                />
-              </div>
+
             </div>
 
             <!-- List Content -->
@@ -675,10 +677,10 @@ const handlePrint = () => {
                 <h2 class="text-xl font-bold text-gray-800 dark:text-slate-200">{{ selectedUser.name }}</h2>
                 <div class="flex gap-2">
                   <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Modifier">
-                    <Pencil class="h-5 w-5" />
+                    <Pencil :size="20" />
                   </button>
                   <button @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Supprimer">
-                    <Trash2 class="h-5 w-5" />
+                    <Trash2 :size="20" />
                   </button>
                 </div>
               </div>
@@ -740,7 +742,7 @@ const handlePrint = () => {
                       @click="openResetPasswordModal"
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors text-xs font-medium w-full justify-center"
                     >
-                      <Refresh class="h-3.5 w-3.5" />
+                      <Refresh :size="14" />
                       Réinitialiser le MDP
                     </button>
                   </div>
@@ -806,7 +808,7 @@ const handlePrint = () => {
                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
                             : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
                         ]">
-                          <OfficeBuilding class="h-4 w-4" />
+                          <OfficeBuilding :size="16" />
                         </div>
                         <div>
                           <p :class="['font-medium text-sm', assignment.active !== false ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-500']">
@@ -822,7 +824,7 @@ const handlePrint = () => {
                           class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded transition-colors"
                           title="Modifier"
                         >
-                          <Pencil class="h-4 w-4" />
+                          <Pencil :size="16" />
                         </button>
                         <!-- Active Toggle -->
                         <label class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
@@ -840,7 +842,7 @@ const handlePrint = () => {
                           class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded transition-colors"
                           title="Retirer"
                         >
-                          <Trash2 class="h-4 w-4" />
+                          <Trash2 :size="16" />
                         </button>
                       </div>
                     </div>
@@ -886,7 +888,7 @@ const handlePrint = () => {
             <InputError :message="errors.telephone" />
           </div>
 
-          <div>
+          <div v-if="page.props.auth.user.role !== 'supervisor'">
             <InputLabel for="role" value="Rôle" />
             <select
               id="role"

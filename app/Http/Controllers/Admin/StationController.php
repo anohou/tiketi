@@ -11,12 +11,9 @@ use Inertia\Inertia;
 
 class StationController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $stations = Station::with([
+        $query = Station::with([
             'destination', // Eager load destination
             'userAssignments.user',
             'routeStopOrders.route.originStation',
@@ -29,9 +26,13 @@ class StationController extends Controller
             'destinationRoutes.originStation',
             'destinationRoutes.destinationStation',
             'destinationRoutes.routeStopOrders.station',
-        ])
-            ->withCount(['userAssignments'])
-            ->orderBy('name')
+        ])->withCount(['userAssignments']);
+
+        if (auth()->user()->role === 'supervisor') {
+            $query->whereIn('id', auth()->user()->getActiveStationIds());
+        }
+
+        $stations = $query->orderBy('name')
             ->paginate(50);
 
         $destinations = Destination::with([
@@ -48,6 +49,10 @@ class StationController extends Controller
 
     public function store(Request $request)
     {
+        if (auth()->user()->role === 'supervisor') {
+            abort(403, 'Unauthorized action.');
+        }
+
         $data = $request->validate([
             'name' => 'required|string',
             'code' => 'nullable|string|unique:stations,code',
@@ -85,6 +90,10 @@ class StationController extends Controller
 
     public function update(Request $request, Station $station)
     {
+        if (auth()->user()->role === 'supervisor') {
+            abort(403, 'Unauthorized action.');
+        }
+
         $data = $request->validate([
             'name' => 'required|string',
             'code' => 'nullable|string|unique:stations,code,'.$station->id.',id',
@@ -122,6 +131,10 @@ class StationController extends Controller
      */
     public function destroy(Station $station)
     {
+        if (auth()->user()->role === 'supervisor') {
+            abort(403, 'Unauthorized action.');
+        }
+
         $station->delete();
 
         return back();

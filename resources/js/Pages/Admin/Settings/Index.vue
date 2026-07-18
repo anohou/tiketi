@@ -1,5 +1,6 @@
 <script setup>
-import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { Link, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
@@ -16,6 +17,9 @@ import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
+
+const page = usePage();
+const user = computed(() => page.props.auth.user || {});
 
 const props = defineProps({
   stats: {
@@ -34,47 +38,62 @@ const props = defineProps({
   }
 });
 
-const configSections = [
-  {
-    category: 'Entreprise',
-    items: [
-      { name: 'Identité & Logo', route: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Nom, contact et visuel de la compagnie' },
-      { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
-      { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
-    ]
-  },
-  {
-    category: 'Infrastructure',
-    items: [
-      { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies', count: props.stats.destinations },
-      { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ', count: props.stats.stations },
-    ]
-  },
-  {
-    category: 'Flotte',
-    items: [
-      { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules', count: props.stats.vehicles },
-      { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types', count: props.stats.vehicleTypes },
-      { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, description: 'Gérer les chauffeurs et assistants' },
-      { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: 'Affecter les équipages aux véhicules' },
-    ]
-  },
-  {
-    category: 'Opérations',
-    items: [
-      { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires', count: props.stats.routes },
-      { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages', count: props.stats.trips },
-      { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix', count: props.stats.fares },
-    ]
-  },
-  {
-    category: 'Utilisateurs',
-    items: [
-      { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes', count: props.stats.users },
-      { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares', count: props.stats.assignments },
-    ]
+const configSections = computed(() => {
+  if (user.value.role === 'supervisor') {
+    return [
+      {
+        category: 'Gares & Utilisateurs',
+        items: [
+          { name: 'Gares', route: 'supervisor.stations.index', icon: OfficeBuilding, description: 'Gares sous votre supervision', count: props.stats.stations },
+          { name: 'Utilisateurs', route: 'supervisor.users.index', icon: AccountMultiple, description: 'Gérer les comptes de votre périmètre', count: props.stats.users },
+          { name: 'Assignations', route: 'supervisor.assignments.index', icon: AccountGroup, description: 'Assigner aux gares de votre périmètre', count: props.stats.assignments },
+        ]
+      }
+    ];
   }
-];
+
+  return [
+    {
+      category: 'Entreprise',
+      items: [
+        { name: 'Identité & Logo', route: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Nom, contact et visuel de la compagnie' },
+        { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
+        { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
+      ]
+    },
+    {
+      category: 'Infrastructure',
+      items: [
+        { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies', count: props.stats.destinations },
+        { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ', count: props.stats.stations },
+      ]
+    },
+    {
+      category: 'Flotte',
+      items: [
+        { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types', count: props.stats.vehicleTypes },
+        { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules', count: props.stats.vehicles },
+        { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, description: 'Gérer les chauffeurs et assistants' },
+        { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: 'Affecter les équipages aux véhicules' },
+      ]
+    },
+    {
+      category: 'Opérations',
+      items: [
+        { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires', count: props.stats.routes },
+        { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages', count: props.stats.trips },
+        { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix', count: props.stats.fares },
+      ]
+    },
+    {
+      category: 'Utilisateurs',
+      items: [
+        { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes', count: props.stats.users },
+        { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares', count: props.stats.assignments },
+      ]
+    }
+  ];
+});
 </script>
 
 <template>
@@ -94,7 +113,7 @@ const configSections = [
       </div>
 
       <!-- Quick Stats - At top -->
-      <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+      <div v-if="user.role !== 'supervisor'" class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
         <Link :href="route('admin.stations.index')" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-center hover:border-emerald-200 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
           <div class="text-2xl font-black text-emerald-600">{{ stats.stations }}</div>
           <div class="text-xs font-bold text-slate-400 uppercase mt-1">Gares</div>
@@ -118,6 +137,20 @@ const configSections = [
         <Link :href="route('admin.route-fares.index')" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-center hover:border-emerald-200 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
           <div class="text-2xl font-black text-slate-700">{{ stats.fares }}</div>
           <div class="text-xs font-bold text-slate-400 uppercase mt-1">Tarifs</div>
+        </Link>
+      </div>
+      <div v-else class="grid grid-cols-3 gap-4 mb-6 max-w-lg">
+        <Link :href="route('supervisor.stations.index')" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-center hover:border-emerald-200 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+          <div class="text-2xl font-black text-emerald-600">{{ stats.stations }}</div>
+          <div class="text-xs font-bold text-slate-400 uppercase mt-1">Gares</div>
+        </Link>
+        <Link :href="route('supervisor.users.index')" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-center hover:border-emerald-200 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+          <div class="text-2xl font-black text-slate-700">{{ stats.users }}</div>
+          <div class="text-xs font-bold text-slate-400 uppercase mt-1">Utilisateurs</div>
+        </Link>
+        <Link :href="route('supervisor.assignments.index')" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm text-center hover:border-emerald-200 hover:shadow-lg transition-all dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+          <div class="text-2xl font-black text-slate-700">{{ stats.assignments }}</div>
+          <div class="text-xs font-bold text-slate-400 uppercase mt-1">Assignations</div>
         </Link>
       </div>
 

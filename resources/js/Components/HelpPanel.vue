@@ -25,6 +25,14 @@ const emit = defineEmits(['close']);
           <div>
             <div class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Aide contextuelle</div>
             <h2 class="mt-1 text-xl font-black leading-tight text-slate-900 dark:text-slate-100">{{ topic?.title }}</h2>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <span class="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800">
+                Pour {{ topic?.roleLabel }}
+              </span>
+              <span class="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {{ topic?.contextLabel }}
+              </span>
+            </div>
           </div>
         </div>
         <button class="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" @click="emit('close')">
@@ -64,7 +72,7 @@ const emit = defineEmits(['close']);
       </div>
 
       <div class="border-t border-slate-100 p-4 dark:border-slate-800">
-        <Link :href="route('help.index')" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 dark:shadow-black/20" @click="emit('close')">
+        <Link :href="route('help.index', { topic: topic?.id })" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 dark:shadow-black/20" @click="emit('close')">
           <OpenInNew :size="18" />
           Ouvrir le centre d’aide
         </Link>

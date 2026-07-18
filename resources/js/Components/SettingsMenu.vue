@@ -33,22 +33,33 @@ const resolvedStats = computed(() => {
   return page.props.settingsStats || {};
 });
 
-const settingsMenu = computed(() => [
-  { name: 'Entreprise', route: 'admin.settings.enterprise', icon: OfficeBuilding },
-  { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
-  { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer },
-  { name: 'Villes', route: 'admin.destinations.index', icon: MapMarkerRadius, count: resolvedStats.value.destinations },
-  { name: 'Gares / Destinations', route: 'admin.stations.index', icon: OfficeBuilding, count: resolvedStats.value.stations },
-  { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, count: resolvedStats.value.fares },
-  { name: 'Trajets', route: 'admin.routes.index', icon: Router, count: resolvedStats.value.routes },
-  { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, count: resolvedStats.value.vehicleTypes },
-  { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, count: resolvedStats.value.vehicles },
-  { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, count: resolvedStats.value.trips },
-  { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, count: resolvedStats.value.users },
-  { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },
-  { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, count: resolvedStats.value.crewMembers },
-  { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, count: resolvedStats.value.crewAssignments },
-]);
+const settingsMenu = computed(() => {
+  const user = page.props.auth.user || {};
+  if (user.role === 'supervisor') {
+    return [
+      { name: 'Gares', route: 'supervisor.stations.index', icon: OfficeBuilding, count: resolvedStats.value.stations },
+      { name: 'Utilisateurs', route: 'supervisor.users.index', icon: AccountMultiple, count: resolvedStats.value.users },
+      { name: 'Affectations', route: 'supervisor.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },
+    ];
+  }
+
+  return [
+    { name: 'Entreprise', route: 'admin.settings.enterprise', icon: OfficeBuilding },
+    { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
+    { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer },
+    { name: 'Villes', route: 'admin.destinations.index', icon: MapMarkerRadius, count: resolvedStats.value.destinations },
+    { name: 'Gares / Destinations', route: 'admin.stations.index', icon: OfficeBuilding, count: resolvedStats.value.stations },
+    { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, count: resolvedStats.value.fares },
+    { name: 'Trajets', route: 'admin.routes.index', icon: Router, count: resolvedStats.value.routes },
+    { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, count: resolvedStats.value.vehicleTypes },
+    { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, count: resolvedStats.value.vehicles },
+    { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, count: resolvedStats.value.trips },
+    { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, count: resolvedStats.value.users },
+    { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },
+    { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, count: resolvedStats.value.crewMembers },
+    { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, count: resolvedStats.value.crewAssignments },
+  ];
+});
 </script>
 
 <template>

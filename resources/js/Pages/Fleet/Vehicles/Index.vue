@@ -309,18 +309,18 @@ const isInsuranceExpired = (vehicle) => {
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <Bus class="text-green-600" :size="28" />
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <Bus class="text-emerald-600" :size="28" />
             </div>
             Gestion des Véhicules
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
         </div>
         <div class="flex gap-2">
-          <Link :href="route('fleet.dashboard')" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 dark:text-slate-300 dark:text-slate-300 hover:bg-gray-50">
+          <Link :href="route('fleet.dashboard')" class="px-4 py-2 rounded-xl border border-slate-200 text-gray-700 dark:text-slate-300 dark:text-slate-300 hover:bg-gray-50">
             Retour
           </Link>
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700">
+          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
             <Plus class="inline mr-1" :size="18" /> Nouveau Véhicule
           </button>
         </div>
@@ -333,34 +333,32 @@ const isInsuranceExpired = (vehicle) => {
         </div>
 
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input
                     type="text"
                     v-model="search"
                     placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100"
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Véhicule">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Véhicule">
                   <Plus class="h-5 w-5" />
                 </button>
-              </div>
-              <div class="flex justify-end mt-2">
                 <ExportPrintButtons
                   :disabled="filteredVehicles.length === 0"
-                  small
                   @export="handleExport"
                   @print="handlePrint"
                 />
               </div>
+
             </div>
 
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
                 Aucun véhicule trouvé.
               </div>
               <div v-else>
@@ -368,23 +366,23 @@ const isInsuranceExpired = (vehicle) => {
                   v-for="vehicle in filteredVehicles"
                   :key="vehicle.id"
                   @click="selectVehicle(vehicle)"
-                  class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(vehicle) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
+                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 last:border-0"
+                  :class="[isSelected(vehicle) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div>
-                      <h3 :class="['text-base font-bold', isSelected(vehicle) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicle.identifier }}</h3>
+                      <h3 :class="['text-base font-bold', isSelected(vehicle) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicle.identifier }}</h3>
                       <p class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ vehicle.vehicle_type?.name }}</p>
                       <p class="text-xs text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ vehicle.maker || 'Fabricant non renseigné' }}</p>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                        vehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        vehicle.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                       ]">
                         {{ vehicle.active ? 'Actif' : 'Inactif' }}
                       </span>
-                      <span v-if="vehicle.insurance_expiry_date && isInsuranceExpired(vehicle)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-800 text-center">
+                      <span v-if="vehicle.insurance_expiry_date && isInsuranceExpired(vehicle)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800 text-center">
                         Assur. exp.
                       </span>
                       <span class="text-[10px] text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">
@@ -399,32 +397,32 @@ const isInsuranceExpired = (vehicle) => {
         </div>
 
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
-          <div v-if="!selectedVehicle" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedVehicle" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
+            <MapMarkerRadius class="h-16 w-16 text-slate-300 mb-4" />
             <p class="text-lg">Sélectionnez un véhicule pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez un nouveau véhicule
             </button>
           </div>
 
           <div v-else class="space-y-4">
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedVehicle.identifier }}</h2>
                 <div class="flex items-center gap-2">
                   <span :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedVehicle.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    selectedVehicle.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   ]">
                     {{ selectedVehicle.active ? 'Actif' : 'Inactif' }}
                   </span>
-                  <button @click="duplicateVehicle" class="p-2 text-green-600 hover:bg-green-50 dark:bg-emerald-950/30 rounded-lg transition-colors" title="Dupliquer">
+                  <button @click="duplicateVehicle" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:bg-emerald-950/30 rounded-lg transition-colors" title="Dupliquer">
                     <ContentCopy class="h-5 w-5" />
                   </button>
                   <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteVehicle(selectedVehicle.id)" class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="deleteVehicle(selectedVehicle.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -453,41 +451,41 @@ const isInsuranceExpired = (vehicle) => {
                   <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">EXPIRATION ASSURANCE</span>
                   <div class="text-xl font-bold leading-tight">
                     <span v-if="selectedVehicle.insurance_expiry_date" :class="[
-                      isInsuranceExpired(selectedVehicle) ? 'text-red-600' : 'text-gray-900 dark:text-slate-100'
+                      isInsuranceExpired(selectedVehicle) ? 'text-rose-600' : 'text-gray-900 dark:text-slate-100'
                     ]">
                       {{ formatDate(selectedVehicle.insurance_expiry_date) }}
-                      <span v-if="isInsuranceExpired(selectedVehicle)" class="text-xs font-bold text-red-600 ml-1">(Expirée)</span>
+                      <span v-if="isInsuranceExpired(selectedVehicle)" class="text-xs font-bold text-rose-600 ml-1">(Expirée)</span>
                     </span>
                     <span v-else class="text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500">Non renseignée</span>
                   </div>
                 </div>
                 <div class="col-span-12" v-if="!selectedVehicle.active">
-                  <div class="p-4 rounded-lg bg-red-50 border border-red-100">
-                    <span class="text-xs text-red-600 uppercase tracking-wider font-bold block mb-1">MOTIF D'INACTIVITÉ</span>
-                    <p class="text-red-800">{{ selectedVehicle.inactive_reason || 'Raison non spécifiée' }}</p>
+                  <div class="p-4 rounded-lg bg-rose-50 border border-rose-100">
+                    <span class="text-xs text-rose-600 uppercase tracking-wider font-bold block mb-1">MOTIF D'INACTIVITÉ</span>
+                    <p class="text-rose-800">{{ selectedVehicle.inactive_reason || 'Raison non spécifiée' }}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Crew Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div @click="showCrew = !showCrew" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
                 <div class="flex items-center gap-2">
-                  <AccountHardHat class="h-5 w-5 text-green-600" />
+                  <AccountHardHat class="h-5 w-5 text-emerald-600" />
                   <h3 class="font-semibold text-gray-700 dark:text-slate-300 dark:text-slate-300">
                     Équipage Actif ({{ (selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length }})
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click.stop="openAddCrewModal" class="p-1 bg-green-100 text-green-700 rounded hover:bg-green-200" title="Assigner un équipage">
+                    <button @click.stop="openAddCrewModal" class="p-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200" title="Assigner un équipage">
                         <Plus class="h-4 w-4" />
                     </button>
                     <component :is="showCrew ? ChevronDown : ChevronRight" class="h-5 w-5 text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" />
                 </div>
               </div>
               
-              <div v-if="showCrew" class="p-4 border-t border-orange-100">
+              <div v-if="showCrew" class="p-4 border-t border-slate-100">
                 <div class="space-y-2">
                   <div v-if="!(selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length" class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center py-2">
                     Aucun équipage assigné.
@@ -507,7 +505,7 @@ const isInsuranceExpired = (vehicle) => {
                       </div>
                       <div>
                         <p class="text-sm font-medium text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.crew_member?.name || 'Inconnu' }}</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
+                        <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -520,7 +518,7 @@ const isInsuranceExpired = (vehicle) => {
               </div>
             </div>
 
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div @click="showTrips = !showTrips" class="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100">
                 <div class="flex items-center gap-2">
                   <Bus class="h-5 w-5 text-blue-600" />
@@ -531,7 +529,7 @@ const isInsuranceExpired = (vehicle) => {
                 <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" />
               </div>
 
-              <div v-if="showTrips" class="p-4 border-t border-orange-100">
+              <div v-if="showTrips" class="p-4 border-t border-slate-100">
                 <div class="space-y-2">
                   <div v-if="!selectedVehicle.trips || selectedVehicle.trips.length === 0" class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center py-2">
                     Aucun voyage avec ce véhicule.
@@ -545,7 +543,7 @@ const isInsuranceExpired = (vehicle) => {
                       <Bus class="h-5 w-5 text-blue-500" />
                       <div>
                         <p class="text-sm font-medium text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ trip.route?.name || 'Route' }}</p>
-                        <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                        <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
                           {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                         </p>
                       </div>
@@ -554,8 +552,8 @@ const isInsuranceExpired = (vehicle) => {
                       'px-2 py-0.5 rounded-full text-[10px] font-medium',
                       getTripStatus(trip) === 'scheduled' ? 'bg-blue-100 text-blue-800' :
                       getTripStatus(trip) === 'departed' ? 'bg-purple-100 text-purple-800' :
-                      getTripStatus(trip) === 'arrived' ? 'bg-green-100 text-green-800' :
-                      getTripStatus(trip) === 'cancelled' ? 'bg-red-100 text-red-800' :
+                      getTripStatus(trip) === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
+                      getTripStatus(trip) === 'cancelled' ? 'bg-rose-100 text-rose-800' :
                       getTripStatus(trip) === 'expired' ? 'bg-gray-100 text-gray-800 dark:text-slate-200 dark:text-slate-200' :
                       'bg-gray-100 text-gray-800 dark:text-slate-200 dark:text-slate-200'
                     ]">
@@ -600,7 +598,7 @@ const isInsuranceExpired = (vehicle) => {
               <select
                 id="vehicle_type_id"
                 v-model="form.vehicle_type_id"
-                class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+                class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
                 required
               >
                 <option value="">Sélectionner...</option>
@@ -630,7 +628,7 @@ const isInsuranceExpired = (vehicle) => {
 
           <div class="flex items-center">
             <label class="flex items-center text-sm text-gray-700 dark:text-slate-300 dark:text-slate-300 cursor-pointer">
-              <input v-model="form.active" type="checkbox" class="rounded border-gray-300 text-green-600" />
+              <input v-model="form.active" type="checkbox" class="rounded border-gray-300 text-emerald-600" />
               <span class="ml-2">Véhicule Actif</span>
             </label>
           </div>
@@ -647,7 +645,7 @@ const isInsuranceExpired = (vehicle) => {
               id="inactive_reason"
               v-model="form.inactive_reason"
               rows="3"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               placeholder="Expliquez pourquoi le véhicule est inactif (panne, garage, etc.)"
               required
             ></textarea>
@@ -679,7 +677,7 @@ const isInsuranceExpired = (vehicle) => {
             <select
               id="crew_role"
               v-model="crewForm.role"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
             >
               <option value="driver">Chauffeur</option>
               <option value="assistant">Assistant</option>
@@ -692,7 +690,7 @@ const isInsuranceExpired = (vehicle) => {
             <select
               id="crew_member_id"
               v-model="crewForm.crew_member_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Sélectionner...</option>
@@ -715,7 +713,7 @@ const isInsuranceExpired = (vehicle) => {
               id="crew_notes"
               v-model="crewForm.notes"
               rows="2"
-              class="w-full px-3 py-2 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               placeholder="Notes concernant l'affectation..."
             ></textarea>
             <InputError :message="errors.notes" />

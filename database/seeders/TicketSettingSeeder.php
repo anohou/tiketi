@@ -15,7 +15,7 @@ class TicketSettingSeeder extends Seeder
         TicketSetting::firstOrCreate(
             ['id' => 1],
             [
-                'company_name' => 'TSR CI',
+                'company_name' => 'TEST TRANSPORT',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
                 'cc_label' => null,
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],

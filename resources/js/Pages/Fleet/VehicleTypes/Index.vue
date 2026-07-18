@@ -142,8 +142,8 @@ const handlePrint = () => {
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-orange-100 rounded-xl">
-              <Car class="text-orange-600" :size="28" />
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <Car class="text-emerald-600" :size="28" />
             </div>
             Types de véhicules
           </h1>
@@ -158,34 +158,32 @@ const handlePrint = () => {
         </div>
 
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
-              <div class="flex items-center justify-between gap-2">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
+              <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input
                     type="text"
                     v-model="search"
                     placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100"
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouveau Type">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Type">
                   <Plus class="h-5 w-5" />
                 </button>
-              </div>
-              <div class="flex justify-end mt-2">
                 <ExportPrintButtons
                   :disabled="filteredVehicleTypes.length === 0"
-                  small
                   @export="handleExport"
                   @print="handlePrint"
                 />
               </div>
+
             </div>
 
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
                 Aucun type de véhicule trouvé.
               </div>
               <div v-else>
@@ -194,11 +192,11 @@ const handlePrint = () => {
                   :key="vehicleType.id"
                   @click="selectVehicleType(vehicleType)"
                   class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(vehicleType) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
+                  :class="[isSelected(vehicleType) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div>
-                      <h3 :class="['font-semibold', isSelected(vehicleType) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicleType.name }}</h3>
+                      <h3 :class="['font-semibold', isSelected(vehicleType) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicleType.name }}</h3>
                       <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ vehicleType.seat_count }} sièges</p>
                     </div>
                   </div>
@@ -209,26 +207,26 @@ const handlePrint = () => {
         </div>
 
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
-          <div v-if="!selectedVehicleType" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <MapMarkerRadius class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedVehicleType" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
+            <MapMarkerRadius class="h-16 w-16 text-slate-300 mb-4" />
             <p class="text-lg">Sélectionnez un type de véhicule pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez un nouveau type de véhicule
             </button>
           </div>
 
           <div v-else class="space-y-4">
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedVehicleType.name }}</h2>
                 <div class="flex items-center gap-2">
                   <span :class="[
                     'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedVehicleType.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    selectedVehicleType.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                   ]">
                     {{ selectedVehicleType.active ? 'Actif' : 'Inactif' }}
                   </span>
-                  <button @click="duplicateVehicleType" class="p-2 text-green-600 hover:bg-green-50 dark:bg-emerald-950/30 rounded-lg transition-colors" title="Dupliquer">
+                  <button @click="duplicateVehicleType" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:bg-emerald-950/30 rounded-lg transition-colors" title="Dupliquer">
                     <ContentCopy class="h-5 w-5" />
                   </button>
                   <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" title="Modifier">

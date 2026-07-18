@@ -131,6 +131,24 @@ const getCleanDestination = (trip) => {
   return name.replace('->', '➔').replace('->', '➔');
 }
 
+const parseRouteName = (trip) => {
+  const name = trip.display_name || trip.route?.name || '';
+  const separator = name.includes('➔') ? '➔' : (name.includes('->') ? '->' : '->');
+  const parts = name.split(separator);
+  if (parts.length === 2) {
+    return {
+      origin: parts[0].trim(),
+      destination: parts[1].trim()
+    };
+  }
+  const originName = trip.origin_station?.name || trip.route?.origin_station?.name || '';
+  const destName = trip.destination_station?.name || trip.route?.destination_station?.name || name;
+  return {
+    origin: originName || 'Départ',
+    destination: destName
+  };
+}
+
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
@@ -291,14 +309,13 @@ const createTrip = () => {
         </div>
         
         <div>
-          <!-- Desktop Table Headers -->
           <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
              <div class="col-span-1">Heure</div>
-             <div class="col-span-3">Code Voyage</div>
+             <div class="col-span-2">Code Voyage</div>
              <div class="col-span-4">Destination</div>
              <div class="col-span-2">Véhicule</div>
              <div class="col-span-1 text-center">Places</div>
-             <div class="col-span-1">Statut</div>
+             <div class="col-span-2">Statut</div>
           </div>
 
           <!-- Trips List -->
@@ -316,15 +333,19 @@ const createTrip = () => {
                    <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
                  </div>
                  <!-- CODE VOYAGE -->
-                 <div class="col-span-3">
+                 <div class="col-span-2">
                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
                      {{ trip.code || 'Code en attente' }}
                    </span>
                  </div>
                  <!-- DESTINATION -->
-                 <div class="col-span-4 flex items-center min-w-0">
-                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase truncate">
-                       {{ getCleanDestination(trip) }}
+                 <div class="col-span-4 flex flex-col justify-center min-w-0 py-1">
+                    <span class="text-sm font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase leading-tight">
+                       {{ parseRouteName(trip).destination }}
+                    </span>
+                    <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase mt-0.5 flex flex-wrap items-center gap-1">
+                       <span class="text-slate-400 font-normal">depuis</span>
+                       <span class="text-slate-600 dark:text-slate-300">{{ parseRouteName(trip).origin }}</span>
                     </span>
                  </div>
                  <!-- VEHICULE -->
@@ -339,10 +360,10 @@ const createTrip = () => {
                     <span class="text-xs text-slate-400 dark:text-slate-500">{{ trip.total_seats }}</span>
                  </div>
                  <!-- STATUT -->
-                 <div class="col-span-1">
+                 <div class="col-span-2">
                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider shadow-inner transition-all duration-300"
                          :class="getAirportStatus(trip).color">
-                     <span v-if="['boarding', 'delayed'].includes(trip.status)" class="w-1 h-1 rounded-full mr-1 animate-ping bg-current"></span>
+                     <span v-if="['boarding', 'delayed'].includes(trip.status)" class="w-1.5 h-1.5 rounded-full mr-1.5 animate-ping bg-current"></span>
                      {{ getAirportStatus(trip).label }}
                    </span>
                  </div>
@@ -358,11 +379,15 @@ const createTrip = () => {
                     </div>
                     <!-- DESTINATION & VEHICLE -->
                     <div class="flex flex-col min-w-0">
-                       <span class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
-                         {{ getCleanDestination(trip) }}
+                       <span class="text-sm font-black text-slate-800 dark:text-slate-200 uppercase leading-tight">
+                         {{ parseRouteName(trip).destination }}
                        </span>
-                       <span class="text-[10px] font-mono text-amber-600 dark:text-amber-500/80 uppercase truncate mt-0.5">
-                         {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-600 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                       <span class="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase mt-0.5 flex flex-wrap items-center gap-1 leading-none">
+                         <span class="text-slate-400 font-normal">depuis</span>
+                         <span class="text-slate-600 dark:text-slate-350">{{ parseRouteName(trip).origin }}</span>
+                       </span>
+                       <span class="text-[9px] font-mono text-amber-600 dark:text-amber-500/80 uppercase mt-1 leading-none">
+                         {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
                        </span>
                     </div>
                  </div>

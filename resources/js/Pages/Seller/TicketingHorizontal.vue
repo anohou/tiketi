@@ -161,21 +161,6 @@ const trips = tripsRef;
 
 <template>
   <MainNavLayout :fullHeight="true" :hideTripSidebar="true">
-    <template #header-actions>
-      <button
-        @click="toggleBluetoothPrinter"
-        :class="[
-          'p-2 border rounded-full text-sm font-medium flex items-center justify-center transition-all',
-          useBluetoothPrinter && bluetoothPrinterConnected
-            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-        ]"
-        :title="bluetoothPrinterConnected ? `Connecté: ${bluetoothPrinterName}` : 'Connecter imprimante Bluetooth'"
-      >
-        <Bluetooth :class="bluetoothPrinterConnected ? 'text-emerald-600' : 'text-gray-500'" class="w-5 h-5" />
-      </button>
-    </template>
-
     <div class="w-full h-full min-h-0 flex flex-col overflow-hidden bg-gray-50">
       <!-- Top Header: Title, Trip Select, Actions -->
       <div class="shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shadow-sm z-20">
@@ -232,6 +217,18 @@ const trips = tripsRef;
           <button @click="showCreateTripModal = true" class="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 flex items-center shadow-sm transition-colors">
             <Calendar class="w-4 h-4 mr-2" />
             Nouveau Voyage
+          </button>
+          <button 
+            @click="toggleBluetoothPrinter" 
+            :class="[
+              'w-10 h-10 border rounded-full text-sm font-medium flex items-center justify-center transition-all shadow-sm shrink-0',
+              useBluetoothPrinter && bluetoothPrinterConnected 
+                ? 'border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+            ]"
+            :title="bluetoothPrinterConnected ? `Connecté: ${bluetoothPrinterName}` : 'Connecter imprimante Bluetooth'"
+          >
+            <Bluetooth :class="bluetoothPrinterConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'" :size="20" />
           </button>
         </div>
       </div>

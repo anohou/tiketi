@@ -358,6 +358,24 @@ const getCleanDestination = (trip) => {
   return name.replace('->', '➔').replace('->', '➔');
 }
 
+const parseRouteName = (trip) => {
+  const name = trip.display_name || trip.route?.name || '';
+  const separator = name.includes('➔') ? '➔' : (name.includes('->') ? '->' : '->');
+  const parts = name.split(separator);
+  if (parts.length === 2) {
+    return {
+      origin: parts[0].trim(),
+      destination: parts[1].trim()
+    };
+  }
+  const originName = trip.origin_station?.name || trip.route?.origin_station?.name || '';
+  const destName = trip.destination_station?.name || trip.route?.destination_station?.name || name;
+  return {
+    origin: originName || 'Départ',
+    destination: destName
+  };
+}
+
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
@@ -425,22 +443,6 @@ onMounted(() => {
 
 <template>
   <MainNavLayout :show-nav="!isMobile" :full-height="true">
-    <template #header-actions>
-      <!-- Bluetooth Printer Toggle moved to Header -->
-      <button 
-        @click="toggleBluetoothPrinter" 
-        :class="[
-          'p-2 border rounded-full text-sm font-medium flex items-center justify-center transition-all',
-          useBluetoothPrinter && bluetoothPrinterConnected 
-            ? 'border-emerald-500 bg-emerald-100 text-emerald-700' 
-            : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-        ]"
-        :title="bluetoothPrinterConnected ? `Connecté: ${bluetoothPrinterName}` : 'Connecter imprimante Bluetooth'"
-      >
-        <Bluetooth :class="bluetoothPrinterConnected ? 'text-emerald-600' : 'text-gray-500'" class="w-5 h-5" />
-      </button>
-    </template>
-
     <div class="flex-1 flex flex-col gap-4 min-h-0 bg-slate-50/70 dark:bg-slate-950 p-4 md:p-6 lg:p-8">
           
           <!-- Full-page blocking message if no station assigned (for sellers and supervisors) -->
@@ -511,6 +513,18 @@ onMounted(() => {
                 >
                   <Plus :size="20" />
                   <span>Nouveau Voyage</span>
+                </button>
+                <button 
+                  @click="toggleBluetoothPrinter" 
+                  :class="[
+                    'h-10 w-10 md:h-12 md:w-12 border rounded-full flex items-center justify-center transition-all flex-shrink-0 shadow-sm',
+                    useBluetoothPrinter && bluetoothPrinterConnected 
+                      ? 'border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' 
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-750'
+                  ]"
+                  :title="bluetoothPrinterConnected ? `Connecté: ${bluetoothPrinterName}` : 'Connecter imprimante Bluetooth'"
+                >
+                  <Bluetooth :class="bluetoothPrinterConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'" :size="20" />
                 </button>
               </div>
             </div>
@@ -1415,11 +1429,11 @@ onMounted(() => {
             <!-- Desktop Table Headers -->
             <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                <div class="col-span-1">Heure</div>
-               <div class="col-span-3">Code Voyage</div>
+               <div class="col-span-2">Code Voyage</div>
                <div class="col-span-4">Destination</div>
                <div class="col-span-2">Véhicule</div>
                <div class="col-span-1 text-center">Places</div>
-               <div class="col-span-1">Statut</div>
+               <div class="col-span-2">Statut</div>
             </div>
 
             <div class="divide-y divide-slate-100 dark:divide-slate-900 bg-white dark:bg-slate-950">
@@ -1439,15 +1453,19 @@ onMounted(() => {
                      <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
                    </div>
                    <!-- CODE VOYAGE -->
-                   <div class="col-span-3">
+                   <div class="col-span-2">
                      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
                        {{ trip.code || 'Code en attente' }}
                      </span>
                    </div>
                    <!-- DESTINATION -->
-                   <div class="col-span-4 flex items-center min-w-0">
-                      <span class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase truncate">
-                         {{ getCleanDestination(trip) }}
+                   <div class="col-span-4 flex flex-col justify-center min-w-0 py-1">
+                      <span class="text-sm font-black text-slate-800 dark:text-slate-200 tracking-wide uppercase leading-tight">
+                         {{ parseRouteName(trip).destination }}
+                      </span>
+                      <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase mt-0.5 flex flex-wrap items-center gap-1">
+                         <span class="text-slate-400 font-normal">depuis</span>
+                         <span class="text-slate-600 dark:text-slate-300">{{ parseRouteName(trip).origin }}</span>
                       </span>
                    </div>
                    <!-- VEHICULE -->
@@ -1462,7 +1480,7 @@ onMounted(() => {
                       <span class="text-xs text-slate-400 dark:text-slate-500">{{ trip.total_seats }}</span>
                    </div>
                    <!-- STATUT -->
-                   <div class="col-span-1">
+                   <div class="col-span-2">
                      <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider shadow-inner transition-all duration-300"
                            :class="getAirportStatus(trip).color">
                        <span v-if="['boarding', 'delayed'].includes(trip.status)" class="w-1.5 h-1.5 rounded-full mr-1.5 animate-ping bg-current"></span>
@@ -1481,10 +1499,14 @@ onMounted(() => {
                       </div>
                       <!-- DESTINATION & VEHICLE -->
                       <div class="flex flex-col min-w-0">
-                         <span class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
-                           {{ getCleanDestination(trip) }}
+                         <span class="text-sm font-black text-slate-800 dark:text-slate-200 uppercase leading-tight">
+                           {{ parseRouteName(trip).destination }}
                          </span>
-                         <span class="text-[10px] font-mono text-amber-600 dark:text-amber-500/80 uppercase truncate mt-0.5">
+                         <span class="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase mt-0.5 flex flex-wrap items-center gap-1 leading-none">
+                           <span class="text-slate-400 font-normal">depuis</span>
+                           <span class="text-slate-600 dark:text-slate-350">{{ parseRouteName(trip).origin }}</span>
+                         </span>
+                         <span class="text-[9px] font-mono text-amber-600 dark:text-amber-500/80 uppercase mt-1 leading-none">
                            {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
                          </span>
                       </div>

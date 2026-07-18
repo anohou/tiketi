@@ -115,7 +115,7 @@
         <div class="menu-path">Menu : Paramètres > Paramètres Ticket</div>
         <p>Définissez les informations essentielles qui apparaîtront sur les billets de vos clients :</p>
         <ul>
-            <li><strong>Nom de l'entreprise</strong> : Ex: "TSR Transport".</li>
+            <li><strong>Nom de l'entreprise</strong> : Ex: "TEST TRANSPORT".</li>
             <li><strong>Coordonnées</strong> : Vos numéros de téléphone pour le service client.</li>
             <li><strong>Messages</strong> : Mentions légales ou promotionnelles en bas de ticket.</li>
             <li><strong>QR Code</strong> : Activez-le pour permettre la validation mobile par vos superviseurs.</li>
