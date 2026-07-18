@@ -23,6 +23,7 @@ Route::middleware(['web', 'auth'])->prefix('landlord')->name('landlord.')->group
     Route::get('/tenants/{tenant}/edit', [TenantController::class, 'edit'])->name('tenants.edit');
     Route::put('/tenants/{tenant}', [TenantController::class, 'update'])->name('tenants.update');
     Route::delete('/tenants/{tenant}', [TenantController::class, 'destroy'])->name('tenants.destroy');
+    Route::post('/tenants/{tenant}/admin-password', [TenantController::class, 'regenerateAdminPassword'])->name('tenants.password.regenerate');
 
     // Domain Management for a tenant
     Route::post('/tenants/{tenant}/domains', [TenantController::class, 'addDomain'])->name('tenants.domains.store');

@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Events\SeatMapUpdated;
+use App\Events\TripCreated;
+use App\Models\CrewMember;
+use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\RouteStopOrder;
@@ -11,12 +15,20 @@ use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Models\User;
+use App\Models\UserRouteAssignment;
+use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
+use App\Models\VehicleCrewAssignment;
 use App\Models\VehicleType;
+use App\Services\AutomaticConnectionAllocator;
+use App\Services\OpenConnectionService;
 use App\Services\SeatMapService;
+use App\Services\TripTimingService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class TicketingFlowTest extends TestCase
@@ -64,6 +76,464 @@ class TicketingFlowTest extends TestCase
 
         $this->assertSame(2, Ticket::where('trip_id', $trip->id)->count());
         $this->assertSame(2, TripSeatOccupancy::where('trip_id', $trip->id)->where('seat_number', 1)->count());
+    }
+
+    public function test_open_connection_keeps_one_ticket_and_can_be_assigned_to_another_trip(): void
+    {
+        [$admin, $firstTrip, $stations] = $this->ticketingFixture();
+        $firstTrip->update(['allows_open_connections' => true]);
+        $secondTrip = Trip::create([
+            'route_id' => $firstTrip->route_id,
+            'vehicle_id' => $firstTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHours(3),
+            'status' => 'boarding',
+        ]);
+
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $firstTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $firstTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $connection = $ticket->connection()->firstOrFail();
+        $this->assertSame('pending', $connection->status);
+        $this->assertSame($stations['c']->id, $ticket->final_destination_station_id);
+        $this->assertSame(2000, $ticket->price, 'Le tarif doit être A→C, sans additionner ni utiliser A→B ou B→C.');
+
+        $this->actingAs($admin)->patchJson("/seller/transfer-pool/{$connection->id}/ready")
+            ->assertOk();
+        $this->actingAs($admin)->postJson("/seller/trips/{$secondTrip->id}/assign-connection", [
+            'connection_id' => $connection->id,
+            'seat_number' => 2,
+        ])->assertOk();
+
+        $connection->refresh();
+        $this->assertSame(1, Ticket::whereKey($ticket->id)->count());
+        $this->assertSame($secondTrip->id, $connection->trip_id);
+        $this->assertSame('assigned', $connection->status);
+        $this->assertSame(2, $connection->seat_number);
+        $this->assertSame('manual', $connection->assignment_mode);
+        $this->assertDatabaseHas('trip_seat_occupancies', [
+            'trip_id' => $secondTrip->id,
+            'ticket_id' => $ticket->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson("/seller/trips/{$secondTrip->id}/details")
+            ->assertOk()
+            ->assertJsonPath('occupancies.0.id', $ticket->id)
+            ->assertJsonPath('occupancies.0.seat_number', 2)
+            ->assertJsonPath('occupancies.0.from_station_id', $stations['b']->id)
+            ->assertJsonPath('occupancies.0.to_station_id', $stations['c']->id)
+            ->assertJsonPath('occupancies.0.journey_type', 'connection')
+            ->assertJsonPath('occupancies.0.connection_status', 'assigned');
+
+        $this->actingAs($admin)
+            ->getJson("/seller/trips/{$firstTrip->id}/details")
+            ->assertOk()
+            ->assertJsonPath('occupancies.0.journey_type', 'connection_origin')
+            ->assertJsonPath('occupancies.0.final_destination.id', $stations['c']->id)
+            ->assertJsonPath('occupancies.0.transfer_station.id', $stations['b']->id)
+            ->assertJsonPath('occupancies.0.connection_trip.id', $secondTrip->id)
+            ->assertJsonPath('occupancies.0.connection_status', 'assigned');
+    }
+
+    public function test_automatic_allocation_uses_expected_arrival_and_purchase_order(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true, 'departure_at' => now()->addHour()]);
+        $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
+        OperationalSetting::current()->update([
+            'automatic_connection_allocation' => false,
+            'connection_transfer_buffer_minutes' => 10,
+        ]);
+
+        foreach ([1, 2] as $seat) {
+            $this->actingAs($admin)->postJson('/seller/tickets', [
+                'trip_id' => $inboundTrip->id,
+                'from_station_id' => $stations['a']->id,
+                'to_station_id' => $stations['b']->id,
+                'final_destination_station_id' => $stations['c']->id,
+                'connection_route_id' => $inboundTrip->route_id,
+                'seats' => [$seat],
+            ])->assertCreated();
+        }
+
+        app(TripTimingService::class)->markDeparted($inboundTrip, now());
+
+        $outboundTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHours(2),
+            'status' => 'scheduled',
+            'automatic_connection_allocation' => true,
+        ]);
+
+        $assigned = app(AutomaticConnectionAllocator::class)->allocateForTrip($outboundTrip, $admin);
+
+        $this->assertCount(2, $assigned);
+        $this->assertEqualsCanonicalizing([1, 2], $assigned->pluck('seat_number')->all());
+        $this->assertSame(['automatic'], $assigned->pluck('assignment_mode')->unique()->values()->all());
+        $this->assertTrue($assigned->every(fn ($connection) => data_get($connection->settings, 'seat_allocation.mode') === 'intelligent'));
+        $this->assertTrue($assigned->every(fn ($connection) => filled(data_get($connection->settings, 'seat_allocation.reason'))));
+    }
+
+    public function test_stale_automatic_allocator_cannot_reassign_an_already_assigned_connection(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $ticketId = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated()->json('ticket_ids.0');
+
+        $firstOutbound = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHours(2),
+            'status' => 'scheduled',
+        ]);
+        $secondOutbound = $firstOutbound->replicate();
+        $secondOutbound->departure_at = now()->addHours(3);
+        $secondOutbound->save();
+
+        $connection = Ticket::findOrFail($ticketId)->connection()->firstOrFail();
+        $service = app(OpenConnectionService::class);
+        $service->assign($connection, $firstOutbound, 2, $admin, 'automatic', false);
+
+        try {
+            $service->assign($connection, $secondOutbound, 3, $admin, 'automatic', false);
+            $this->fail('Une allocation automatique obsolète ne doit pas réaffecter la correspondance.');
+        } catch (ValidationException) {
+            // Conflit attendu : la première affectation reste la source de vérité.
+        }
+
+        $connection->refresh();
+        $this->assertSame($firstOutbound->id, $connection->trip_id);
+        $this->assertSame(2, $connection->seat_number);
+        $this->assertSame(1, $connection->assignmentHistory()->count());
+        $this->assertDatabaseMissing('trip_seat_occupancies', [
+            'trip_id' => $secondOutbound->id,
+            'ticket_id' => $ticketId,
+        ]);
+    }
+
+    public function test_marking_departure_recalculates_connection_estimate(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $trip->update(['allows_open_connections' => true]);
+        $trip->route->update(['estimated_duration_minutes' => 60]);
+        app(TripTimingService::class)->syncPlannedTimes($trip);
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $trip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $plannedReadyAt = $ticket->connection()->firstOrFail()->planned_ready_at;
+        $this->assertNotNull($plannedReadyAt);
+        $this->assertNull($ticket->connection()->firstOrFail()->estimated_ready_at);
+        $actualDeparture = now()->addMinutes(20)->startOfSecond();
+
+        app(TripTimingService::class)->markDeparted($trip, $actualDeparture);
+
+        $this->assertEquals($actualDeparture->copy()->addMinutes(30), $ticket->connection()->firstOrFail()->estimated_ready_at);
+        $this->assertEquals($plannedReadyAt, $ticket->connection()->firstOrFail()->planned_ready_at);
+        $this->assertEquals($actualDeparture->copy()->addMinutes(60), $trip->fresh()->estimated_arrival_at);
+    }
+
+    public function test_late_inbound_trip_flags_assigned_connection_without_releasing_its_seat(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
+        OperationalSetting::current()->update(['connection_transfer_buffer_minutes' => 10]);
+        $outboundTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addMinutes(35)->startOfSecond(),
+            'status' => 'boarding',
+        ]);
+
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $connection = $ticket->connection()->firstOrFail();
+        $this->actingAs($admin)->patchJson("/seller/transfer-pool/{$connection->id}/ready")->assertOk();
+        $this->actingAs($admin)->postJson("/seller/trips/{$outboundTrip->id}/assign-connection", [
+            'connection_id' => $connection->id,
+            'seat_number' => 2,
+        ])->assertOk();
+
+        app(TripTimingService::class)->markDeparted($inboundTrip, now()->startOfSecond());
+
+        $connection->refresh();
+        $this->assertSame('assigned', $connection->status);
+        $this->assertTrue((bool) data_get($connection->settings, 'has_conflict'));
+        $this->assertNotNull(data_get($connection->settings, 'conflict_reason'));
+        $this->assertDatabaseHas('trip_seat_occupancies', [
+            'trip_id' => $outboundTrip->id,
+            'ticket_id' => $ticket->id,
+            'seat_number' => 2,
+        ]);
+    }
+
+    public function test_departing_connection_trip_releases_unboarded_passenger_back_to_pool(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $outboundTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHour(),
+            'status' => 'boarding',
+        ]);
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $connection = $ticket->connection()->firstOrFail();
+        $this->actingAs($admin)->postJson("/seller/trips/{$outboundTrip->id}/assign-connection", [
+            'connection_id' => $connection->id,
+            'seat_number' => 2,
+        ])->assertOk();
+
+        app(TripTimingService::class)->markDeparted($outboundTrip, now()->startOfSecond());
+
+        $connection->refresh();
+        $this->assertSame('pending', $connection->status);
+        $this->assertNull($connection->trip_id);
+        $this->assertNull($connection->seat_number);
+        $this->assertDatabaseMissing('trip_seat_occupancies', [
+            'trip_id' => $outboundTrip->id,
+            'ticket_id' => $ticket->id,
+        ]);
+        $this->assertDatabaseHas('ticket_connection_assignments', [
+            'ticket_connection_id' => $connection->id,
+            'from_trip_id' => $outboundTrip->id,
+            'action' => 'released_after_departure',
+        ]);
+    }
+
+    public function test_conflicted_connection_can_be_reassigned_atomically_and_is_recalculated(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
+        OperationalSetting::current()->update(['connection_transfer_buffer_minutes' => 10]);
+        $earlyTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id, 'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id, 'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addMinutes(35)->startOfSecond(), 'status' => 'boarding',
+        ]);
+        $laterTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id, 'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id, 'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHours(2)->startOfSecond(), 'status' => 'scheduled',
+        ]);
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id, 'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id, 'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id, 'seats' => [1],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $connection = $ticket->connection()->firstOrFail();
+        $this->actingAs($admin)->postJson("/seller/trips/{$earlyTrip->id}/assign-connection", [
+            'connection_id' => $connection->id, 'seat_number' => 2,
+        ])->assertOk();
+        app(TripTimingService::class)->markDeparted($inboundTrip, now()->startOfSecond());
+        $this->assertTrue($connection->fresh()->hasConflict());
+
+        $this->actingAs($admin)->postJson("/seller/trips/{$laterTrip->id}/assign-connection", [
+            'connection_id' => $connection->id, 'seat_number' => 3,
+        ])->assertOk();
+
+        $connection->refresh();
+        $this->assertSame($laterTrip->id, $connection->trip_id);
+        $this->assertSame(3, $connection->seat_number);
+        $this->assertFalse($connection->hasConflict());
+        $this->assertDatabaseMissing('trip_seat_occupancies', ['trip_id' => $earlyTrip->id, 'ticket_id' => $ticket->id]);
+        $this->assertDatabaseHas('trip_seat_occupancies', ['trip_id' => $laterTrip->id, 'ticket_id' => $ticket->id, 'seat_number' => 3]);
+        $this->assertDatabaseHas('ticket_connection_assignments', [
+            'ticket_connection_id' => $connection->id,
+            'from_trip_id' => $earlyTrip->id,
+            'to_trip_id' => $laterTrip->id,
+            'action' => 'reassigned',
+        ]);
+    }
+
+    public function test_arriving_connection_trip_completes_boarded_connections_only(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $outboundTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHour(),
+            'status' => 'departed',
+        ]);
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+        $connection = Ticket::findOrFail($response->json('ticket_ids.0'))->connection()->firstOrFail();
+        $connection->update([
+            'trip_id' => $outboundTrip->id,
+            'seat_number' => 2,
+            'status' => 'boarded',
+            'boarded_at' => now(),
+        ]);
+        $arrivedAt = now()->addHours(2)->startOfSecond();
+
+        app(TripTimingService::class)->markArrived($outboundTrip, $arrivedAt);
+
+        $connection->refresh();
+        $this->assertSame('arrived', $outboundTrip->fresh()->status);
+        $this->assertSame('completed', $connection->status);
+        $this->assertEquals($arrivedAt, $connection->completed_at);
+    }
+
+    public function test_cancelled_connection_trip_releases_assigned_passenger_and_records_history(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $outboundTrip = Trip::create([
+            'route_id' => $inboundTrip->route_id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHour(),
+            'status' => 'boarding',
+        ]);
+        $response = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $inboundTrip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $inboundTrip->route_id,
+            'seats' => [1],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
+        $connection = $ticket->connection()->firstOrFail();
+        $this->actingAs($admin)->patchJson("/seller/transfer-pool/{$connection->id}/ready")->assertOk();
+        $this->actingAs($admin)->postJson("/seller/trips/{$outboundTrip->id}/assign-connection", [
+            'connection_id' => $connection->id,
+            'seat_number' => 2,
+        ])->assertOk();
+
+        app(TripTimingService::class)->markCancelled($outboundTrip);
+
+        $connection->refresh();
+        $this->assertSame('cancelled', $outboundTrip->fresh()->status);
+        $this->assertSame('ready', $connection->status);
+        $this->assertNull($connection->trip_id);
+        $this->assertNull($connection->seat_number);
+        $this->assertDatabaseMissing('trip_seat_occupancies', [
+            'trip_id' => $outboundTrip->id,
+            'ticket_id' => $ticket->id,
+        ]);
+        $this->assertDatabaseHas('ticket_connection_assignments', [
+            'ticket_connection_id' => $connection->id,
+            'from_trip_id' => $outboundTrip->id,
+            'action' => 'released_after_cancellation',
+        ]);
+    }
+
+    public function test_different_destinations_on_same_connection_route_share_the_same_trip(): void
+    {
+        [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
+        $stationD = Station::create(['name' => 'Gare D', 'code' => 'D', 'city' => 'D', 'active' => true]);
+        $connectionRoute = Route::create([
+            'name' => 'B - D',
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stationD->id,
+            'estimated_duration_minutes' => 90,
+            'active' => true,
+        ]);
+        foreach ([$stations['b'], $stations['c'], $stationD] as $index => $station) {
+            RouteStopOrder::create(['route_id' => $connectionRoute->id, 'station_id' => $station->id, 'stop_index' => $index]);
+        }
+        RouteFare::create([
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stationD->id,
+            'amount' => 3000,
+            'is_bidirectional' => true,
+            'active' => true,
+        ]);
+        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
+
+        foreach ([[$stations['c']->id, 1], [$stationD->id, 2]] as [$destinationId, $seat]) {
+            $this->actingAs($admin)->postJson('/seller/tickets', [
+                'trip_id' => $inboundTrip->id,
+                'from_station_id' => $stations['a']->id,
+                'to_station_id' => $stations['b']->id,
+                'final_destination_station_id' => $destinationId,
+                'connection_route_id' => $connectionRoute->id,
+                'seats' => [$seat],
+            ])->assertCreated();
+        }
+        app(TripTimingService::class)->markDeparted($inboundTrip, now());
+
+        $outboundTrip = Trip::create([
+            'route_id' => $connectionRoute->id,
+            'vehicle_id' => $inboundTrip->vehicle_id,
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stationD->id,
+            'departure_at' => now()->addHours(2),
+            'status' => 'scheduled',
+            'automatic_connection_allocation' => true,
+        ]);
+        $assigned = app(AutomaticConnectionAllocator::class)->allocateForTrip($outboundTrip, $admin);
+
+        $this->assertCount(2, $assigned);
+        $this->assertEqualsCanonicalizing(
+            [$stations['c']->id, $stationD->id],
+            $assigned->pluck('destination_station_id')->all()
+        );
+        $this->assertSame([$connectionRoute->id], $assigned->pluck('route_id')->unique()->values()->all());
+        $this->assertTrue($assigned->every(fn ($connection) => data_get($connection->settings, 'seat_allocation.mode') === 'intelligent'));
+        $this->assertTrue($assigned->every(fn ($connection) => filled(data_get($connection->settings, 'seat_allocation.reason'))));
     }
 
     public function test_overlapping_segment_is_rejected_for_same_seat(): void
@@ -129,6 +599,65 @@ class TicketingFlowTest extends TestCase
         $this->assertSame(0, TripSeatOccupancy::where('ticket_id', $ticketId)->count());
     }
 
+    public function test_trip_status_transition_auditing(): void
+    {
+        Event::fake([SeatMapUpdated::class]);
+
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        // 1. Initial creation status log check
+        $this->assertDatabaseHas('trip_status_logs', [
+            'trip_id' => $trip->id,
+            'status' => 'scheduled',
+        ]);
+
+        // 2. Update status via web route (as user/admin)
+        $this->actingAs($admin)->patchJson("/seller/trips/{$trip->id}/status", [
+            'status' => 'boarding',
+        ])->assertRedirect();
+
+        $this->assertSame('boarding', $trip->fresh()->status);
+        $this->assertDatabaseHas('trip_status_logs', [
+            'trip_id' => $trip->id,
+            'status' => 'boarding',
+            'changed_by_user_id' => $admin->id,
+            'changed_by_crew_member_id' => null,
+        ]);
+
+        // 3. Update status as a crew member
+        $crewMember = CrewMember::create([
+            'name' => 'Moussa Driver',
+            'phone' => '+2250700000001',
+            'role' => 'driver',
+            'pin' => '1234',
+            'active' => true,
+        ]);
+
+        VehicleCrewAssignment::create([
+            'vehicle_id' => $trip->vehicle_id,
+            'crew_member_id' => $crewMember->id,
+            'role' => 'driver',
+            'assigned_from' => now()->subDay(),
+        ]);
+
+        auth()->logout();
+
+        $token = $crewMember->createToken('Test Device', ['crew'])->plainTextToken;
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->patchJson("/api/crew/trips/{$trip->id}/status", [
+                'status' => 'delayed',
+            ])->assertOk();
+
+        $this->assertSame('delayed', $trip->fresh()->status);
+        $this->assertDatabaseHas('trip_status_logs', [
+            'trip_id' => $trip->id,
+            'status' => 'delayed',
+            'changed_by_user_id' => null,
+            'changed_by_crew_member_id' => $crewMember->id,
+        ]);
+    }
+
     public function test_okohi_can_verify_an_issued_ticket(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
@@ -142,6 +671,7 @@ class TicketingFlowTest extends TestCase
 
         $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
 
+        // 1. Success without key configured
         $this->getJson('/api/okohi/verify?'.http_build_query([
             'ticket_id' => $ticket->ticket_number,
         ]))
@@ -149,6 +679,30 @@ class TicketingFlowTest extends TestCase
             ->assertJsonPath('valid', true)
             ->assertJsonPath('data.ticket_id', $ticket->ticket_number)
             ->assertJsonPath('data.amount', $ticket->price);
+
+        // 2. Reject if key is configured but missing/incorrect header
+        $settings = TicketSetting::getSettings();
+        $settings->update(['okohi_integration_key' => 'secret-test-key']);
+
+        $this->getJson('/api/okohi/verify?'.http_build_query([
+            'ticket_id' => $ticket->ticket_number,
+        ]))
+            ->assertStatus(401);
+
+        $this->withHeader('X-Okohi-Integration-Key', 'wrong-key')
+            ->getJson('/api/okohi/verify?'.http_build_query([
+                'ticket_id' => $ticket->ticket_number,
+            ]))
+            ->assertStatus(401);
+
+        // 3. Success with correct key header
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-test-key')
+            ->getJson('/api/okohi/verify?'.http_build_query([
+                'ticket_id' => $ticket->ticket_number,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('data.ticket_id', $ticket->ticket_number);
     }
 
     public function test_printable_qr_uses_okohi_scan_url_when_enabled(): void
@@ -420,7 +974,7 @@ class TicketingFlowTest extends TestCase
             'seat_map' => $seatMapService->generateSeatMap(array_merge($vehicleData, $metadata)),
         ]);
         $trip->vehicle->update(['seat_count' => $metadata['seat_count']]);
-        $trip->update(['sales_control' => 'closed', 'status' => 'departed']);
+        $trip->update(['sales_control' => 'closed', 'status' => 'boarding']);
 
         $this->actingAs($admin)->postJson('/seller/tickets', [
             'trip_id' => $trip->id,
@@ -428,6 +982,7 @@ class TicketingFlowTest extends TestCase
             'to_station_id' => $stations['b']->id,
             'seats' => [13, 36],
         ])->assertCreated();
+        $trip->update(['status' => 'departed']);
 
         $first = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
             'destination_station_id' => $stations['c']->id,
@@ -462,7 +1017,7 @@ class TicketingFlowTest extends TestCase
         [$admin, $trip, $stations] = $this->ticketingFixture();
 
         $stations['b']->update(['can_sell_tickets' => false]);
-        $trip->update(['sales_control' => 'closed', 'status' => 'departed']);
+        $trip->update(['sales_control' => 'closed', 'status' => 'boarding']);
 
         $this->actingAs($admin)->postJson('/seller/tickets', [
             'trip_id' => $trip->id,
@@ -470,6 +1025,7 @@ class TicketingFlowTest extends TestCase
             'to_station_id' => $stations['b']->id,
             'seats' => [3],
         ])->assertCreated();
+        $trip->update(['status' => 'departed']);
 
         $seatMap = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/seat-map?".http_build_query([
             'from_station_id' => $stations['a']->id,
@@ -536,6 +1092,187 @@ class TicketingFlowTest extends TestCase
             'station_id' => $station->id,
             'stop_index' => 0,
         ]);
+    }
+
+    public function test_trip_can_be_created_without_vehicle_if_replicable(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+
+        $stationA = Station::create(['name' => 'Gare A', 'code' => 'RA', 'city' => 'A', 'active' => true]);
+        $stationB = Station::create(['name' => 'Gare B', 'code' => 'RB', 'city' => 'B', 'active' => true]);
+        $route = Route::create([
+            'name' => 'A - B',
+            'active' => true,
+            'origin_station_id' => $stationA->id,
+            'destination_station_id' => $stationB->id,
+        ]);
+
+        Event::fake([
+            TripCreated::class,
+        ]);
+
+        // Creating a trip without vehicle_id should be successful
+        $this->actingAs($admin)->post('/admin/trips', [
+            'route_id' => $route->id,
+            'vehicle_id' => '',
+            'departure_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'status' => 'scheduled',
+            'is_replicable' => true,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('trips', [
+            'route_id' => $route->id,
+            'vehicle_id' => null,
+            'is_replicable' => true,
+        ]);
+    }
+
+    public function test_trip_replication_command_replicates_marked_trips_to_next_day(): void
+    {
+        $stationA = Station::create(['name' => 'Gare A', 'code' => 'RA', 'city' => 'A', 'active' => true]);
+        $stationB = Station::create(['name' => 'Gare B', 'code' => 'RB', 'city' => 'B', 'active' => true]);
+        $route = Route::create([
+            'name' => 'A - B',
+            'active' => true,
+            'origin_station_id' => $stationA->id,
+            'destination_station_id' => $stationB->id,
+        ]);
+
+        $departureToday = now()->setTime(14, 30, 0); // Scheduled for 14:30 today
+
+        $trip = Trip::create([
+            'route_id' => $route->id,
+            'vehicle_id' => null,
+            'departure_at' => $departureToday,
+            'status' => 'scheduled',
+            'is_replicable' => true,
+        ]);
+
+        // Run the Artisan command
+        $this->artisan('trips:replicate')
+            ->expectsOutput('Running replication in single-tenant/local context.')
+            ->expectsOutput('Found 1 replicable trips for today.')
+            ->expectsOutput('Successfully replicated 1 trips.')
+            ->assertExitCode(0);
+
+        // Verify that a new trip has been created for tomorrow at 14:30 with vehicle_id = null and is_replicable = true
+        $tomorrowDeparture = $departureToday->copy()->addDay();
+        $this->assertDatabaseHas('trips', [
+            'route_id' => $route->id,
+            'vehicle_id' => null,
+            'departure_at' => $tomorrowDeparture,
+            'status' => 'scheduled',
+            'is_replicable' => true,
+        ]);
+    }
+
+    public function test_trip_code_generation_sequential_suffix(): void
+    {
+        $stationA = Station::create(['name' => 'Gare A', 'code' => 'RA', 'city' => 'A', 'active' => true]);
+        $stationB = Station::create(['name' => 'Gare B', 'code' => 'RB', 'city' => 'B', 'active' => true]);
+        $route = Route::create([
+            'name' => 'A - B',
+            'active' => true,
+            'origin_station_id' => $stationA->id,
+            'destination_station_id' => $stationB->id,
+        ]);
+
+        $departureTime = now()->setTime(14, 30, 0);
+
+        $trip1 = Trip::create([
+            'route_id' => $route->id,
+            'departure_at' => $departureTime,
+            'status' => 'scheduled',
+        ]);
+        $this->assertSame('RA-RB-1430', $trip1->code);
+
+        $trip2 = Trip::create([
+            'route_id' => $route->id,
+            'departure_at' => $departureTime,
+            'status' => 'scheduled',
+        ]);
+        $this->assertSame('RA-RB-1430-2', $trip2->code);
+
+        $trip3 = Trip::create([
+            'route_id' => $route->id,
+            'departure_at' => $departureTime,
+            'status' => 'scheduled',
+        ]);
+        $this->assertSame('RA-RB-1430-3', $trip3->code);
+    }
+
+    public function test_seller_route_assignments_restrictions(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        // Create a second route serving the same origin station
+        $route2 = Route::create([
+            'name' => 'A - B (Alternate)',
+            'origin_station_id' => $stations['a']->id,
+            'destination_station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+
+        $trip2 = Trip::create([
+            'route_id' => $route2->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'origin_station_id' => $stations['a']->id,
+            'destination_station_id' => $stations['b']->id,
+            'departure_at' => now()->addHour(),
+            'status' => 'scheduled',
+            'booking_type' => 'seat_assignment',
+            'sales_control' => 'open',
+        ]);
+
+        // Create a seller
+        $seller = User::factory()->create([
+            'role' => 'seller',
+            'active' => true,
+        ]);
+
+        // Assign the seller to station A
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['a']->id,
+            'active' => true,
+        ]);
+
+        // 1. Without route assignments, both routes are accessible
+        $accessibleRouteIds = $seller->accessibleRoutesQuery()->pluck('id')->toArray();
+        $this->assertContains($trip->route_id, $accessibleRouteIds);
+        $this->assertContains($route2->id, $accessibleRouteIds);
+
+        // 2. Assign the seller to only the first route for station A
+        UserRouteAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['a']->id,
+            'route_id' => $trip->route_id,
+            'active' => true,
+        ]);
+
+        // Clear cached relations or query again
+        $accessibleRouteIds = $seller->fresh()->accessibleRoutesQuery()->pluck('id')->toArray();
+        $this->assertContains($trip->route_id, $accessibleRouteIds);
+        $this->assertNotContains($route2->id, $accessibleRouteIds);
+
+        // 3. Trying to purchase ticket for trip2 (on route2) should be rejected for the seller
+        $this->actingAs($seller)->postJson('/seller/tickets', [
+            'trip_id' => $trip2->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [1],
+        ])->assertStatus(403);
+
+        // 4. Purchasing ticket for trip1 (on route1) should succeed
+        $this->actingAs($seller)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [1],
+        ])->assertStatus(201);
     }
 
     private function ticketingFixture(string $bookingType = 'seat_assignment', bool $reversed = false): array
@@ -609,6 +1346,20 @@ class TicketingFlowTest extends TestCase
 
     private function ensureTenantTicketingTablesExist(): void
     {
+        Schema::dropIfExists('users');
+        Schema::create('users', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('telephone')->nullable();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->string('role')->default('seller')->index();
+            $table->boolean('active')->default(true);
+            $table->rememberToken();
+            $table->timestamps();
+        });
+
         if (! Schema::hasTable('stations')) {
             Schema::create('stations', function (Blueprint $table) {
                 $table->uuid('id')->primary();
@@ -628,6 +1379,8 @@ class TicketingFlowTest extends TestCase
                 $table->uuid('origin_station_id')->nullable();
                 $table->uuid('destination_station_id')->nullable();
                 $table->boolean('active')->default(true);
+                $table->unsignedInteger('estimated_duration_minutes')->nullable();
+                $table->boolean('automatic_connection_allocation')->nullable();
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });
@@ -685,18 +1438,37 @@ class TicketingFlowTest extends TestCase
             });
         }
 
+        if (! Schema::hasTable('vehicle_crew_assignments')) {
+            Schema::create('vehicle_crew_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('vehicle_id')->index();
+                $table->uuid('crew_member_id')->index();
+                $table->string('role')->index();
+                $table->dateTime('assigned_from');
+                $table->dateTime('assigned_to')->nullable();
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (! Schema::hasTable('trips')) {
             Schema::create('trips', function (Blueprint $table) {
                 $table->uuid('id')->primary();
-                $table->string('code')->nullable()->unique();
+                $table->string('code')->nullable();
                 $table->uuid('route_id')->index();
                 $table->uuid('origin_station_id')->nullable();
                 $table->uuid('destination_station_id')->nullable();
-                $table->uuid('vehicle_id')->index();
+                $table->uuid('vehicle_id')->nullable()->index();
                 $table->dateTime('departure_at');
+                $table->timestamp('planned_arrival_at')->nullable();
+                $table->timestamp('actual_departed_at')->nullable();
+                $table->timestamp('estimated_arrival_at')->nullable();
                 $table->string('status')->default('scheduled');
                 $table->string('booking_type')->default('seat_assignment');
                 $table->string('sales_control')->default('closed');
+                $table->boolean('allows_open_connections')->default(false);
+                $table->boolean('automatic_connection_allocation')->nullable();
+                $table->boolean('is_replicable')->default(false);
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });
@@ -711,6 +1483,8 @@ class TicketingFlowTest extends TestCase
                 $table->unsignedInteger('seat_number')->index();
                 $table->uuid('from_station_id')->index();
                 $table->uuid('to_station_id')->index();
+                $table->uuid('final_destination_station_id')->nullable()->index();
+                $table->uuid('transfer_station_id')->nullable()->index();
                 $table->string('passenger_name');
                 $table->string('passenger_phone');
                 $table->unsignedInteger('price');
@@ -734,7 +1508,49 @@ class TicketingFlowTest extends TestCase
                 $table->uuid('trip_id')->index();
                 $table->unsignedInteger('seat_number');
                 $table->uuid('ticket_id')->nullable()->index();
+                $table->uuid('from_station_id')->nullable()->index();
+                $table->uuid('to_station_id')->nullable()->index();
                 $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('ticket_connections')) {
+            Schema::create('ticket_connections', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('ticket_id')->unique();
+                $table->uuid('transfer_station_id')->index();
+                $table->uuid('destination_station_id')->index();
+                $table->uuid('route_id')->nullable()->index();
+                $table->uuid('trip_id')->nullable()->index();
+                $table->unsignedInteger('seat_number')->nullable();
+                $table->string('status')->default('pending')->index();
+                $table->timestamp('planned_ready_at')->nullable();
+                $table->timestamp('estimated_ready_at')->nullable();
+                $table->timestamp('ready_at')->nullable();
+                $table->timestamp('assigned_at')->nullable();
+                $table->uuid('assigned_by')->nullable();
+                $table->string('assignment_mode')->nullable();
+                $table->timestamp('boarded_at')->nullable();
+                $table->uuid('boarded_by')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('ticket_connection_assignments')) {
+            Schema::create('ticket_connection_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('ticket_connection_id')->index();
+                $table->uuid('from_trip_id')->nullable()->index();
+                $table->uuid('to_trip_id')->nullable()->index();
+                $table->unsignedInteger('from_seat_number')->nullable();
+                $table->unsignedInteger('to_seat_number')->nullable();
+                $table->string('action')->index();
+                $table->string('reason')->nullable();
+                $table->uuid('performed_by')->nullable()->index();
+                $table->json('metadata')->nullable();
                 $table->timestamps();
             });
         }
@@ -742,7 +1558,7 @@ class TicketingFlowTest extends TestCase
         if (! Schema::hasTable('ticket_settings')) {
             Schema::create('ticket_settings', function (Blueprint $table) {
                 $table->id();
-                $table->string('company_name')->default('TSR CI');
+                $table->string('company_name')->default('TEST TRANSPORT');
                 $table->json('phone_numbers')->nullable();
                 $table->string('cc_label')->nullable();
                 $table->json('footer_messages')->nullable();
@@ -750,6 +1566,96 @@ class TicketingFlowTest extends TestCase
                 $table->text('okohi_integration_url')->nullable();
                 $table->string('okohi_integration_key')->nullable();
                 $table->boolean('print_qr_code')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('operational_settings')) {
+            Schema::create('operational_settings', function (Blueprint $table) {
+                $table->id();
+                $table->boolean('automatic_connection_allocation')->default(false);
+                $table->unsignedInteger('connection_transfer_buffer_minutes')->default(15);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('trip_status_logs')) {
+            Schema::create('trip_status_logs', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('trip_id')->index();
+                $table->string('status', 30)->index();
+                $table->uuid('changed_by_user_id')->nullable()->index();
+                $table->uuid('changed_by_crew_member_id')->nullable()->index();
+                $table->text('note')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('crew_members')) {
+            Schema::create('crew_members', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('phone')->nullable();
+                $table->enum('role', ['driver', 'assistant'])->index();
+                $table->string('license_number')->nullable();
+                $table->date('license_expiry_date')->nullable();
+                $table->string('pin')->nullable();
+                $table->string('push_token')->nullable();
+                $table->boolean('active')->default(true);
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('vehicle_crew_assignments')) {
+            Schema::create('vehicle_crew_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('vehicle_id')->index();
+                $table->uuid('crew_member_id')->index();
+                $table->enum('role', ['driver', 'assistant'])->index();
+                $table->dateTime('assigned_from');
+                $table->dateTime('assigned_to')->nullable();
+                $table->json('settings')->nullable();
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('personal_access_tokens')) {
+            Schema::create('personal_access_tokens', function (Blueprint $table) {
+                $table->id();
+                $table->string('tokenable_type');
+                $table->uuid('tokenable_id');
+                $table->index(['tokenable_type', 'tokenable_id']);
+                $table->string('name');
+                $table->string('token', 64)->unique();
+                $table->text('abilities')->nullable();
+                $table->timestamp('last_used_at')->nullable();
+                $table->timestamp('expires_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('user_station_assignments')) {
+            Schema::create('user_station_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->index();
+                $table->uuid('station_id')->index();
+                $table->boolean('active')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('user_route_assignments')) {
+            Schema::create('user_route_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->index();
+                $table->uuid('route_id')->index();
+                $table->uuid('station_id')->nullable()->index();
+                $table->boolean('active')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });

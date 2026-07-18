@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Rules\AllowedTenantDomain;
 use App\Support\TenantDomainPolicy;
 use Database\Seeders\DestinationSeeder;
+use Database\Seeders\ProductionVehicleTypeSeeder;
 use Database\Seeders\VehicleTypeSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -77,15 +78,23 @@ class TenantController extends Controller
 
         // Initialize Tenant Data and Create Admin
         $tenant->run(function () use ($validated, $password) {
-            // Seed base data
-            Artisan::call('db:seed', [
-                '--class' => DestinationSeeder::class,
-                '--force' => true,
-            ]);
-            Artisan::call('db:seed', [
-                '--class' => VehicleTypeSeeder::class,
-                '--force' => true,
-            ]);
+            // Production tenants only get the two real 50-seat vehicle types.
+            if (app()->isProduction()) {
+                Artisan::call('db:seed', [
+                    '--class' => ProductionVehicleTypeSeeder::class,
+                    '--force' => true,
+                ]);
+            } else {
+                // Non-production tenants keep the demo data for convenience.
+                Artisan::call('db:seed', [
+                    '--class' => DestinationSeeder::class,
+                    '--force' => true,
+                ]);
+                Artisan::call('db:seed', [
+                    '--class' => VehicleTypeSeeder::class,
+                    '--force' => true,
+                ]);
+            }
 
             User::create([
                 'name' => 'Admin '.$validated['name'],
@@ -97,6 +106,33 @@ class TenantController extends Controller
 
         return redirect()->route('landlord.tenants.index')
             ->with('success', "Tenant '{$tenant->name}' created successfully with domain '{$validated['domain']}'")
+            ->with('tenant_admin_password', $password);
+    }
+
+    /**
+     * Regenerate the tenant administrator password
+     */
+    public function regenerateAdminPassword(Tenant $tenant)
+    {
+        $password = Str::password(10, true, true, false, false);
+
+        $tenant->run(function () use ($password) {
+            $admin = User::query()
+                ->where('role', 'admin')
+                ->orderBy('created_at')
+                ->first();
+
+            if (! $admin) {
+                abort(404, 'Tenant admin user not found.');
+            }
+
+            $admin->update([
+                'password' => Hash::make($password),
+            ]);
+        });
+
+        return redirect()->route('landlord.tenants.index')
+            ->with('success', "Tenant administrator password regenerated successfully for '{$tenant->name}'.")
             ->with('tenant_admin_password', $password);
     }
 

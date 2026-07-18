@@ -39,9 +39,11 @@ const submit = () => {
             </div>
 
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600">Espace sécurisé</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900">Connexion à TIKÊTI</h1>
-                <p class="mt-2 text-sm leading-6 text-slate-500">
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Espace sécurisé</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:!text-white dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]">
+                    Connexion à TIKÊTI
+                </h1>
+                <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
                     Accédez à vos outils de billetterie, de flotte et de supervision en quelques secondes.
                 </p>
             </div>
@@ -81,13 +83,13 @@ const submit = () => {
                 <div class="flex items-center justify-between">
                     <label class="flex items-center">
                         <Checkbox name="remember" v-model:checked="form.remember" />
-                        <span class="ms-2 text-sm text-slate-600">Rester connecté</span>
+                        <span class="ms-2 text-sm text-slate-600 dark:text-slate-300">Rester connecté</span>
                     </label>
 
                     <Link
                         v-if="canResetPassword"
                         :href="route('password.request')"
-                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
                         Mot de passe oublié ?
                     </Link>

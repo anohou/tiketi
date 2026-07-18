@@ -25,11 +25,11 @@ const form = useForm({
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-slate-900">
+            <h2 class="text-lg font-medium text-slate-900 dark:text-slate-100">
                 Informations du profil
             </h2>
 
-            <p class="mt-1 text-sm text-slate-600">
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Mettez à jour vos informations personnelles et votre adresse e-mail.
             </p>
         </header>
@@ -70,13 +70,13 @@ const form = useForm({
             </div>
 
             <div v-if="mustVerifyEmail && user.email_verified_at === null">
-                <p class="mt-2 text-sm text-slate-800">
+                <p class="mt-2 text-sm text-slate-800 dark:text-slate-200">
                     Votre adresse e-mail n’est pas vérifiée.
                     <Link
                         :href="route('verification.send')"
                         method="post"
                         as="button"
-                        class="rounded-md text-sm text-slate-600 underline hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                        class="rounded-md text-sm text-slate-600 dark:text-slate-400 underline hover:text-slate-900 dark:hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
                         Renvoyer l’e-mail de vérification
                     </Link>

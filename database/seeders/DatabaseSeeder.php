@@ -56,6 +56,13 @@ class DatabaseSeeder extends Seeder
             }
         }
 
+        // Clean up tenant in landlord DB if it already exists to prevent duplicate key errors
+        $existingTenant = Tenant::find($tenantId);
+        if ($existingTenant) {
+            $existingTenant->delete();
+            $this->command->info('🗑️ Existing tenant record removed from central database.');
+        }
+
         $tenant = Tenant::create([
             'id' => $tenantId,
             'name' => 'Transport CI (Test)',
@@ -64,6 +71,28 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $tenant->domains()->create(['domain' => 'test.localhost']);
+
+        // Check if we can detect the host computer's local IP address to allow mobile connection during development
+        try {
+            $localIp = null;
+            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                // Windows fallback
+                $ipConfig = shell_exec('ipconfig');
+                if ($ipConfig && preg_match('/IPv4 Address.*: (192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)/', $ipConfig, $matches)) {
+                    $localIp = $matches[1];
+                }
+            } else {
+                // macOS (Darwin) or Linux
+                $localIp = trim((string) shell_exec("ipconfig getifaddr en0 || ipconfig getifaddr en1 || hostname -I | cut -d' ' -f1"));
+            }
+
+            if (! empty($localIp) && filter_var($localIp, FILTER_VALIDATE_IP)) {
+                $tenant->domains()->firstOrCreate(['domain' => "test.{$localIp}.nip.io"]);
+                $this->command->info("📡 Local IP domain test.{$localIp}.nip.io registered in landlord DB.");
+            }
+        } catch (\Exception $e) {
+            $this->command->warn('Could not auto-detect local IP: '.$e->getMessage());
+        }
 
         $this->command->info('✅ Test Tenant created.');
 

@@ -47,6 +47,7 @@ const isEditing = ref(false);
 const form = ref({
   name: '',
   phone: '',
+  pin: '',
   role: 'driver',
   license_number: '',
   license_expiry_date: '',
@@ -93,7 +94,7 @@ const getRoleColor = (role) => role === 'driver' ? 'bg-blue-100 text-blue-800' :
 
 const openCreateModal = () => {
   isEditing.value = false;
-  form.value = { name: '', phone: '', role: 'driver', license_number: '', license_expiry_date: '', active: true, notes: '' };
+  form.value = { name: '', phone: '', pin: '', role: 'driver', license_number: '', license_expiry_date: '', active: true, notes: '' };
   errors.value = {};
   showModal.value = true;
 };
@@ -104,6 +105,7 @@ const openEditModal = () => {
   form.value = {
     name: selectedMember.value.name,
     phone: selectedMember.value.phone || '',
+    pin: '',
     role: selectedMember.value.role,
     license_number: selectedMember.value.license_number || '',
     license_expiry_date: selectedMember.value.license_expiry_date ? selectedMember.value.license_expiry_date.slice(0, 10) : '',
@@ -116,7 +118,7 @@ const openEditModal = () => {
 
 const closeModal = () => {
   showModal.value = false;
-  form.value = { name: '', phone: '', role: 'driver', license_number: '', license_expiry_date: '', active: true, notes: '' };
+  form.value = { name: '', phone: '', pin: '', role: 'driver', license_number: '', license_expiry_date: '', active: true, notes: '' };
   errors.value = {};
 };
 
@@ -462,6 +464,21 @@ const isLicenseExpired = (member) => {
               </select>
               <InputError :message="errors.role" />
             </div>
+          </div>
+
+          <div>
+            <InputLabel for="pin" :value="isEditing ? 'Nouveau code PIN (laisser vide pour conserver)' : 'Code PIN'" />
+            <TextInput
+              v-model="form.pin"
+              id="pin"
+              type="password"
+              inputmode="numeric"
+              autocomplete="new-password"
+              class="w-full"
+              placeholder="6 à 12 chiffres"
+            />
+            <p class="mt-1 text-xs text-gray-500">Le changement du PIN déconnecte automatiquement tous les appareils.</p>
+            <InputError :message="errors.pin" />
           </div>
 
           <div v-if="form.role === 'driver'" class="grid grid-cols-2 gap-4">

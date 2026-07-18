@@ -256,7 +256,7 @@ const handlePrint = () => {
                 <div class="col-span-6">
                   <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">DERNIÈRE RANGÉE</span>
                   <div class="text-xl font-bold text-gray-900 dark:text-slate-100 leading-tight">
-                    {{ selectedVehicleType.last_row_seats || 'Standard' }}
+                    {{ selectedVehicleType.last_row_seats ?? 'Standard' }}
                   </div>
                 </div>
                 <div class="col-span-4">

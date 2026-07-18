@@ -70,7 +70,7 @@ class Vehicle extends Model
      */
     public function currentCrew()
     {
-        return $this->hasMany(VehicleCrewAssignment::class)->whereNull('assigned_to');
+        return $this->hasMany(VehicleCrewAssignment::class)->atDate(now());
     }
 
     /**
@@ -79,7 +79,7 @@ class Vehicle extends Model
     public function currentDriver()
     {
         return $this->hasOne(VehicleCrewAssignment::class)
-            ->whereNull('assigned_to')
+            ->atDate(now())
             ->where('role', 'driver');
     }
 
@@ -89,7 +89,7 @@ class Vehicle extends Model
     public function currentAssistant()
     {
         return $this->hasOne(VehicleCrewAssignment::class)
-            ->whereNull('assigned_to')
+            ->atDate(now())
             ->where('role', 'assistant');
     }
 

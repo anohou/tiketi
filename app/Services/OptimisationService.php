@@ -6,6 +6,7 @@ use App\Models\Route;
 use App\Models\RouteStopOrder;
 use App\Models\Ticket;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
 use App\Models\VehicleType;
 use Illuminate\Support\Collection;
 
@@ -43,10 +44,18 @@ class OptimisationService
         // Détecter si le voyage est inversé par rapport à la direction par défaut de la route
         $isReversedTrip = app(TripSegmentService::class)->isReversed($trip);
 
-        $tickets = Ticket::where('trip_id', $tripId)
-            ->where('status', '!=', 'cancelled')
-            ->with(['toStation', 'fromStation'])
-            ->get();
+        $tickets = TripSeatOccupancy::where('trip_id', $tripId)
+            ->with(['ticket.toStation', 'ticket.fromStation'])
+            ->get()
+            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->map(function (TripSeatOccupancy $occupancy) {
+                $ticket = clone $occupancy->ticket;
+                $ticket->seat_number = $occupancy->seat_number;
+                $ticket->from_station_id = $occupancy->from_station_id ?? $ticket->from_station_id;
+                $ticket->to_station_id = $occupancy->to_station_id ?? $ticket->to_station_id;
+
+                return $ticket;
+            });
 
         // Récupérer la configuration du véhicule
         $vehicleType = $trip->vehicle->vehicleType;

@@ -2,7 +2,17 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CrewMember;
+use App\Models\Destination;
+use App\Models\Route;
+use App\Models\RouteFare;
+use App\Models\Station;
+use App\Models\Trip;
+use App\Models\User;
 use App\Models\UserStationAssignment;
+use App\Models\Vehicle;
+use App\Models\VehicleCrewAssignment;
+use App\Models\VehicleType;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -34,6 +44,7 @@ class HandleInertiaRequests extends Middleware
 
         // Get assigned stations for the current user (only if tenancy is initialized)
         $assignedStations = [];
+        $settingsStats = [];
         $isTenant = function_exists('tenancy') && tenancy()->initialized;
 
         if ($user && $isTenant) {
@@ -48,6 +59,49 @@ class HandleInertiaRequests extends Middleware
                     ];
                 })
                 ->toArray();
+
+            if ($user->role === 'supervisor') {
+                $stationIds = $user->getActiveStationIds();
+                $settingsStats = [
+                    'stations' => count($stationIds),
+                    'destinations' => 0,
+                    'routes' => 0,
+                    'vehicles' => 0,
+                    'vehicleTypes' => 0,
+                    'trips' => 0,
+                    'fares' => 0,
+                    'users' => User::where('role', 'seller')
+                        ->where(function ($q) use ($stationIds) {
+                            $q->whereHas('stationAssignments', function ($sq) use ($stationIds) {
+                                $sq->whereIn('station_id', $stationIds)->where('active', true);
+                            })
+                                ->orWhere(function ($sq) {
+                                    $sq->whereDoesntHave('stationAssignments')
+                                        ->where('settings->creator_id', auth()->id());
+                                });
+                        })->count(),
+                    'assignments' => UserStationAssignment::whereIn('station_id', $stationIds)
+                        ->whereHas('user', function ($q) {
+                            $q->where('role', 'seller');
+                        })->count(),
+                    'crewMembers' => 0,
+                    'crewAssignments' => 0,
+                ];
+            } else {
+                $settingsStats = [
+                    'stations' => Station::count(),
+                    'destinations' => Destination::count(),
+                    'routes' => Route::count(),
+                    'vehicles' => Vehicle::count(),
+                    'vehicleTypes' => VehicleType::count(),
+                    'trips' => Trip::count(),
+                    'fares' => RouteFare::count(),
+                    'users' => User::count(),
+                    'assignments' => UserStationAssignment::count(),
+                    'crewMembers' => CrewMember::count(),
+                    'crewAssignments' => VehicleCrewAssignment::count(),
+                ];
+            }
         }
 
         return [
@@ -56,6 +110,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? ($isTenant ? $user->load('stationAssignments') : $user) : null,
             ],
             'isTenant' => $isTenant,
+            'settingsStats' => $settingsStats,
             'tenant' => $isTenant ? [
                 'id' => tenant('id'),
                 'name' => tenant('name'),

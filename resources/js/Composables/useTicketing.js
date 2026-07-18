@@ -52,17 +52,30 @@ export function useTicketing(props, options = {}) {
   // Create trip modal
   const showCreateTripModal = ref(false);
   const createTripForm = ref({
+    code: '',
     route_id: '',
     vehicle_id: '',
     departure_at: '',
     status: 'scheduled',
     sales_control: 'closed',
+    allows_open_connections: false,
+    automatic_connection_allocation: null,
+    is_replicable: false,
   });
   const createTripErrors = ref({});
   const createTripProcessing = ref(false);
 
   // Zoom modal
   const showZoomModal = ref(false);
+
+  // Trip details modal
+  const showTripDetailsModal = ref(false);
+  const selectedDetailsTripId = ref(null);
+
+  const openTripDetails = (tripId) => {
+    selectedDetailsTripId.value = tripId;
+    showTripDetailsModal.value = true;
+  };
 
   // Passenger form modal
   const showPassengerModal = ref(false);
@@ -73,6 +86,8 @@ export function useTicketing(props, options = {}) {
   const selectedSeatColor = computed(() => '#22C55E');
   const passengerForm = ref({ name: '', phone: '' });
   const passengerFormErrors = ref({});
+  const finalDestinationStationId = ref(null);
+  const connectionRouteId = ref(null);
 
   // Supervisor Inspection
   const showInspectionModal = ref(false);
@@ -589,9 +604,11 @@ export function useTicketing(props, options = {}) {
     stops.forEach((stop) => addStation(stop.station_id || stop.station?.id));
     addStation(routeObj.destination_station_id);
 
-    const isReversedTrip = trip.origin_station_id &&
-      routeObj.origin_station_id &&
-      trip.origin_station_id !== routeObj.origin_station_id;
+    const tripOriginIndex = orderedStationIds.indexOf(trip.origin_station_id);
+    const tripDestinationIndex = orderedStationIds.indexOf(trip.destination_station_id);
+    const isReversedTrip = tripOriginIndex !== -1 &&
+      tripDestinationIndex !== -1 &&
+      tripOriginIndex > tripDestinationIndex;
 
     const directionStations = isReversedTrip ? [...orderedStationIds].reverse() : orderedStationIds;
 
@@ -1116,7 +1133,13 @@ export function useTicketing(props, options = {}) {
     processing.value = true;
 
     const allSeats = seatsToBook.value.length > 0 ? [...seatsToBook.value] : [selectedSeatNumber.value];
-    const totalAmt = selectedFare.value.amount * allSeats.length;
+    const connectionFare = finalDestinationStationId.value
+      ? (props.connectionFares || []).find(fare =>
+          (fare.from_station_id === selectedFare.value.from_station_id && fare.to_station_id === finalDestinationStationId.value)
+          || (fare.is_bidirectional && fare.to_station_id === selectedFare.value.from_station_id && fare.from_station_id === finalDestinationStationId.value)
+        )
+      : null;
+    const totalAmt = (connectionFare?.amount ?? selectedFare.value.amount) * allSeats.length;
 
     const ticketData = {
       trip_id: selectedTripId.value,
@@ -1125,6 +1148,10 @@ export function useTicketing(props, options = {}) {
       seats: allSeats,
       amount: totalAmt,
     };
+    if (finalDestinationStationId.value) {
+      ticketData.final_destination_station_id = finalDestinationStationId.value;
+      ticketData.connection_route_id = connectionRouteId.value;
+    }
 
     if (showPassengerFields.value && passengerForm.value.name) {
       ticketData.passenger_name = passengerForm.value.name.trim();
@@ -1155,6 +1182,8 @@ export function useTicketing(props, options = {}) {
 
     // Reset fare for next customer
     selectedFare.value = null;
+    finalDestinationStationId.value = null;
+    connectionRouteId.value = null;
 
     try {
       const response = await axios.post(route('seller.tickets.store'), ticketData);
@@ -1199,6 +1228,20 @@ export function useTicketing(props, options = {}) {
   };
 
   // =============================================
+  const applyReplicableTemplate = (template) => {
+    if (!template) return;
+    createTripForm.value.route_id = template.route_id;
+    createTripForm.value.allows_open_connections = !!template.allows_open_connections;
+    createTripForm.value.automatic_connection_allocation = template.automatic_connection_allocation;
+    createTripForm.value.is_replicable = true;
+    
+    const currentDatePart = createTripForm.value.departure_at
+      ? createTripForm.value.departure_at.split('T')[0]
+      : new Date().toISOString().split('T')[0];
+      
+    createTripForm.value.departure_at = `${currentDatePart}T${template.time}`;
+  };
+
   // Trip Creation
   // =============================================
   const createTrip = () => {
@@ -1208,7 +1251,7 @@ export function useTicketing(props, options = {}) {
       preserveState: true,
       onSuccess: () => {
         showCreateTripModal.value = false;
-        createTripForm.value = { route_id: '', vehicle_id: '', departure_at: '', status: 'scheduled', sales_control: 'closed' };
+        createTripForm.value = { code: '', route_id: '', vehicle_id: '', departure_at: '', status: 'scheduled', sales_control: 'closed', allows_open_connections: false, automatic_connection_allocation: null, is_replicable: false };
       },
       onError: (errs) => { createTripErrors.value = errs; },
       onFinish: () => { createTripProcessing.value = false; },
@@ -1231,6 +1274,24 @@ export function useTicketing(props, options = {}) {
   }
 
   // =============================================
+  watch([() => createTripForm.value.route_id, () => createTripForm.value.departure_at], ([routeId, departureAt]) => {
+    if (routeId && departureAt) {
+      const routeObj = props.routes?.find(r => r.id === routeId);
+      if (routeObj) {
+        const origin = routeObj.origin_station || routeObj.originStation;
+        const destination = routeObj.destination_station || routeObj.destinationStation;
+        
+        const originCode = origin?.code || (origin ? origin.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'TRP');
+        const destinationCode = destination?.code || (destination ? destination.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'DST');
+        
+        const timePart = departureAt.split('T')[1] ? departureAt.split('T')[1].replace(':', '') : '0000';
+        const cleanTime = timePart.substring(0, 4);
+        
+        createTripForm.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
+      }
+    }
+  });
+
   // Watchers
   // =============================================
 
@@ -1401,6 +1462,9 @@ export function useTicketing(props, options = {}) {
     createTripErrors,
     createTripProcessing,
     showZoomModal,
+    showTripDetailsModal,
+    selectedDetailsTripId,
+    openTripDetails,
     showPassengerModal,
     showDestinationModal,
     selectedSeatNumber,
@@ -1409,6 +1473,8 @@ export function useTicketing(props, options = {}) {
     selectedSeatColor,
     passengerForm,
     passengerFormErrors,
+    finalDestinationStationId,
+    connectionRouteId,
     showInspectionModal,
     selectedTicketForInspection,
     currentTime,
@@ -1467,6 +1533,7 @@ export function useTicketing(props, options = {}) {
     confirmBooking,
     cancelBooking,
     createTrip,
+    applyReplicableTemplate,
     printTickets,
     fallbackToBrowserPrint,
     printWithBluetooth,

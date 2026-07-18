@@ -13,7 +13,12 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 
 const props = defineProps({
-  tenant: Object
+  tenant: Object,
+  stats: {
+    type: Object,
+    default: () => ({}),
+  },
+  operationalSettings: Object,
 });
 
 const form = useForm({
@@ -21,6 +26,10 @@ const form = useForm({
   email: props.tenant.email || '',
   phone: props.tenant.phone || '',
   logo: null,
+  automatic_connection_allocation: props.operationalSettings?.automatic_connection_allocation || false,
+  connection_transfer_buffer_minutes: props.operationalSettings?.connection_transfer_buffer_minutes ?? 15,
+  seller_compensation_enabled: props.operationalSettings?.settings?.seller_compensation_enabled || false,
+  seller_compensation_max_amount: props.operationalSettings?.settings?.seller_compensation_max_amount ?? 0,
 });
 
 const logoPreview = ref(props.tenant.logo_url || null);
@@ -152,7 +161,7 @@ const submit = () => {
 
       <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
-          <SettingsMenu />
+          <SettingsMenu :stats="props.stats" />
         </div>
 
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
@@ -253,6 +262,28 @@ const submit = () => {
                   placeholder="+225 ..."
                 />
                 <InputError class="mt-2" :message="form.errors.phone" />
+              </div>
+
+              <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input v-model="form.automatic_connection_allocation" type="checkbox" class="mt-1 rounded border-emerald-300 text-emerald-600" />
+                  <span>
+                    <span class="block text-sm font-bold text-emerald-900 dark:text-emerald-200">Allocation automatique des correspondances</span>
+                    <span class="block text-xs text-emerald-700 dark:text-emerald-400">Politique par défaut de la compagnie. Chaque trajet peut hériter, l’activer ou la désactiver.</span>
+                  </span>
+                </label>
+                <div class="mt-3">
+                  <InputLabel for="connection_buffer" value="Marge minimale de correspondance (minutes)" />
+                  <TextInput id="connection_buffer" v-model.number="form.connection_transfer_buffer_minutes" type="number" min="0" max="240" class="mt-1 block w-full" />
+                  <InputError class="mt-2" :message="form.errors.connection_transfer_buffer_minutes" />
+                </div>
+              </div>
+              <div class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input v-model="form.seller_compensation_enabled" type="checkbox" class="mt-1 rounded border-violet-300 text-violet-600" />
+                  <span><span class="block text-sm font-bold text-violet-900 dark:text-violet-200">Autoriser les compensations par les vendeurs</span><span class="block text-xs text-violet-700 dark:text-violet-400">Sinon, toute demande sera transmise à un superviseur.</span></span>
+                </label>
+                <div class="mt-3"><InputLabel for="compensation_limit" value="Plafond vendeur (FCFA, 0 = sans plafond)" /><TextInput id="compensation_limit" v-model.number="form.seller_compensation_max_amount" type="number" min="0" class="mt-1 block w-full" /></div>
               </div>
             </div>
 

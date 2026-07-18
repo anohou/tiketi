@@ -43,7 +43,9 @@ onMounted(() => {
     door_positions_text: props.vehicleType.door_positions ? props.vehicleType.door_positions.join(', ') : '',
     door_side: props.vehicleType.door_side || 'right',
     door_width: props.vehicleType.door_width || 2,
-    last_row_seats: props.vehicleType.last_row_seats ? props.vehicleType.last_row_seats.toString() : '',
+    last_row_seats: props.vehicleType.last_row_seats !== null && props.vehicleType.last_row_seats !== undefined
+      ? props.vehicleType.last_row_seats.toString()
+      : '',
     active: props.vehicleType.active !== undefined ? Boolean(props.vehicleType.active) : true,
   };
 });
@@ -58,7 +60,8 @@ const liveSeatMap = computed(() => {
   const leftCount = parts[0] || 2;
   const rightCount = parts[1] || 2;
   const slotsPerRow = leftCount + rightCount;
-  const lastRowSeats = Math.max(1, parseInt(form.value.last_row_seats) || 5);
+  const parsedLastRowSeats = parseInt(form.value.last_row_seats);
+  const lastRowSeats = Number.isNaN(parsedLastRowSeats) ? 5 : Math.max(0, parsedLastRowSeats);
 
   const seatMap = [];
   let currentSeatNum = 1;
@@ -128,7 +131,13 @@ const liveSeatMap = computed(() => {
   }
 
   const remaining = targetSeats - filledSeats;
-  if (remaining > 0) {
+  if (lastRowSeats === 0 && targetSeats > 0) {
+    const rearSpaceRow = [];
+    for (let i = 0; i < slotsPerRow + 1; i++) {
+      rearSpaceRow.push({ type: 'empty' });
+    }
+    seatMap.push(rearSpaceRow);
+  } else if (remaining > 0) {
     const lastRow = [];
     for (let i = 0; i < remaining; i++) {
       lastRow.push({ type: 'seat', number: (currentSeatNum++).toString() });
@@ -194,8 +203,8 @@ const submit = () => {
     seat_count: form.value.seat_count ? parseInt(form.value.seat_count) : form.value.seat_count,
     door_width: form.value.door_width ? parseInt(form.value.door_width) : form.value.door_width,
     last_row_seats: (() => {
-      const parsed = form.value.last_row_seats ? parseInt(form.value.last_row_seats) : 5;
-      return Math.max(1, parsed);
+      const parsed = form.value.last_row_seats === '' ? 5 : parseInt(form.value.last_row_seats);
+      return Number.isNaN(parsed) ? 5 : Math.max(0, parsed);
     })(),
     door_positions: form.value.door_positions_text
       ? form.value.door_positions_text.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
@@ -278,7 +287,7 @@ const handleCancel = () => {
           <!-- Dernière Rangée -->
           <div class="md:col-span-2">
             <InputLabel for="last_row_seats" value="Dernière Rangée" />
-            <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" class="w-full text-sm mt-1" placeholder="5" />
+            <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" min="0" class="w-full text-sm mt-1" placeholder="5" />
             <InputError :message="errors.last_row_seats" class="mt-1" />
           </div>
 

@@ -26,8 +26,10 @@ use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\TicketController;
 use App\Http\Controllers\Seller\TicketingController;
+use App\Http\Controllers\Seller\TransferPoolController;
 use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SupervisorDashboardController;
+use App\Http\Controllers\TicketCompensationController;
 use App\Http\Controllers\TicketPrintController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -70,6 +72,8 @@ Route::get('/dashboard', function () {
         default => redirect()->route('login'),
     };
 })->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::get('/tids', [TicketingController::class, 'tids'])->name('tids');
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -127,6 +131,14 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [SupervisorDashboardController::class, 'index'])->name('dashboard');
         // Supervisor ticketing - can see trips from all stations
         Route::get('/ticketing', [TicketingController::class, 'index'])->name('ticketing');
+        Route::get('/compensations', [TicketCompensationController::class, 'index'])->name('compensations.index');
+
+        // Settings / Paramétrage
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::get('/stations', [StationController::class, 'index'])->name('stations.index');
+        Route::resource('users', UserController::class);
+        Route::put('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
+        Route::resource('assignments', UserAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
     });
 
     // =========================================
@@ -146,11 +158,22 @@ Route::middleware('auth')->group(function () {
         Route::get('/tickets/export', [App\Http\Controllers\Api\TicketController::class, 'export'])->name('tickets.export');
         Route::get('/tickets/{ticket}/data', [App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
         Route::delete('/tickets/{ticket}', [App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
+        Route::post('/tickets/{ticket}/compensations', [TicketCompensationController::class, 'store'])->name('tickets.compensations.store');
+        Route::patch('/compensations/{compensation}/approve', [TicketCompensationController::class, 'approve'])->name('compensations.approve');
         Route::get('/trips/{trip}/seat-map', [App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
         Route::get('/trips/{trip}/suggest-seats', [App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
+        Route::get('/trips/{trip}/details', [App\Http\Controllers\Api\TripController::class, 'details'])->name('trips.details');
+        Route::get('/trips/{trip}/latest-position', [App\Http\Controllers\Api\TripController::class, 'latestPosition'])->name('trips.latest-position');
+        Route::get('/trips/{trip}/status-reports', [App\Http\Controllers\Api\TripController::class, 'statusReports'])->name('trips.status-reports');
 
         // Trip creation (for sellers)
         Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
+        Route::get('/transfer-pool', [TransferPoolController::class, 'index'])->name('transfer-pool.index');
+        Route::patch('/transfer-pool/{connection}/ready', [TransferPoolController::class, 'markReady'])->name('transfer-pool.ready');
+        Route::post('/trips/{trip}/assign-connection', [TransferPoolController::class, 'assign'])->name('transfer-pool.assign');
+        Route::post('/trips/{trip}/allocate-connections', [TransferPoolController::class, 'autoAllocate'])->name('transfer-pool.allocate');
+        Route::patch('/trips/{trip}/depart', [TransferPoolController::class, 'depart'])->name('trips.depart');
+        Route::patch('/trips/{trip}/status', [TicketingController::class, 'updateStatus'])->name('trips.status');
     });
 
     // =========================================

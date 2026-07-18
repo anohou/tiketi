@@ -113,8 +113,8 @@ class TripSegmentService
                     return false;
                 }
 
-                $ticketStart = $stationIndices[$ticket->from_station_id] ?? null;
-                $ticketEnd = $stationIndices[$ticket->to_station_id] ?? null;
+                $ticketStart = $stationIndices[$occupancy->from_station_id ?? $ticket->from_station_id] ?? null;
+                $ticketEnd = $stationIndices[$occupancy->to_station_id ?? $ticket->to_station_id] ?? null;
 
                 if ($ticketStart === null || $ticketEnd === null) {
                     return true;
@@ -168,7 +168,8 @@ class TripSegmentService
                 ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
                     $ticket = $occupancy->ticket;
 
-                    return $ticket && $ticket->status !== 'cancelled' && $ticket->to_station_id === $xId;
+                    return $ticket && $ticket->status !== 'cancelled'
+                        && ($occupancy->to_station_id ?? $ticket->to_station_id) === $xId;
                 })
                 ->pluck('seat_number')
                 ->map(fn ($seatNumber) => (int) $seatNumber)
@@ -179,7 +180,8 @@ class TripSegmentService
                 ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
                     $ticket = $occupancy->ticket;
 
-                    return $ticket && $ticket->status !== 'cancelled' && $ticket->from_station_id === $xId;
+                    return $ticket && $ticket->status !== 'cancelled'
+                        && ($occupancy->from_station_id ?? $ticket->from_station_id) === $xId;
                 })
                 ->pluck('seat_number')
                 ->map(fn ($seatNumber) => (int) $seatNumber)

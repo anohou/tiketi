@@ -1,6 +1,6 @@
 <script setup>
 import MainNavLayout from '@/Layouts/MainNavLayout.vue'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { router, Link, useForm, usePage } from '@inertiajs/vue3'
 import Bus from 'vue-material-design-icons/Bus.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
@@ -126,6 +126,70 @@ const formatDate = (dateString) => {
     })
 }
 
+const getCleanDestination = (trip) => {
+  const name = trip.display_name || trip.route?.name || '';
+  return name.replace('->', '➔').replace('->', '➔');
+}
+
+const getAirportStatus = (trip) => {
+  if (trip.status === 'cancelled') {
+    return { 
+      label: 'ANNULÉ', 
+      color: 'text-rose-600 bg-rose-50 border border-rose-200 dark:text-rose-450 dark:bg-rose-950/30 dark:border-rose-900/50' 
+    };
+  }
+  if (trip.status === 'delayed') {
+    return { 
+      label: 'RETARDÉ', 
+      color: 'text-amber-605 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800/50 animate-pulse' 
+    };
+  }
+  if (trip.status === 'boarding') {
+    return { 
+      label: 'EMBARQUEMENT', 
+      color: 'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-405 dark:bg-orange-950/30 dark:border-orange-850/50 font-black animate-pulse' 
+    };
+  }
+  if (trip.status === 'departed' || trip.status === 'arrived') {
+    return { 
+      label: 'PARTI', 
+      color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50' 
+    };
+  }
+  if (trip.available_seats <= 0) {
+    return { 
+      label: 'COMPLET', 
+      color: 'text-red-600 bg-red-50 border border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50 font-bold' 
+    };
+  }
+  return { 
+    label: 'À L\'HEURE', 
+    color: 'text-emerald-600 bg-emerald-50 border border-emerald-250 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800/50' 
+  };
+}
+
+const sortedTrips = computed(() => {
+  if (!props.trips) return [];
+  return [...props.trips].sort((a, b) => {
+    const getOrderValue = (trip) => {
+      if (trip.status === 'boarding') return 0;
+      if (trip.status === 'delayed') return 1;
+      if (trip.status === 'cancelled') return 4;
+      if (trip.status === 'departed' || trip.status === 'arrived') return 3;
+      return 2; // scheduled
+    };
+    
+    const orderA = getOrderValue(a);
+    const orderB = getOrderValue(b);
+    
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    
+    return new Date(a.departure_at) - new Date(b.departure_at);
+  });
+});
+
 const createTrip = () => {
   createTripForm.post(route('seller.trips.store'), {
     preserveState: true,
@@ -206,78 +270,123 @@ const createTrip = () => {
           </div>
         </div>
 
-      <!-- Main Section: Voyages Disponibles -->
-      <section class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div class="p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-white to-emerald-50/40 dark:from-slate-900 dark:to-emerald-950/20 flex items-center justify-between">
-            <h2 class="text-xl font-bold text-slate-800 dark:text-slate-200 flex items-center gap-3">
-                <Bus :size="24" class="text-emerald-600" />
-                Voyages disponibles
-            </h2>
-            <Link :href="route('seller.ticketing')" class="text-sm font-bold text-emerald-700 dark:text-emerald-400 hover:underline">
+      <!-- Main Section: Voyages Disponibles (FIDS Airport Board) -->
+      <section class="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-900 rounded-3xl shadow-sm dark:shadow-2xl dark:shadow-black/40 overflow-hidden">
+        <div class="p-6 border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-amber-550/10 dark:bg-amber-500/10 border border-amber-550/20 dark:border-amber-500/25 text-amber-600 dark:text-amber-500 rounded-2xl shadow-inner animate-pulse-slow">
+                    <Bus :size="24" />
+                </div>
+                <div>
+                    <h2 class="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
+                        Panneau d'affichage
+                        <span class="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/60 px-2 py-0.5 rounded tracking-normal">DEPARTS LIVE</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider mt-0.5">FLIGHT INFORMATION DISPLAY SYSTEM (FIDS)</p>
+                </div>
+            </div>
+            <Link :href="route('seller.ticketing')" class="w-full sm:w-auto text-center px-4 py-2 bg-slate-105 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 text-xs font-mono text-slate-700 dark:text-amber-400 font-bold rounded-xl uppercase tracking-wider transition-colors">
                 Voir tout
             </Link>
         </div>
         
-        <div class="p-6">
-          <div v-if="trips && trips.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div v-for="trip in trips" :key="trip.id" 
-                class="group bg-slate-50 dark:bg-slate-950/40 rounded-3xl p-5 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-850 hover:bg-white dark:hover:bg-slate-900 hover:shadow-xl transition-all duration-300 cursor-pointer"
-                :class="isTripHighlighted(trip.id) ? 'ring-2 ring-amber-200 dark:ring-amber-900/40 shadow-xl shadow-amber-200/30 dark:shadow-amber-950/20' : ''"
+        <div>
+          <!-- Desktop Table Headers -->
+          <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+             <div class="col-span-1">Heure</div>
+             <div class="col-span-3">Code Voyage</div>
+             <div class="col-span-4">Destination</div>
+             <div class="col-span-2">Véhicule</div>
+             <div class="col-span-1 text-center">Places</div>
+             <div class="col-span-1">Statut</div>
+          </div>
+
+          <!-- Trips List -->
+          <div v-if="sortedTrips && sortedTrips.length > 0" class="divide-y divide-slate-100 dark:divide-slate-900 bg-white dark:bg-slate-950">
+            <div v-for="trip in sortedTrips" :key="trip.id" 
+                class="group transition-all duration-200 cursor-pointer border-l-4 border-l-transparent"
+                :class="isTripHighlighted(trip.id) ? 'bg-amber-500/5 dark:bg-amber-950/20 border-l-amber-500 shadow-inner' : 'hover:bg-slate-50/60 dark:hover:bg-slate-900/40'"
                 @click="router.visit(route('seller.ticketing', { trip_id: trip.id }))"
             >
-              <div class="flex justify-between items-start mb-4">
-                <div class="p-2 bg-white dark:bg-slate-900 rounded-xl shadow-sm group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/30 transition-colors">
-                    <Bus :size="24" class="text-emerald-600" />
-                </div>
-                <div class="text-right">
-                    <span class="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">{{ trip.vehicle?.identifier }}</span>
-                    <div class="text-lg font-black text-slate-900 dark:text-slate-100">{{ formatTime(trip.departure_at) }}</div>
-                </div>
-              </div>
-              <div v-if="isTripHighlighted(trip.id)" class="mb-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 dark:bg-amber-950/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">
-                <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
-                Activité temps réel
-              </div>
-              
-              <div class="space-y-3 mb-6">
-                <div class="flex items-start gap-2">
-                    <OfficeBuilding :size="16" class="text-slate-400 dark:text-slate-500" />
-                    <span class="min-w-0 text-sm font-bold text-slate-700 dark:text-slate-300 whitespace-normal break-words leading-snug">
-                        {{ trip.display_name || trip.route?.name }}
+              <!-- Desktop Row layout -->
+              <div class="hidden md:grid grid-cols-12 gap-4 items-center px-6 py-4">
+                 <!-- HEURE & DATE -->
+                 <div class="col-span-1 flex flex-col">
+                   <span class="font-mono text-base font-bold text-slate-900 dark:text-slate-100 tracking-wider">{{ formatTime(trip.departure_at) }}</span>
+                   <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
+                 </div>
+                 <!-- CODE VOYAGE -->
+                 <div class="col-span-3">
+                   <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
+                     {{ trip.code || 'Code en attente' }}
+                   </span>
+                 </div>
+                 <!-- DESTINATION -->
+                 <div class="col-span-4 flex items-center min-w-0">
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase truncate">
+                       {{ getCleanDestination(trip) }}
                     </span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="flex-1 bg-white dark:bg-slate-950/30 rounded-xl p-2 border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Places</div>
-                        <div class="flex items-end gap-1">
-                            <span class="text-lg font-black text-slate-900 dark:text-slate-100">{{ trip.total_seats }}</span>
-                            <span class="text-[10px] text-slate-500 dark:text-slate-400 mb-1">CAP</span>
-                        </div>
-                    </div>
-                    <div class="flex-1 bg-white dark:bg-slate-950/30 rounded-xl p-2 border border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Restantes</div>
-                        <div class="flex items-end gap-1">
-                            <span class="text-lg font-black text-emerald-600 dark:text-emerald-405">{{ trip.available_seats }}</span>
-                            <span class="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mb-1">LIB</span>
-                        </div>
-                    </div>
-                </div>
+                 </div>
+                 <!-- VEHICULE -->
+                 <div class="col-span-2 font-mono text-xs font-bold text-slate-700 dark:text-slate-300 uppercase truncate">
+                   {{ trip.vehicle?.identifier || 'N/A' }}
+                   <span class="block text-[10px] text-slate-400 dark:text-slate-500 font-sans normal-case truncate mt-0.5">{{ trip.vehicle?.vehicle_type?.name }}</span>
+                 </div>
+                 <!-- PLACES -->
+                 <div class="col-span-1 flex items-center justify-center gap-0.5 font-mono">
+                    <span class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ trip.available_seats }}</span>
+                    <span class="text-xs text-slate-400 dark:text-slate-600">/</span>
+                    <span class="text-xs text-slate-400 dark:text-slate-500">{{ trip.total_seats }}</span>
+                 </div>
+                 <!-- STATUT -->
+                 <div class="col-span-1">
+                   <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider shadow-inner transition-all duration-300"
+                         :class="getAirportStatus(trip).color">
+                     <span v-if="['boarding', 'delayed'].includes(trip.status)" class="w-1 h-1 rounded-full mr-1 animate-ping bg-current"></span>
+                     {{ getAirportStatus(trip).label }}
+                   </span>
+                 </div>
               </div>
 
-              <div class="flex items-center justify-between pt-4 border-t border-dashed border-slate-200 dark:border-slate-800">
-                <span class="text-xs font-medium text-slate-500 dark:text-slate-450">{{ formatDate(trip.departure_at) }}</span>
-                <span class="flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-405 group-hover:translate-x-1 transition-transform">
-                    Ouvrir la billetterie
-                    <ChevronRight :size="16" />
-                </span>
+              <!-- Mobile Row layout -->
+              <div class="md:hidden flex items-center justify-between p-4 hover:bg-slate-55 dark:hover:bg-slate-900/40 transition-colors">
+                 <div class="flex items-center gap-3 min-w-0">
+                    <!-- HEURE -->
+                    <div class="flex flex-col items-center justify-center min-w-[54px] bg-slate-50 dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                       <span class="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">{{ formatTime(trip.departure_at) }}</span>
+                       <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
+                    </div>
+                    <!-- DESTINATION & VEHICLE -->
+                    <div class="flex flex-col min-w-0">
+                       <span class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
+                         {{ getCleanDestination(trip) }}
+                       </span>
+                       <span class="text-[10px] font-mono text-amber-600 dark:text-amber-500/80 uppercase truncate mt-0.5">
+                         {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-600 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                       </span>
+                    </div>
+                 </div>
+                 <!-- STATUT & PLACES -->
+                 <div class="flex items-center gap-3 shrink-0 ml-2">
+                    <div class="flex flex-col items-end">
+                       <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black tracking-wider shadow-inner mb-1"
+                             :class="getAirportStatus(trip).color">
+                         {{ getAirportStatus(trip).label }}
+                       </span>
+                       <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                         <span class="font-bold text-slate-700 dark:text-slate-205">{{ trip.available_seats }}</span>/{{ trip.total_seats }} <span class="text-[9px] text-slate-455 dark:text-slate-605 font-sans">LIB</span>
+                       </span>
+                    </div>
+                    <ChevronRight :size="18" class="text-slate-400 dark:text-slate-500" />
+                 </div>
               </div>
             </div>
           </div>
           
-          <div v-else class="text-center py-16 bg-slate-50 dark:bg-slate-950/30 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
-            <Bus :size="48" class="text-slate-300 dark:text-slate-700 mx-auto mb-4" />
-            <h3 class="text-lg font-bold text-slate-500 dark:text-slate-400">Aucun voyage actif</h3>
-            <p class="text-slate-400 dark:text-slate-500 text-sm max-w-xs mx-auto">Commencez par créer un nouveau voyage pour aujourd'hui.</p>
+          <div v-else class="text-center py-16 bg-white dark:bg-slate-950 rounded-b-3xl border-t border-slate-150 dark:border-slate-900">
+            <Bus :size="48" class="text-slate-300 dark:text-slate-850 mx-auto mb-4" />
+            <h3 class="text-base font-bold text-slate-400 dark:text-slate-550 uppercase tracking-widest">Aucun voyage actif</h3>
+            <p class="text-slate-500 dark:text-slate-600 text-xs max-w-xs mx-auto mt-1">Commencez par créer un nouveau voyage pour aujourd'hui.</p>
           </div>
         </div>
       </section>

@@ -52,7 +52,7 @@ class RouteController extends Controller
             'success' => true,
             'data' => $routes,
             'message' => 'Trajets récupérés avec succès',
-        ]);
+        ])->setPublic()->setMaxAge(300);
     }
 
     /**
@@ -65,14 +65,14 @@ class RouteController extends Controller
             'originStation',
             'destinationStation',
             'routeStopOrders.station',
-        ])->findOrFail($id);
+        ])->where('active', true)->findOrFail($id);
 
         // Load fares for stations on this route
         $stationIds = $route->routeStopOrders->pluck('station_id')->toArray();
         $fares = RouteFare::where(function ($q) use ($stationIds) {
             $q->whereIn('from_station_id', $stationIds)
                 ->whereIn('to_station_id', $stationIds);
-        })->get();
+        })->where('active', true)->get();
 
         return response()->json([
             'success' => true,
@@ -117,6 +117,6 @@ class RouteController extends Controller
                 'active' => $route->active,
             ],
             'message' => 'Trajet récupéré avec succès',
-        ]);
+        ])->setPublic()->setMaxAge(300);
     }
 }

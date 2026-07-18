@@ -31,6 +31,10 @@ const props = defineProps({
   stations: {
     type: Array,
     default: () => []
+  },
+  routes: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -45,7 +49,30 @@ const isEditing = ref(false);
 const form = ref({
   user_id: '',
   station_id: '',
-  active: true
+  active: true,
+  route_ids: []
+});
+
+const filteredRoutesForSelectedStation = computed(() => {
+  if (!form.value.station_id) return [];
+  const sId = form.value.station_id;
+  return props.routes.filter(route => 
+    route.origin_station_id === sId ||
+    route.destination_station_id === sId ||
+    (route.route_stop_orders && route.route_stop_orders.some(stop => stop.station_id === sId))
+  );
+});
+
+const getRouteName = (routeId) => {
+  const route = props.routes.find(r => r.id === routeId);
+  return route ? route.name : 'Trajet inconnu';
+};
+
+watch(() => form.value.station_id, (newStationId, oldStationId) => {
+  if (newStationId !== oldStationId) {
+    const validRouteIdsForStation = filteredRoutesForSelectedStation.value.map(r => r.id);
+    form.value.route_ids = form.value.route_ids.filter(id => validRouteIdsForStation.includes(id));
+  }
 });
 
 // Export/Print
@@ -115,7 +142,8 @@ const openCreateModal = () => {
   form.value = {
     user_id: '',
     station_id: '',
-    active: true
+    active: true,
+    route_ids: []
   };
   errors.value = {};
   showModal.value = true;
@@ -127,7 +155,8 @@ const openEditModal = () => {
   form.value = {
     user_id: selectedAssignment.value.user_id,
     station_id: selectedAssignment.value.station_id,
-    active: selectedAssignment.value.active
+    active: selectedAssignment.value.active,
+    route_ids: selectedAssignment.value.route_ids || []
   };
   errors.value = {};
   showModal.value = true;
@@ -138,7 +167,8 @@ const closeModal = () => {
   form.value = {
     user_id: '',
     station_id: '',
-    active: true
+    active: true,
+    route_ids: []
   };
   errors.value = {};
 };
@@ -245,7 +275,15 @@ const deleteAssignment = (id) => {
                       <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
                         {{ assignment.user?.name }}
                       </h3>
-                      <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{{ assignment.station?.name }} - {{ assignment.station?.city }}</p>
+                      <p class="text-[10px] text-gray-500 dark:text-slate-450 mt-0.5">
+                        {{ assignment.station?.name }} - {{ assignment.station?.city }}
+                        <span v-if="assignment.route_ids && assignment.route_ids.length > 0" class="text-emerald-600 dark:text-emerald-400 font-semibold block">
+                          {{ assignment.route_ids.length }} trajet(s) spécifique(s)
+                        </span>
+                        <span v-else class="text-gray-400 dark:text-slate-500 block">
+                          Tous les trajets (Accès complet)
+                        </span>
+                      </p>
                     </div>
                     <span :class="[
                       'shrink-0 ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
@@ -314,7 +352,7 @@ const deleteAssignment = (id) => {
                   </div>
                 </div>
                 <div class="col-span-12 pt-4 border-t border-gray-100 dark:border-slate-800">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider font-bold block mb-2">STATUT</span>
                   <div>
                     <span :class="[
                        'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
@@ -322,6 +360,17 @@ const deleteAssignment = (id) => {
                     ]">
                       {{ selectedAssignment.active ? 'Active' : 'Inactive' }}
                     </span>
+                  </div>
+                </div>
+                <div class="col-span-12 pt-4 border-t border-gray-100 dark:border-slate-800">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider font-bold block mb-2">TRAJETS AUTORISÉS</span>
+                  <div v-if="selectedAssignment.route_ids && selectedAssignment.route_ids.length > 0" class="flex flex-wrap gap-2">
+                    <span v-for="rId in selectedAssignment.route_ids" :key="rId" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      {{ getRouteName(rId) }}
+                    </span>
+                  </div>
+                  <div v-else class="text-sm text-gray-500 dark:text-slate-400 italic">
+                    Tous les trajets de la gare (Accès complet)
                   </div>
                 </div>
               </div>
@@ -376,6 +425,31 @@ const deleteAssignment = (id) => {
               </option>
             </select>
             <InputError :message="errors.station_id" />
+          </div>
+
+          <div v-if="form.station_id && filteredRoutesForSelectedStation.length > 0">
+            <InputLabel value="Trajets autorisés" />
+            <p class="text-xs text-gray-550 dark:text-slate-450 mb-2">Sélectionnez les trajets spécifiques autorisés pour cette gare. Laissez vide pour autoriser tous les trajets.</p>
+            <div class="max-h-48 overflow-y-auto border border-orange-200 rounded-lg p-3 space-y-2 dark:border-slate-800 dark:bg-slate-950">
+              <div v-for="route in filteredRoutesForSelectedStation" :key="route.id" class="flex items-start">
+                <input
+                  :id="'route_' + route.id"
+                  type="checkbox"
+                  :value="route.id"
+                  v-model="form.route_ids"
+                  class="rounded border-orange-200 text-green-600 shadow-sm focus:ring-green-500 mt-0.5"
+                />
+                <label :for="'route_' + route.id" class="ml-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
+                  {{ route.name }}
+                  <span class="text-xs text-gray-400 block">
+                    {{ route.origin_station?.name }} &rarr; {{ route.destination_station?.name }}
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="form.station_id" class="text-xs text-gray-500 italic">
+            Aucun trajet ne dessert cette gare.
           </div>
 
           <div class="flex items-center">

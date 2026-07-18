@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Ticketing\TripSalesPolicy;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\Route;
 use App\Models\Ticket;
+use App\Models\TicketConnection;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
+use App\Models\User;
 use App\Services\OptimisationService;
 use App\Services\TicketQueryService;
 use App\Services\TripSegmentService;
+use App\Services\TripTimingService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -40,21 +45,60 @@ class TicketController extends Controller
             'passenger_name' => 'nullable|string|max:255',
             'passenger_phone' => 'nullable|string|max:20',
             'amount' => 'nullable|integer|min:0',
+            'final_destination_station_id' => 'nullable|uuid|exists:stations,id',
+            'connection_route_id' => 'nullable|required_with:final_destination_station_id|uuid|exists:routes,id',
         ]);
 
         $trip = Trip::with(['route.routeStopOrders', 'tripSeatOccupancies.ticket', 'vehicle.vehicleType'])->findOrFail($validated['trip_id']);
 
         $fromStationId = $validated['from_station_id'];
         $toStationId = $validated['to_station_id'];
+        $finalDestinationId = $validated['final_destination_station_id'] ?? null;
+
+        $salesDecision = app(TripSalesPolicy::class)->evaluate(
+            $request->user() ?? auth()->user(),
+            $trip,
+            $fromStationId,
+            $toStationId,
+            'counter',
+            $validated['seats'],
+        );
+        if (! $salesDecision->allowed) {
+            return $this->errorResponse(
+                $request,
+                $salesDecision->message,
+                in_array($salesDecision->reasonCode, ['unauthenticated'], true) ? 401 : 403,
+            );
+        }
+
+        if ($finalDestinationId && ! $trip->allows_open_connections) {
+            return $this->errorResponse($request, 'Ce voyage n’autorise pas les correspondances ouvertes.', 422);
+        }
+
+        if ($finalDestinationId && $finalDestinationId === $toStationId) {
+            $finalDestinationId = null;
+        }
+
+        $connectionRouteId = $finalDestinationId ? ($validated['connection_route_id'] ?? null) : null;
+        if ($connectionRouteId) {
+            $connectionRoute = Route::with('routeStopOrders')->findOrFail($connectionRouteId);
+            $stationIds = collect([$connectionRoute->origin_station_id, $connectionRoute->destination_station_id])
+                ->merge($connectionRoute->routeStopOrders->pluck('station_id'))->filter()->unique();
+            if (! $stationIds->contains($toStationId) || ! $stationIds->contains($finalDestinationId)) {
+                return $this->errorResponse($request, 'Le trajet de correspondance ne dessert pas le point de transit et la destination finale.', 422);
+            }
+        }
         [$validSegment, $segmentError, $stationIndices, $reqStartIndex, $reqEndIndex] = $segments->validateSegment($trip, $fromStationId, $toStationId);
 
         if (! $validSegment) {
             return $this->errorResponse($request, $segmentError, 422);
         }
 
-        $pricePerSeat = $segments->fareAmount($fromStationId, $toStationId);
+        $pricePerSeat = $finalDestinationId
+            ? $segments->fareAmount($fromStationId, $finalDestinationId)
+            : $segments->fareAmount($fromStationId, $toStationId);
         if ($pricePerSeat === null) {
-            return $this->errorResponse($request, 'Aucun tarif actif trouvé pour ce trajet.', 422);
+            return $this->errorResponse($request, 'Aucun tarif actif trouvé entre le point de départ et la destination finale.', 422);
         }
 
         $expectedAmount = $pricePerSeat * count($validated['seats']);
@@ -69,6 +113,12 @@ class TicketController extends Controller
 
             if (! in_array($fromStationId, $assignedStationIds)) {
                 return $this->errorResponse($request, 'Vous n\'êtes pas autorisé à vendre des tickets au départ de cette station.', 403);
+            }
+
+            // Restriction trajet vendeur
+            $accessibleRouteIds = $user->accessibleRoutesQuery()->pluck('id')->toArray();
+            if (! in_array($trip->route_id, $accessibleRouteIds, true)) {
+                return $this->errorResponse($request, 'Vous n\'êtes pas autorisé à vendre des tickets pour ce trajet.', 403);
             }
 
             $isAtOriginStation = in_array($trip->origin_station_id, $assignedStationIds);
@@ -139,6 +189,8 @@ class TicketController extends Controller
                     'vehicle_id' => $trip->vehicle_id,
                     'from_station_id' => $fromStationId,
                     'to_station_id' => $toStationId,
+                    'final_destination_station_id' => $finalDestinationId,
+                    'transfer_station_id' => $finalDestinationId ? $toStationId : null,
                     'seat_number' => $seatNumber,
                     'passenger_name' => $validated['passenger_name'] ?? 'Passager',
                     'passenger_phone' => $validated['passenger_phone'] ?? '',
@@ -155,7 +207,21 @@ class TicketController extends Controller
                     'trip_id' => $trip->id,
                     'seat_number' => $seatNumber,
                     'ticket_id' => $ticket->id,
+                    'from_station_id' => $fromStationId,
+                    'to_station_id' => $toStationId,
                 ]);
+
+                if ($finalDestinationId) {
+                    TicketConnection::create([
+                        'ticket_id' => $ticket->id,
+                        'transfer_station_id' => $toStationId,
+                        'destination_station_id' => $finalDestinationId,
+                        'route_id' => $connectionRouteId,
+                        'status' => 'pending',
+                        'planned_ready_at' => app(TripTimingService::class)->plannedTimeAtStation($trip, $toStationId),
+                        'estimated_ready_at' => app(TripTimingService::class)->estimatedTimeAtStation($trip, $toStationId),
+                    ]);
+                }
 
                 $tickets[] = $ticket;
             }
@@ -225,14 +291,22 @@ class TicketController extends Controller
 
     public function show(Ticket $ticket)
     {
-        $ticket->load(['trip.route', 'trip.vehicle', 'fromStation', 'toStation', 'seller']);
+        $user = auth()->user();
+        abort_unless(
+            $user instanceof User
+                && (in_array($user->role, ['admin', 'supervisor'], true) || $ticket->seller_id === $user->id),
+            403,
+            'Vous n’êtes pas autorisé à consulter les données de ce ticket.',
+        );
+
+        $ticket->load(['trip.route', 'trip.vehicle', 'fromStation', 'toStation', 'finalDestinationStation', 'transferStation', 'connection.trip', 'seller']);
 
         try {
             $settings = TicketSetting::getSettings();
         } catch (\Exception $e) {
             Log::warning('Failed to get ticket settings: '.$e->getMessage());
             $settings = [
-                'company_name' => 'TSR CI',
+                'company_name' => 'TEST TRANSPORT',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
                 'cc_label' => null,
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],
@@ -267,6 +341,7 @@ class TicketController extends Controller
         try {
             DB::beginTransaction();
             TripSeatOccupancy::where('ticket_id', $ticket->id)->delete();
+            $ticket->connection()->update(['status' => 'cancelled']);
             $ticket->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
@@ -313,6 +388,12 @@ class TicketController extends Controller
                 'message' => 'Utilisateur non authentifié.',
             ], 401);
         }
+        if (! $user instanceof User || ! in_array($user->role, ['admin', 'supervisor', 'seller', 'accountant'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Votre rôle ne permet pas d’exporter les tickets.',
+            ], 403);
+        }
 
         $tickets = app(TicketQueryService::class)
             ->getFilteredTicketsQuery($request, $user)
@@ -340,7 +421,7 @@ class TicketController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $tickets->values(),
+            'data' => $exportData->values(),
             'total' => $tickets->count(),
             'message' => $tickets->count().' tickets exportés avec succès',
         ]);

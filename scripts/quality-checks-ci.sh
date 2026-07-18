@@ -4,8 +4,15 @@ set -euo pipefail
 # Run PHP quality checks (composer validate + Pint)
 if command -v composer >/dev/null 2>&1; then
   composer validate --strict
+  composer audit --locked
 else
   echo "composer not found; skipping PHP composer validate"
+fi
+
+if command -v npm >/dev/null 2>&1 && [ -f package-lock.json ]; then
+  npm audit --omit=dev --audit-level=high
+else
+  echo "npm or package-lock.json not found; skipping production dependency audit"
 fi
 
 if [ -x ./vendor/bin/pint ] || [ -f ./vendor/bin/pint ]; then

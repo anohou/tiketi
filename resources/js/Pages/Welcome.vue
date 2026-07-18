@@ -69,7 +69,13 @@ const fillCredentials = (user) => {
                 
                 <!-- Brand -->
                 <div class="mb-12 flex items-center gap-4">
-                    <img :src="tenant?.logo_url || '/images/logo.png'" alt="Logo" class="h-12 w-auto" />
+                    <template v-if="tenant?.logo_url">
+                        <img :src="tenant.logo_url" alt="Logo" class="h-12 w-auto" />
+                    </template>
+                    <template v-else>
+                        <img src="/images/logo.png" alt="Logo" class="h-12 w-auto dark:hidden" />
+                        <img src="/images/logo-white.png" alt="Logo" class="hidden h-12 w-auto dark:block" />
+                    </template>
                     <div class="border-l border-gray-200 dark:border-gray-800 pl-4">
                         <span class="block text-[10px] font-bold text-indigo-600 uppercase tracking-widest leading-none mb-1">Espace Partenaire</span>
                         <span class="text-lg font-bold text-gray-900 dark:text-white uppercase">{{ tenant?.name }}</span>
@@ -141,7 +147,13 @@ const fillCredentials = (user) => {
                 <div class="flex lg:flex-1">
                     <a href="#" class="-m-1.5 p-1.5 flex items-center gap-2">
                         <span class="sr-only">TIKETI</span>
-                        <img class="h-20 sm:h-24 w-auto drop-shadow-sm transition-transform hover:scale-105" src="/images/logo.png" alt="Tiketi Logo" />
+                        <template v-if="tenant?.logo_url">
+                            <img :src="tenant.logo_url" class="h-20 sm:h-24 w-auto drop-shadow-sm transition-transform hover:scale-105" alt="Tiketi Logo" />
+                        </template>
+                        <template v-else>
+                            <img class="h-20 sm:h-24 w-auto drop-shadow-sm transition-transform hover:scale-105 dark:hidden" src="/images/logo.png" alt="Tiketi Logo" />
+                            <img class="hidden h-20 sm:h-24 w-auto drop-shadow-sm transition-transform hover:scale-105 dark:block" src="/images/logo-white.png" alt="Tiketi Logo" />
+                        </template>
                     </a>
                 </div>
                 
@@ -577,7 +589,8 @@ const fillCredentials = (user) => {
                 <div class="xl:grid xl:grid-cols-3 xl:gap-8">
                     <div class="space-y-8">
                         <div class="flex items-center gap-2">
-                             <img class="h-16 sm:h-20 w-auto opacity-90 transition-all hover:opacity-100 hover:scale-105" src="/images/logo.png" alt="Tiketi Logo" />
+                             <img class="h-16 sm:h-20 w-auto opacity-90 transition-all hover:opacity-100 hover:scale-105 dark:hidden" src="/images/logo.png" alt="Tiketi Logo" />
+                             <img class="hidden h-16 sm:h-20 w-auto opacity-90 transition-all hover:opacity-100 hover:scale-105 dark:block" src="/images/logo-white.png" alt="Tiketi Logo" />
                         </div>
                         <p class="text-sm leading-6 text-gray-600 dark:text-gray-400">La solution complète pour la gestion de vos billetteries et de votre parc de transport.</p>
                     </div>

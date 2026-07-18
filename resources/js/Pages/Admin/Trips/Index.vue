@@ -37,6 +37,10 @@ const props = defineProps({
   vehicles: {
     type: Array,
     default: () => []
+  },
+  replicableTrips: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -54,10 +58,14 @@ const exportingTripExcel = ref(false);
 const exportingTripPdf = ref(false);
 
 const form = ref({
+  code: '',
   route_id: '',
   vehicle_id: '',
   departure_at: '',
-  status: 'scheduled'
+  status: 'scheduled',
+  allows_open_connections: false,
+  automatic_connection_allocation: null,
+  is_replicable: false
 });
 
 // Status options
@@ -247,6 +255,57 @@ watch(() => props.trips, (newTrips) => {
   }
 }, { deep: true });
 
+watch([() => form.value.route_id, () => form.value.departure_at], ([routeId, departureAt]) => {
+  if (isEditing.value) {
+    return;
+  }
+  
+  if (routeId && departureAt) {
+    const routeObj = props.routes.find(r => r.id === routeId);
+    if (routeObj) {
+      const origin = routeObj.origin_station || routeObj.originStation;
+      const destination = routeObj.destination_station || routeObj.destinationStation;
+      
+      const originCode = origin?.code || (origin ? origin.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'TRP');
+      const destinationCode = destination?.code || (destination ? destination.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'DST');
+      
+      const timePart = departureAt.split('T')[1] ? departureAt.split('T')[1].replace(':', '') : '0000';
+      const cleanTime = timePart.substring(0, 4);
+      
+      form.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
+    }
+  }
+});
+
+const selectedTemplate = ref(null);
+watch(selectedTemplate, (newTemplate) => {
+  if (newTemplate) {
+    applyReplicableTemplate(newTemplate);
+  }
+});
+watch(showModal, (isOpen) => {
+  if (!isOpen) {
+    selectedTemplate.value = null;
+  }
+});
+const getRouteName = (routeId) => {
+  const r = props.routes?.find(route => route.id === routeId);
+  return r ? (r.display_name || r.name) : 'Route inconnue';
+};
+const applyReplicableTemplate = (template) => {
+  if (!template) return;
+  form.value.route_id = template.route_id;
+  form.value.allows_open_connections = !!template.allows_open_connections;
+  form.value.automatic_connection_allocation = template.automatic_connection_allocation;
+  form.value.is_replicable = true;
+  
+  const currentDatePart = form.value.departure_at
+    ? form.value.departure_at.split('T')[0]
+    : new Date().toISOString().split('T')[0];
+    
+  form.value.departure_at = `${currentDatePart}T${template.time}`;
+};
+
 // Methods
 const formatDate = (dateString) => {
   if (!dateString) return '';
@@ -291,10 +350,14 @@ const selectTrip = (trip) => {
 const openCreateModal = () => {
   isEditing.value = false;
   form.value = {
+    code: '',
     route_id: '',
     vehicle_id: '',
     departure_at: '',
-    status: 'scheduled'
+    status: 'scheduled',
+    allows_open_connections: false,
+    automatic_connection_allocation: null,
+    is_replicable: false
   };
   errors.value = {};
   showModal.value = true;
@@ -304,10 +367,14 @@ const openEditModal = () => {
   if (!selectedTrip.value) return;
   isEditing.value = true;
   form.value = {
+    code: selectedTrip.value.code || '',
     route_id: selectedTrip.value.route_id,
-    vehicle_id: selectedTrip.value.vehicle_id,
+    vehicle_id: selectedTrip.value.vehicle_id || '',
     departure_at: selectedTrip.value.departure_at.slice(0, 16),
-    status: selectedTrip.value.status || 'scheduled'
+    status: selectedTrip.value.status || 'scheduled',
+    allows_open_connections: !!selectedTrip.value.allows_open_connections,
+    automatic_connection_allocation: selectedTrip.value.automatic_connection_allocation,
+    is_replicable: !!selectedTrip.value.is_replicable
   };
   errors.value = {};
   showModal.value = true;
@@ -316,10 +383,14 @@ const openEditModal = () => {
 const closeModal = () => {
   showModal.value = false;
   form.value = {
+    code: '',
     route_id: '',
     vehicle_id: '',
     departure_at: '',
-    status: 'scheduled'
+    status: 'scheduled',
+    allows_open_connections: false,
+    automatic_connection_allocation: null,
+    is_replicable: false
   };
   errors.value = {};
 };
@@ -615,10 +686,10 @@ const handlePrint = () => {
                     @click="exportSelectedTicketsToExcel"
                     :disabled="exportingTripExcel || !hasVisibleTickets"
                     class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    title="Exporter les tickets en Excel"
+                    title="Exporter les tickets en CSV compatible Excel"
                   >
                     <FileExcel :size="18" />
-                    <span class="text-sm font-medium">Excel</span>
+                    <span class="text-sm font-medium">CSV</span>
                   </button>
                   <button
                     @click="exportSelectedTicketsToPdf"
@@ -784,6 +855,20 @@ const handlePrint = () => {
       </template>
       <template #content>
         <div class="space-y-4">
+          <div v-if="props.replicableTrips && props.replicableTrips.length > 0">
+            <InputLabel for="template_select_admin" value="Sélectionner un modèle de voyage récurrent" />
+            <select
+              id="template_select_admin"
+              v-model="selectedTemplate"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
+            >
+              <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
+              <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
+                {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
+              </option>
+            </select>
+          </div>
+
           <div>
             <InputLabel for="route_id" value="Route" />
             <select
@@ -811,7 +896,6 @@ const handlePrint = () => {
               id="vehicle_id"
               v-model="form.vehicle_id"
               class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
-              required
             >
               <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner un véhicule</option>
               <option
@@ -833,6 +917,12 @@ const handlePrint = () => {
           </div>
 
           <div>
+            <InputLabel for="code" value="Code / Numéro de Voyage" />
+            <TextInput v-model="form.code" id="code" type="text" class="w-full" placeholder="Ex: ABJ-BKE-0800" />
+            <InputError :message="errors.code" />
+          </div>
+
+          <div>
             <InputLabel for="status" value="Statut" />
             <select
               id="status"
@@ -844,6 +934,31 @@ const handlePrint = () => {
               </option>
             </select>
             <InputError :message="errors.status" />
+          </div>
+
+          <label class="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
+            <input v-model="form.allows_open_connections" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+            <span>
+              <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</span>
+              <span class="block text-xs text-slate-500 dark:text-slate-400">Les billets peuvent indiquer une destination finale au-delà de l’arrivée de ce voyage.</span>
+            </span>
+          </label>
+
+          <label class="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
+            <input v-model="form.is_replicable" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+            <span>
+              <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</span>
+              <span class="block text-xs text-slate-500 dark:text-slate-400">Ce voyage sera automatiquement recréé chaque jour à minuit (sans bus ni équipage affectés).</span>
+            </span>
+          </label>
+
+          <div>
+            <InputLabel for="admin_trip_auto_allocation" value="Allocation automatique" />
+            <select id="admin_trip_auto_allocation" v-model="form.automatic_connection_allocation" class="w-full rounded-lg border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+              <option :value="null">Hériter du trajet et de la compagnie</option>
+              <option :value="true">Activer pour ce voyage</option>
+              <option :value="false">Désactiver pour ce voyage</option>
+            </select>
           </div>
         </div>
       </template>

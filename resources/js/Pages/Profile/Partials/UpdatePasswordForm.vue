@@ -36,11 +36,11 @@ const updatePassword = () => {
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-slate-900">
+            <h2 class="text-lg font-medium text-slate-900 dark:text-slate-100">
                 Modifier le mot de passe
             </h2>
 
-            <p class="mt-1 text-sm text-slate-600">
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 Utilisez un mot de passe long et unique pour sécuriser votre compte.
             </p>
         </header>

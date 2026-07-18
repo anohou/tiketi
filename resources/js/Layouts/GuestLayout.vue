@@ -1,6 +1,7 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
 import { onMounted } from 'vue';
+import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
 
@@ -21,7 +22,7 @@ onMounted(() => {
         <div class="relative min-h-screen flex flex-col items-center justify-center px-4 py-10">
             <div class="mb-8 flex w-full max-w-md items-center justify-between">
                 <Link href="/" class="flex items-center gap-3">
-                    <img src="/images/logo.png" alt="TIKÊTI Logo" class="h-12 w-auto object-contain" />
+                    <ApplicationLogo class="h-14 w-auto sm:h-16 drop-shadow-[0_4px_10px_rgba(15,23,42,0.08)] dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.14)]" />
                 </Link>
 
                 <ThemeToggle />

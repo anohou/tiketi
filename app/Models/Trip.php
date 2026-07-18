@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -19,9 +20,15 @@ class Trip extends Model
         'route_id',
         'vehicle_id',
         'departure_at',
+        'planned_arrival_at',
+        'actual_departed_at',
+        'estimated_arrival_at',
         'status',
         'booking_type',
         'sales_control',
+        'allows_open_connections',
+        'automatic_connection_allocation',
+        'is_replicable',
         'origin_station_id',
         'destination_station_id',
         'settings',
@@ -29,7 +36,13 @@ class Trip extends Model
 
     protected $casts = [
         'departure_at' => 'datetime',
+        'planned_arrival_at' => 'datetime',
+        'actual_departed_at' => 'datetime',
+        'estimated_arrival_at' => 'datetime',
         'settings' => 'array',
+        'allows_open_connections' => 'boolean',
+        'automatic_connection_allocation' => 'boolean',
+        'is_replicable' => 'boolean',
     ];
 
     protected $appends = ['total_seats', 'available_seats', 'occupied_seats_count', 'sold_tickets_count', 'display_name'];
@@ -65,8 +78,8 @@ class Trip extends Model
                 ->unique()
                 ->count();
         } else {
-            $occupied = Ticket::where('trip_id', $this->id)
-                ->where('status', '!=', 'cancelled')
+            $occupied = TripSeatOccupancy::where('trip_id', $this->id)
+                ->whereHas('ticket', fn ($query) => $query->where('status', '!=', 'cancelled'))
                 ->distinct('seat_number')
                 ->count('seat_number');
         }
@@ -140,7 +153,57 @@ class Trip extends Model
             }
 
             if (empty($model->code)) {
-                $model->code = static::generateTripCode();
+                $model->code = static::generateTripCode($model);
+            }
+        });
+
+        static::created(function (self $model): void {
+            $user = auth()->user();
+            $changedByUserId = null;
+            $changedByCrewMemberId = null;
+            if ($user instanceof User) {
+                $changedByUserId = $user->id;
+            } elseif ($user instanceof CrewMember) {
+                $changedByCrewMemberId = $user->id;
+            }
+
+            $model->statusLogs()->create([
+                'status' => $model->status ?: 'scheduled',
+                'changed_by_user_id' => $changedByUserId,
+                'changed_by_crew_member_id' => $changedByCrewMemberId,
+            ]);
+        });
+
+        static::updated(function (self $model): void {
+            if ($model->wasChanged('status')) {
+                $user = auth()->user();
+                $changedByUserId = null;
+                $changedByCrewMemberId = null;
+                if ($user instanceof User) {
+                    $changedByUserId = $user->id;
+                } elseif ($user instanceof CrewMember) {
+                    $changedByCrewMemberId = $user->id;
+                }
+
+                $model->statusLogs()->create([
+                    'status' => $model->status,
+                    'changed_by_user_id' => $changedByUserId,
+                    'changed_by_crew_member_id' => $changedByCrewMemberId,
+                ]);
+            }
+        });
+
+        static::saving(function (self $model): void {
+            if (empty($model->origin_station_id) || empty($model->destination_station_id)) {
+                $route = $model->route;
+                if ($route) {
+                    if (empty($model->origin_station_id)) {
+                        $model->origin_station_id = $route->origin_station_id ?? $route->routeStopOrders()->orderBy('stop_index')->first()?->station_id;
+                    }
+                    if (empty($model->destination_station_id)) {
+                        $model->destination_station_id = $route->destination_station_id ?? $route->routeStopOrders()->orderBy('stop_index', 'desc')->first()?->station_id;
+                    }
+                }
             }
         });
     }
@@ -153,13 +216,49 @@ class Trip extends Model
         return $query->orderByRaw('CASE WHEN departure_at < ? THEN 1 ELSE 0 END, departure_at ASC', [now()]);
     }
 
-    protected static function generateTripCode(): string
+    public static function generateTripCode(self $model): string
     {
-        do {
-            $code = 'TRP-'.now()->format('ymd').'-'.Str::upper(Str::random(5));
-        } while (static::where('code', $code)->exists());
+        $route = $model->route;
 
-        return $code;
+        $originId = $model->origin_station_id;
+        $destinationId = $model->destination_station_id;
+
+        if (empty($originId) || empty($destinationId)) {
+            if ($route) {
+                $originId = $originId ?: ($route->origin_station_id ?? $route->routeStopOrders()->orderBy('stop_index')->first()?->station_id);
+                $destinationId = $destinationId ?: ($route->destination_station_id ?? $route->routeStopOrders()->orderBy('stop_index', 'desc')->first()?->station_id);
+            }
+        }
+
+        $origin = $originId ? Station::find($originId) : null;
+        $destination = $destinationId ? Station::find($destinationId) : null;
+
+        $originCode = $origin?->code ?? ($origin ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $origin->name), 0, 3)) : 'TRP');
+        $destinationCode = $destination?->code ?? ($destination ? strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $destination->name), 0, 3)) : 'DST');
+
+        $departureDate = $model->departure_at ? Carbon::parse($model->departure_at) : now();
+        $time = $departureDate->format('Hi');
+
+        $baseCode = sprintf('%s-%s-%s', $originCode, $destinationCode, $time);
+
+        $dayStart = $departureDate->copy()->startOfDay();
+        $dayEnd = $departureDate->copy()->endOfDay();
+
+        $query = self::query()
+            ->whereBetween('departure_at', [$dayStart, $dayEnd])
+            ->where('code', 'like', $baseCode.'%');
+
+        if ($model->exists) {
+            $query->where($model->getKeyName(), '!=', $model->getKey());
+        }
+
+        $count = $query->count();
+
+        if ($count > 0) {
+            return sprintf('%s-%d', $baseCode, $count + 1);
+        }
+
+        return $baseCode;
     }
 
     public function route()
@@ -190,6 +289,16 @@ class Trip extends Model
     public function tripSeatOccupancies()
     {
         return $this->hasMany(TripSeatOccupancy::class);
+    }
+
+    public function assignedConnections()
+    {
+        return $this->hasMany(TicketConnection::class);
+    }
+
+    public function statusLogs()
+    {
+        return $this->hasMany(TripStatusLog::class);
     }
 
     /**

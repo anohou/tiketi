@@ -27,8 +27,7 @@ class TicketSetting extends Model
 
     public static function getSettings(): self
     {
-        return static::firstOrCreate(
-            ['id' => 1],
+        return static::query()->orderBy('id')->first() ?? static::create(
             [
                 'company_name' => 'TSR CI',
                 'phone_numbers' => ['+225 XX XX XX XX XX', '+225 XX XX XX XX XX'],
@@ -44,6 +43,11 @@ class TicketSetting extends Model
     public function hasOkohiIntegration(): bool
     {
         return filled($this->okohi_integration_url);
+    }
+
+    public function allowsCrewSales(): bool
+    {
+        return (bool) data_get($this->settings, 'allow_crew_sales', false);
     }
 
     public function okohiScanUrl(Ticket $ticket): string

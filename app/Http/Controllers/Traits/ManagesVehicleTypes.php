@@ -18,7 +18,7 @@ trait ManagesVehicleTypes
             'door_positions.*' => 'integer',
             'door_side' => 'nullable|string|in:left,right',
             'door_width' => 'nullable|integer|min:1|max:3',
-            'last_row_seats' => 'nullable|integer|min:1',
+            'last_row_seats' => 'nullable|integer|min:0',
             'active' => 'nullable|boolean',
         ]);
     }

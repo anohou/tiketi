@@ -72,6 +72,8 @@ const routeForm = ref({
   name: '',
   origin_destination_id: '',
   target_destination_id: '',
+  estimated_duration_minutes: 120,
+  automatic_connection_allocation: null,
   active: true
 });
 
@@ -195,6 +197,8 @@ const openCreateRouteModal = () => {
     name: '',
     origin_station_id: '',
     destination_station_id: '',
+    estimated_duration_minutes: 120,
+    automatic_connection_allocation: null,
     active: true
   };
   errors.value = {};
@@ -209,6 +213,8 @@ const openEditRouteModal = () => {
     name: selectedRoute.value.name,
     origin_destination_id: selectedRoute.value.origin_destination_id,
     target_destination_id: selectedRoute.value.target_destination_id,
+    estimated_duration_minutes: selectedRoute.value.estimated_duration_minutes || 120,
+    automatic_connection_allocation: selectedRoute.value.automatic_connection_allocation,
     active: selectedRoute.value.active
   };
   errors.value = {};
@@ -223,6 +229,8 @@ const duplicateRoute = () => {
     name: selectedRoute.value.name + ' (Copie)',
     origin_destination_id: selectedRoute.value.origin_destination_id,
     target_destination_id: selectedRoute.value.target_destination_id,
+    estimated_duration_minutes: selectedRoute.value.estimated_duration_minutes || 120,
+    automatic_connection_allocation: selectedRoute.value.automatic_connection_allocation,
     active: true
   };
   errors.value = {};
@@ -236,6 +244,8 @@ const closeRouteModal = () => {
     name: '',
     origin_station_id: '',
     destination_station_id: '',
+    estimated_duration_minutes: 120,
+    automatic_connection_allocation: null,
     active: true
   };
   errors.value = {};
@@ -779,6 +789,22 @@ const handlePrint = () => {
               </select>
               <InputError :message="errors.target_destination_id" />
             </div>
+          </div>
+
+          <div>
+            <InputLabel for="estimated_duration_minutes" value="Durée habituelle du trajet (minutes)" />
+            <TextInput id="estimated_duration_minutes" v-model.number="routeForm.estimated_duration_minutes" type="number" min="1" max="2880" class="w-full" />
+            <InputError :message="errors.estimated_duration_minutes" />
+          </div>
+
+          <div>
+            <InputLabel for="automatic_connection_allocation" value="Allocation automatique des correspondances" />
+            <select id="automatic_connection_allocation" v-model="routeForm.automatic_connection_allocation" class="w-full border-slate-200 dark:border-slate-800 rounded-md shadow-sm dark:bg-slate-950 dark:text-slate-100">
+              <option :value="null">Hériter de la politique de la compagnie</option>
+              <option :value="true">Toujours activer sur ce trajet</option>
+              <option :value="false">Toujours désactiver sur ce trajet</option>
+            </select>
+            <InputError :message="errors.automatic_connection_allocation" />
           </div>
 
           <div class="flex items-center">

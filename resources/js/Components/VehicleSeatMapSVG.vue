@@ -74,6 +74,7 @@ const DRIVER_CABIN_HEIGHT = 80;
 const decksData = computed(() => {
   if (!props.seatMap.seat_map) return [];
   const sourceDecks = [];
+  const preserveEmptyTail = Number(props.seatMap?.last_row_seats) === 0;
   if (Array.isArray(props.seatMap.seat_map)) {
     sourceDecks.push({ name: 'Niveau Unique', rows: [...props.seatMap.seat_map] });
   } else {
@@ -90,7 +91,7 @@ const decksData = computed(() => {
     while (rows.length > 0) {
       const lastRow = rows[rows.length - 1];
       const hasSeats = lastRow.some(item => item.type === 'seat');
-      if (!hasSeats) rows.pop();
+      if (!hasSeats && !preserveEmptyTail) rows.pop();
       else break;
     }
     return { ...deck, rows };

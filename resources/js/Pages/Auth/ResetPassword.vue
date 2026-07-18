@@ -37,9 +37,9 @@ const submit = () => {
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600">Nouveau mot de passe</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900">Choisissez un nouveau mot de passe</h1>
-                <p class="mt-2 text-sm leading-6 text-slate-500">
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Nouveau mot de passe</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Choisissez un nouveau mot de passe</h1>
+                <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
                     Saisissez vos nouveaux identifiants pour retrouver l’accès à votre espace.
                 </p>
             </div>

@@ -1,6 +1,30 @@
 <?php
 
 return [
+    'boarding' => [
+        'future_tolerance_minutes' => env('BOARDING_FUTURE_TOLERANCE_MINUTES', 5),
+        'past_window_hours' => env('BOARDING_PAST_WINDOW_HOURS', 24),
+    ],
+    'operations' => [
+        'day_start_hour' => env('OPERATIONAL_DAY_START_HOUR', 3),
+        'active_trip_lookback_hours' => env('ACTIVE_TRIP_LOOKBACK_HOURS', 48),
+        'scheduled_lookahead_hours' => env('SCHEDULED_TRIP_LOOKAHEAD_HOURS', 30),
+    ],
+    'crew_auth' => [
+        'default_country_code' => env('CREW_DEFAULT_COUNTRY_CODE', '225'),
+        'max_login_attempts' => env('CREW_MAX_LOGIN_ATTEMPTS', 5),
+        'lockout_seconds' => env('CREW_LOGIN_LOCKOUT_SECONDS', 60),
+        'login_backoff_base_seconds' => env('CREW_LOGIN_BACKOFF_BASE_SECONDS', 2),
+        'login_backoff_max_seconds' => env('CREW_LOGIN_BACKOFF_MAX_SECONDS', 60),
+        'token_expiration_days' => env('CREW_TOKEN_EXPIRATION_DAYS', 30),
+        'token_inactivity_days' => env('CREW_TOKEN_INACTIVITY_DAYS', 14),
+    ],
+    'offline' => [
+        'confirmed_retention_days' => env('OFFLINE_CONFIRMED_RETENTION_DAYS', 7),
+        'rejected_retention_days' => env('OFFLINE_REJECTED_RETENTION_DAYS', 30),
+        'ticket_cache_ttl_minutes' => env('OFFLINE_TICKET_CACHE_TTL_MINUTES', 360),
+        'cache_signing_key' => env('OFFLINE_CACHE_SIGNING_KEY'),
+    ],
     /*
     |--------------------------------------------------------------------------
     | Default Data for Seeders
@@ -44,20 +68,26 @@ return [
         [
             'name' => 'Autocar 50 places (2+2)',
             'total_capacity' => 54,
-            'door_count' => 2,
+            'door_count' => 3,
             'door_side' => 'right',
             'door_width' => 2,
             'seat_configuration' => '2+2',
-            'svg_template_path' => 'bus_50',
+            'seat_count' => 52,
+            'door_positions' => [0, 35, 36],
+            'last_row_seats' => 6,
+            'svg_template_path' => 'bus_50_2x2',
         ],
         [
             'name' => 'Autocar 50 places (3+2)',
             'total_capacity' => 52,
-            'door_count' => 2,
+            'door_count' => 3,
             'door_side' => 'right',
             'door_width' => 2,
             'seat_configuration' => '3+2',
-            'svg_template_path' => 'bus_50',
+            'seat_count' => 50,
+            'door_positions' => [0, 34, 35],
+            'last_row_seats' => 6,
+            'svg_template_path' => 'bus_50_3x2',
         ],
         // 70 Places
         [
@@ -80,13 +110,41 @@ return [
         ],
     ],
 
+    'production_vehicle_types' => [
+        [
+            'name' => 'Autocar 50 places (3+2)',
+            'seat_count' => 50,
+            'seat_configuration' => '3+2',
+            'door_count' => 3,
+            'door_positions' => [0, 34, 35],
+            'door_side' => 'right',
+            'door_width' => 2,
+            'last_row_seats' => 6,
+            'svg_template_path' => 'bus_50_3x2',
+            'active' => true,
+        ],
+        [
+            'name' => 'Autocar 50 places (2+2)',
+            'seat_count' => 52,
+            'seat_configuration' => '2+2',
+            'door_count' => 3,
+            'door_positions' => [0, 35, 36],
+            'door_side' => 'right',
+            'door_width' => 2,
+            'last_row_seats' => 6,
+            'svg_template_path' => 'bus_50_2x2',
+            'active' => true,
+        ],
+    ],
+
     'villes' => [
         ['name' => 'Abidjan', 'region' => 'Lagunes'],
+        ['name' => 'Divo', 'region' => 'Lôh-Djiboua'],
+        ['name' => 'Gagnoa', 'region' => 'Gôh'],
         ['name' => 'Yamoussoukro', 'region' => 'Lacs'],
         ['name' => 'Bouaké', 'region' => 'Gbêkê'],
+        ['name' => 'Katiola', 'region' => 'Hambol'],
         ['name' => 'Korhogo', 'region' => 'Poro'],
-        ['name' => 'San-Pedro', 'region' => 'Bas-Sassandra'],
-        ['name' => 'Man', 'region' => 'Tonkpi'],
     ],
 
     'gares_par_ville' => [
@@ -95,25 +153,44 @@ return [
             ['name' => 'Gare Sud (Treichville)', 'code' => 'ABJ-SUD'],
         ],
         'Yamoussoukro' => [
-            ['name' => 'Gare Centrale', 'code' => 'YAK-CENTRE'],
+            ['name' => 'Gare de Yamoussoukro', 'code' => 'YAK-CENTRE'],
+        ],
+        'Divo' => [
+            ['name' => 'Gare de Divo', 'code' => 'DIV-MAIN'],
+        ],
+        'Gagnoa' => [
+            ['name' => 'Gare de Gagnoa', 'code' => 'GAG-MAIN'],
         ],
         'Bouaké' => [
             ['name' => 'Gare de Bouaké', 'code' => 'BKE-MAIN'],
+        ],
+        'Katiola' => [
+            ['name' => 'Gare de Katiola', 'code' => 'KAT-MAIN'],
+        ],
+        'Korhogo' => [
+            ['name' => 'Gare de Korhogo', 'code' => 'KGO-MAIN'],
         ],
     ],
 
     'routes_par_defaut' => [
         [
-            'name' => 'Abidjan ↔ Yamoussoukro',
+            'name' => 'Abidjan ↔ Gagnoa via Yamoussoukro et Divo',
             'origin' => 'ABJ-NORD',
-            'destination' => 'YAK-CENTRE',
-            'fare' => 5000,
+            'destination' => 'GAG-MAIN',
+            'stops' => ['ABJ-NORD', 'YAK-CENTRE', 'DIV-MAIN', 'GAG-MAIN'],
+            'fare' => 7500,
+            'estimated_duration_minutes' => 270,
+            'automatic_connection_allocation' => true,
         ],
         [
-            'name' => 'Abidjan ↔ Bouaké',
+            'name' => 'Abidjan ↔ Korhogo',
             'origin' => 'ABJ-NORD',
-            'destination' => 'BKE-MAIN',
-            'fare' => 8000,
+            'destination' => 'KGO-MAIN',
+            'stops' => ['ABJ-NORD', 'YAK-CENTRE', 'BKE-MAIN', 'KAT-MAIN', 'KGO-MAIN'],
+            'fare' => 12000,
+            'estimated_duration_minutes' => 600,
+            'automatic_connection_allocation' => true,
         ],
     ],
+
 ];

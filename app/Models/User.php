@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasUuids, Notifiable;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -126,13 +127,38 @@ class User extends Authenticatable
         if ($this->isAdmin()) {
             return Route::where('active', true);
         }
+
         $stationIds = $this->getActiveStationIds();
+        if (empty($stationIds)) {
+            return Route::whereRaw('1 = 0');
+        }
 
         return Route::where('active', true)
-            ->where(function ($q) use ($stationIds) {
-                $q->whereIn('origin_station_id', $stationIds)
-                    ->orWhereIn('destination_station_id', $stationIds)
-                    ->orWhereHas('routeStopOrders', fn ($sq) => $sq->whereIn('station_id', $stationIds));
+            ->where(function ($query) use ($stationIds) {
+                foreach ($stationIds as $stationId) {
+                    $query->orWhere(function ($q) use ($stationId) {
+                        $hasRouteAssignments = $this->routeAssignments()
+                            ->where('station_id', $stationId)
+                            ->where('active', true)
+                            ->exists();
+
+                        if ($hasRouteAssignments) {
+                            $assignedRouteIds = $this->routeAssignments()
+                                ->where('station_id', $stationId)
+                                ->where('active', true)
+                                ->pluck('route_id')
+                                ->toArray();
+
+                            $q->whereIn('id', $assignedRouteIds);
+                        } else {
+                            $q->where(function ($sub) use ($stationId) {
+                                $sub->where('origin_station_id', $stationId)
+                                    ->orWhere('destination_station_id', $stationId)
+                                    ->orWhereHas('routeStopOrders', fn ($sq) => $sq->where('station_id', $stationId));
+                            });
+                        }
+                    });
+                }
             });
     }
 }

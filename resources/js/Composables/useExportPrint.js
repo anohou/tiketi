@@ -1,62 +1,9 @@
-import * as XLSX from 'xlsx';
 import { toastStore } from '@/Stores/toastStore.js';
 
 /**
  * Composable for exporting data to Excel/CSV and printing lists
  */
 export function useExportPrint() {
-
-    /**
-     * Export data to Excel file (.xlsx)
-     * @param {Array} data - Array of objects to export
-     * @param {Object} columns - Column configuration { key: 'Label' }
-     * @param {string} filename - Base filename without extension
-     */
-    const exportToExcel = (data, columns, filename = 'export') => {
-        if (!data || data.length === 0) {
-            toastStore.warning('Aucune donnée à exporter');
-            return;
-        }
-
-        const headers = Object.values(columns);
-        const keys = Object.keys(columns);
-
-        // Build data array for sheet
-        const sheetData = [
-            headers, // Header row
-            ...data.map(row =>
-                keys.map(key => {
-                    let value = getNestedValue(row, key);
-                    if (value === null || value === undefined) value = '';
-                    if (typeof value === 'boolean') value = value ? 'Oui' : 'Non';
-                    return value;
-                })
-            )
-        ];
-
-        // Create workbook and worksheet
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-        // Auto-size columns
-        const colWidths = headers.map((header, i) => {
-            const maxLength = Math.max(
-                header.length,
-                ...data.map(row => {
-                    const val = getNestedValue(row, keys[i]);
-                    return String(val || '').length;
-                })
-            );
-            return { wch: Math.min(maxLength + 2, 50) };
-        });
-        worksheet['!cols'] = colWidths;
-
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Données');
-
-        // Generate file and download
-        XLSX.writeFile(workbook, `${filename}_${formatDate(new Date())}.xlsx`);
-    };
 
     /**
      * Export data to CSV file (legacy support)
@@ -84,7 +31,10 @@ export function useExportPrint() {
                     if (value === null || value === undefined) value = '';
                     if (typeof value === 'boolean') value = value ? 'Oui' : 'Non';
                     // Escape quotes and wrap in quotes if contains semicolon
-                    value = String(value).replace(/"/g, '""');
+                    value = String(value);
+                    // Prevent spreadsheet formula injection when opened in Excel/LibreOffice.
+                    if (/^[=+\-@\t\r]/.test(value)) value = `'${value}`;
+                    value = value.replace(/"/g, '""');
                     if (value.includes(';') || value.includes('"') || value.includes('\n')) {
                         value = `"${value}"`;
                     }
@@ -109,6 +59,10 @@ export function useExportPrint() {
         URL.revokeObjectURL(url);
     };
 
+    // Compatibility name used by existing screens. The generated CSV opens
+    // natively in Excel without retaining the vulnerable SheetJS dependency.
+    const exportToExcel = (data, columns, filename = 'export') => exportToCsv(data, columns, filename);
+
     /**
      * Print a list with custom styling
      * @param {Array} data - Array of objects to print
@@ -130,7 +84,7 @@ export function useExportPrint() {
                 let value = getNestedValue(row, key);
                 if (value === null || value === undefined) value = '-';
                 if (typeof value === 'boolean') value = value ? 'Oui' : 'Non';
-                return `<td>${value}</td>`;
+                return `<td>${escapeHtml(value)}</td>`;
             }).join('')}</tr>`
         ).join('');
 
@@ -139,7 +93,7 @@ export function useExportPrint() {
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>${title}</title>
+                <title>${escapeHtml(title)}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body { 
@@ -200,12 +154,12 @@ export function useExportPrint() {
             </head>
             <body>
                 <div class="header">
-                    <div class="title">${title}</div>
+                    <div class="title">${escapeHtml(title)}</div>
                     <div class="date">Imprimé le ${formatDateFull(new Date())}</div>
                 </div>
                 <table>
                     <thead>
-                        <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+                        <tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>
                     </thead>
                     <tbody>
                         ${tableRows}
@@ -240,6 +194,13 @@ export function useExportPrint() {
             return current && current[key] !== undefined ? current[key] : null;
         }, obj);
     };
+
+    const escapeHtml = (value) => String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 
     /**
      * Format date for filename

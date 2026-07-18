@@ -52,7 +52,7 @@ class VehicleCrewAssignment extends Model
      */
     public function scopeActive($query)
     {
-        return $query->whereNull('assigned_to');
+        return $query->atDate(now());
     }
 
     /**
@@ -62,6 +62,15 @@ class VehicleCrewAssignment extends Model
     public function scopeAtDate($query, $date)
     {
         return $query->where('assigned_from', '<=', $date)
-            ->where(fn ($q) => $q->whereNull('assigned_to')->orWhere('assigned_to', '>=', $date));
+            ->where(fn ($q) => $q->whereNull('assigned_to')->orWhere('assigned_to', '>', $date));
+    }
+
+    /**
+     * Affectations whose half-open interval overlaps [start, end).
+     */
+    public function scopeOverlapping($query, $start, $end = null)
+    {
+        return $query->when($end, fn ($q) => $q->where('assigned_from', '<', $end))
+            ->where(fn ($q) => $q->whereNull('assigned_to')->orWhere('assigned_to', '>', $start));
     }
 }

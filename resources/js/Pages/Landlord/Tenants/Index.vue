@@ -1,4 +1,6 @@
 <script setup>
+import ConfirmationModal from '@/Components/ConfirmationModal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -6,8 +8,8 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
-import { router } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import { computed, ref, watch } from 'vue';
 
 import Database from 'vue-material-design-icons/Database.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
@@ -17,6 +19,7 @@ import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
+import Refresh from 'vue-material-design-icons/Refresh.vue';
 
 const props = defineProps({
   tenants: {
@@ -38,10 +41,17 @@ const props = defineProps({
 const search = ref('');
 const selectedTenant = ref(null);
 const processing = ref(false);
+const passwordProcessing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
 const showDomainModal = ref(false);
+
+const showPasswordConfirmModal = ref(false);
+const showDeleteTenantModal = ref(false);
+const tenantIdToDelete = ref(null);
+const showRemoveDomainModal = ref(false);
+const domainIdToRemove = ref(null);
 
 const form = ref({
   id: '',
@@ -163,16 +173,46 @@ const submit = () => {
   });
 };
 
-const deleteTenant = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce tenant ? Cette action supprimera également sa base de données !')) {
-    router.delete(route('landlord.tenants.destroy', id), {
-      onSuccess: () => {
-        if (selectedTenant.value?.id === id) {
-          selectedTenant.value = null;
-        }
-      },
-    });
-  }
+const confirmDeleteTenant = (id) => {
+  tenantIdToDelete.value = id;
+  showDeleteTenantModal.value = true;
+};
+
+const deleteTenant = () => {
+  if (!tenantIdToDelete.value) return;
+  const id = tenantIdToDelete.value;
+  showDeleteTenantModal.value = false;
+
+  router.delete(route('landlord.tenants.destroy', id), {
+    onSuccess: () => {
+      if (selectedTenant.value?.id === id) {
+        selectedTenant.value = null;
+      }
+      tenantIdToDelete.value = null;
+    },
+  });
+};
+
+const confirmRegenerateTenantPassword = () => {
+  if (!selectedTenant.value) return;
+  showPasswordConfirmModal.value = true;
+};
+
+const regenerateTenantPassword = () => {
+  if (!selectedTenant.value) return;
+  showPasswordConfirmModal.value = false;
+  passwordProcessing.value = true;
+
+  router.post(route('landlord.tenants.password.regenerate', selectedTenant.value.id), {}, {
+    preserveScroll: true,
+    preserveState: true,
+    onFinish: () => {
+      passwordProcessing.value = false;
+    },
+    onError: () => {
+      passwordProcessing.value = false;
+    }
+  });
 };
 
 // Domain management
@@ -211,24 +251,29 @@ const addDomain = () => {
   });
 };
 
-const removeDomain = (domainId) => {
+const confirmRemoveDomain = (domainId) => {
   if (!selectedTenant.value) return;
   if (selectedTenant.value.domains?.length <= 1) {
     alert('Un tenant doit avoir au moins un domaine.');
     return;
   }
-  if (!confirm('Supprimer ce domaine ?')) return;
+  domainIdToRemove.value = domainId;
+  showRemoveDomainModal.value = true;
+};
+
+const removeDomain = () => {
+  if (!selectedTenant.value || !domainIdToRemove.value) return;
+  const domainId = domainIdToRemove.value;
+  showRemoveDomainModal.value = false;
 
   router.delete(route('landlord.tenants.domains.destroy', { tenant: selectedTenant.value.id, domain: domainId }), {
     preserveScroll: true,
     onSuccess: () => {
+      domainIdToRemove.value = null;
       router.reload({ only: ['tenants'] });
     }
   });
 };
-// Setup for password display modal
-import { usePage } from '@inertiajs/vue3';
-import { watch } from 'vue';
 import Check from 'vue-material-design-icons/Check.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 
@@ -373,12 +418,19 @@ const closePasswordModal = () => {
                   <p class="text-sm text-gray-500 font-mono">ID: {{ selectedTenant.id }}</p>
                 </div>
                 <div class="flex gap-2">
+                  <button @click="confirmRegenerateTenantPassword"
+                          class="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors inline-flex items-center gap-2"
+                          :disabled="passwordProcessing"
+                          title="Régénérer le mot de passe">
+                    <Refresh class="h-5 w-5" :class="{ 'animate-spin': passwordProcessing }" />
+                    <span class="text-sm font-medium">Régénérer</span>
+                  </button>
                   <button @click="openEditModal"
                           class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                           title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteTenant(selectedTenant.id)"
+                  <button @click="confirmDeleteTenant(selectedTenant.id)"
                           class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Supprimer">
                     <Trash2 class="h-5 w-5" />
@@ -453,7 +505,7 @@ const closePasswordModal = () => {
                         </a>
                       </div>
                     </div>
-                    <button @click="removeDomain(domain.id)"
+                    <button @click="confirmRemoveDomain(domain.id)"
                             class="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                             title="Supprimer"
                             :disabled="(selectedTenant.domains || []).length <= 1"
@@ -587,7 +639,7 @@ const closePasswordModal = () => {
     <DialogModal :show="showPasswordModal"
                  @close="closePasswordModal">
       <template #title>
-        Tenant Créé avec Succès !
+        Mot de passe administrateur
       </template>
       <template #content>
         <div class="text-center py-4">
@@ -595,7 +647,7 @@ const closePasswordModal = () => {
             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
               <Check class="h-6 w-6 text-green-600" />
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Admin Tenant Créé</h3>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Mot de passe généré</h3>
             <div class="mt-2 px-7 py-3">
               <p class="text-sm text-gray-500">
                 Voici le mot de passe généré pour l'administrateur du tenant.
@@ -631,5 +683,59 @@ const closePasswordModal = () => {
         </PrimaryButton>
       </template>
     </DialogModal>
+
+    <!-- Confirmation Modal for Password Regeneration -->
+    <ConfirmationModal :show="showPasswordConfirmModal" @close="showPasswordConfirmModal = false">
+      <template #title>
+        Régénérer le mot de passe
+      </template>
+      <template #content>
+        Voulez-vous vraiment régénérer le mot de passe de l'administrateur de ce tenant ? L'ancien mot de passe ne fonctionnera plus.
+      </template>
+      <template #footer>
+        <SecondaryButton @click="showPasswordConfirmModal = false">
+          Annuler
+        </SecondaryButton>
+        <PrimaryButton class="ml-3" @click="regenerateTenantPassword">
+          Régénérer
+        </PrimaryButton>
+      </template>
+    </ConfirmationModal>
+
+    <!-- Confirmation Modal for Delete Tenant -->
+    <ConfirmationModal :show="showDeleteTenantModal" @close="showDeleteTenantModal = false">
+      <template #title>
+        Supprimer le tenant
+      </template>
+      <template #content>
+        Êtes-vous sûr de vouloir supprimer ce tenant ? Cette action est irréversible et supprimera définitivement sa base de données et toutes ses données associées !
+      </template>
+      <template #footer>
+        <SecondaryButton @click="showDeleteTenantModal = false">
+          Annuler
+        </SecondaryButton>
+        <DangerButton class="ml-3" @click="deleteTenant">
+          Supprimer définitivement
+        </DangerButton>
+      </template>
+    </ConfirmationModal>
+
+    <!-- Confirmation Modal for Remove Domain -->
+    <ConfirmationModal :show="showRemoveDomainModal" @close="showRemoveDomainModal = false">
+      <template #title>
+        Supprimer le domaine
+      </template>
+      <template #content>
+        Êtes-vous sûr de vouloir supprimer ce domaine ? Les utilisateurs ne pourront plus accéder au tenant via cette adresse.
+      </template>
+      <template #footer>
+        <SecondaryButton @click="showRemoveDomainModal = false">
+          Annuler
+        </SecondaryButton>
+        <DangerButton class="ml-3" @click="removeDomain">
+          Supprimer
+        </DangerButton>
+      </template>
+    </ConfirmationModal>
   </MainNavLayout>
 </template>

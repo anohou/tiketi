@@ -7,14 +7,22 @@
         :key="item.route"
         :href="route(item.route)"
         :class="[
-          'flex items-center px-3 py-1.5 text-sm rounded-xl transition-colors',
+          'flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-colors',
           route().current(item.route)
           ? 'bg-emerald-50 text-emerald-700 font-medium dark:bg-emerald-900/30 dark:text-emerald-300'
             : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-emerald-300'
         ]"
       >
-        <component :is="item.icon" class="w-5 h-5 mr-2" />
-        {{ item.name }}
+        <component :is="item.icon" class="w-5 h-5 shrink-0" />
+        <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+          <span class="leading-tight py-0.5">{{ item.name }}</span>
+          <span
+            v-if="item.count !== null && item.count !== undefined"
+            class="inline-flex min-w-7 justify-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300 shrink-0"
+          >
+            {{ item.count }}
+          </span>
+        </div>
       </Link>
     </nav>
   </div>
@@ -32,7 +40,7 @@
         :value="item.route"
         :selected="route().current(item.route)"
       >
-        {{ item.name }}
+        {{ item.name + (item.count !== null && item.count !== undefined ? ` (${item.count})` : '') }}
       </option>
     </select>
   </div>

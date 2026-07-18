@@ -17,7 +17,7 @@ import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 
-defineProps({
+const props = defineProps({
   stats: {
     type: Object,
     default: () => ({
@@ -46,15 +46,15 @@ const configSections = [
   {
     category: 'Infrastructure',
     items: [
-      { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies' },
-      { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ' },
+      { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies', count: props.stats.destinations },
+      { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ', count: props.stats.stations },
     ]
   },
   {
     category: 'Flotte',
     items: [
-      { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules' },
-      { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types' },
+      { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules', count: props.stats.vehicles },
+      { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types', count: props.stats.vehicleTypes },
       { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, description: 'Gérer les chauffeurs et assistants' },
       { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: 'Affecter les équipages aux véhicules' },
     ]
@@ -62,16 +62,16 @@ const configSections = [
   {
     category: 'Opérations',
     items: [
-      { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires' },
-      { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages' },
-      { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix' },
+      { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires', count: props.stats.routes },
+      { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages', count: props.stats.trips },
+      { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix', count: props.stats.fares },
     ]
   },
   {
     category: 'Utilisateurs',
     items: [
-      { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes' },
-      { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares' },
+      { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes', count: props.stats.users },
+      { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares', count: props.stats.assignments },
     ]
   }
 ];
@@ -143,7 +143,15 @@ const configSections = [
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between gap-2">
-                    <span class="font-bold text-slate-900 group-hover:text-emerald-700 text-sm leading-tight dark:text-slate-100 dark:group-hover:text-emerald-300">{{ item.name }}</span>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="font-bold text-slate-900 group-hover:text-emerald-700 text-sm leading-tight dark:text-slate-100 dark:group-hover:text-emerald-300">{{ item.name }}</span>
+                      <span
+                        v-if="item.count !== null && item.count !== undefined"
+                        class="inline-flex min-w-7 justify-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        {{ item.count }}
+                      </span>
+                    </div>
                     <ChevronRight :size="18" class="text-slate-300 group-hover:text-emerald-500 shrink-0 dark:text-slate-600" />
                   </div>
                   <p class="text-[11px] text-slate-500 mt-1 leading-relaxed dark:text-slate-400">{{ item.description }}</p>

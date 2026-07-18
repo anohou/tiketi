@@ -669,39 +669,40 @@ const handlePrint = () => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-5">
               <!-- Header Row -->
-              <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedUser.name }}</h2>
+              <div class="flex justify-between items-start mb-4">
+                <h2 class="text-xl font-bold text-gray-800 dark:text-slate-200">{{ selectedUser.name }}</h2>
                 <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
               </div>
 
               <!-- Details Row -->
-              <div class="grid grid-cols-12 gap-6">
+              <div class="grid grid-cols-12 gap-4">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">EMAIL</span>
-                  <div class="text-lg font-medium text-gray-900 dark:text-slate-100 break-all">
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">EMAIL</span>
+                  <div class="text-base font-medium text-gray-900 dark:text-slate-100 break-all">
                     {{ selectedUser.email }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">TÉLÉPHONE</span>
-                  <div class="text-lg font-medium text-gray-900 dark:text-slate-100">
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">TÉLÉPHONE</span>
+                  <div class="text-base font-medium text-gray-900 dark:text-slate-100">
                     {{ selectedUser.telephone || 'Non renseigné' }}
                   </div>
                 </div>
-                <div class="col-span-12">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">RÔLE</span>
+                
+                <div class="col-span-6 lg:col-span-4">
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1.5">RÔLE</span>
                   <div>
                     <span :class="[
-                       'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
+                       'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
                       getRoleColor(selectedUser.role)
                     ]">
                       {{ getRoleLabel(selectedUser.role) }}
@@ -710,11 +711,11 @@ const handlePrint = () => {
                 </div>
                 
                 <!-- Active Status -->
-                <div class="col-span-12">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
-                  <div class="flex items-center gap-3">
+                <div class="col-span-6 lg:col-span-4">
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1.5">STATUT</span>
+                  <div class="flex items-center gap-2">
                     <span :class="[
-                      'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
+                      'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
                       selectedUser.active !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     ]">
                       {{ selectedUser.active !== false ? 'Actif' : 'Inactif' }}
@@ -726,21 +727,23 @@ const handlePrint = () => {
                         @change="confirmToggleUserActive(null, $event)"
                         class="sr-only peer" 
                       />
-                      <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 font-medium"></div>
+                      <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
                     </label>
                   </div>
                 </div>
 
                 <!-- Password Reset -->
-                <div class="col-span-12">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">SÉCURITÉ</span>
-                  <button 
-                    @click="openResetPasswordModal"
-                    class="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium w-full md:w-auto justify-center"
-                  >
-                    <Refresh class="h-4 w-4" />
-                    Générer un nouveau mot de passe
-                  </button>
+                <div class="col-span-12 lg:col-span-4">
+                  <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1.5">SÉCURITÉ</span>
+                  <div>
+                    <button 
+                      @click="openResetPasswordModal"
+                      class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors text-xs font-medium w-full justify-center"
+                    >
+                      <Refresh class="h-3.5 w-3.5" />
+                      Réinitialiser le MDP
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -748,14 +751,14 @@ const handlePrint = () => {
             <!-- Related Tables - Tabbed Section -->
             <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <!-- Tabs Header -->
-              <div class="flex border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50/40">
+              <div class="flex border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20">
                 <button 
                   @click="activeTab = 'assignments'"
                   :class="[
                     'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
                     activeTab === 'assignments' 
-                      ? 'border-emerald-600 text-emerald-700 bg-white' 
-                      : 'border-transparent text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:text-slate-300'
+                      ? 'border-emerald-600 text-emerald-700 bg-white dark:bg-slate-900 dark:text-emerald-400 dark:border-emerald-500' 
+                      : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                   ]"
                 >
                   <OfficeBuilding class="h-4 w-4" />
@@ -769,13 +772,12 @@ const handlePrint = () => {
                 <div v-if="activeTab === 'assignments'">
                   <!-- Add Button -->
                   <div class="flex justify-between items-center mb-4">
-                    <p class="text-sm text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">Gares où cet utilisateur peut vendre des billets</p>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Gares où cet utilisateur peut vendre des billets</p>
                     <button 
                       @click="openAssignmentModal" 
-                    class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
-                  >
-                      <Plus class="h-4 w-4" />
-                      Ajouter
+                      class="p-1.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors text-xs font-bold flex items-center gap-1 shrink-0"
+                    >
+                      <Plus :size="16" /> Ajouter
                     </button>
                   </div>
 
@@ -792,28 +794,32 @@ const handlePrint = () => {
                       :key="assignment.id"
                       :class="[
                         'flex items-center justify-between p-3 rounded-lg border',
-                        assignment.active !== false ? 'bg-slate-50 border-slate-100' : 'bg-slate-100 border-slate-200 opacity-60'
+                        assignment.active !== false 
+                          ? 'bg-slate-50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-800/50' 
+                          : 'bg-slate-100 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800/50 opacity-60'
                       ]"
                     >
                       <div class="flex items-center gap-3">
                         <div :class="[
                           'w-8 h-8 flex items-center justify-center rounded-full',
-                          assignment.active !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500'
+                          assignment.active !== false 
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                            : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
                         ]">
                           <OfficeBuilding class="h-4 w-4" />
                         </div>
                         <div>
-                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-slate-800 dark:text-slate-200 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500']">
+                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-500']">
                             {{ assignment.station?.name }}
                           </p>
-                          <p class="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ assignment.station?.city }}</p>
+                          <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{{ assignment.station?.city }}</p>
                         </div>
                       </div>
                       <div class="flex items-center gap-2">
                         <!-- Edit Button -->
                         <button 
                           @click="openEditAssignmentModal(assignment)" 
-                          class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                          class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded transition-colors"
                           title="Modifier"
                         >
                           <Pencil class="h-4 w-4" />
@@ -826,12 +832,12 @@ const handlePrint = () => {
                             @change="toggleAssignmentActive(assignment)"
                             class="sr-only peer" 
                           />
-                          <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                          <div class="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 dark:peer-checked:bg-emerald-600"></div>
                         </label>
                         <!-- Delete Button -->
                         <button 
                           @click="confirmRemoveAssignment(assignment.id)" 
-                          class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded transition-colors"
                           title="Retirer"
                         >
                           <Trash2 class="h-4 w-4" />

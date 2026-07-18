@@ -20,11 +20,15 @@ class Route extends Model
         'origin_station_id',
         'destination_station_id',
         'active',
+        'estimated_duration_minutes',
+        'automatic_connection_allocation',
         'settings',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'estimated_duration_minutes' => 'integer',
+        'automatic_connection_allocation' => 'boolean',
         'settings' => 'array',
     ];
 

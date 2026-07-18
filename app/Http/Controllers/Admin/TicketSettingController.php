@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Ticket;
 use App\Models\TicketSetting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,9 +13,16 @@ class TicketSettingController extends Controller
     public function index()
     {
         $settings = TicketSetting::getSettings();
+        $previewTicket = Ticket::with([
+            'trip.route',
+            'trip.vehicle',
+            'fromStation',
+            'toStation',
+        ])->latest()->first();
 
         return Inertia::render('Admin/TicketSettings/Index', [
             'settings' => $settings,
+            'previewTicket' => $previewTicket,
         ]);
     }
 

@@ -28,10 +28,10 @@ const emit = defineEmits(['export', 'print']);
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
                     : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
             ]"
-            title="Exporter en Excel"
+            title="Exporter en CSV compatible Excel"
         >
             <FileExcel :size="small ? 14 : 16" />
-            <span class="hidden sm:inline">Excel</span>
+            <span class="hidden sm:inline">CSV</span>
         </button>
         
         <button 

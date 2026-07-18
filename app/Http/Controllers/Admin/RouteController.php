@@ -7,6 +7,7 @@ use App\Models\Destination;
 use App\Models\Route as BusRoute;
 use App\Models\RouteFare;
 use App\Models\Station;
+use App\Services\TripTimingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -68,6 +69,8 @@ class RouteController extends Controller
             'origin_destination_id' => 'required|uuid|exists:destinations,id',
             'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
+            'estimated_duration_minutes' => 'required|integer|min:1|max:2880',
+            'automatic_connection_allocation' => 'nullable|boolean',
         ]);
 
         BusRoute::create($data);
@@ -96,9 +99,13 @@ class RouteController extends Controller
             'origin_destination_id' => 'required|uuid|exists:destinations,id',
             'target_destination_id' => 'required|uuid|exists:destinations,id',
             'active' => 'boolean',
+            'estimated_duration_minutes' => 'required|integer|min:1|max:2880',
+            'automatic_connection_allocation' => 'nullable|boolean',
         ]);
 
         $route->update($data);
+        $route->trips()->whereIn('status', ['scheduled', 'boarding'])->get()
+            ->each(fn ($trip) => app(TripTimingService::class)->syncPlannedTimes($trip));
 
         return redirect()->route('admin.routes.index');
     }

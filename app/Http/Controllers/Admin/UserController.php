@@ -15,11 +15,29 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::with(['stationAssignments.station'])
-            ->orderBy('name')
-            ->paginate(20);
+        $query = User::with(['stationAssignments.station']);
 
-        $stations = Station::orderBy('name')->get(['id', 'name', 'city']);
+        if (auth()->user()->role === 'supervisor') {
+            $stationIds = auth()->user()->getActiveStationIds();
+            $query->where('role', 'seller')
+                ->where(function ($q) use ($stationIds) {
+                    $q->whereHas('stationAssignments', function ($sq) use ($stationIds) {
+                        $sq->whereIn('station_id', $stationIds)->where('active', true);
+                    })
+                        ->orWhere(function ($sq) {
+                            $sq->whereDoesntHave('stationAssignments')
+                                ->where('settings->creator_id', auth()->id());
+                        });
+                });
+        }
+
+        $users = $query->orderBy('name')->paginate(20);
+
+        $stationsQuery = Station::orderBy('name');
+        if (auth()->user()->role === 'supervisor') {
+            $stationsQuery->whereIn('id', auth()->user()->getActiveStationIds());
+        }
+        $stations = $stationsQuery->get(['id', 'name', 'city']);
 
         return Inertia::render('Admin/Users/Index', [
             'users' => $users,
@@ -35,34 +53,64 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $password = Str::password(10, true, true, false, false);
+        $currentUser = auth()->user();
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'telephone' => 'required|string|max:20',
-            'role' => 'required|in:admin,supervisor,seller,accountant,executive,fleet_manager',
-        ]);
+        if ($currentUser->role === 'supervisor') {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'telephone' => 'required|string|max:20',
+            ]);
+            $role = 'seller';
+        } else {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'telephone' => 'required|string|max:20',
+                'role' => 'required|in:admin,supervisor,seller,accountant,executive,fleet_manager',
+            ]);
+            $role = $request->role;
+        }
 
         User::create([
             'name' => $request->name,
             'email' => $request->email,
             'telephone' => $request->telephone,
-            'role' => $request->role,
+            'role' => $role,
             'password' => Hash::make($password),
+            'settings' => $currentUser->role === 'supervisor' ? ['creator_id' => $currentUser->id] : null,
         ]);
 
-        return redirect()->route('admin.users.index')
+        $redirectRoute = $currentUser->role === 'supervisor' ? 'supervisor.users.index' : 'admin.users.index';
+
+        return redirect()->route($redirectRoute)
             ->with('success', 'Utilisateur créé avec succès.')
             ->with('created_user_password', $password);
     }
 
     public function show(User $user)
     {
-        return redirect()->route('admin.users.edit', $user);
+        $redirectRoute = auth()->user()->role === 'supervisor' ? 'supervisor.users.edit' : 'admin.users.edit';
+
+        return redirect()->route($redirectRoute, $user);
     }
 
     public function edit(User $user)
     {
+        $currentUser = auth()->user();
+        if ($currentUser->role === 'supervisor') {
+            if ($user->role !== 'seller') {
+                abort(403, 'Unauthorized action.');
+            }
+            $stationIds = $currentUser->getActiveStationIds();
+            $hasCommonStation = $user->stationAssignments()->whereIn('station_id', $stationIds)->where('active', true)->exists();
+            $isCreatedByMe = ($user->settings['creator_id'] ?? null) === $currentUser->id;
+
+            if (! $hasCommonStation && ! $isCreatedByMe) {
+                abort(403, 'This user is outside your perimeter.');
+            }
+        }
+
         return Inertia::render('Admin/Users/Form', [
             'user' => $user,
         ]);
@@ -70,32 +118,72 @@ class UserController extends Controller
 
     public function update(Request $request, User $user)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
-            'telephone' => 'required|string|max:20',
-            'role' => 'required|in:admin,supervisor,seller,accountant,executive,fleet_manager',
-            'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
-        ]);
+        $currentUser = auth()->user();
+
+        if ($currentUser->role === 'supervisor') {
+            if ($user->role !== 'seller') {
+                abort(403, 'Unauthorized action.');
+            }
+            $stationIds = $currentUser->getActiveStationIds();
+            $hasCommonStation = $user->stationAssignments()->whereIn('station_id', $stationIds)->where('active', true)->exists();
+            $isCreatedByMe = ($user->settings['creator_id'] ?? null) === $currentUser->id;
+
+            if (! $hasCommonStation && ! $isCreatedByMe) {
+                abort(403, 'This user is outside your perimeter.');
+            }
+
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
+                'telephone' => 'required|string|max:20',
+                'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            ]);
+            $role = 'seller';
+        } else {
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
+                'telephone' => 'required|string|max:20',
+                'role' => 'required|in:admin,supervisor,seller,accountant,executive,fleet_manager',
+                'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
+            ]);
+            $role = $request->role;
+        }
 
         $user->update([
             'name' => $request->name,
             'email' => $request->email,
             'telephone' => $request->telephone,
-            'role' => $request->role,
+            'role' => $role,
         ]);
 
         if ($request->filled('password')) {
             $user->update(['password' => Hash::make($request->password)]);
         }
 
-        return redirect()->route('admin.users.index')->with('success', 'Utilisateur mis à jour avec succès.');
+        $redirectRoute = $currentUser->role === 'supervisor' ? 'supervisor.users.index' : 'admin.users.index';
+
+        return redirect()->route($redirectRoute)->with('success', 'Utilisateur mis à jour avec succès.');
     }
 
     public function toggleActive(User $user)
     {
-        if ($user->id === auth()->id()) {
+        $currentUser = auth()->user();
+        if ($user->id === $currentUser->id) {
             return back()->with('error', 'Vous ne pouvez pas désactiver votre propre compte.');
+        }
+
+        if ($currentUser->role === 'supervisor') {
+            if ($user->role !== 'seller') {
+                abort(403, 'Unauthorized action.');
+            }
+            $stationIds = $currentUser->getActiveStationIds();
+            $hasCommonStation = $user->stationAssignments()->whereIn('station_id', $stationIds)->where('active', true)->exists();
+            $isCreatedByMe = ($user->settings['creator_id'] ?? null) === $currentUser->id;
+
+            if (! $hasCommonStation && ! $isCreatedByMe) {
+                abort(403, 'This user is outside your perimeter.');
+            }
         }
 
         $user->update(['active' => ! $user->active]);
@@ -105,8 +193,22 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
-        if ($user->id === auth()->id()) {
+        $currentUser = auth()->user();
+        if ($user->id === $currentUser->id) {
             return back()->with('error', 'Vous ne pouvez pas supprimer votre propre compte.');
+        }
+
+        if ($currentUser->role === 'supervisor') {
+            if ($user->role !== 'seller') {
+                abort(403, 'Unauthorized action.');
+            }
+            $stationIds = $currentUser->getActiveStationIds();
+            $hasCommonStation = $user->stationAssignments()->whereIn('station_id', $stationIds)->where('active', true)->exists();
+            $isCreatedByMe = ($user->settings['creator_id'] ?? null) === $currentUser->id;
+
+            if (! $hasCommonStation && ! $isCreatedByMe) {
+                abort(403, 'This user is outside your perimeter.');
+            }
         }
 
         $user->delete();

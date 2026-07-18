@@ -40,12 +40,18 @@
     <div class="journey-box">
         <div class="destination-panel">
             <div class="destination-label">Destination passager</div>
-            <div class="destination-name">{{ strtoupper($ticket->toStation->name) }}</div>
+            <div class="destination-name">{{ strtoupper($ticket->finalDestinationStation?->name ?? $ticket->toStation->name) }}</div>
         </div>
 
         <div class="route-lines">
             <div><strong>Depart:</strong> {{ $ticket->fromStation->name }}</div>
             <div><strong>Arrivee:</strong> {{ $ticket->toStation->name }}</div>
+            @if($ticket->finalDestinationStation)
+                <div><strong>Correspondance:</strong> {{ $ticket->transferStation?->name ?? $ticket->toStation->name }}</div>
+                <div><strong>Destination finale:</strong> {{ $ticket->finalDestinationStation->name }}</div>
+                <div><strong>Suite:</strong> {{ $ticket->transferStation?->name ?? $ticket->toStation->name }} → {{ $ticket->finalDestinationStation->name }} (voyage attribue sur place)</div>
+                <div><strong>Aucun nouveau paiement. Conserver ce ticket et ce QR.</strong></div>
+            @endif
         </div>
 
         <div class="info-grid">

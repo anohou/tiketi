@@ -9,6 +9,7 @@
         "quality:ci": "sh ./scripts/quality-checks-ci.sh",
         "quality:php": "composer validate --strict && ./vendor/bin/pint --test",
         "quality:test": "php artisan test --no-ansi",
+        "security:audit": "npm audit --omit=dev --audit-level=high && composer audit --locked",
         "quality": "npm run quality:php && npm run quality:test"
     },
     "devDependencies": {
@@ -37,7 +38,6 @@
         "chart.js": "^4.5.0",
         "leaflet": "^1.9.4",
         "react-apexcharts": "^1.7.0",
-        "vue-material-design-icons": "^5.3.1",
-        "xlsx": "^0.18.5"
+        "vue-material-design-icons": "^5.3.1"
     }
 }

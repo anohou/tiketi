@@ -15,12 +15,14 @@ class Ticket extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'ticket_number', 'trip_id', 'vehicle_id', 'seat_number', 'from_station_id', 'to_station_id', 'price', 'seller_id', 'station_id', 'status', 'boarding_group', 'qr_payload', 'passenger_name', 'passenger_phone', 'qr_code', 'cancelled_at', 'cancelled_by', 'cancellation_reason', 'settings',
+        'ticket_number', 'trip_id', 'vehicle_id', 'seat_number', 'from_station_id', 'to_station_id', 'final_destination_station_id', 'transfer_station_id', 'price', 'seller_id', 'crew_member_id', 'station_id', 'status', 'boarding_group', 'qr_payload', 'passenger_name', 'passenger_phone', 'qr_code', 'cancelled_at', 'cancelled_by', 'cancellation_reason', 'settings',
+        'boarded_at', 'boarded_by',
     ];
 
     protected $casts = [
         'qr_payload' => 'array',
         'cancelled_at' => 'datetime',
+        'boarded_at' => 'datetime',
         'settings' => 'array',
     ];
 
@@ -53,14 +55,44 @@ class Ticket extends Model
         return $this->belongsTo(Station::class, 'to_station_id');
     }
 
+    public function finalDestinationStation()
+    {
+        return $this->belongsTo(Station::class, 'final_destination_station_id');
+    }
+
+    public function transferStation()
+    {
+        return $this->belongsTo(Station::class, 'transfer_station_id');
+    }
+
+    public function connection()
+    {
+        return $this->hasOne(TicketConnection::class);
+    }
+
+    public function compensations()
+    {
+        return $this->hasMany(TicketCompensation::class);
+    }
+
     public function seller()
     {
         return $this->belongsTo(User::class, 'seller_id');
     }
 
+    public function crewMember()
+    {
+        return $this->belongsTo(CrewMember::class);
+    }
+
     public function cancelledBy()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function boardedBy()
+    {
+        return $this->belongsTo(CrewMember::class, 'boarded_by');
     }
 
     public function station()
@@ -76,6 +108,8 @@ class Ticket extends Model
             'trip_id' => $this->trip_id,
             'from_station_id' => $this->from_station_id,
             'to_station_id' => $this->to_station_id,
+            'final_destination_station_id' => $this->final_destination_station_id,
+            'transfer_station_id' => $this->transfer_station_id,
             'from_stop' => $this->fromStation?->name,
             'to_stop' => $this->toStation?->name,
             'seat_number' => $this->seat_number,

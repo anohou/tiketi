@@ -17,12 +17,16 @@ import Routes from 'vue-material-design-icons/Routes.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
+import Eye from 'vue-material-design-icons/Eye.vue';
+import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { useTicketing } from '@/Composables/useTicketing.js';
 
 const props = defineProps({
   trips: Array,
   routeFares: Array,
+  connectionFares: { type: Array, default: () => [] },
+  connectionRoutes: { type: Array, default: () => [] },
   routes: Array,
   vehicles: Array,
   hasActiveAssignment: Boolean,
@@ -33,6 +37,7 @@ const props = defineProps({
     default: () => ({})
   },
   destinations: { type: Array, default: () => [] },
+  replicableTrips: { type: Array, default: () => [] },
 });
 
 // Use the shared composable (horizontal layout does NOT send segment params)
@@ -58,6 +63,9 @@ const {
   createTripErrors,
   createTripProcessing,
   showZoomModal,
+  showTripDetailsModal,
+  selectedDetailsTripId,
+  openTripDetails,
   showPassengerModal,
   showDestinationModal,
   selectedSeatNumber,
@@ -66,6 +74,8 @@ const {
   selectedSeatColor,
   passengerForm,
   passengerFormErrors,
+  finalDestinationStationId,
+  connectionRouteId,
   showInspectionModal,
   selectedTicketForInspection,
   currentTime,
@@ -107,12 +117,29 @@ const {
   confirmBooking,
   cancelBooking,
   createTrip,
+  applyReplicableTemplate,
   fallbackToBrowserPrint,
   page,
 } = ticketing;
 
 // Horizontal-specific: destination filter is local (not shared via store like Ticketing.vue)
 const selectedDestinationId = ref('');
+
+const selectedTemplate = ref(null);
+watch(selectedTemplate, (newTemplate) => {
+  if (newTemplate) {
+    applyReplicableTemplate(newTemplate);
+  }
+});
+watch(showCreateTripModal, (isOpen) => {
+  if (!isOpen) {
+    selectedTemplate.value = null;
+  }
+});
+const getRouteName = (routeId) => {
+  const r = props.routes?.find(route => route.id === routeId);
+  return r ? (r.display_name || r.name) : 'Route inconnue';
+};
 
 // Override filteredTrips to use the local destination filter
 const filteredTripsLocal = computed(() => {
@@ -193,6 +220,15 @@ const trips = tripsRef;
               />
             </svg>
           </Link>
+          <button 
+            @click="openTripDetails(selectedTripId)"
+            :disabled="!selectedTripId"
+            class="px-4 py-2 border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-750 dark:text-slate-200 dark:hover:bg-slate-700 text-sm font-medium rounded-lg flex items-center shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Détails & Tickets du voyage"
+          >
+            <Eye class="w-4 h-4 mr-2" />
+            Détails
+          </button>
           <button @click="showCreateTripModal = true" class="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 flex items-center shadow-sm transition-colors">
             <Calendar class="w-4 h-4 mr-2" />
             Nouveau Voyage
@@ -331,12 +367,16 @@ const trips = tripsRef;
            :selected-seat-number="selectedSeatNumber"
            :selected-fare="selectedFare"
            :available-fares="availableFares"
+           :connection-fares="connectionFares"
+           :connection-routes="connectionRoutes"
            :seats-to-book="seatsToBook"
            :passenger-form="passengerForm"
            :passenger-form-errors="passengerFormErrors"
            :processing="processing"
            v-model:ticketQuantity="ticketQuantity"
            v-model:showPassengerFields="showPassengerFields"
+           v-model:finalDestinationStationId="finalDestinationStationId"
+           v-model:connectionRouteId="connectionRouteId"
            @close="cancelBooking"
            @select-fare="selectFareForSeat"
            @confirm="confirmBooking"
@@ -348,6 +388,20 @@ const trips = tripsRef;
         <div class="mt-3">
           <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">Créer un nouveau voyage</h3>
           <form @submit.prevent="createTrip" class="mt-2 space-y-4">
+            <div v-if="props.replicableTrips && props.replicableTrips.length > 0">
+              <InputLabel for="template_select_horizontal" value="Sélectionner un modèle de voyage récurrent" />
+              <select
+                id="template_select_horizontal"
+                v-model="selectedTemplate"
+                class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
+                <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
+                  {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
+                </option>
+              </select>
+            </div>
+
             <div>
               <InputLabel for="route_id" value="Route" />
               <select
@@ -370,7 +424,6 @@ const trips = tripsRef;
                 id="vehicle_id"
                 v-model="createTripForm.vehicle_id"
                 class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-                required
               >
                 <option value="">Sélectionner un véhicule</option>
                 <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
@@ -390,6 +443,53 @@ const trips = tripsRef;
                 required
               />
               <InputError class="mt-2" :message="createTripErrors.departure_at" />
+            </div>
+
+            <div>
+              <InputLabel for="code" value="Code / Numéro de voyage" />
+              <TextInput
+                id="code"
+                v-model="createTripForm.code"
+                type="text"
+                class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                placeholder="Sera généré automatiquement (Ex: ABJ-BKE-0800)"
+              />
+              <InputError class="mt-2" :message="createTripErrors.code" />
+            </div>
+
+            <div>
+              <InputLabel for="trip_auto_allocation_horizontal" value="Allocation automatique sur ce voyage" />
+              <select id="trip_auto_allocation_horizontal" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                <option :value="null">Hériter du trajet et de la compagnie</option>
+                <option :value="true">Activer pour ce voyage</option>
+                <option :value="false">Désactiver pour ce voyage</option>
+              </select>
+            </div>
+
+            <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-3 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+              <div>
+                <label class="text-xs font-semibold text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                  Autoriser une destination finale au-delà de l’arrivée.
+                </p>
+              </div>
+              <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
+                :class="['relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.allows_open_connections ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                <span :class="['pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition', createTripForm.allows_open_connections ? 'translate-x-4' : 'translate-x-0']" />
+              </button>
+            </div>
+
+            <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-3 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+              <div>
+                <label class="text-xs font-semibold text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</label>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400">
+                  Recréer ce voyage chaque jour à minuit (sans bus ni équipage affectés).
+                </p>
+              </div>
+              <button type="button" @click="createTripForm.is_replicable = !createTripForm.is_replicable"
+                :class="['relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.is_replicable ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                <span :class="['pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition', createTripForm.is_replicable ? 'translate-x-4' : 'translate-x-0']" />
+              </button>
             </div>
 
             <div class="flex items-center justify-end space-x-3 pt-4">
@@ -464,6 +564,18 @@ const trips = tripsRef;
       @close="showInspectionModal = false"
       @approve="() => { showInspectionModal = false; }"
       @decline="() => { showInspectionModal = false; }"
+    />
+
+    <!-- Trip Details & Sold Tickets Modal -->
+    <TripDetailsModal
+      :visible="showTripDetailsModal"
+      :trip-id="selectedDetailsTripId"
+      :assigned-station="assignedStation"
+      :assigned-station-id="assignedStationId"
+      :current-user-role="page.props.auth.user.role"
+      :current-user-id="page.props.auth.user.id"
+      @close="showTripDetailsModal = false"
+      @ticket-cancelled="fetchSeatMap({ silent: true })"
     />
   </MainNavLayout>
 </template>

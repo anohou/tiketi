@@ -58,6 +58,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  connectionFares: { type: Array, default: () => [] },
+  connectionRoutes: { type: Array, default: () => [] },
+  finalDestinationStationId: { type: String, default: null },
+  connectionRouteId: { type: String, default: null },
 });
 
 const emit = defineEmits([
@@ -66,6 +70,8 @@ const emit = defineEmits([
   'select-fare',
   'update:ticketQuantity',
   'update:showPassengerFields',
+  'update:finalDestinationStationId',
+  'update:connectionRouteId',
 ]);
 
 const isDestinationMode = computed(() => props.mode === 'destination');
@@ -235,6 +241,48 @@ const showPassengerFieldsModel = computed({
   set: (value) => emit('update:showPassengerFields', value),
 });
 
+const finalDestinationModel = computed({
+  get: () => props.finalDestinationStationId,
+  set: (value) => emit('update:finalDestinationStationId', value || null),
+});
+const connectionRouteModel = computed({
+  get: () => props.connectionRouteId,
+  set: (value) => emit('update:connectionRouteId', value || null),
+});
+
+const availableConnectionFares = computed(() => {
+  if (!props.currentTrip?.allows_open_connections || !props.selectedFare?.from_station_id) return [];
+  const originId = props.selectedFare.from_station_id;
+  const transferId = props.selectedFare.to_station_id;
+  return props.connectionFares.flatMap(fare => {
+    if (fare.from_station_id === originId && fare.to_station_id !== transferId) {
+      return [{ ...fare, connection_destination_id: fare.to_station_id, connection_destination: fare.to_station }];
+    }
+    if (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id !== transferId) {
+      return [{ ...fare, connection_destination_id: fare.from_station_id, connection_destination: fare.from_station }];
+    }
+    return [];
+  });
+});
+
+const selectedConnectionFare = computed(() => availableConnectionFares.value.find(fare => fare.connection_destination_id === finalDestinationModel.value));
+
+const compatibleConnectionRoutes = computed(() => {
+  if (!finalDestinationModel.value || !props.selectedFare?.to_station_id) return [];
+  const transferId = props.selectedFare.to_station_id;
+  return props.connectionRoutes.filter(route => {
+    const stops = route.route_stop_orders || route.routeStopOrders || [];
+    const ids = [route.origin_station_id, route.destination_station_id, ...stops.map(stop => stop.station_id)];
+    return ids.includes(transferId) && ids.includes(finalDestinationModel.value);
+  });
+});
+
+watch(compatibleConnectionRoutes, (routes) => {
+  if (!routes.some(route => route.id === connectionRouteModel.value)) {
+    connectionRouteModel.value = routes[0]?.id || null;
+  }
+}, { immediate: true });
+
 const seatLabel = computed(() => {
   if (props.seatsToBook.length > 1) {
     return `Places ${props.seatsToBook.join(', ')}`;
@@ -252,12 +300,12 @@ const routeLabel = computed(() => {
 });
 
 const amountLabel = computed(() => {
-  const amount = props.selectedFare?.amount || 0;
+  const amount = selectedConnectionFare.value?.amount ?? props.selectedFare?.amount ?? 0;
   return `${amount.toLocaleString('fr-FR')} FCFA`;
 });
 
 const totalLabel = computed(() => {
-  const amount = props.selectedFare?.amount || 0;
+  const amount = selectedConnectionFare.value?.amount ?? props.selectedFare?.amount ?? 0;
   return `${(amount * props.ticketQuantity).toLocaleString('fr-FR')} FCFA`;
 });
 </script>
@@ -332,6 +380,25 @@ const totalLabel = computed(() => {
             <div class="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1 md:mb-2">{{ seatLabel }}</div>
             <div class="text-xs md:text-sm text-gray-600 dark:text-slate-300">{{ routeLabel }}</div>
             <div class="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-2">{{ amountLabel }}</div>
+
+            <div v-if="currentTrip?.allows_open_connections && availableConnectionFares.length" class="mt-4 text-left">
+              <InputLabel for="final_destination" value="Destination finale avec correspondance (optionnel)" />
+              <select id="final_destination" v-model="finalDestinationModel" class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500">
+                <option :value="null">Trajet direct — {{ selectedFare?.to_station?.name }}</option>
+                <option v-for="fare in availableConnectionFares" :key="fare.id" :value="fare.connection_destination_id">
+                  {{ fare.connection_destination?.name }} — tarif {{ selectedFare?.from_station?.name }} → {{ fare.connection_destination?.name }} ({{ fare.amount.toLocaleString('fr-FR') }} FCFA), changement à {{ selectedFare?.to_station?.name }}
+                </option>
+              </select>
+              <p v-if="finalDestinationModel" class="mt-1 text-xs text-amber-700 dark:text-amber-300">Un seul ticket sera imprimé. Le voyage suivant sera attribué au point de correspondance.</p>
+              <div v-if="finalDestinationModel" class="mt-3">
+                <InputLabel for="connection_route" value="Trajet de reprise" />
+                <select id="connection_route" v-model="connectionRouteModel" required class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="">Sélectionner le trajet</option>
+                  <option v-for="routeItem in compatibleConnectionRoutes" :key="routeItem.id" :value="routeItem.id">{{ routeItem.name }}</option>
+                </select>
+                <p v-if="compatibleConnectionRoutes.length === 0" class="mt-1 text-xs text-red-600">Aucun trajet ne dessert cette correspondance.</p>
+              </div>
+            </div>
 
             <div class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
               <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Quantité:</span>

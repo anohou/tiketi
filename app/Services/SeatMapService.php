@@ -42,8 +42,7 @@ class SeatMapService
 
         $seatCount = (int) ($data['seat_count'] ?? 0);
         $doorPositions = $data['door_positions'] ?? [];
-        $lastRowSeats = (int) ($data['last_row_seats'] ?? 5);
-        $lastRowSeats = max(1, $lastRowSeats);
+        $lastRowSeats = (int) ($data['last_row_seats'] ?? 0);
 
         $seatMap = [];
         $currentSeatNum = 1;
@@ -125,9 +124,14 @@ class SeatMapService
             }
         }
 
-        // Last Row
         $remainingSeats = $seatCount - $filledSeats;
-        if ($remainingSeats > 0) {
+        if ($lastRowSeats === 0 && $seatCount > 0) {
+            $lastRow = [];
+            for ($i = 0; $i < $slotsPerRow + 1; $i++) {
+                $lastRow[] = ['type' => 'empty'];
+            }
+            $seatMap[] = $lastRow;
+        } elseif ($remainingSeats > 0) {
             $lastRow = [];
             for ($i = 0; $i < $remainingSeats; $i++) {
                 $lastRow[] = ['type' => 'seat', 'number' => (string) $currentSeatNum++];

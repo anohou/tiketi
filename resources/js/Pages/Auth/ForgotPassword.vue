@@ -27,9 +27,9 @@ const submit = () => {
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600">Réinitialisation</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900">Mot de passe oublié ?</h1>
-                <p class="mt-2 text-sm leading-6 text-slate-500">
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Réinitialisation</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Mot de passe oublié ?</h1>
+                <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
                     Indiquez votre adresse e-mail et nous vous enverrons un lien sécurisé pour en définir un nouveau.
                 </p>
             </div>
@@ -61,7 +61,7 @@ const submit = () => {
                 <div class="flex items-center justify-between pt-2">
                     <Link
                         :href="route('login')"
-                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                        class="rounded-md text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
                         Retour à la connexion
                     </Link>

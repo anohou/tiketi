@@ -18,6 +18,8 @@ class TripSeatOccupancy extends Model
         'trip_id',
         'seat_number',
         'ticket_id',
+        'from_station_id',
+        'to_station_id',
         'settings',
     ];
 
@@ -42,5 +44,15 @@ class TripSeatOccupancy extends Model
     public function ticket()
     {
         return $this->belongsTo(Ticket::class);
+    }
+
+    public function fromStation()
+    {
+        return $this->belongsTo(Station::class, 'from_station_id');
+    }
+
+    public function toStation()
+    {
+        return $this->belongsTo(Station::class, 'to_station_id');
     }
 }

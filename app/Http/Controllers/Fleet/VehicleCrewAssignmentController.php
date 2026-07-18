@@ -49,11 +49,14 @@ class VehicleCrewAssignmentController extends Controller
             'crew_member_id' => 'required|uuid|exists:crew_members,id',
             'role' => 'required|in:driver,assistant',
             'assigned_from' => 'required|date',
+            'assigned_to' => 'nullable|date|after:assigned_from',
             'notes' => 'nullable|string|max:1000',
         ]);
 
-        // Vérifier que le crew member a le même rôle
         $crewMember = CrewMember::findOrFail($data['crew_member_id']);
+        if (! $crewMember->active) {
+            return back()->withErrors(['crew_member_id' => 'Ce membre d’équipage est inactif.']);
+        }
         if ($crewMember->role !== $data['role']) {
             return back()->withErrors([
                 'crew_member_id' => 'Ce membre d\'équipage est un '
@@ -63,7 +66,6 @@ class VehicleCrewAssignmentController extends Controller
             ]);
         }
 
-        // Vérifier si le permis de conduire du chauffeur est expiré par rapport à la date de début d'affectation
         if ($crewMember->isDriver() && $crewMember->isLicenseExpired($data['assigned_from'])) {
             return back()->withErrors([
                 'crew_member_id' => 'Le permis de conduire de ce chauffeur est expiré à la date de début d\'affectation ('
@@ -72,28 +74,31 @@ class VehicleCrewAssignmentController extends Controller
         }
 
         $newStart = Carbon::parse($data['assigned_from']);
+        $newEnd = isset($data['assigned_to']) ? Carbon::parse($data['assigned_to']) : null;
 
-        // Vérifier les conflits temporels : la date de début ne doit pas être antérieure ou égale aux dates de début d'affectations actives existantes
-        $vehicleConflict = VehicleCrewAssignment::where('vehicle_id', $data['vehicle_id'])
-            ->where('role', $data['role'])
-            ->active()
+        // A conflict is any assignment starting at or after $newStart that overlaps with [newStart, newEnd)
+        $overlapQuery = fn ($query) => $query
             ->where('assigned_from', '>=', $newStart)
+            ->when($newEnd, fn ($q) => $q->where('assigned_from', '<', $newEnd));
+
+        $vehicleConflict = $overlapQuery(VehicleCrewAssignment::query()
+            ->where('vehicle_id', $data['vehicle_id'])
+            ->where('role', $data['role']))
             ->exists();
 
         if ($vehicleConflict) {
             return back()->withErrors([
-                'assigned_from' => 'La date de début ne peut pas être antérieure ou égale à la date de début de l\'affectation actuellement active pour ce rôle sur ce véhicule.',
+                'assigned_from' => 'Cette période chevauche une affectation future pour ce rôle sur ce véhicule.',
             ]);
         }
 
-        $crewConflict = VehicleCrewAssignment::where('crew_member_id', $data['crew_member_id'])
-            ->active()
-            ->where('assigned_from', '>=', $newStart)
+        $crewConflict = $overlapQuery(VehicleCrewAssignment::query()
+            ->where('crew_member_id', $data['crew_member_id']))
             ->exists();
 
         if ($crewConflict) {
             return back()->withErrors([
-                'assigned_from' => 'La date de début ne peut pas être antérieure ou égale à la date de début de l\'affectation actuellement active pour ce membre d\'équipage.',
+                'assigned_from' => 'Cette période chevauche une affectation future pour ce membre d\'équipage.',
             ]);
         }
 
@@ -101,12 +106,14 @@ class VehicleCrewAssignmentController extends Controller
             // Clôturer l'affectation précédente du même rôle sur ce véhicule
             VehicleCrewAssignment::where('vehicle_id', $data['vehicle_id'])
                 ->where('role', $data['role'])
-                ->active()
+                ->where('assigned_from', '<', $newStart)
+                ->where(fn ($query) => $query->whereNull('assigned_to')->orWhere('assigned_to', '>', $newStart))
                 ->update(['assigned_to' => $newStart]);
 
             // Clôturer aussi l'affectation active de ce crew member sur un autre véhicule
             VehicleCrewAssignment::where('crew_member_id', $data['crew_member_id'])
-                ->active()
+                ->where('assigned_from', '<', $newStart)
+                ->where(fn ($query) => $query->whereNull('assigned_to')->orWhere('assigned_to', '>', $newStart))
                 ->update(['assigned_to' => $newStart]);
 
             VehicleCrewAssignment::create($data);
@@ -125,9 +132,42 @@ class VehicleCrewAssignmentController extends Controller
             'crew_member_id' => 'required|uuid|exists:crew_members,id',
             'role' => 'required|in:driver,assistant',
             'assigned_from' => 'required|date',
-            'assigned_to' => 'nullable|date|after_or_equal:assigned_from',
+            'assigned_to' => 'nullable|date|after:assigned_from',
             'notes' => 'nullable|string|max:1000',
         ]);
+
+        $crewMember = CrewMember::findOrFail($data['crew_member_id']);
+        if (! $crewMember->active) {
+            return back()->withErrors(['crew_member_id' => 'Ce membre d’équipage est inactif.']);
+        }
+        if ($crewMember->role !== $data['role']) {
+            return back()->withErrors(['crew_member_id' => 'Le rôle de l’affectation ne correspond pas au rôle du membre d’équipage.']);
+        }
+        if ($crewMember->isDriver() && $crewMember->isLicenseExpired($data['assigned_from'])) {
+            return back()->withErrors(['crew_member_id' => 'Le permis de conduire est expiré à la date de début d’affectation.']);
+        }
+
+        $newStart = Carbon::parse($data['assigned_from']);
+        $newEnd = isset($data['assigned_to']) ? Carbon::parse($data['assigned_to']) : null;
+
+        $vehicleConflict = VehicleCrewAssignment::query()
+            ->where($crewAssignment->getKeyName(), '!=', $crewAssignment->getKey())
+            ->where('vehicle_id', $data['vehicle_id'])
+            ->where('role', $data['role'])
+            ->overlapping($newStart, $newEnd)
+            ->exists();
+        if ($vehicleConflict) {
+            return back()->withErrors(['assigned_from' => 'Cette période chevauche une autre affectation du même rôle sur ce véhicule.']);
+        }
+
+        $crewConflict = VehicleCrewAssignment::query()
+            ->where($crewAssignment->getKeyName(), '!=', $crewAssignment->getKey())
+            ->where('crew_member_id', $data['crew_member_id'])
+            ->overlapping($newStart, $newEnd)
+            ->exists();
+        if ($crewConflict) {
+            return back()->withErrors(['assigned_from' => 'Cette période chevauche une autre affectation de ce membre d’équipage.']);
+        }
 
         $crewAssignment->update($data);
 

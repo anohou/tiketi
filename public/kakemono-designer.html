@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concepteur de Kakemono — TIKETI x OKOHI</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS v3 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Space Grotesk', 'sans-serif'],
+                    },
+                    colors: {
+                        tiketi: {
+                            light: '#38bdf8',
+                            DEFAULT: '#00c3ff',
+                            dark: '#0284c7',
+                        },
+                        okohi: {
+                            light: '#f87171',
+                            DEFAULT: '#ff3a44',
+                            dark: '#dc2626',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- QR Code CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
+    <style>
+        /* Modern scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* 3D Roll-up stand mockup styles */
+        .mockup-container {
+            perspective: 1200px;
+        }
+        
+        .kakemono-3d {
+            transform: rotateX(8deg) rotateY(-12deg) rotateZ(1deg);
+            box-shadow: -25px 25px 50px rgba(0, 0, 0, 0.6), 
+                        10px 10px 30px rgba(0, 0, 0, 0.4);
+            transition: transform 0.5s ease-out;
+        }
+        
+        .kakemono-3d:hover {
+            transform: rotateX(4deg) rotateY(-4deg) rotateZ(0deg);
+        }
+
+        .stand-base {
+            background: linear-gradient(to right, #475569, #1e293b, #475569);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        .stand-pole {
+            background: linear-gradient(to right, #64748b, #334155, #64748b);
+        }
+
+        /* Ambient Glow Blobs */
+        .glow-blob-1 {
+            filter: blur(140px);
+            mix-blend-mode: screen;
+            opacity: 0.15;
+        }
+
+        /* Print styles optimized for physical Kakemono (800mm x 2000mm or aspect ratio 1:2.5) */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-container {
+                display: block !important;
+                width: 100vw !important;
+                height: 250vw !important; /* 1:2.5 ratio */
+                margin: 0 !important;
+                padding: 0 !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                border-radius: 0 !important;
+                transform: none !important;
+            }
+            /* Force background graphics to print */
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
+    </style>
+</head>
+<body class="h-full text-slate-100 flex flex-col font-sans overflow-hidden">
+
+    <div id="app" class="flex-1 flex flex-col min-h-0 bg-slate-950 relative" v-cloak>
+        
+        <!-- Header (no-print) -->
+        <header class="no-print bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shrink-0 z-10 shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-tr from-tiketi to-okohi rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-lg">
+                    A
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg leading-tight tracking-tight text-white flex items-center gap-2">
+                        Workspace Kakemono <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-normal">Version Salon Transport</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Générez et personnalisez votre roll-up TIKETI x OKOHI</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button @click="printBanner" class="flex items-center gap-2 bg-gradient-to-r from-tiketi to-tiketi-dark hover:from-tiketi-dark hover:to-tiketi hover:scale-105 active:scale-95 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm shadow-lg transition duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3a2 2 0 002 2zm5-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" />
+                    </svg>
+                    Exporter / Imprimer en PDF
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace Area -->
+        <div class="flex-1 flex min-h-0 overflow-hidden relative">
+            
+            <!-- Left Sidebar - Editor Panel (no-print) -->
+            <aside class="no-print w-96 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 min-h-0 shadow-2xl z-10">
+                <!-- Tab Headers -->
+                <div class="flex border-b border-slate-800 text-sm font-semibold tracking-wide bg-slate-900 shrink-0">
+                    <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-tiketi text-tiketi bg-slate-850' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'" class="flex-1 py-3 text-center border-b-2 transition duration-200">Général</button>
+                    <button @click="activeTab = 'tiketi'" :class="activeTab === 'tiketi' ? 'border-tiketi text-tiketi bg-slate-850' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'" class="flex-1 py-3 text-center border-b-2 transition duration-200">TIKÊTI</button>
+                    <button @click="activeTab = 'okohi'" :class="activeTab === 'okohi' ? 'border-okohi text-okohi bg-slate-850' : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50'" class="flex-1 py-3 text-center border-b-2 transition duration-200">OKOHI</button>
+                </div>
+
+                <!-- Tab Contents (Scrollable) -->
+                <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                    
+                    <!-- General & Theme Settings -->
+                    <div v-show="activeTab === 'general'" class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Thème Visuel</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button v-for="t in themes" :key="t.id" @click="config.theme = t.id" :class="config.theme === t.id ? 'border-tiketi ring-1 ring-tiketi text-white bg-slate-850' : 'border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-850/30'" class="border rounded-lg p-2.5 text-xs font-medium text-left transition duration-200 flex flex-col gap-1">
+                                    <span class="font-bold text-white">{{ t.name }}</span>
+                                    <span class="text-[10px] text-slate-500">{{ t.desc }}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-800 pt-4 space-y-4">
+                            <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-850/60 mb-2">
+                                <label class="flex items-center gap-3 cursor-pointer">
+                                    <input type="checkbox" v-model="config.showIllustrations" class="rounded text-tiketi focus:ring-tiketi bg-slate-950 border-slate-800 w-4 h-4" />
+                                    <div>
+                                        <span class="text-xs font-bold uppercase tracking-wider text-slate-350">Afficher les illustrations</span>
+                                        <span class="block text-[10px] text-slate-500 mt-0.5">Affiche les visuels de bus et de smartphone</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">En-tête principal</label>
+                                <input v-model="config.header.company" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Slogan Principal</label>
+                                <input v-model="config.header.title" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Accroche Globale</label>
+                                <textarea v-model="config.header.subtitle" rows="3" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-slate-800 pt-4 space-y-4">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Pied de page (CTA & Contact)</h3>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Texte du Bouton CTA</label>
+                                <input v-model="config.footer.ctaText" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">URL de redirection du QR Code</label>
+                                <input v-model="config.footer.qrUrl" @input="generateQrCode" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Téléphone / Contact</label>
+                                <input v-model="config.footer.phone" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Adresse Site Web</label>
+                                <input v-model="config.footer.website" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TIKETI Settings -->
+                    <div v-show="activeTab === 'tiketi'" class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-tiketi mb-1.5">Slogan Produit</label>
+                            <input v-model="config.tiketi.slogan" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-tiketi mb-1.5">Sous-titre explicatif</label>
+                            <input v-model="config.tiketi.description" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                        </div>
+
+                        <!-- Feature Items -->
+                        <div class="border-t border-slate-800 pt-4 space-y-4">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Points clés TIKÊTI</h3>
+                            
+                            <div v-for="(f, idx) in config.tiketi.features" :key="idx" class="bg-slate-950/50 p-3 rounded-xl border border-slate-850 space-y-2">
+                                <span class="text-[10px] font-bold text-tiketi uppercase">Point #{{ idx+1 }}</span>
+                                <input v-model="f.title" placeholder="Titre de la fonctionnalité" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-2 py-1 text-xs text-white focus:outline-none transition" />
+                                <textarea v-model="f.desc" rows="2" placeholder="Description de la fonctionnalité" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-2 py-1 text-xs text-white focus:outline-none transition resize-none"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OKOHI Settings -->
+                    <div v-show="activeTab === 'okohi'" class="space-y-6">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-okohi mb-1.5">Slogan Produit</label>
+                            <input v-model="config.okohi.slogan" class="w-full bg-slate-950 border border-slate-850 focus:border-okohi focus:ring-1 focus:ring-okohi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-okohi mb-1.5">Sous-titre explicatif</label>
+                            <input v-model="config.okohi.description" class="w-full bg-slate-950 border border-slate-850 focus:border-okohi focus:ring-1 focus:ring-okohi rounded-lg px-3 py-2 text-sm text-white focus:outline-none transition" />
+                        </div>
+
+                        <!-- Feature Items -->
+                        <div class="border-t border-slate-800 pt-4 space-y-4">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Points clés OKOHI</h3>
+                            
+                            <div v-for="(f, idx) in config.okohi.features" :key="idx" class="bg-slate-950/50 p-3 rounded-xl border border-slate-850 space-y-2">
+                                <span class="text-[10px] font-bold text-okohi uppercase">Point #{{ idx+1 }}</span>
+                                <input v-model="f.title" placeholder="Titre de la fonctionnalité" class="w-full bg-slate-950 border border-slate-850 focus:border-okohi focus:ring-1 focus:ring-okohi rounded-lg px-2 py-1 text-xs text-white focus:outline-none transition" />
+                                <textarea v-model="f.desc" rows="2" placeholder="Description de la fonctionnalité" class="w-full bg-slate-950 border border-slate-850 focus:border-okohi focus:ring-1 focus:ring-okohi rounded-lg px-2 py-1 text-xs text-white focus:outline-none transition resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Integration Card (Synergy) -->
+                        <div class="border-t border-slate-800 pt-4 space-y-3">
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Bandeau de Connexion / Synergie</h3>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Titre de la synergie</label>
+                                <input v-model="config.synergy.title" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none transition" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Texte explicatif de la liaison</label>
+                                <textarea v-model="config.synergy.desc" rows="3" class="w-full bg-slate-950 border border-slate-850 focus:border-tiketi focus:ring-1 focus:ring-tiketi rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none transition resize-none"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- Right Preview Area (Dynamic Viewports) -->
+            <main class="flex-1 flex flex-col min-h-0 bg-slate-950 overflow-hidden p-6 relative">
+                
+                <!-- Glow elements -->
+                <div class="absolute top-12 left-12 w-96 h-96 bg-tiketi rounded-full glow-blob-1 pointer-events-none"></div>
+                <div class="absolute bottom-12 right-12 w-96 h-96 bg-okohi rounded-full glow-blob-1 pointer-events-none"></div>
+
+                <!-- Preview Options / Toggles (no-print) -->
+                <div class="no-print shrink-0 flex items-center justify-between mb-4 z-10">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Mode d'affichage:</span>
+                        <div class="bg-slate-900 rounded-lg p-1 flex gap-1 border border-slate-800 text-xs">
+                            <button @click="viewMode = 'mockup'" :class="viewMode === 'mockup' ? 'bg-tiketi text-slate-950 font-bold' : 'text-slate-400 hover:text-white'" class="px-3 py-1 rounded transition duration-200">
+                                3D Stand Expo
+                            </button>
+                            <button @click="viewMode = 'flat'" :class="viewMode === 'flat' ? 'bg-tiketi text-slate-950 font-bold' : 'text-slate-400 hover:text-white'" class="px-3 py-1 rounded transition duration-200">
+                                Rendu Plat (A4 / Roll-up)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="text-xs text-slate-400 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                        Aperçu haute fidélité synchronisé
+                    </div>
+                </div>
+
+                <!-- Preview Frame -->
+                <div class="flex-1 flex items-center justify-center overflow-auto min-h-0 z-10 relative">
+                    
+                    <!-- 1. 3D Stand Exhibition Mockup Mode -->
+                    <div v-show="viewMode === 'mockup'" class="mockup-container flex flex-col items-center justify-center py-8">
+                        <div class="relative kakemono-3d flex flex-col items-center">
+                            
+                            <!-- The Roll-up stand banner top clip -->
+                            <div class="w-[305px] h-2.5 bg-slate-700 rounded-t shadow-md z-20"></div>
+                            
+                            <!-- Banner Body -->
+                            <div class="w-[300px] h-[750px] overflow-hidden border-x-2 border-slate-900 bg-slate-950 rounded-b-sm select-none relative shadow-2xl flex flex-col text-[7px]" :style="themeStyle">
+                                <div class="absolute inset-0 bg-cover bg-center pointer-events-none opacity-40 mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.1\'/%3E%3C/svg%3E')"></div>
+                                <div class="flex-1 overflow-y-auto scrollbar-none flex flex-col justify-between py-6 px-5 relative h-full">
+                                    <div class="space-y-4">
+                                        <!-- Header inside banner -->
+                                        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                                            <div class="flex items-center gap-1.5">
+                                                <div class="w-4 h-4 bg-red-600 rounded-md flex items-center justify-center text-[8px] font-black text-white">A</div>
+                                                <span class="font-display font-extrabold text-[9px] tracking-tight uppercase" :style="{ color: themePalette.primary }">{{ config.header.company }}</span>
+                                            </div>
+                                            <span class="text-[6px] text-white/50 tracking-wider font-semibold uppercase">Salon Transport 2026</span>
+                                        </div>
+
+                                        <!-- Title Slogan -->
+                                        <div class="text-center space-y-1.5">
+                                            <h2 class="font-display font-black text-sm tracking-tight text-white leading-tight uppercase">{{ config.header.title }}</h2>
+                                            <p class="text-[7.5px] text-white/80 max-w-[240px] mx-auto font-medium leading-relaxed">{{ config.header.subtitle }}</p>
+                                        </div>
+
+                                        <!-- Product Cards Stack -->
+                                        <div class="space-y-3">
+                                            <!-- TIKETI Card -->
+                                            <div class="rounded-xl border border-tiketi/20 bg-slate-900/60 backdrop-blur-md p-3 relative overflow-hidden flex flex-col justify-between gap-2 shadow-lg">
+                                                <div class="absolute -right-6 -bottom-6 w-20 h-20 bg-tiketi/5 rounded-full pointer-events-none blur-lg"></div>
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex items-center gap-2">
+                                                        <img src="images/logo-white.png" class="h-8 w-auto object-contain" @error="handleLogoError('tiketi', $event)" />
+                                                        <div>
+                                                            <h3 class="font-display font-black text-[10px] text-white tracking-wide uppercase">TIKÊTI</h3>
+                                                            <p class="text-[5.5px] text-tiketi font-bold tracking-wider uppercase">{{ config.tiketi.slogan }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span class="px-1.5 py-0.5 rounded bg-tiketi/10 text-tiketi text-[5px] font-extrabold uppercase tracking-widest border border-tiketi/20">Billetterie</span>
+                                                </div>
+
+                                                <!-- Transport illustration -->
+                                                <div v-if="config.showIllustrations" class="relative rounded-lg overflow-hidden h-[60px] w-full">
+                                                    <img src="images/bus-login-bg.png" class="w-full h-full object-cover" />
+                                                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
+                                                </div>
+
+                                                <p class="text-[6px] text-white/60 italic leading-snug">{{ config.tiketi.description }}</p>
+                                                <div class="space-y-1 pt-1 border-t border-white/5">
+                                                    <div v-for="f in config.tiketi.features" class="flex gap-1.5 items-start">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-tiketi shrink-0 mt-0.5"></span>
+                                                        <div>
+                                                            <strong class="text-white text-[6.5px] block font-bold leading-none mb-0.5">{{ f.title }}</strong>
+                                                            <span class="text-white/60 text-[5.5px] leading-tight block">{{ f.desc }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Synergy Integration -->
+                                            <div class="rounded-xl border border-white/10 bg-gradient-to-r from-tiketi/10 to-okohi/10 p-2.5 relative flex items-center justify-between gap-3 shadow-md">
+                                                <div class="flex-1 space-y-0.5">
+                                                    <h4 class="text-white font-extrabold text-[7.5px] flex items-center gap-1">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                                                        {{ config.synergy.title }}
+                                                    </h4>
+                                                    <p class="text-white/70 text-[5.5px] leading-snug">{{ config.synergy.desc }}</p>
+                                                </div>
+                                                <div class="flex items-center justify-center shrink-0">
+                                                    <div class="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center border border-white/10 font-bold text-[10px] text-white animate-pulse">⚡</div>
+                                                </div>
+                                            </div>
+
+                                            <!-- OKOHI Card (Light Theme style to match logo white bg) -->
+                                            <div class="rounded-xl border border-slate-200 bg-white p-3 relative overflow-hidden flex flex-col justify-between gap-2 shadow-lg text-slate-800">
+                                                <div class="absolute -right-6 -bottom-6 w-20 h-20 bg-okohi/5 rounded-full pointer-events-none blur-lg"></div>
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex items-center gap-2">
+                                                        <img src="images/okohi-logo.png" class="h-8 w-auto object-contain" @error="handleLogoError('okohi', $event)" />
+                                                        <div>
+                                                            <h3 class="font-display font-black text-[10px] text-slate-900 tracking-wide uppercase">OKOHI</h3>
+                                                            <p class="text-[5.5px] text-okohi font-bold tracking-wider uppercase leading-none">{{ config.okohi.slogan }}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span class="px-1.5 py-0.5 rounded bg-okohi/10 text-okohi text-[5px] font-extrabold uppercase tracking-widest border border-okohi/20">Fidélité</span>
+                                                </div>
+
+                                                <!-- Loyalty Mobile illustration -->
+                                                <div v-if="config.showIllustrations" class="relative rounded-lg overflow-hidden h-[60px] w-full">
+                                                    <img src="images/loyalty-card.png" class="w-full h-full object-cover" />
+                                                    <div class="absolute inset-0 bg-gradient-to-t from-white/60 to-transparent"></div>
+                                                </div>
+
+                                                <p class="text-[6px] text-slate-650 italic leading-snug">{{ config.okohi.description }}</p>
+                                                <div class="space-y-1 pt-1 border-t border-slate-100">
+                                                    <div v-for="f in config.okohi.features" class="flex gap-1.5 items-start">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-okohi shrink-0 mt-0.5"></span>
+                                                        <div>
+                                                            <strong class="text-slate-900 text-[6.5px] block font-bold leading-none mb-0.5">{{ f.title }}</strong>
+                                                            <span class="text-slate-600 text-[5.5px] leading-tight block">{{ f.desc }}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Banner Footer -->
+                                    <div class="border-t border-white/10 pt-3 mt-4 flex items-center justify-between gap-3">
+                                        <div class="space-y-1.5 flex-1">
+                                            <div class="inline-flex items-center justify-center bg-gradient-to-r from-tiketi to-okohi p-[1px] rounded-lg shadow-md">
+                                                <div class="bg-slate-900 rounded-lg px-2.5 py-1 text-[7px] font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                                                    {{ config.footer.ctaText }}
+                                                </div>
+                                            </div>
+                                            <div class="space-y-0.5 text-white/65 text-[5px]">
+                                                <div class="flex items-center gap-1">🌐 <span class="font-semibold">{{ config.footer.website }}</span></div>
+                                                <div class="flex items-center gap-1">📞 <span>{{ config.footer.phone }}</span></div>
+                                            </div>
+                                        </div>
+                                        <div class="shrink-0 flex flex-col items-center gap-1 bg-white p-1 rounded-lg shadow-inner">
+                                            <canvas class="qr-canvas-mockup w-12 h-12"></canvas>
+                                            <span class="text-[4px] text-slate-800 font-bold uppercase tracking-wider">Scanner</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Roll-up Stand Base & Pole Support -->
+                            <div class="stand-pole w-1 h-[754px] absolute -bottom-[754px] -z-10 shadow-lg"></div>
+                            <div class="stand-base w-[320px] h-3.5 rounded-b-md z-10 flex justify-between items-center px-6">
+                                <div class="w-8 h-2 bg-slate-950/40 rounded-sm"></div>
+                                <div class="w-8 h-2 bg-slate-950/40 rounded-sm"></div>
+                            </div>
+                            
+                            <!-- Shadow on the floor -->
+                            <div class="w-[380px] h-6 bg-black/50 blur-md rounded-full mt-1 -z-20 transform -rotate-x-12"></div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Flat Print View Mode (Aspect Ratio 1:2.5, High Resolution Container) -->
+                    <div v-show="viewMode === 'flat'" class="w-full h-full flex items-center justify-center p-4">
+                        <div class="print-container w-[400px] h-[1000px] border-4 border-slate-800 bg-slate-950 shadow-2xl flex flex-col relative text-[10px]" :style="themeStyle">
+                            <!-- High resolution texture overlay -->
+                            <div class="absolute inset-0 bg-cover bg-center pointer-events-none opacity-40 mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.15\'/%3E%3C/svg%3E')"></div>
+                            
+                            <div class="flex-1 flex flex-col justify-between py-10 px-8 relative h-full">
+                                <div class="space-y-6">
+                                    <!-- Header -->
+                                    <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-5 h-5 bg-red-600 rounded-md flex items-center justify-center text-xs font-black text-white">A</div>
+                                            <span class="font-display font-extrabold text-sm tracking-tight uppercase" :style="{ color: themePalette.primary }">{{ config.header.company }}</span>
+                                        </div>
+                                        <span class="text-[8px] text-white/50 tracking-widest font-semibold uppercase">Salon Transport 2026</span>
+                                    </div>
+
+                                    <!-- Main Titles -->
+                                    <div class="text-center space-y-2">
+                                        <h2 class="font-display font-black text-xl tracking-tight text-white leading-tight uppercase">{{ config.header.title }}</h2>
+                                        <p class="text-xs text-white/80 max-w-[320px] mx-auto font-medium leading-relaxed">{{ config.header.subtitle }}</p>
+                                    </div>
+
+                                    <!-- Content Stack -->
+                                    <div class="space-y-5">
+                                        <!-- TIKETI Component -->
+                                        <div class="rounded-2xl border border-tiketi/20 bg-slate-900/60 backdrop-blur-md p-4 relative overflow-hidden flex flex-col justify-between gap-3 shadow-lg">
+                                            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-tiketi/5 rounded-full pointer-events-none blur-lg"></div>
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2.5">
+                                                    <img src="images/logo-white.png" class="h-10 w-auto object-contain" @error="handleLogoError('tiketi', $event)" />
+                                                    <div>
+                                                        <h3 class="font-display font-black text-xs text-white tracking-wide uppercase">TIKÊTI</h3>
+                                                        <p class="text-[7.5px] text-tiketi font-bold tracking-wider uppercase leading-none">{{ config.tiketi.slogan }}</p>
+                                                    </div>
+                                                </div>
+                                                <span class="px-2.5 py-0.5 rounded bg-tiketi/10 text-tiketi text-[7px] font-extrabold uppercase tracking-widest border border-tiketi/20">Billetterie</span>
+                                            </div>
+
+                                            <!-- Transport illustration -->
+                                            <div v-if="config.showIllustrations" class="relative rounded-xl overflow-hidden h-24 w-full">
+                                                <img src="images/bus-login-bg.png" class="w-full h-full object-cover" />
+                                                <div class="absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent"></div>
+                                            </div>
+
+                                            <p class="text-[8px] text-white/60 italic leading-normal">{{ config.tiketi.description }}</p>
+                                            
+                                            <!-- Feature checklist -->
+                                            <div class="space-y-1.5 pt-2 border-t border-white/5">
+                                                <div v-for="f in config.tiketi.features" class="flex gap-2 items-start">
+                                                    <span class="w-2 h-2 rounded-full bg-tiketi shrink-0 mt-0.5"></span>
+                                                    <div>
+                                                        <strong class="text-white text-[8.5px] block font-bold leading-tight mb-0.5">{{ f.title }}</strong>
+                                                        <span class="text-white/60 text-[7.5px] leading-tight block">{{ f.desc }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Synergy / Integration Link -->
+                                        <div class="rounded-xl border border-white/10 bg-gradient-to-r from-tiketi/15 to-okohi/15 p-3.5 relative flex items-center justify-between gap-4 shadow-md">
+                                            <div class="flex-1 space-y-0.5">
+                                                <h4 class="text-white font-extrabold text-[10px] flex items-center gap-1.5">
+                                                    <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                                                    {{ config.synergy.title }}
+                                                </h4>
+                                                <p class="text-white/70 text-[7.5px] leading-snug">{{ config.synergy.desc }}</p>
+                                            </div>
+                                            <div class="flex items-center justify-center shrink-0">
+                                                <div class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10 font-bold text-xs text-white shadow-lg">⚡</div>
+                                            </div>
+                                        </div>
+
+                                        <!-- OKOHI Component (Light Theme Style) -->
+                                        <div class="rounded-2xl border border-slate-200 bg-white p-4 relative overflow-hidden flex flex-col justify-between gap-3 shadow-lg text-slate-800">
+                                            <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-okohi/5 rounded-full pointer-events-none blur-lg"></div>
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2.5">
+                                                    <img src="images/okohi-logo.png" class="h-10 w-auto object-contain" @error="handleLogoError('okohi', $event)" />
+                                                    <div>
+                                                        <h3 class="font-display font-black text-xs text-slate-900 tracking-wide uppercase">OKOHI</h3>
+                                                        <p class="text-[7.5px] text-okohi font-bold tracking-wider uppercase leading-none">{{ config.okohi.slogan }}</p>
+                                                    </div>
+                                                </div>
+                                                <span class="px-2.5 py-0.5 rounded bg-okohi/10 text-okohi text-[7px] font-extrabold uppercase tracking-widest border border-okohi/20">Fidélité</span>
+                                            </div>
+
+                                            <!-- Loyalty Mobile illustration -->
+                                            <div v-if="config.showIllustrations" class="relative rounded-xl overflow-hidden h-24 w-full">
+                                                <img src="images/loyalty-card.png" class="w-full h-full object-cover" />
+                                                <div class="absolute inset-0 bg-gradient-to-t from-white/60 to-transparent"></div>
+                                            </div>
+
+                                            <p class="text-[8px] text-slate-650 italic leading-normal">{{ config.okohi.description }}</p>
+                                            
+                                            <!-- Feature checklist -->
+                                            <div class="space-y-1.5 pt-2 border-t border-slate-100">
+                                                <div v-for="f in config.okohi.features" class="flex gap-2 items-start">
+                                                    <span class="w-2 h-2 rounded-full bg-okohi shrink-0 mt-0.5"></span>
+                                                    <div>
+                                                        <strong class="text-slate-900 text-[8.5px] block font-bold leading-tight mb-0.5">{{ f.title }}</strong>
+                                                        <span class="text-slate-600 text-[7.5px] leading-tight block">{{ f.desc }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="border-t border-white/10 pt-4 mt-6 flex items-center justify-between gap-4">
+                                    <div class="space-y-2 flex-1">
+                                        <div class="inline-flex items-center justify-center bg-gradient-to-r from-tiketi to-okohi p-[1.5px] rounded-lg shadow-lg">
+                                            <div class="bg-slate-900 rounded-lg px-4 py-1.5 text-[9px] font-bold text-white uppercase tracking-wider whitespace-nowrap">
+                                                {{ config.footer.ctaText }}
+                                            </div>
+                                        </div>
+                                        <div class="space-y-0.5 text-white/70 text-[7.5px]">
+                                            <div class="flex items-center gap-1.5 font-medium">🌐 <span>{{ config.footer.website }}</span></div>
+                                            <div class="flex items-center gap-1.5">📞 <span>{{ config.footer.phone }}</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="shrink-0 flex flex-col items-center gap-1 bg-white p-1.5 rounded-lg shadow-lg">
+                                        <canvas class="qr-canvas-flat w-16 h-16"></canvas>
+                                        <span class="text-[5.5px] text-slate-800 font-bold uppercase tracking-widest">Scanner</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Script Block -->
+    <script>
+        const { createApp, ref, reactive, computed, watch, nextTick } = Vue;
+
+        createApp({
+            setup() {
+                const activeTab = ref('general');
+                const viewMode = ref('mockup');
+
+                // Curated themes definition
+                const themes = [
+                    { 
+                        id: 'space-dark', 
+                        name: 'Sombre Cosmique', 
+                        desc: 'Dégradés néon et fond ultra-sombre',
+                        palette: { primary: '#00c3ff', secondary: '#ff3a44', background: 'linear-gradient(to bottom, #0f172a, #0b0f19, #020617)' }
+                    },
+                    { 
+                        id: 'royal-navy', 
+                        name: 'Bleu Intense', 
+                        desc: 'Style corporate marine & or',
+                        palette: { primary: '#38bdf8', secondary: '#f59e0b', background: 'linear-gradient(to bottom, #030712, #1e3a8a, #030712)' }
+                    },
+                    { 
+                        id: 'sunset-orange', 
+                        name: 'Crépuscule Épicé', 
+                        desc: 'Dégradé flamboyant rouge-orange',
+                        palette: { primary: '#38bdf8', secondary: '#ff3a44', background: 'linear-gradient(to bottom, #1e1b4b, #31102f, #18000a)' }
+                    },
+                    { 
+                        id: 'emerald-dark', 
+                        name: 'Forêt Émeraude', 
+                        desc: 'Ambiance vert canard & cyan',
+                        palette: { primary: '#00c3ff', secondary: '#10b981', background: 'linear-gradient(to bottom, #022c22, #064e3b, #020617)' }
+                    }
+                ];
+
+                // Core configuration state (reactive text and images)
+                const config = reactive({
+                    theme: 'space-dark',
+                    showIllustrations: true,
+                    header: {
+                        company: 'ANOHOU DEV',
+                        title: 'Deux solutions connectées pour le transport',
+                        subtitle: 'Billetterie moderne et fidélisation client réunies dans une offre intégrée, conçue pour propulser les compagnies de transport.'
+                    },
+                    tiketi: {
+                        logoFallbackText: 'TIKÊTI',
+                        logoHasError: false,
+                        slogan: 'Gestion de flotte & Billetterie intelligente',
+                        description: 'Automatisez la vente de billets et optimisez le taux de remplissage de vos véhicules interurbains.',
+                        features: [
+                            { title: 'Vente rapide & Impression', desc: 'Guichet fluide avec impression de billets thermiques/Bluetooth instantanée.' },
+                            { title: 'Plan de salle interactif', desc: 'Permet aux passagers de choisir précisément leur siège au moment de l\'achat.' },
+                            { title: 'QR Code & Contrôle terrain', desc: 'Validation simple par smartphone pour vos superviseurs de quai.' }
+                        ]
+                    },
+                    okohi: {
+                        logoFallbackText: 'OKOHI',
+                        logoHasError: false,
+                        slogan: 'Cartes de fidélité 100% digitales',
+                        description: 'Fidélisez votre clientèle, récompensez la loyauté et pilotez vos promotions de manière centralisée.',
+                        features: [
+                            { title: 'Fidélité 100% Mobile', desc: 'Plus de cartes papier égarées, le client suit sa progression sur son application.' },
+                            { title: 'Attribution express de points', desc: 'Génération instantanée de QR Code unique par le guichetier après achat.' },
+                            { title: 'Annonces promotionnelles', desc: 'Communiquez directement avec votre communauté par notifications ciblées.' }
+                        ]
+                    },
+                    synergy: {
+                        title: 'Intégration Directe & Automatique',
+                        desc: 'Liez votre billetterie à votre programme de fidélité. Chaque billet imprimé ou validé via TIKÊTI génère automatiquement des points de fidélité OKOHI pour vos passagers !'
+                    },
+                    footer: {
+                        ctaText: 'Demandez une démo gratuite',
+                        qrUrl: 'https://anohou.dev/okohi',
+                        website: 'anohou.dev/okohi',
+                        phone: '+225 07 00 00 00 00'
+                    }
+                });
+
+                // Computed background and styling
+                const themePalette = computed(() => {
+                    return themes.find(t => t.id === config.theme)?.palette || themes[0].palette;
+                });
+
+                const themeStyle = computed(() => {
+                    return {
+                        background: themePalette.value.background
+                    };
+                });
+
+                // Image loading error handlers (fallbacks if logos fail to load)
+                const handleLogoError = (product, event) => {
+                    console.warn(`Could not load logo for ${product}, using default text badge styling.`);
+                    if (event.target) {
+                        event.target.style.display = 'none';
+                    }
+                    if (product === 'tiketi') {
+                        config.tiketi.logoHasError = true;
+                    } else if (product === 'okohi') {
+                        config.okohi.logoHasError = true;
+                    }
+                };
+
+                // Generate QR Code on canvases
+                const generateQrCode = () => {
+                    nextTick(() => {
+                        const url = config.footer.qrUrl || 'https://anohou.dev/okohi';
+                        const canvasMockup = document.querySelector('.qr-canvas-mockup');
+                        const canvasFlat = document.querySelector('.qr-canvas-flat');
+
+                        const qrOptions = {
+                            width: 128,
+                            margin: 1,
+                            color: {
+                                dark: '#020617', // Slate 950 for high contrast on white background card
+                                light: '#FFFFFF'
+                            }
+                        };
+
+                        if (canvasMockup) {
+                            QRCode.toCanvas(canvasMockup, url, qrOptions, function (error) {
+                                if (error) console.error('Error generating mockup QR Code:', error);
+                            });
+                        }
+
+                        if (canvasFlat) {
+                            QRCode.toCanvas(canvasFlat, url, qrOptions, function (error) {
+                                if (error) console.error('Error generating flat QR Code:', error);
+                            });
+                        }
+                    });
+                };
+
+                // Trigger print dialog (will use specific print styles)
+                const printBanner = () => {
+                    // Set view to Flat prior to print to ensure full size rendering
+                    const currentMode = viewMode.value;
+                    viewMode.value = 'flat';
+                    
+                    setTimeout(() => {
+                        window.print();
+                        viewMode.value = currentMode;
+                    }, 300);
+                };
+
+                // Watch theme or text values to regenerate QR codes
+                watch(() => config.footer.qrUrl, () => {
+                    generateQrCode();
+                }, { immediate: true });
+
+                // Also trigger QR generation on mount and tab switch to ensure rendering
+                watch(viewMode, () => {
+                    generateQrCode();
+                });
+
+                return {
+                    activeTab,
+                    viewMode,
+                    themes,
+                    config,
+                    themeStyle,
+                    themePalette,
+                    handleLogoError,
+                    printBanner,
+                    generateQrCode
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

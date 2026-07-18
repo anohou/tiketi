@@ -13,7 +13,8 @@ import Settings from 'vue-material-design-icons/Cog.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 
 const props = defineProps({
-  settings: Object
+  settings: Object,
+  previewTicket: Object
 });
 
 // State
@@ -30,6 +31,31 @@ const form = ref({
 });
 
 const shouldShowPreviewQrCode = computed(() => form.value.print_qr_code);
+const previewTicket = computed(() => props.previewTicket || null);
+const previewTicketNumber = computed(() => previewTicket.value?.ticket_number || previewTicket.value?.ticketNumber || 'TKT-EXAMPLE');
+const previewFromStation = computed(() => previewTicket.value?.from_station?.name || previewTicket.value?.fromStation?.name || 'Gare Nord (Adjamé)');
+const previewToStation = computed(() => previewTicket.value?.to_station?.name || previewTicket.value?.toStation?.name || 'Gare 1 Yakro');
+const previewDateTime = computed(() => {
+  const createdAt = previewTicket.value?.created_at || previewTicket.value?.createdAt;
+  if (createdAt) {
+    return new Date(createdAt).toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  return '23/05/2026 20:51';
+});
+const previewSeatNumber = computed(() => previewTicket.value?.seat_number || previewTicket.value?.seatNumber || 41);
+const previewBoardingGroup = computed(() => previewTicket.value?.boarding_group || previewTicket.value?.boardingGroup || '2');
+const previewPrice = computed(() => {
+  const price = previewTicket.value?.price ?? previewTicket.value?.amount;
+  if (price === null || price === undefined || price === '') return '5 000';
+  return Number(price).toLocaleString('fr-FR');
+});
 
 // Methods
 const addPhone = () => {
@@ -104,9 +130,9 @@ const submit = () => {
               <div class="border-2 border-dashed border-orange-300 rounded-lg p-4 bg-white font-sans text-xs max-w-xs mx-auto text-black">
                 <div class="grid grid-cols-[1fr_auto] gap-3 mb-3">
                   <div>
-                    <div class="font-black text-lg leading-none border-b-2 border-black inline-block pb-1">
-                      {{ form.company_name || 'TSR CI' }}
-                    </div>
+                  <div class="font-black text-lg leading-none border-b-2 border-black inline-block pb-1">
+                    {{ form.company_name || 'TSR CI' }}
+                  </div>
                     <div class="text-[10px] leading-tight mt-2">
                       <div v-for="(phone, index) in form.phone_numbers" :key="index">
                         {{ index === 0 ? 'Tel' : 'Service Bagages' }}: {{ phone || '[Numéro]' }}
@@ -121,7 +147,7 @@ const submit = () => {
 
                 <div class="border-2 border-black text-center py-2 mb-2">
                   <div class="text-[10px] font-black underline">N° TICKET DE VOYAGE</div>
-                  <div class="text-xl font-black leading-tight mt-1">TKT-EXAMPLE</div>
+                  <div class="text-xl font-black leading-tight mt-1">{{ previewTicketNumber }}</div>
                 </div>
 
                 <div v-if="form.cc_label?.trim()" class="border-2 border-black px-2 py-1 font-black mb-2">
@@ -131,29 +157,29 @@ const submit = () => {
                 <div class="border-2 border-black p-2">
                   <div class="border-2 border-black text-center p-2 mb-2">
                     <div class="text-[10px] uppercase font-black">Destination passager</div>
-                    <div class="text-lg leading-tight font-black uppercase mt-1">Gare 1 Yakro</div>
+                    <div class="text-lg leading-tight font-black uppercase mt-1">{{ previewToStation }}</div>
                   </div>
 
                   <div class="text-[11px] leading-tight mb-2">
-                    <div><span class="font-black">Depart:</span> Gare Nord (Adjamé)</div>
-                    <div><span class="font-black">Arrivee:</span> Gare 1 Yakro</div>
+                    <div><span class="font-black">Depart:</span> {{ previewFromStation }}</div>
+                    <div><span class="font-black">Arrivee:</span> {{ previewToStation }}</div>
                   </div>
 
                   <div class="grid grid-cols-[2fr_1fr] border-2 border-black text-center font-black mb-3">
-                    <div class="border-r-2 border-black py-2">23/05/2026 20:51</div>
+                    <div class="border-r-2 border-black py-2">{{ previewDateTime }}</div>
                     <div class="py-2">A</div>
                   </div>
 
                   <div class="grid grid-cols-3 items-center gap-1 font-black">
-                    <div>Prix: 5 000</div>
+                    <div>Prix: {{ previewPrice }}</div>
                     <div class="text-center whitespace-nowrap">
-                      Siege: <span class="inline-flex items-center justify-center border-2 border-black rounded-full min-w-8 h-8 px-2 text-base">41</span>
+                      Siege: <span class="inline-flex items-center justify-center border-2 border-black rounded-full min-w-8 h-8 px-2 text-base">{{ previewSeatNumber }}</span>
                     </div>
                     <div class="text-right">ALLER</div>
                   </div>
 
                   <div class="text-center font-black text-[11px] uppercase mt-2">
-                    Zone d'embarquement : 2
+                    Zone d'embarquement : {{ previewBoardingGroup }}
                   </div>
                 </div>
 
@@ -295,6 +321,7 @@ const submit = () => {
                   </div>
 
                 </div>
+
 
                 <!-- Link to loyalty page -->
                 <div class="bg-green-50 rounded-xl border border-green-100 p-4 flex items-center justify-between">

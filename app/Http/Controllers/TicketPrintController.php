@@ -21,6 +21,9 @@ class TicketPrintController extends Controller
             'trip.vehicle',
             'fromStation',
             'toStation',
+            'finalDestinationStation',
+            'transferStation',
+            'connection.destinationStation',
             'seller',
         ])->findOrFail($ticketId);
 
@@ -49,6 +52,9 @@ class TicketPrintController extends Controller
             'trip.vehicle',
             'fromStation',
             'toStation',
+            'finalDestinationStation',
+            'transferStation',
+            'connection.destinationStation',
             'seller',
         ])->whereIn('id', $ticketIds)->get();
 

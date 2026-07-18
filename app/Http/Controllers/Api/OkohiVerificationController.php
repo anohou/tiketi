@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\Ticket;
+use App\Models\TicketSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,7 @@ class OkohiVerificationController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $ticketId = (string) $request->query('ticket_id', '');
+        $key = $request->header('X-Okohi-Integration-Key');
 
         if ($ticketId === '') {
             return response()->json(['valid' => false, 'message' => 'Missing ticket_id']);
@@ -20,13 +22,13 @@ class OkohiVerificationController extends Controller
 
         // Tenancy déjà initialisée (appel via sous-domaine tenant)
         if (tenancy()->initialized) {
-            return $this->respond($ticketId);
+            return $this->respond($request, $ticketId);
         }
 
         // Pas de tenants (tests) — connexion courante
         $tenants = Tenant::all();
         if ($tenants->isEmpty()) {
-            return $this->respond($ticketId);
+            return $this->respond($request, $ticketId);
         }
 
         // Chemin optimisé : tenant encodé dans l'URL lors de la connexion Okohi
@@ -38,7 +40,7 @@ class OkohiVerificationController extends Controller
 
             if ($tenant) {
                 tenancy()->initialize($tenant);
-                $result = $this->respond($ticketId);
+                $result = $this->respond($request, $ticketId);
                 tenancy()->end();
 
                 return $result;
@@ -48,12 +50,19 @@ class OkohiVerificationController extends Controller
         // Fallback : parcourir tous les tenants (anciens liens sans ?tenant=)
         $found = null;
 
-        $tenants->each(function (Tenant $tenant) use ($ticketId, &$found) {
+        $tenants->each(function (Tenant $tenant) use ($ticketId, $key, &$found) {
             if ($found !== null) {
                 return false;
             }
 
             tenancy()->initialize($tenant);
+
+            $settings = TicketSetting::getSettings();
+            if ($settings->okohi_integration_key && (! $key || ! hash_equals($settings->okohi_integration_key, $key))) {
+                tenancy()->end();
+
+                return;
+            }
 
             $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
@@ -69,14 +78,21 @@ class OkohiVerificationController extends Controller
         });
 
         if (! $found) {
-            return response()->json(['valid' => false, 'message' => 'Ticket not found or cancelled']);
+            return response()->json(['valid' => false, 'message' => 'Ticket not found, cancelled or unauthorized']);
         }
 
         return response()->json(['valid' => true, 'data' => $found]);
     }
 
-    private function respond(string $ticketId): JsonResponse
+    private function respond(Request $request, string $ticketId): JsonResponse
     {
+        $settings = TicketSetting::getSettings();
+        $key = $request->header('X-Okohi-Integration-Key');
+
+        if ($settings->okohi_integration_key && (! $key || ! hash_equals($settings->okohi_integration_key, $key))) {
+            return response()->json(['valid' => false, 'message' => 'Unauthorized'], 401);
+        }
+
         $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
         if (! $ticket || $ticket->status === 'cancelled') {

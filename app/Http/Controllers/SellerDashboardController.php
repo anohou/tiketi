@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Trips\CrewTripVisibility;
 use App\Models\Route as BusRoute;
 use App\Models\Station;
 use App\Models\Ticket;
@@ -47,9 +48,22 @@ class SellerDashboardController extends Controller
 
             $routeIds = $routes->pluck('id');
 
+            [$windowStart, $windowEnd] = app(CrewTripVisibility::class)->operationalWindow();
+            $activeStart = now()->subHours((int) config('transport.operations.active_trip_lookback_hours', 48));
+
             $trips = Trip::with(['route', 'vehicle.vehicleType'])
                 ->whereIn('route_id', $routeIds)
-                ->where('departure_at', '>=', now())
+                ->where(function ($query) use ($windowStart, $windowEnd, $activeStart) {
+                    $query->where(function ($scheduled) use ($windowStart, $windowEnd) {
+                        $scheduled->where('status', 'scheduled')
+                            ->where('departure_at', '>=', $windowStart)
+                            ->where('departure_at', '<', $windowEnd);
+                    })->orWhere(function ($active) use ($activeStart, $windowEnd) {
+                        $active->whereIn('status', ['boarding', 'delayed', 'departed'])
+                            ->where('departure_at', '>=', $activeStart)
+                            ->where('departure_at', '<', $windowEnd);
+                    });
+                })
                 ->upcomingFirst()
                 ->limit(10)
                 ->get();

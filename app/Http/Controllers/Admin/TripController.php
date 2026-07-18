@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Trips\InvalidTripTransition;
+use App\Domain\Trips\TripStateMachine;
 use App\Events\TripCreated;
 use App\Http\Controllers\Controller;
 use App\Models\Route;
 use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
+use App\Services\AutomaticConnectionAllocator;
+use App\Services\TripTimingService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,7 +38,7 @@ class TripController extends Controller
             $assignments = VehicleCrewAssignment::whereIn('vehicle_id', $vehicleIds)
                 ->where(function ($query) use ($minDate) {
                     $query->whereNull('assigned_to')
-                        ->orWhere('assigned_to', '>=', $minDate);
+                        ->orWhere('assigned_to', '>', $minDate);
                 })
                 ->where('assigned_from', '<=', $maxDate)
                 ->with('crewMember')
@@ -44,7 +48,7 @@ class TripController extends Controller
                 $tripCrew = $assignments->filter(function ($assignment) use ($trip) {
                     return $assignment->vehicle_id === $trip->vehicle_id
                         && $assignment->assigned_from <= $trip->departure_at
-                        && (is_null($assignment->assigned_to) || $assignment->assigned_to >= $trip->departure_at);
+                        && (is_null($assignment->assigned_to) || $assignment->assigned_to > $trip->departure_at);
                 });
 
                 $trip->crew_info = $tripCrew->map(fn ($assignment) => [
@@ -78,6 +82,20 @@ class TripController extends Controller
             'trips' => $trips,
             'routes' => $routes,
             'vehicles' => $vehicles,
+            'replicableTrips' => Trip::where('is_replicable', true)
+                ->get(['id', 'route_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
+                ->map(function ($trip) {
+                    return [
+                        'id' => $trip->id,
+                        'route_id' => $trip->route_id,
+                        'time' => $trip->departure_at ? $trip->departure_at->format('H:i') : '00:00',
+                        'allows_open_connections' => (bool) $trip->allows_open_connections,
+                        'automatic_connection_allocation' => $trip->automatic_connection_allocation,
+                        'code' => $trip->code,
+                    ];
+                })
+                ->unique(fn ($item) => $item['route_id'].'-'.$item['time'])
+                ->values(),
         ]);
     }
 
@@ -116,25 +134,33 @@ class TripController extends Controller
                     }
                 },
             ],
-            'vehicle_id' => 'required|uuid|exists:vehicles,id',
+            'vehicle_id' => 'nullable|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'nullable|in:scheduled,boarding,departed,arrived,cancelled',
             'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
             'sales_control' => 'nullable|in:open,closed',
+            'allows_open_connections' => 'nullable|boolean',
+            'automatic_connection_allocation' => 'nullable|boolean',
+            'is_replicable' => 'nullable|boolean',
         ]);
 
-        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
-        if ($vehicle->isInsuranceExpired($data['departure_at'])) {
-            return back()->withErrors([
-                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
-                    .$vehicle->insurance_expiry_date->format('d/m/Y').').',
-            ]);
+        if (! empty($data['vehicle_id'])) {
+            $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+            if ($vehicle->isInsuranceExpired($data['departure_at'])) {
+                return back()->withErrors([
+                    'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
+                        .$vehicle->insurance_expiry_date->format('d/m/Y').').',
+                ]);
+            }
+        } else {
+            $data['vehicle_id'] = null;
         }
 
-        // Set default status if not provided
         $data['status'] = $data['status'] ?? 'scheduled';
         $data['booking_type'] = $data['booking_type'] ?? 'seat_assignment';
         $data['sales_control'] = $data['sales_control'] ?? 'closed';
+        $data['allows_open_connections'] = (bool) ($data['allows_open_connections'] ?? false);
+        $data['is_replicable'] = (bool) ($data['is_replicable'] ?? false);
 
         // Determine trip origin and destination based on seller's station
         $route = Route::find($data['route_id']);
@@ -171,6 +197,9 @@ class TripController extends Controller
         }
 
         $trip = Trip::create($data);
+        $trip = app(TripTimingService::class)->syncPlannedTimes($trip);
+
+        app(AutomaticConnectionAllocator::class)->allocateForTrip($trip, $user);
 
         TripCreated::dispatch($trip);
 
@@ -210,21 +239,52 @@ class TripController extends Controller
     {
         $data = $request->validate([
             'route_id' => 'required|uuid|exists:routes,id',
-            'vehicle_id' => 'required|uuid|exists:vehicles,id',
+            'vehicle_id' => 'nullable|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
-            'status' => 'required|in:scheduled,boarding,departed,arrived,cancelled',
+            'status' => 'required|in:scheduled,boarding,departed,arrived,cancelled,delayed',
             'booking_type' => 'nullable|in:seat_assignment,bulk,semi_intelligent',
             'sales_control' => 'nullable|in:open,closed',
+            'allows_open_connections' => 'nullable|boolean',
+            'automatic_connection_allocation' => 'nullable|boolean',
+            'is_replicable' => 'nullable|boolean',
         ]);
 
-        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
-        if ($vehicle->isInsuranceExpired($data['departure_at'])) {
+        if (! empty($data['vehicle_id'])) {
+            $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+            if ($vehicle->isInsuranceExpired($data['departure_at'])) {
+                return back()->withErrors([
+                    'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
+                        .$vehicle->insurance_expiry_date->format('d/m/Y').').',
+                ]);
+            }
+        } else {
+            $data['vehicle_id'] = null;
+        }
+        $data['is_replicable'] = (bool) ($data['is_replicable'] ?? false);
+        $requestedStatus = $data['status'];
+        unset($data['status']);
+        $previousStatus = $trip->status;
+        $stateMachine = app(TripStateMachine::class);
+        if ($requestedStatus !== $previousStatus && ! $stateMachine->can($previousStatus, $requestedStatus)) {
             return back()->withErrors([
-                'vehicle_id' => 'L\'assurance de ce véhicule est expirée à la date de départ du voyage ('
-                    .$vehicle->insurance_expiry_date->format('d/m/Y').').',
-            ]);
+                'status' => "Transition de voyage interdite : {$previousStatus} → {$requestedStatus}.",
+            ])->withInput();
         }
         $trip->update($data);
+        $trip = app(TripTimingService::class)->syncPlannedTimes($trip);
+        if ($requestedStatus !== $previousStatus) {
+            try {
+                $stateMachine->transition(
+                    $trip,
+                    $requestedStatus,
+                    $request->user(),
+                    'admin_web',
+                    $request->input('status_reason'),
+                );
+            } catch (InvalidTripTransition $exception) {
+                return back()->withErrors(['status' => $exception->getMessage()])->withInput();
+            }
+        }
 
         return redirect()->route('admin.trips.index');
     }

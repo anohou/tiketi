@@ -25,6 +25,10 @@ import Magnify from 'vue-material-design-icons/Magnify.vue';
 import History from 'vue-material-design-icons/History.vue';
 import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
 import FileExcel from 'vue-material-design-icons/FileExcel.vue';
+import Eye from 'vue-material-design-icons/Eye.vue';
+import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
+import TripConnectionSummary from '@/Components/Seller/TripConnectionSummary.vue';
+import Dropdown from '@/Components/Dropdown.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { useExportPrint } from '@/Composables/useExportPrint.js';
 import { useTicketing } from '@/Composables/useTicketing.js';
@@ -33,12 +37,18 @@ import axios from 'axios';
 const props = defineProps({
   trips: [Array, Object],
   routeFares: Array,
+  connectionFares: { type: Array, default: () => [] },
+  connectionRoutes: { type: Array, default: () => [] },
   routes: Array,
   vehicles: Array,
   hasActiveAssignment: Boolean,
   assignedStationId: String,
   assignedStation: String,
   destinations: {
+    type: Array,
+    default: () => []
+  },
+  replicableTrips: {
     type: Array,
     default: () => []
   }
@@ -69,6 +79,9 @@ const {
   createTripErrors,
   createTripProcessing,
   showZoomModal,
+  showTripDetailsModal,
+  selectedDetailsTripId,
+  openTripDetails,
   showPassengerModal,
   showDestinationModal,
   selectedSeatNumber,
@@ -77,6 +90,8 @@ const {
   selectedSeatColor,
   passengerForm,
   passengerFormErrors,
+  finalDestinationStationId,
+  connectionRouteId,
   showInspectionModal,
   selectedTicketForInspection,
   currentTime,
@@ -122,6 +137,7 @@ const {
   confirmBooking,
   cancelBooking,
   createTrip,
+  applyReplicableTemplate,
   fallbackToBrowserPrint,
   moveTripUp,
   moveTripDown,
@@ -140,11 +156,83 @@ const {
 
 const assignedStationPalette = computed(() => getAssignedStationPalette());
 
+const tripDetailsModalTab = ref('overview');
+
+const openTripDetailsWithOverview = (tripId) => {
+  tripDetailsModalTab.value = 'overview';
+  openTripDetails(tripId);
+};
+
+const openTripTransitPool = (tripId) => {
+  tripDetailsModalTab.value = 'transit';
+  openTripDetails(tripId);
+};
+
+const updatingTripStatusId = ref(null);
+const updateTripStatus = async (tripId, status) => {
+  let confirmMessage = "";
+  if (status === 'boarding') {
+    confirmMessage = "Voulez-vous vraiment démarrer l'embarquement pour ce voyage ?";
+  } else if (status === 'departed') {
+    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme parti ? Les ventes seront fermées.";
+  } else if (status === 'delayed') {
+    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme retardé ?";
+  } else if (status === 'cancelled') {
+    confirmMessage = "Voulez-vous vraiment annuler ce voyage ? Toutes les correspondances seront libérées.";
+  } else if (status === 'arrived') {
+    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme arrivé ?";
+  }
+
+  if (confirmMessage && !window.confirm(confirmMessage)) {
+    return;
+  }
+
+  updatingTripStatusId.value = tripId;
+  try {
+    await axios.patch(route('seller.trips.status', { trip: tripId }), { status });
+    toastStore.success('Le statut du voyage a été mis à jour.');
+    router.reload({ preserveScroll: true });
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du statut:', error);
+    toastStore.error(error.response?.data?.message || 'Impossible de mettre à jour le statut.');
+  } finally {
+    updatingTripStatusId.value = null;
+  }
+};
+
+const canEditStatus = (trip) => {
+  if (!trip) return false;
+  const isStaff = ['admin', 'supervisor', 'superadmin', 'executive'].includes(page.props.auth.user.role);
+  if (isStaff) {
+    return !['arrived'].includes(trip.status);
+  }
+  // For normal seller (vendeur)
+  return !['departed', 'arrived', 'cancelled'].includes(trip.status);
+};
+
 // Aliases and reactive states specific to the vertical paginated layout
 const trips = tripsRef;
 const showHistory = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const showTripSelectionModal = ref(false);
+const isTripEnRoute = (trip) => trip?.status === 'departed';
+const isTripPastForDisplay = (trip) => !isTripEnRoute(trip) && new Date(trip.departure_at) < new Date();
+
+const selectedTemplate = ref(null);
+watch(selectedTemplate, (newTemplate) => {
+  if (newTemplate) {
+    applyReplicableTemplate(newTemplate);
+  }
+});
+watch(showCreateTripModal, (isOpen) => {
+  if (!isOpen) {
+    selectedTemplate.value = null;
+  }
+});
+const getRouteName = (routeId) => {
+  const r = props.routes?.find(route => route.id === routeId);
+  return r ? (r.display_name || r.name) : 'Route inconnue';
+};
 
 const selectedDestinationId = computed({
   get: () => ticketingStore.selectedDestinationId,
@@ -220,8 +308,8 @@ const exportTicketsToExcel = async (tripId) => {
       toastStore.warning('Aucun ticket à exporter pour aujourd\'hui.');
     }
   } catch (error) {
-    console.error('Erreur export Excel:', error);
-    toastStore.error('Erreur lors de l\'export Excel. Veuillez réessayer.');
+    console.error('Erreur export CSV:', error);
+    toastStore.error('Erreur lors de l\'export CSV. Veuillez réessayer.');
   } finally {
     exportExcelLoadingTripId.value = null;
   }
@@ -251,6 +339,83 @@ const selectTripFromModal = (tripId) => {
   }
 };
 
+const formatTime = (dateString) => {
+    return new Date(dateString).toLocaleTimeString('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+}
+
+const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: '2-digit'
+    })
+}
+
+const getCleanDestination = (trip) => {
+  const name = trip.display_name || trip.route?.name || '';
+  return name.replace('->', '➔').replace('->', '➔');
+}
+
+const getAirportStatus = (trip) => {
+  if (trip.status === 'cancelled') {
+    return { 
+      label: 'ANNULÉ', 
+      color: 'text-rose-600 bg-rose-50 border border-rose-200 dark:text-rose-450 dark:bg-rose-950/30 dark:border-rose-900/50' 
+    };
+  }
+  if (trip.status === 'delayed') {
+    return { 
+      label: 'RETARDÉ', 
+      color: 'text-amber-605 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800/50 animate-pulse' 
+    };
+  }
+  if (trip.status === 'boarding') {
+    return { 
+      label: 'EMBARQUEMENT', 
+      color: 'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-405 dark:bg-orange-950/30 dark:border-orange-850/50 font-black animate-pulse' 
+    };
+  }
+  if (trip.status === 'departed' || trip.status === 'arrived') {
+    return { 
+      label: 'PARTI', 
+      color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50' 
+    };
+  }
+  if (trip.available_seats <= 0) {
+    return { 
+      label: 'COMPLET', 
+      color: 'text-red-600 bg-red-50 border border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50 font-bold' 
+    };
+  }
+  return { 
+    label: 'À L\'HEURE', 
+    color: 'text-emerald-600 bg-emerald-50 border border-emerald-250 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800/50' 
+  };
+}
+
+const sortedTripsForModal = computed(() => {
+  return [...filteredTrips.value].sort((a, b) => {
+    const getOrderValue = (trip) => {
+      if (trip.status === 'boarding') return 0;
+      if (trip.status === 'delayed') return 1;
+      if (trip.status === 'cancelled') return 4;
+      if (trip.status === 'departed' || trip.status === 'arrived') return 3;
+      return 2; // scheduled
+    };
+    
+    const orderA = getOrderValue(a);
+    const orderB = getOrderValue(b);
+    
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    
+    return new Date(a.departure_at) - new Date(b.departure_at);
+  });
+});
+
 onMounted(() => {
   window.addEventListener('resize', () => {
     isMobile.value = window.innerWidth < 768;
@@ -259,7 +424,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <MainNavLayout :show-nav="!isMobile">
+  <MainNavLayout :show-nav="!isMobile" :full-height="true">
     <template #header-actions>
       <!-- Bluetooth Printer Toggle moved to Header -->
       <button 
@@ -276,7 +441,7 @@ onMounted(() => {
       </button>
     </template>
 
-    <div class="flex-1 flex flex-col gap-4 min-h-0 bg-slate-50/70 dark:bg-slate-950">
+    <div class="flex-1 flex flex-col gap-4 min-h-0 bg-slate-50/70 dark:bg-slate-950 p-4 md:p-6 lg:p-8">
           
           <!-- Full-page blocking message if no station assigned (for sellers and supervisors) -->
           <div v-if="['seller', 'supervisor'].includes($page.props.auth.user.role) && !hasActiveAssignment" 
@@ -413,10 +578,10 @@ onMounted(() => {
                      <div class="flex items-start justify-between mb-2">
                        <div class="flex-1 min-w-0">
                          <div class="flex items-center gap-2 mb-1">
-                           <div :class="['w-2 h-2 rounded-full shrink-0', new Date(currentTrip.departure_at) < new Date() ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse']"></div>
-                           <div :class="['text-[10px] uppercase font-bold tracking-wider', new Date(currentTrip.departure_at) < new Date() ? 'text-gray-500' : 'text-emerald-600 dark:text-emerald-400']">
-                             {{ new Date(currentTrip.departure_at) < new Date() ? 'Voyage Passé' : 'En cours' }}
-                           </div>
+                           <div :class="['w-2 h-2 rounded-full shrink-0', currentTrip.status === 'cancelled' ? 'bg-rose-500' : (isTripPastForDisplay(currentTrip) ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse')]"></div>
+                            <div :class="['text-[10px] uppercase font-bold tracking-wider', currentTrip.status === 'cancelled' ? 'text-rose-600 dark:text-rose-400' : (currentTrip.status === 'delayed' ? 'text-amber-600 dark:text-amber-400' : (currentTrip.status === 'boarding' ? 'text-orange-600 dark:text-orange-400' : (isTripPastForDisplay(currentTrip) ? 'text-gray-500' : 'text-emerald-600 dark:text-emerald-400')))]">
+                              {{ currentTrip.status === 'cancelled' ? 'Annulé' : (currentTrip.status === 'delayed' ? 'Retardé' : (currentTrip.status === 'boarding' ? 'Embarquement' : (isTripEnRoute(currentTrip) ? 'En route' : (isTripPastForDisplay(currentTrip) ? 'Voyage passé' : 'En cours')))) }}
+                            </div>
                          </div>
                          <div class="flex items-center gap-2 flex-wrap">
                            <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
@@ -432,7 +597,8 @@ onMounted(() => {
                            <div class="flex items-center gap-1.5">
                              <Link
                                :href="route('seller.ticketing.horizontal', { trip_id: currentTrip.id })"
-                               class="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+                               @click.stop
+                               class="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors disabled:opacity-50"
                                title="Vue horizontale"
                              >
                                <svg viewBox="0 0 24 24" aria-hidden="true" class="w-4 h-4">
@@ -443,22 +609,52 @@ onMounted(() => {
                                </svg>
                                <span class="sr-only">Vue horizontale</span>
                              </Link>
-                             <button
-                               @click.stop="exportTicketsToExcel(currentTrip.id)"
-                               :disabled="exportExcelLoadingTripId === currentTrip.id"
-                               class="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
-                               title="Exporter ce voyage en Excel"
-                             >
-                               <FileExcel :size="16" />
-                             </button>
-                             <button
-                               @click.stop="exportTicketsToPdf(currentTrip.id)"
-                               :disabled="exportPdfLoadingTripId === currentTrip.id"
-                               class="p-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-855 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors disabled:opacity-50"
-                               title="Exporter ce voyage en PDF"
-                             >
-                               <FilePdfBox :size="16" />
-                             </button>
+                             <div @click.stop class="relative">
+                               <Dropdown align="right" width="48">
+                                 <template #trigger>
+                                   <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors" title="Actions">
+                                     <svg viewBox="0 0 24 24" class="w-5 h-5" aria-hidden="true">
+                                       <path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2s-2 .9-2 2s.9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2z" />
+                                     </svg>
+                                   </button>
+                                 </template>
+                                 <template #content>
+                                   <div class="py-1">
+                                     <button
+                                       @click="openTripDetailsWithOverview(currentTrip.id)"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
+                                       <span>Détails & Tickets</span>
+                                     </button>
+                                     <button
+                                       v-if="currentTrip?.has_connections"
+                                       @click="openTripTransitPool(currentTrip.id)"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
+                                       <span>Correspondances</span>
+                                     </button>
+                                     <button
+                                       @click="exportTicketsToExcel(currentTrip.id)"
+                                       :disabled="exportExcelLoadingTripId === currentTrip.id"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                     >
+                                       <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                       <span>Exporter Excel</span>
+                                     </button>
+                                     <button
+                                       @click="exportTicketsToPdf(currentTrip.id)"
+                                       :disabled="exportPdfLoadingTripId === currentTrip.id"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                     >
+                                       <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
+                                       <span>Exporter PDF</span>
+                                     </button>
+                                   </div>
+                                 </template>
+                               </Dropdown>
+                             </div>
                            </div>
                            <div>
                           <div class="text-xl font-black text-slate-900 dark:text-slate-100">
@@ -468,21 +664,64 @@ onMounted(() => {
                          </div>
                        </div>
                      </div>
-                     <!-- Seat Stats Row -->
-                     <div v-if="seatStats.total > 0" class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                       <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-rose-50 dark:bg-rose-950/30 rounded-lg">
-                         <span class="text-lg font-black text-rose-600 dark:text-rose-450">{{ seatStats.available }}</span>
-                         <span class="text-[10px] text-rose-600 dark:text-rose-400 font-medium">restantes</span>
-                       </div>
-                       <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
-                         <span class="text-lg font-black text-emerald-600 dark:text-emerald-450">{{ seatStats.total }}</span>
-                         <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">total</span>
-                       </div>
-                       <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                         <span class="text-lg font-black text-slate-700 dark:text-slate-300">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
-                         <span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Taux de remplissage</span>
-                       </div>
-                     </div>
+                     <TripConnectionSummary :summary="currentTrip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(currentTrip.status)" @manage-connections="openTripTransitPool(currentTrip.id)" />
+                      <!-- Status actions / Seat Stats Row -->
+                      <div v-if="canEditStatus(currentTrip)" class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <button
+                          v-if="['scheduled', 'delayed'].includes(currentTrip.status)"
+                          @click.stop="updateTripStatus(currentTrip.id, 'boarding')"
+                          :disabled="updatingTripStatusId === currentTrip.id"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                        >
+                          Embarquement
+                        </button>
+                        <button
+                          v-if="['scheduled', 'boarding', 'delayed'].includes(currentTrip.status)"
+                          @click.stop="updateTripStatus(currentTrip.id, 'departed')"
+                          :disabled="updatingTripStatusId === currentTrip.id"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                        >
+                          Parti
+                        </button>
+                        <button
+                          v-if="['scheduled', 'boarding'].includes(currentTrip.status)"
+                          @click.stop="updateTripStatus(currentTrip.id, 'delayed')"
+                          :disabled="updatingTripStatusId === currentTrip.id"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                        >
+                          Retardé
+                        </button>
+                        <button
+                          v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(currentTrip.status)"
+                          @click.stop="updateTripStatus(currentTrip.id, 'cancelled')"
+                          :disabled="updatingTripStatusId === currentTrip.id"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                        >
+                          Annulé
+                        </button>
+                        <button
+                          v-if="['departed'].includes(currentTrip.status) && ['admin', 'supervisor', 'superadmin', 'executive'].includes($page.props.auth.user.role)"
+                          @click.stop="updateTripStatus(currentTrip.id, 'arrived')"
+                          :disabled="updatingTripStatusId === currentTrip.id"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                        >
+                          Arrivé
+                        </button>
+                      </div>
+                      <div v-else-if="seatStats.total > 0" class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-rose-50 dark:bg-rose-950/30 rounded-lg">
+                          <span class="text-lg font-black text-rose-600 dark:text-rose-450">{{ seatStats.available }}</span>
+                          <span class="text-[10px] text-rose-600 dark:text-rose-400 font-medium">restantes</span>
+                        </div>
+                        <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+                          <span class="text-lg font-black text-emerald-600 dark:text-emerald-450">{{ seatStats.total }}</span>
+                          <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">total</span>
+                        </div>
+                        <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                          <span class="text-lg font-black text-slate-700 dark:text-slate-300">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
+                          <span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Taux de remplissage</span>
+                        </div>
+                      </div>
                    </div>
  
                    <!-- Desktop: Show all trips with highlighted selected -->
@@ -517,19 +756,23 @@ onMounted(() => {
                            </div>
                            <div class="min-w-0">
                              <div class="flex items-center gap-2">
-                               <div v-if="selectedTripId === trip.id" :class="['w-2 h-2 rounded-full', new Date(trip.departure_at) < new Date() ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse']"></div>
-                               <div v-else-if="ticketingStore.tripHighlights?.[trip.id]" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-                               <div :class="['font-bold tracking-tight whitespace-normal break-words', new Date(trip.departure_at) < new Date() ? 'text-gray-500 italic' : 'text-gray-900 dark:text-slate-100']">
-                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider mr-2">
-                                   {{ trip.code || 'Code en attente' }}
-                                 </span>
-                                 <span class="align-middle">{{ trip.display_name }}</span>
-                                 <span v-if="new Date(trip.departure_at) < new Date()" class="ml-2 text-[10px] font-black bg-gray-100 dark:bg-slate-800 text-gray-500 px-1.5 py-0.5 rounded uppercase">Passé</span>
-                               </div>
-                               <span
-                                 :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
-                                 class="text-xs shrink-0"
-                               >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
+                                <div v-if="selectedTripId === trip.id" :class="['w-2 h-2 rounded-full shrink-0', isTripPastForDisplay(trip) ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse']"></div>
+                                <div v-else-if="ticketingStore.tripHighlights?.[trip.id]" class="w-2 h-2 rounded-full shrink-0 bg-amber-500 animate-pulse"></div>
+                                <div :class="['flex flex-wrap items-center gap-2 font-bold tracking-tight min-w-0', isTripPastForDisplay(trip) ? 'text-gray-500 italic' : 'text-gray-900 dark:text-slate-100']">
+                                  <span class="whitespace-nowrap">{{ trip.display_name }}</span>
+                                  <span
+                                  :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
+                                  class="text-xs shrink-0"
+                                  >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
+                                  <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
+                                    {{ trip.code || 'Code en attente' }}
+                                  </span>
+                                  <span v-if="trip.status === 'cancelled'" class="text-[10px] font-black bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-350 px-1.5 py-0.5 rounded uppercase">Annulé</span>
+                                  <span v-else-if="trip.status === 'delayed'" class="text-[10px] font-black bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded uppercase">Retardé</span>
+                                  <span v-else-if="trip.status === 'boarding'" class="text-[10px] font-black bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded uppercase">Embarquement</span>
+                                  <span v-else-if="isTripEnRoute(trip)" class="text-[10px] font-black bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase">En route</span>
+                                  <span v-else-if="isTripPastForDisplay(trip)" class="text-[10px] font-black bg-gray-100 dark:bg-slate-800 text-gray-500 px-1.5 py-0.5 rounded uppercase">Passé</span>
+                                </div>
                              </div>
                              <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
                                {{ trip.vehicle?.identifier }} • {{ trip.vehicle?.vehicle_type?.name }}
@@ -540,6 +783,7 @@ onMounted(() => {
                            <div class="flex items-center gap-1.5">
                              <Link
                                :href="route('seller.ticketing.horizontal', { trip_id: trip.id })"
+                               @click.stop
                                @dragstart.stop.prevent
                                class="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors disabled:opacity-50"
                                title="Vue horizontale"
@@ -552,24 +796,56 @@ onMounted(() => {
                                </svg>
                                <span class="sr-only">Vue horizontale</span>
                              </Link>
-                             <button
-                               @click.stop="exportTicketsToExcel(trip.id)"
-                               :disabled="exportExcelLoadingTripId === trip.id"
-                               @dragstart.stop.prevent
-                               class="p-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
-                               title="Exporter ce voyage en Excel"
-                             >
-                               <FileExcel :size="16" />
-                             </button>
-                             <button
-                               @click.stop="exportTicketsToPdf(trip.id)"
-                               :disabled="exportPdfLoadingTripId === trip.id"
-                               @dragstart.stop.prevent
-                               class="p-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors disabled:opacity-50"
-                               title="Exporter ce voyage en PDF"
-                             >
-                               <FilePdfBox :size="16" />
-                             </button>
+                             <div @click.stop class="relative">
+                               <Dropdown align="right" width="48">
+                                 <template #trigger>
+                                   <button class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors" title="Actions">
+                                     <svg viewBox="0 0 24 24" class="w-5 h-5" aria-hidden="true">
+                                       <path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2s-2 .9-2 2s.9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2s2-.9 2-2s-.9-2-2-2z" />
+                                     </svg>
+                                   </button>
+                                 </template>
+                                 <template #content>
+                                   <div class="py-1">
+                                     <button
+                                       @click="openTripDetailsWithOverview(trip.id)"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
+                                       <span>Détails & Tickets</span>
+                                     </button>
+                                     <button
+                                       v-if="trip.has_connections"
+                                       @click="openTripTransitPool(trip.id)"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
+                                       <span>Correspondances</span>
+                                     </button>
+                                     <button
+                                       @click="exportTicketsToExcel(trip.id)"
+                                       :disabled="exportExcelLoadingTripId === trip.id"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                     >
+                                       <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                       <span>Exporter Excel</span>
+                                     </button>
+                                     <button
+                                       @click="exportTicketsToPdf(trip.id)"
+                                       :disabled="exportPdfLoadingTripId === trip.id"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                     >
+                                       <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
+                                       <span>Exporter PDF</span>
+                                     </button>
+                                   </div>
+                                 </template>
+                               </Dropdown>
+                             </div>
                            </div>
                            <div>
                              <div class="text-xl font-black text-gray-900 dark:text-slate-100">
@@ -581,8 +857,51 @@ onMounted(() => {
                            </div>
                          </div>
                        </div>
-                       <!-- Seat Stats for all trips -->
-                       <div class="flex items-center gap-3 mt-4 pt-4 border-t border-dashed" :class="selectedTripId === trip.id ? 'border-emerald-200 dark:border-emerald-800/80' : 'border-slate-200 dark:border-slate-800/40'">
+                       <TripConnectionSummary :summary="trip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(trip.status)" @manage-connections="openTripTransitPool(trip.id)" />
+                       <!-- Status actions / Seat Stats Row -->
+                       <div v-if="selectedTripId === trip.id && canEditStatus(trip)" class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-dashed border-emerald-200 dark:border-emerald-800/80">
+                         <button
+                           v-if="['scheduled', 'delayed'].includes(trip.status)"
+                           @click.stop="updateTripStatus(trip.id, 'boarding')"
+                           :disabled="updatingTripStatusId === trip.id"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                         >
+                           Embarquement
+                         </button>
+                         <button
+                           v-if="['scheduled', 'boarding', 'delayed'].includes(trip.status)"
+                           @click.stop="updateTripStatus(trip.id, 'departed')"
+                           :disabled="updatingTripStatusId === trip.id"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                         >
+                           Parti
+                         </button>
+                         <button
+                           v-if="['scheduled', 'boarding'].includes(trip.status)"
+                           @click.stop="updateTripStatus(trip.id, 'delayed')"
+                           :disabled="updatingTripStatusId === trip.id"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                         >
+                           Retardé
+                         </button>
+                         <button
+                           v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(trip.status)"
+                           @click.stop="updateTripStatus(trip.id, 'cancelled')"
+                           :disabled="updatingTripStatusId === trip.id"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                         >
+                           Annulé
+                         </button>
+                         <button
+                           v-if="['departed'].includes(trip.status) && ['admin', 'supervisor', 'superadmin', 'executive'].includes($page.props.auth.user.role)"
+                           @click.stop="updateTripStatus(trip.id, 'arrived')"
+                           :disabled="updatingTripStatusId === trip.id"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                         >
+                           Arrivé
+                         </button>
+                       </div>
+                       <div v-else class="flex items-center gap-3 mt-4 pt-4 border-t border-dashed" :class="selectedTripId === trip.id ? 'border-emerald-200 dark:border-emerald-800/80' : 'border-slate-200 dark:border-slate-800/40'">
                          <div class="flex-1 bg-white dark:bg-slate-950/45 rounded-xl p-2 border border-slate-200 dark:border-slate-800 shadow-sm">
                              <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">Restantes</div>
                              <div class="flex items-end gap-1">
@@ -618,7 +937,7 @@ onMounted(() => {
                      </div>
                      <h3 class="text-2xl font-black text-gray-900 dark:text-slate-100 mb-2">{{ trips.length }} voyages en cours</h3>
                      <p class="text-gray-500 dark:text-slate-400 text-sm max-w-[250px] text-center mb-6">Sélectionnez le voyage pour lequel vous souhaitez vendre des billets.</p>
-                     <button 
+                     <button
                        @click="showTripSelectionModal = true"
                        class="px-8 py-3 bg-emerald-600 text-white rounded-xl text-lg font-black shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 hover:scale-105 transition-all transform active:scale-95"
                      >
@@ -663,7 +982,8 @@ onMounted(() => {
                      </label>
                    </div>
                  </div>
-                 <div class="flex-1 overflow-y-auto p-2">
+                 <div class="flex-1 overflow-y-auto min-h-0">
+                   <div class="p-2">
                    <div v-if="currentTrip" class="space-y-2">
                        <!-- Sales Closed Warning Banner -->
                        <template v-if="isSalesClosedForSeller">
@@ -719,6 +1039,12 @@ onMounted(() => {
                          ×{{ ticketQuantity }} = {{ (fare.amount * ticketQuantity).toLocaleString('fr-FR') }} F
                        </div>
                      </div>
+                     <div
+                       v-if="availableFares.length === 0 && !isTripPassed"
+                       class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/30 dark:text-slate-400"
+                     >
+                       Aucune destination tarifée n’est disponible depuis la gare de départ de ce voyage.
+                     </div>
                    </div>
                    <div v-else class="p-8 text-center text-slate-400 dark:text-slate-500">
                      <p>Sélectionnez un voyage pour voir les destinations.</p>
@@ -731,10 +1057,41 @@ onMounted(() => {
                      </div>
                      <div class="text-xs font-black text-slate-900 dark:text-slate-200 uppercase tracking-widest mb-1">Ventes Fermées</div>
                      <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Ce voyage est déjà parti le {{ new Date(currentTrip.departure_at).toLocaleDateString('fr-FR') }} à {{ new Date(currentTrip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}. Les réservations ne sont plus possibles.</p>
-                   </div>
-                 </div>
-                 
-                 <!-- Mobile Seat Map inline -->
+                    </div>
+                  </div>
+
+                   <!-- Trip Summary / Sold Tickets Quick Panel -->
+                   <div v-if="currentTrip" class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex flex-col gap-3">
+                     <div class="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
+                       <span>Remplissage :</span>
+                               <span class="text-slate-800 dark:text-slate-200">
+                         {{ seatStats.soldTickets }} / {{ seatStats.total }} Sièges ({{ getOccupancyRate(seatStats.available, seatStats.total) }}%)
+                       </span>
+                     </div>
+                     <div class="w-full bg-slate-250 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                       <div class="bg-emerald-500 h-full rounded-full transition-all duration-300" :style="{ width: `${getOccupancyRate(seatStats.available, seatStats.total)}%` }"></div>
+                     </div>
+                     <div class="flex gap-2 w-full">
+                               <button 
+                         @click="openTripDetailsWithOverview(currentTrip.id)"
+                         class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm"
+                       >
+                         <Eye :size="16" />
+                         <span>Détails</span>
+                       </button>
+                                               <button 
+                          v-if="currentTrip?.has_connections && !['departed', 'arrived', 'cancelled'].includes(currentTrip.status)"
+                          @click="openTripTransitPool(currentTrip.id)"
+                          class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm"
+                        >
+                          <Routes :size="16" />
+                          <span>Correspondances</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Mobile Seat Map inline -->
                  <div id="mobile-seat-map" v-if="seatMap && currentTrip?.vehicle?.vehicle_type" class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center overflow-x-hidden md:hidden">
                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-250 mb-8 w-full flex items-center justify-center gap-2">
                       <Bus class="w-5 h-5 text-emerald-600 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-slate-800 rounded p-0.5 shadow-sm" />
@@ -778,12 +1135,16 @@ onMounted(() => {
       :selected-seat-number="selectedSeatNumber"
       :selected-fare="selectedFare"
       :available-fares="availableFares"
+      :connection-fares="connectionFares"
+      :connection-routes="connectionRoutes"
       :seats-to-book="seatsToBook"
       :passenger-form="passengerForm"
       :passenger-form-errors="passengerFormErrors"
       :processing="processing"
       v-model:ticketQuantity="ticketQuantity"
       v-model:showPassengerFields="showPassengerFields"
+      v-model:finalDestinationStationId="finalDestinationStationId"
+      v-model:connectionRouteId="connectionRouteId"
       @close="cancelBooking"
       @select-fare="selectFareForSeat"
       @confirm="confirmBooking"
@@ -795,6 +1156,20 @@ onMounted(() => {
         <div class="p-5">
           <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">Créer un nouveau voyage</h3>
           <form @submit.prevent="createTrip" class="mt-2 space-y-4">
+            <div v-if="props.replicableTrips && props.replicableTrips.length > 0">
+              <InputLabel for="template_select" value="Sélectionner un modèle de voyage récurrent" />
+              <select
+                id="template_select"
+                v-model="selectedTemplate"
+                class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+              >
+                <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
+                <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
+                  {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
+                </option>
+              </select>
+            </div>
+
             <div>
               <InputLabel for="route_id" value="Route" />
               <select
@@ -817,7 +1192,6 @@ onMounted(() => {
                 id="vehicle_id"
                 v-model="createTripForm.vehicle_id"
                 class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-                required
               >
                 <option value="">Sélectionner un véhicule</option>
                 <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
@@ -837,6 +1211,18 @@ onMounted(() => {
                 required
               />
               <InputError class="mt-2" :message="createTripErrors.departure_at" />
+            </div>
+
+            <div>
+              <InputLabel for="code" value="Code / Numéro de voyage" />
+              <TextInput
+                id="code"
+                v-model="createTripForm.code"
+                type="text"
+                class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                placeholder="Sera généré automatiquement (Ex: ABJ-BKE-0800)"
+              />
+              <InputError class="mt-2" :message="createTripErrors.code" />
             </div>
 
             <!-- Sales Control Toggle -->
@@ -866,6 +1252,45 @@ onMounted(() => {
                       createTripForm.sales_control === 'open' ? 'translate-x-5' : 'translate-x-0'
                     ]"
                   />
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <InputLabel for="trip_auto_allocation" value="Allocation automatique sur ce voyage" />
+              <select id="trip_auto_allocation" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                <option :value="null">Hériter du trajet et de la compagnie</option>
+                <option :value="true">Activer pour ce voyage</option>
+                <option :value="false">Désactiver pour ce voyage</option>
+              </select>
+            </div>
+
+            <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Autoriser une destination finale au-delà de l’arrivée de ce voyage.
+                  </p>
+                </div>
+                <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
+                  :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.allows_open_connections ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                  <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.allows_open_connections ? 'translate-x-5' : 'translate-x-0']" />
+                </button>
+              </div>
+            </div>
+
+            <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</label>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Recréer ce voyage chaque jour à minuit (sans bus ni équipage affectés).
+                  </p>
+                </div>
+                <button type="button" @click="createTripForm.is_replicable = !createTripForm.is_replicable"
+                  :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.is_replicable ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                  <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.is_replicable ? 'translate-x-5' : 'translate-x-0']" />
                 </button>
               </div>
             </div>
@@ -940,7 +1365,7 @@ onMounted(() => {
 
     <!-- Trip Selection Modal -->
     <div v-if="showTripSelectionModal" class="fixed inset-0 z-[1020] flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/35 dark:bg-black/60 p-4 backdrop-blur-sm">
-      <div class="relative flex w-full max-w-4xl max-h-[90vh] flex-col overflow-hidden rounded-3xl border border-white/70 dark:border-slate-800 bg-white/95 dark:bg-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.16)] transition-all">
+      <div class="relative flex w-full max-w-5xl max-h-[90vh] flex-col overflow-hidden rounded-3xl border border-white/70 dark:border-slate-800 bg-white/95 dark:bg-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.16)] transition-all">
         <!-- Modal Header -->
         <div class="flex items-center justify-between border-b border-emerald-100 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950/30 px-6 py-4">
           <div>
@@ -984,63 +1409,119 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Trip List -->
-        <div class="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-950/20 p-4">
+        <!-- Trip List (FIDS style) -->
+        <div class="flex-1 overflow-y-auto bg-white dark:bg-slate-950">
           <div v-if="filteredTrips.length > 0">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div v-for="trip in filteredTrips" :key="trip.id"
+            <!-- Desktop Table Headers -->
+            <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+               <div class="col-span-1">Heure</div>
+               <div class="col-span-3">Code Voyage</div>
+               <div class="col-span-4">Destination</div>
+               <div class="col-span-2">Véhicule</div>
+               <div class="col-span-1 text-center">Places</div>
+               <div class="col-span-1">Statut</div>
+            </div>
+
+            <div class="divide-y divide-slate-100 dark:divide-slate-900 bg-white dark:bg-slate-950">
+              <div v-for="trip in sortedTripsForModal" :key="trip.id"
                    @click="selectTripFromModal(trip.id)"
+                   class="group transition-all duration-200 cursor-pointer border-l-4"
                    :class="[
-                     'group p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 bg-white dark:bg-slate-900 hover:shadow-lg',
                      selectedTripId === trip.id 
-                       ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 shadow-md ring-4 ring-emerald-500/10' 
-                       : 'border-transparent dark:border-slate-800 hover:border-emerald-200 dark:hover:border-slate-700'
+                       ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-l-emerald-500 shadow-inner' 
+                       : 'hover:bg-slate-50/60 dark:hover:bg-slate-900/40 border-l-transparent'
                    ]">
-                <div class="flex items-start justify-between mb-3">
-                  <div class="bg-emerald-100 dark:bg-emerald-950/50 p-2 rounded-lg group-hover:bg-emerald-200 dark:group-hover:bg-emerald-900/30 transition-colors">
-                    <Bus class="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div v-if="selectedTripId === trip.id" class="bg-emerald-500 text-white p-1 rounded-full">
-                    <Check class="w-4 h-4" />
-                  </div>
-                  <div v-else-if="new Date(trip.departure_at) < new Date()" class="bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-450 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                    Passé
-                  </div>
+                <!-- Desktop Row layout -->
+                <div class="hidden md:grid grid-cols-12 gap-4 items-center px-6 py-4">
+                   <!-- HEURE & DATE -->
+                   <div class="col-span-1 flex flex-col">
+                     <span class="font-mono text-base font-bold text-slate-900 dark:text-slate-100 tracking-wider">{{ formatTime(trip.departure_at) }}</span>
+                     <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
+                   </div>
+                   <!-- CODE VOYAGE -->
+                   <div class="col-span-3">
+                     <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
+                       {{ trip.code || 'Code en attente' }}
+                     </span>
+                   </div>
+                   <!-- DESTINATION -->
+                   <div class="col-span-4 flex items-center min-w-0">
+                      <span class="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-wide uppercase truncate">
+                         {{ getCleanDestination(trip) }}
+                      </span>
+                   </div>
+                   <!-- VEHICULE -->
+                   <div class="col-span-2 font-mono text-xs font-bold text-slate-700 dark:text-slate-300 uppercase truncate">
+                     {{ trip.vehicle?.identifier || 'N/A' }}
+                     <span class="block text-[10px] text-slate-400 dark:text-slate-500 font-sans normal-case truncate mt-0.5">{{ trip.vehicle?.vehicle_type?.name }}</span>
+                   </div>
+                   <!-- PLACES -->
+                   <div class="col-span-1 flex items-center justify-center gap-0.5 font-mono">
+                      <span class="text-sm font-bold text-slate-800 dark:text-slate-100">{{ trip.available_seats }}</span>
+                      <span class="text-xs text-slate-400 dark:text-slate-600">/</span>
+                      <span class="text-xs text-slate-400 dark:text-slate-500">{{ trip.total_seats }}</span>
+                   </div>
+                   <!-- STATUT -->
+                   <div class="col-span-1">
+                     <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider shadow-inner transition-all duration-300"
+                           :class="getAirportStatus(trip).color">
+                       <span v-if="['boarding', 'delayed'].includes(trip.status)" class="w-1.5 h-1.5 rounded-full mr-1.5 animate-ping bg-current"></span>
+                       {{ getAirportStatus(trip).label }}
+                     </span>
+                   </div>
                 </div>
-                
-                <div class="font-bold text-gray-900 dark:text-slate-100 text-base mb-2 leading-tight">
-                  {{ trip.display_name }}
-                </div>
-                
-                <div class="space-y-2">
-                  <div class="flex items-center text-sm text-gray-600 dark:text-slate-400">
-                    <Clock class="w-4 h-4 mr-2 text-emerald-500 dark:text-emerald-450" />
-                    <span class="capitalize">{{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }} - {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</span>
-                  </div>
-                  <div class="flex items-center text-sm text-gray-600 dark:text-slate-400">
-                    <OfficeBuilding class="w-4 h-4 mr-2 text-emerald-500 dark:text-emerald-450" />
-                    <span>Bus: {{ trip.vehicle?.identifier }}</span>
-                  </div>
+
+                <!-- Mobile Row layout -->
+                <div class="md:hidden flex items-center justify-between p-4 hover:bg-slate-55 dark:hover:bg-slate-900/40 transition-colors">
+                   <div class="flex items-center gap-3 min-w-0">
+                      <!-- HEURE -->
+                      <div class="flex flex-col items-center justify-center min-w-[54px] bg-slate-50 dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                         <span class="font-mono text-sm font-bold text-slate-900 dark:text-slate-100">{{ formatTime(trip.departure_at) }}</span>
+                         <span class="text-[9px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
+                      </div>
+                      <!-- DESTINATION & VEHICLE -->
+                      <div class="flex flex-col min-w-0">
+                         <span class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase truncate">
+                           {{ getCleanDestination(trip) }}
+                         </span>
+                         <span class="text-[10px] font-mono text-amber-600 dark:text-amber-500/80 uppercase truncate mt-0.5">
+                           {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                         </span>
+                      </div>
+                   </div>
+                   <!-- STATUT & PLACES -->
+                   <div class="flex items-center gap-3 shrink-0 ml-2">
+                      <div class="flex flex-col items-end">
+                         <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black tracking-wider shadow-inner mb-1"
+                               :class="getAirportStatus(trip).color">
+                           {{ getAirportStatus(trip).label }}
+                         </span>
+                         <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                           <span class="font-bold text-slate-700 dark:text-slate-205">{{ trip.available_seats }}</span>/{{ trip.total_seats }} <span class="text-[9px] text-slate-455 dark:text-slate-605 font-sans font-medium">LIB</span>
+                         </span>
+                      </div>
+                      <ChevronRight :size="18" class="text-slate-400 dark:text-slate-500" />
+                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Pagination / Load More -->
-            <div v-if="pagination?.next_page_url" class="mt-8 flex justify-center pb-4">
+            <div v-if="pagination?.next_page_url" class="py-6 flex justify-center bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900">
               <button 
                 @click="loadMore"
                 :disabled="loadingMore"
-                class="px-8 py-3 bg-white dark:bg-slate-900 border-2 border-emerald-500 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 font-bold rounded-xl hover:bg-emerald-50 dark:hover:bg-slate-800 transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                class="px-8 py-2.5 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-705 dark:text-amber-400 font-mono text-xs font-bold rounded-xl uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-2"
               >
                 <Refresh v-if="loadingMore" class="animate-spin" />
                 <span>{{ loadingMore ? 'Chargement...' : 'Afficher plus de voyages' }}</span>
               </button>
             </div>
           </div>
-          <div v-else class="h-64 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500">
-            <Bus class="w-16 h-16 mb-4 opacity-20" />
-            <p class="text-lg font-medium text-slate-900 dark:text-slate-300">Aucun voyage trouvé</p>
-            <p class="text-sm text-slate-500 dark:text-slate-400">Essayez une autre recherche ou créez un nouveau voyage</p>
+          <div v-else class="h-64 flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 bg-white dark:bg-slate-950">
+            <Bus class="w-16 h-16 mb-4 opacity-20 text-slate-405 dark:text-slate-800" />
+            <p class="text-base font-bold uppercase tracking-widest text-slate-405 dark:text-slate-550">Aucun voyage trouvé</p>
+            <p class="text-xs text-slate-500 dark:text-slate-600 mt-1">Essayez une autre destination ou créez un nouveau voyage</p>
           </div>
         </div>
 
@@ -1063,6 +1544,19 @@ onMounted(() => {
         @close="showInspectionModal = false"
         @approve="() => { /* No-op for inspection */ }"
         @decline="() => { showInspectionModal = false; }"
+    />
+
+    <!-- Trip Details & Sold Tickets Modal -->
+    <TripDetailsModal
+      :visible="showTripDetailsModal"
+      :trip-id="selectedDetailsTripId"
+      :assigned-station="assignedStation"
+      :assigned-station-id="assignedStationId"
+      :current-user-role="page.props.auth.user.role"
+      :current-user-id="page.props.auth.user.id"
+      :initial-tab="tripDetailsModalTab"
+      @close="showTripDetailsModal = false"
+      @ticket-cancelled="fetchSeatMap({ silent: true })"
     />
   </MainNavLayout>
 </template>
