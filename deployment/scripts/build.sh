@@ -223,6 +223,46 @@ collect_runtime_build_arg() {
     BUILD_ARGS+=(--build-arg "LARAVEL_RUNTIME_IMAGE=${EFFECTIVE_RUNTIME_IMAGE}")
 }
 
+require_json_string_value() {
+    local file="$1"
+    local jq_expr="$2"
+    jq -r "${jq_expr} // \"\"" "${file}" 2>/dev/null || true
+}
+
+validate_asset_build_prereqs() {
+    local asset_build_enabled="${ASSET_BUILD_ENABLED:-true}"
+    local build_script=""
+    local vite_declared=false
+    local vite_locked=false
+
+    case "${asset_build_enabled}" in
+        true|True|TRUE|1|yes|Yes|YES|on|On|ON)
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    [[ -f "${APP_ROOT}/package.json" ]] || err "ASSET_BUILD_ENABLED=true but ${APP_ROOT}/package.json is missing."
+
+    build_script="$(require_json_string_value "${APP_ROOT}/package.json" '.scripts.build')"
+    [[ -n "${build_script}" ]] || err "ASSET_BUILD_ENABLED=true but package.json does not define scripts.build."
+
+    if [[ "${build_script}" == *"vite"* ]]; then
+        if jq -e '((.devDependencies.vite // .dependencies.vite // .optionalDependencies.vite // "") | tostring | length) > 0' "${APP_ROOT}/package.json" >/dev/null 2>&1; then
+            vite_declared=true
+        fi
+        [[ "${vite_declared}" == "true" ]] || err "package.json scripts.build references vite but vite is not declared in dependencies or devDependencies."
+
+        if [[ -f "${APP_ROOT}/package-lock.json" ]]; then
+            if jq -e '((.packages["node_modules/vite"] // .dependencies.vite // "") | tostring | length) > 0' "${APP_ROOT}/package-lock.json" >/dev/null 2>&1; then
+                vite_locked=true
+            fi
+            [[ "${vite_locked}" == "true" ]] || err "package-lock.json is present but does not lock vite. Regenerate the lockfile before deploying."
+        fi
+    fi
+}
+
 # ── Version tag ────────────────────────────────────────────────────────────────
 start_build_timer
 detect_checksum_tool
@@ -240,6 +280,8 @@ BUILT_IMAGE=false
 
 log()  { echo "[build] $*"; }
 err()  { echo "[build] ERROR: $*" >&2; exit 1; }
+
+validate_asset_build_prereqs
 
 if git -C "${APP_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [[ "${BUILD_REQUIRE_CLEAN_GIT_FOR_LOCAL_BUILD:-false}" == "true" && "${ALLOW_DIRTY_LOCAL_BUILD}" != "true" ]]; then

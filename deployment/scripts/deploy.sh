@@ -190,6 +190,53 @@ run_migration_stage() {
     fi
 }
 
+verify_required_database_tables() {
+    local php_snippet
+
+    php_snippet="$(cat <<'PHP'
+$driver = getenv('DB_CONNECTION') ?: '';
+$database = getenv('DB_DATABASE') ?: '';
+$host = getenv('DB_HOST') ?: '';
+$port = getenv('DB_PORT') ?: '';
+$username = getenv('DB_USERNAME') ?: '';
+$password = getenv('DB_PASSWORD') ?: '';
+$schema = getenv('DB_SCHEMA') ?: 'public';
+$sessionDriver = getenv('SESSION_DRIVER') ?: '';
+$sessionTable = getenv('SESSION_TABLE') ?: 'sessions';
+$queueConnection = getenv('QUEUE_CONNECTION') ?: '';
+$queueTable = getenv('DB_QUEUE_TABLE') ?: 'jobs';
+$required = ['migrations'];
+if ($sessionDriver === 'database') { $required[] = $sessionTable; }
+if ($queueConnection === 'database') { $required[] = $queueTable; }
+$required = array_values(array_unique($required));
+$dsn = $driver === 'pgsql'
+    ? sprintf('pgsql:host=%s;port=%s;dbname=%s', $host, $port, $database)
+    : sprintf('mysql:host=%s;port=%s;dbname=%s', $host, $port, $database);
+$pdo = new PDO($dsn, $username, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+foreach ($required as $table) {
+    if ($driver === 'pgsql') {
+        $stmt = $pdo->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? LIMIT 1');
+        $stmt->execute([$schema, $table]);
+    } else {
+        $stmt = $pdo->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1');
+        $stmt->execute([$table]);
+    }
+    if ($stmt->fetchColumn() != 1) {
+        fwrite(STDERR, sprintf("Missing required database table '%s'%s\n", $table, $driver === 'pgsql' ? " in schema '{$schema}'" : ''));
+        exit(1);
+    }
+}
+PHP
+)"
+
+    log "Verifying required database tables ..."
+    docker run --rm \
+        --env-file "${ENV_FILE}" \
+        --network "${DB_NETWORK}" \
+        "${DEPLOY_ACTUAL_IMAGE_REF}" \
+        php -r "${php_snippet}" || err "Required database tables are missing after migration."
+}
+
 preflight_migration_command() {
     case "${APP_FRAMEWORK:-laravel}" in
         laravel)
@@ -596,6 +643,7 @@ run_migrations() {
     log "Step 4/8 — Running migrations ..."
     run_migration_stage "central" "${MIGRATION_COMMAND:-}" "${MIGRATION_USE_MIGRATOR_CREDENTIALS:-true}"
     run_migration_stage "tenant" "${TENANT_MIGRATION_COMMAND:-}" "${TENANT_MIGRATION_USE_MIGRATOR_CREDENTIALS:-false}"
+    verify_required_database_tables
 }
 
 automatic_rollback() {

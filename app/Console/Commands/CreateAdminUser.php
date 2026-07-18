@@ -49,7 +49,7 @@ class CreateAdminUser extends Command
             return self::FAILURE;
         }
 
-        $stdinPayload = $this->readStdinJson();
+        $stdinPayload = $this->shouldReadStdinJson() ? $this->readStdinJson() : null;
         $name = trim((string) ($stdinPayload['name'] ?? $this->option('name') ?: $this->ask('Admin name')));
         $email = strtolower(trim((string) ($stdinPayload['email'] ?? $this->option('email') ?: $this->ask('Admin email'))));
         $role = trim((string) ($stdinPayload['role'] ?? $this->option('role') ?: self::DEFAULT_ROLE));
@@ -182,6 +182,14 @@ class CreateAdminUser extends Command
             return null;
         }
 
+        $read = [STDIN];
+        $write = [];
+        $except = [];
+
+        if (@stream_select($read, $write, $except, 0, 0) !== 1) {
+            return null;
+        }
+
         $input = trim((string) stream_get_contents(STDIN));
         if ($input === '') {
             return null;
@@ -193,6 +201,16 @@ class CreateAdminUser extends Command
         }
 
         return $decoded;
+    }
+
+    private function shouldReadStdinJson(): bool
+    {
+        return $this->option('name') === null
+            || $this->option('email') === null
+            || $this->option('password') === null
+            || $this->option('role') === null
+            || $this->option('update') === null
+            || $this->option('force') === null;
     }
 
     private function booleanInput(mixed $value): bool

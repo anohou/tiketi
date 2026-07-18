@@ -120,7 +120,7 @@ backup:
 # ── Docker networking ─────────────────────────────────────────────────────────
 networks:
   # External Traefik network name (must pre-exist on the host).
-  traefik_swarm_network: anohou-prod_ingress
+  traefik_network: anohou-prod_ingress
   # Isolated DB network (created by the postgres infra kit).
   db: anohou-prod_db
 
