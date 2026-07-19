@@ -189,7 +189,7 @@ const trips = tripsRef;
               >
                 <option :value="null">Sélectionner un voyage...</option>
                 <option v-for="trip in trips" :key="trip.id" :value="trip.id">
-                  {{ trip.code || 'Code en attente' }} - {{ trip.display_name }} - {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }} - {{ trip.vehicle?.identifier }}
+                  {{ trip.code || 'Code en attente' }} - {{ trip.display_name }} - {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) }} - {{ trip.vehicle?.identifier }} - ({{ trip.allows_open_connections ? 'Correspondances' : 'Direct' }})
                 </option>
               </select>
             </div>

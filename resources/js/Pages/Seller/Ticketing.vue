@@ -601,6 +601,12 @@ onMounted(() => {
                            <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
                              {{ currentTrip.code || 'Code en attente' }}
                            </span>
+                           <span v-if="currentTrip.allows_open_connections" class="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[10px] font-black tracking-wider uppercase">
+                             Correspondances
+                           </span>
+                           <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[10px] font-black tracking-wider uppercase">
+                             Direct
+                           </span>
                            <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Trajet</span>
                          </div>
                          <div class="text-base font-black text-gray-900 dark:text-slate-100 leading-tight whitespace-normal break-words">
@@ -780,6 +786,12 @@ onMounted(() => {
                                   >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
                                   <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
                                     {{ trip.code || 'Code en attente' }}
+                                  </span>
+                                  <span v-if="trip.allows_open_connections" class="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[10px] font-black tracking-wider uppercase">
+                                    Correspondances
+                                  </span>
+                                  <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[10px] font-black tracking-wider uppercase">
+                                    Direct
                                   </span>
                                   <span v-if="trip.status === 'cancelled'" class="text-[10px] font-black bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-350 px-1.5 py-0.5 rounded uppercase">Annulé</span>
                                   <span v-else-if="trip.status === 'delayed'" class="text-[10px] font-black bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded uppercase">Retardé</span>
@@ -1453,9 +1465,15 @@ onMounted(() => {
                      <span class="text-[10px] font-mono text-slate-400 dark:text-slate-500">{{ formatDate(trip.departure_at) }}</span>
                    </div>
                    <!-- CODE VOYAGE -->
-                   <div class="col-span-2">
+                   <div class="col-span-2 flex flex-col gap-1 items-start">
                      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
                        {{ trip.code || 'Code en attente' }}
+                     </span>
+                     <span v-if="trip.allows_open_connections" class="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[8px] font-black tracking-wider uppercase">
+                       Correspondance
+                     </span>
+                     <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[8px] font-black tracking-wider uppercase">
+                       Direct
                      </span>
                    </div>
                    <!-- DESTINATION -->
@@ -1507,7 +1525,13 @@ onMounted(() => {
                            <span class="text-slate-600 dark:text-slate-350">{{ parseRouteName(trip).origin }}</span>
                          </span>
                          <span class="text-[9px] font-mono text-amber-600 dark:text-amber-500/80 uppercase mt-1 leading-none">
-                           {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                            {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                            <span v-if="trip.allows_open_connections" class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[8px] font-black tracking-wider uppercase">
+                              Corresp.
+                            </span>
+                            <span v-else class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[8px] font-black tracking-wider uppercase">
+                              Direct
+                            </span>
                          </span>
                       </div>
                    </div>
