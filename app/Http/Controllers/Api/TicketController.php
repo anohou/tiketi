@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Domain\Ticketing\TripSalesPolicy;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
+use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\Route;
 use App\Models\Ticket;
 use App\Models\TicketConnection;
@@ -199,6 +200,10 @@ class TicketController extends Controller
                     'station_id' => $sellerStationId,
                     'qr_code' => 'QR-'.strtoupper(Str::random(12)),
                     'boarding_group' => $boardingGroup,
+                    'payment_method' => 'cash',
+                    'gross_amount' => $pricePerSeat,
+                    'discount_amount' => 0,
+                    'amount_collected' => $pricePerSeat,
                 ]);
                 $ticket->load(['fromStation', 'toStation']);
                 $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);
@@ -342,13 +347,25 @@ class TicketController extends Controller
             DB::beginTransaction();
             TripSeatOccupancy::where('ticket_id', $ticket->id)->delete();
             $ticket->connection()->update(['status' => 'cancelled']);
+
+            $ticketSettings = $ticket->settings ?? [];
+            if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {
+                $ticketSettings['okohi_refund_status'] = 'refund_pending';
+            }
+
             $ticket->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
                 'cancelled_by' => auth()->id(),
                 'cancellation_reason' => $request->input('reason'),
+                'settings' => $ticketSettings,
             ]);
             DB::commit();
+
+            // Reverse claim on Okohi if paid by reward
+            if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {
+                CancelOrReverseOkohiClaimJob::dispatch($ticket->okohi_transaction_id, 'reverse', tenant('id'), $ticket->id);
+            }
 
             try {
                 $trip = Trip::with(['route.routeStopOrders', 'originStation', 'destinationStation', 'vehicle.vehicleType'])->find($tripId);

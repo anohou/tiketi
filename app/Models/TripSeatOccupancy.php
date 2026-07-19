@@ -20,11 +20,14 @@ class TripSeatOccupancy extends Model
         'ticket_id',
         'from_station_id',
         'to_station_id',
+        'okohi_reward_request_id',
+        'expires_at',
         'settings',
     ];
 
     protected $casts = [
         'settings' => 'array',
+        'expires_at' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -54,5 +57,10 @@ class TripSeatOccupancy extends Model
     public function toStation()
     {
         return $this->belongsTo(Station::class, 'to_station_id');
+    }
+
+    public function okohiRewardRequest()
+    {
+        return $this->belongsTo(OkohiRewardRequest::class, 'okohi_reward_request_id');
     }
 }

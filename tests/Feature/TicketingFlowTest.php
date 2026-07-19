@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Events\SeatMapUpdated;
 use App\Events\TripCreated;
+use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\CrewMember;
+use App\Models\OkohiRewardRequest;
 use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
@@ -23,11 +25,17 @@ use App\Models\VehicleType;
 use App\Services\AutomaticConnectionAllocator;
 use App\Services\OpenConnectionService;
 use App\Services\SeatMapService;
+use App\Services\TripSegmentService;
 use App\Services\TripTimingService;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -705,6 +713,729 @@ class TicketingFlowTest extends TestCase
             ->assertJsonPath('data.ticket_id', $ticket->ticket_number);
     }
 
+    public function test_seller_can_lookup_okohi_customer(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $ticket = Ticket::create([
+            'ticket_number' => 'TKT-RECENT-001',
+            'trip_id' => $trip->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'price' => 1000,
+            'seller_id' => $admin->id,
+            'passenger_name' => 'Jean Client',
+            'passenger_phone' => '0102030405',
+            'status' => 'sold',
+        ]);
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/customers/OKH-123456' => Http::response([
+                'customer' => ['name' => 'Jean Client', 'customer_number' => 'OKH-123456'],
+                'balance' => ['points_balance' => 150],
+                'rewards' => [['id' => 'r-free', 'title' => 'Ticket Gratuit', 'can_grant' => true, 'points_required' => 100]],
+                'recent_trips' => [[
+                    'id' => 'transaction-1',
+                    'ticket_id' => $ticket->ticket_number,
+                    'amount' => 1000,
+                    'travelled_at' => null,
+                ]],
+            ], 200),
+        ]);
+
+        $this->actingAs($admin)->getJson('/seller/okohi/customers/OKH-123456')
+            ->assertOk()
+            ->assertJsonPath('customer.name', 'Jean Client')
+            ->assertJsonPath('balance.points_balance', 150)
+            ->assertJsonPath('recent_trips.0.ticket_id', 'TKT-RECENT-001')
+            ->assertJsonPath('recent_trips.0.route_label', 'Gare A → Gare B');
+    }
+
+    public function test_okohi_integration_requires_both_url_and_key(): void
+    {
+        $settings = TicketSetting::getSettings();
+
+        $settings->update([
+            'okohi_integration_url' => 'https://okohi.test/scan',
+            'okohi_integration_key' => null,
+        ]);
+        $this->assertFalse($settings->fresh()->hasOkohiIntegration());
+
+        $settings->update(['okohi_integration_key' => 'secret-key']);
+        $this->assertTrue($settings->fresh()->hasOkohiIntegration());
+    }
+
+    public function test_initiate_okohi_reward_request_creates_temporary_seat_hold(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/customers/OKH-123456/grant-reward' => Http::response([
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'pending',
+            ], 202),
+        ]);
+
+        $response = $this->actingAs($admin)->postJson('/seller/okohi/reward-requests', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'idempotency_key' => 'idemp-123',
+        ])->assertStatus(202);
+
+        $this->assertDatabaseHas('okohi_reward_requests', [
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'status' => 'pending',
+            'okohi_transaction_id' => 'tx-okohi-123',
+        ]);
+
+        // Verify that the seat is now held and blocked in TripSegmentService
+        $this->assertDatabaseHas('trip_seat_occupancies', [
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+        ]);
+
+        $occupied = app(TripSegmentService::class)->occupiedSeatsForSegment($trip, $stations['a']->id, $stations['b']->id);
+        $this->assertContains(1, $occupied);
+    }
+
+    public function test_cannot_request_already_held_seat(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/customers/OKH-123456/grant-reward' => Http::response([
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'pending',
+            ], 202),
+        ]);
+
+        // First hold
+        $this->actingAs($admin)->postJson('/seller/okohi/reward-requests', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'idempotency_key' => 'idemp-123',
+        ])->assertStatus(202);
+
+        // Second request on same seat (should fail)
+        $this->actingAs($admin)->postJson('/seller/okohi/reward-requests', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-999999',
+            'reward_id' => 'r-free',
+            'idempotency_key' => 'idemp-456',
+        ])->assertStatus(409);
+    }
+
+    public function test_okohi_webhook_confirmation_creates_ticket(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'confirmed',
+                'discount_amount' => 1000,
+                'amount_collected' => 0,
+            ])->assertOk();
+
+        $request->refresh();
+        $this->assertSame('confirmed', $request->status);
+        $this->assertNotNull($request->ticket_id);
+
+        $ticket = Ticket::findOrFail($request->ticket_id);
+        $this->assertSame('okohi_reward', $ticket->payment_method);
+        $this->assertSame(1000, $ticket->gross_amount);
+        $this->assertSame(1000, $ticket->discount_amount);
+        $this->assertSame(0, $ticket->amount_collected);
+
+        // Verify hold is converted to permanent occupancy
+        $this->assertDatabaseHas('trip_seat_occupancies', [
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'ticket_id' => $ticket->id,
+            'okohi_reward_request_id' => null,
+            'expires_at' => null,
+        ]);
+    }
+
+    public function test_okohi_webhook_rejection_releases_hold(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+        ]);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'rejected',
+            ])->assertOk();
+
+        $request->refresh();
+        $this->assertSame('rejected', $request->status);
+        $this->assertDatabaseMissing('trip_seat_occupancies', [
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+        ]);
+    }
+
+    public function test_okohi_webhook_approved_pending_cash_and_confirm_cash_flow(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-discount',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        $occupancy = TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        // 1. Webhook with amount_collected > 0
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'approved',
+                'reward' => [
+                    'benefit_type' => 'percentage_discount',
+                    'benefit_value' => 50,
+                ],
+                'discount_amount' => 500,
+                'amount_collected' => 500,
+            ])->assertOk()
+            ->assertJsonPath('status', 'approved_pending_cash')
+            ->assertJsonPath('amount_collected', 500);
+
+        $request->refresh();
+        $this->assertSame('approved_pending_cash', $request->status);
+        $this->assertNull($request->ticket_id);
+
+        $occupancy->refresh();
+        $this->assertGreaterThan(now()->addMinutes(25)->timestamp, $occupancy->expires_at->timestamp);
+
+        // 2. Confirm Cash post by seller
+        $response = $this->actingAs($admin)
+            ->postJson("/seller/okohi/reward-requests/{$request->id}/confirm-cash");
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $request->refresh();
+        $this->assertSame('confirmed', $request->status);
+        $this->assertNotNull($request->ticket_id);
+
+        $ticket = Ticket::findOrFail($request->ticket_id);
+        $this->assertSame(1000, $ticket->price);
+        $this->assertSame(500, $ticket->discount_amount);
+        $this->assertSame(500, $ticket->amount_collected);
+
+        // 3. Cancel Ticket should trigger ReverseOkohiClaimJob
+        Queue::fake();
+
+        $this->actingAs($admin)->deleteJson("/seller/tickets/{$ticket->id}", [
+            'reason' => 'Client changed mind',
+        ])->assertOk();
+
+        $ticket->refresh();
+        $this->assertSame('cancelled', $ticket->status);
+        $this->assertSame('refund_pending', $ticket->settings['okohi_refund_status']);
+
+        Queue::assertPushed(CancelOrReverseOkohiClaimJob::class);
+    }
+
+    public function test_double_confirm_cash_concurrency(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-discount',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'approved_pending_cash',
+            'expires_at' => now()->addMinutes(10),
+            'response_payload' => [
+                'computed_discount_amount' => 500,
+                'computed_amount_collected' => 500,
+            ],
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        // First confirmation succeeds
+        $this->actingAs($admin)
+            ->postJson("/seller/okohi/reward-requests/{$request->id}/confirm-cash")
+            ->assertOk();
+
+        // Second concurrent confirmation fails as request status has changed
+        $this->actingAs($admin)
+            ->postJson("/seller/okohi/reward-requests/{$request->id}/confirm-cash")
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'Échec de l\'émission du ticket: Cette demande n\'est pas ou plus en attente d\'encaissement.');
+    }
+
+    public function test_double_confirm_cash_concurrency_simulated(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-discount',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'approved_pending_cash',
+            'expires_at' => now()->addMinutes(10),
+            'response_payload' => [
+                'computed_discount_amount' => 500,
+                'computed_amount_collected' => 500,
+            ],
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        // Register event listener to simulate a concurrent request modifying status during lock inside the transaction
+        $dispatcher = OkohiRewardRequest::getEventDispatcher();
+        try {
+            OkohiRewardRequest::retrieved(function ($model) use ($request) {
+                if ($model->id === $request->id && DB::transactionLevel() > 0) {
+                    // Simulate another process modifying the status to confirmed
+                    DB::table('okohi_reward_requests')
+                        ->where('id', $request->id)
+                        ->update(['status' => 'confirmed']);
+                }
+            });
+
+            // The confirmation should fail since the status changed concurrently before check
+            $this->actingAs($admin)
+                ->postJson("/seller/okohi/reward-requests/{$request->id}/confirm-cash")
+                ->assertStatus(422)
+                ->assertJsonPath('error', 'Échec de l\'émission du ticket: Cette demande n\'est pas ou plus en attente d\'encaissement.');
+        } finally {
+            // Restore original event dispatcher to avoid side-effects on other tests
+            if ($dispatcher) {
+                OkohiRewardRequest::setEventDispatcher($dispatcher);
+            }
+        }
+    }
+
+    public function test_webhook_failing_then_succeeding_retry(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        $occupancy = TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        // 1. Force a retryable error (throw a QueryException simulating deadlock during transaction on first call)
+        $callCount = 0;
+        $this->partialMock(TripSegmentService::class, function ($mock) use (&$callCount) {
+            $mock->shouldReceive('fareAmount')
+                ->andReturnUsing(function () use (&$callCount) {
+                    $callCount++;
+                    if ($callCount === 1) {
+                        throw new QueryException(
+                            'sqlite',
+                            'select * from fares',
+                            [],
+                            new \PDOException('Lock wait timeout exceeded; try restarting transaction')
+                        );
+                    }
+
+                    return 1000;
+                });
+        });
+
+        // First webhook call returns 500 (retryable)
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'approved',
+                'reward' => [
+                    'id' => 'r-free',
+                    'benefit_type' => 'free_ticket',
+                    'benefit_value' => 100,
+                ],
+            ])->assertStatus(500);
+
+        $request->refresh();
+        $this->assertSame('failed', $request->status); // Status is failed
+
+        // 2. Second webhook call (retry) succeeds because we don't mock error anymore
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'approved',
+                'reward' => [
+                    'id' => 'r-free',
+                    'benefit_type' => 'free_ticket',
+                    'benefit_value' => 100,
+                ],
+            ])->assertOk();
+
+        $request->refresh();
+        $this->assertSame('confirmed', $request->status);
+        $this->assertNotNull($request->ticket_id);
+    }
+
+    public function test_webhook_received_after_expiration_triggers_compensation(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update(['okohi_integration_key' => 'secret-key']);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->subMinutes(1), // Already expired!
+        ]);
+
+        Queue::fake();
+
+        // Webhook received after expiration should return 200 (compensation initiated), status failed, and queue reverse job
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'approved',
+                'reward' => [
+                    'id' => 'r-free',
+                    'benefit_type' => 'free_ticket',
+                    'benefit_value' => 100,
+                ],
+            ])->assertOk()
+            ->assertJsonPath('status', 'failed');
+
+        $request->refresh();
+        $this->assertSame('failed', $request->status);
+
+        Queue::assertPushed(CancelOrReverseOkohiClaimJob::class);
+    }
+
+    public function test_webhook_confirmation_is_idempotent(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        // Send first webhook
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'confirmed',
+            ])->assertOk();
+
+        $ticketCount = Ticket::where('trip_id', $trip->id)->count();
+        $this->assertSame(1, $ticketCount);
+
+        // Send second webhook (should be idempotent and not duplicate)
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'transaction_id' => 'tx-okohi-123',
+                'status' => 'confirmed',
+            ])->assertOk();
+
+        $this->assertSame(1, Ticket::where('trip_id', $trip->id)->count());
+    }
+
+    public function test_okohi_webhook_new_format_creates_ticket(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+
+        $request = OkohiRewardRequest::create([
+            'seller_id' => $admin->id,
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'customer_number' => 'OKH-123456',
+            'reward_id' => 'r-free',
+            'okohi_transaction_id' => '00000000-0000-0000-0000-000000000123',
+            'idempotency_key' => 'idemp-123',
+            'status' => 'pending',
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'okohi_reward_request_id' => $request->id,
+            'expires_at' => now()->addMinutes(3),
+        ]);
+
+        $this->withHeader('X-Okohi-Integration-Key', 'secret-key')
+            ->postJson('/api/okohi/webhook', [
+                'claim_id' => '00000000-0000-0000-0000-000000000123',
+                'partner_reference' => $request->id,
+                'status' => 'approved',
+                'reward' => [
+                    'id' => 'r-free',
+                    'benefit_type' => 'free_ticket',
+                    'benefit_value' => 100,
+                ],
+            ])->assertOk();
+
+        $request->refresh();
+        $this->assertSame('confirmed', $request->status);
+        $this->assertNotNull($request->ticket_id);
+
+        $ticket = Ticket::findOrFail($request->ticket_id);
+        $this->assertSame('okohi_reward', $ticket->payment_method);
+        $this->assertSame(1000, $ticket->price); // gross commercial price
+        $this->assertSame(1000, $ticket->gross_amount);
+        $this->assertSame(1000, $ticket->discount_amount);
+        $this->assertSame(0, $ticket->amount_collected);
+    }
+
+    public function test_okohi_reversal_on_ticket_cancellation(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+
+        $ticket = Ticket::create([
+            'ticket_number' => 'TKT-'.Str::random(8),
+            'trip_id' => $trip->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seat_number' => 1,
+            'passenger_name' => 'Passenger',
+            'passenger_phone' => '12345678',
+            'price' => 1000,
+            'seller_id' => $admin->id,
+            'station_id' => $stations['a']->id,
+            'qr_code' => 'QR-'.Str::random(12),
+            'payment_method' => 'okohi_reward',
+            'okohi_customer_number' => 'OKH-123456',
+            'okohi_reward_id' => 'r-free',
+            'okohi_transaction_id' => 'tx-okohi-123',
+            'gross_amount' => 1000,
+            'discount_amount' => 1000,
+            'amount_collected' => 0,
+        ]);
+
+        TripSeatOccupancy::create([
+            'trip_id' => $trip->id,
+            'seat_number' => 1,
+            'ticket_id' => $ticket->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+        ]);
+
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+        Http::fake([
+            'https://okohi.test/api/v1/partner/reward-claims/tx-okohi-123/reverse' => Http::response(['success' => true]),
+        ]);
+
+        $this->actingAs($admin)
+            ->deleteJson("/seller/tickets/{$ticket->id}")
+            ->assertOk();
+
+        $ticket->refresh();
+        $this->assertSame('cancelled', $ticket->status);
+        $this->assertDatabaseMissing('trip_seat_occupancies', [
+            'ticket_id' => $ticket->id,
+        ]);
+
+        Http::assertSent(function ($request) {
+            return $request->url() === 'https://okohi.test/api/v1/partner/reward-claims/tx-okohi-123/reverse'
+                && $request->method() === 'POST'
+                && $request->hasHeader('X-Okohi-Integration-Key', 'secret-key');
+        });
+    }
+
     public function test_printable_qr_uses_okohi_scan_url_when_enabled(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
@@ -722,6 +1453,7 @@ class TicketingFlowTest extends TestCase
         $settings->update([
             'print_qr_code' => true,
             'okohi_integration_url' => $okohiUrl,
+            'okohi_integration_key' => 'secret-key',
         ]);
         $settings->refresh();
 
@@ -746,6 +1478,7 @@ class TicketingFlowTest extends TestCase
         $settings->update([
             'print_qr_code' => false,
             'okohi_integration_url' => 'https://okohi.test/api/v1/scan/{ticket_id}/{amount}/{timestamp}',
+            'okohi_integration_key' => 'secret-key',
         ]);
 
         $printResponse = $this->actingAs($admin)->get("/tickets/{$ticketId}/print");
@@ -1498,6 +2231,36 @@ class TicketingFlowTest extends TestCase
                 $table->timestamp('cancelled_at')->nullable();
                 $table->uuid('cancelled_by')->nullable();
                 $table->string('cancellation_reason')->nullable();
+                $table->string('payment_method')->default('cash');
+                $table->string('okohi_customer_number')->nullable();
+                $table->string('okohi_reward_id')->nullable();
+                $table->string('okohi_transaction_id')->nullable();
+                $table->integer('gross_amount')->nullable();
+                $table->integer('discount_amount')->nullable();
+                $table->integer('amount_collected')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('okohi_reward_requests')) {
+            Schema::create('okohi_reward_requests', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('seller_id');
+                $table->uuid('trip_id');
+                $table->uuid('from_station_id');
+                $table->uuid('to_station_id');
+                $table->integer('seat_number');
+                $table->string('customer_number');
+                $table->string('reward_id');
+                $table->string('okohi_transaction_id')->nullable()->index();
+                $table->string('idempotency_key')->unique();
+                $table->string('status')->default('pending');
+                $table->timestamp('expires_at');
+                $table->timestamp('confirmed_at')->nullable();
+                $table->uuid('ticket_id')->nullable();
+                $table->json('request_payload')->nullable();
+                $table->json('response_payload')->nullable();
+                $table->text('last_error')->nullable();
                 $table->timestamps();
             });
         }
@@ -1510,6 +2273,8 @@ class TicketingFlowTest extends TestCase
                 $table->uuid('ticket_id')->nullable()->index();
                 $table->uuid('from_station_id')->nullable()->index();
                 $table->uuid('to_station_id')->nullable()->index();
+                $table->uuid('okohi_reward_request_id')->nullable()->index();
+                $table->timestamp('expires_at')->nullable();
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });

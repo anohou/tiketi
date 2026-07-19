@@ -109,12 +109,22 @@ class TripSegmentService
             ->filter(function (TripSeatOccupancy $occupancy) use ($stationIndices, $start, $end) {
                 $ticket = $occupancy->ticket;
 
-                if (! $ticket || $ticket->status === 'cancelled') {
-                    return false;
+                if ($ticket) {
+                    if ($ticket->status === 'cancelled') {
+                        return false;
+                    }
+                } else {
+                    // Si pas de ticket, on vérifie s'il y a un hold de récompense Okohi actif
+                    $isHeld = $occupancy->okohi_reward_request_id
+                        && $occupancy->expires_at
+                        && $occupancy->expires_at->isFuture();
+                    if (! $isHeld) {
+                        return false;
+                    }
                 }
 
-                $ticketStart = $stationIndices[$occupancy->from_station_id ?? $ticket->from_station_id] ?? null;
-                $ticketEnd = $stationIndices[$occupancy->to_station_id ?? $ticket->to_station_id] ?? null;
+                $ticketStart = $stationIndices[$occupancy->from_station_id ?? $ticket?->from_station_id] ?? null;
+                $ticketEnd = $stationIndices[$occupancy->to_station_id ?? $ticket?->to_station_id] ?? null;
 
                 if ($ticketStart === null || $ticketEnd === null) {
                     return true;

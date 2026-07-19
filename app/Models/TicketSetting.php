@@ -42,7 +42,8 @@ class TicketSetting extends Model
 
     public function hasOkohiIntegration(): bool
     {
-        return filled($this->okohi_integration_url);
+        return filled($this->okohi_integration_url)
+            && filled($this->okohi_integration_key);
     }
 
     public function allowsCrewSales(): bool

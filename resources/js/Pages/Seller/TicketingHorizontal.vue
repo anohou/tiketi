@@ -32,6 +32,7 @@ const props = defineProps({
   hasActiveAssignment: Boolean,
   assignedStationId: String,
   assignedStation: String,
+  okohiIntegrationActive: { type: Boolean, default: false },
   assignedStationColor: {
     type: Object,
     default: () => ({})
@@ -116,6 +117,7 @@ const {
   autoSelectOptimalSeat,
   confirmBooking,
   cancelBooking,
+  handleOkohiSuccess,
   createTrip,
   applyReplicableTemplate,
   fallbackToBrowserPrint,
@@ -370,6 +372,7 @@ const trips = tripsRef;
            :passenger-form="passengerForm"
            :passenger-form-errors="passengerFormErrors"
            :processing="processing"
+           :okohi-integration-active="okohiIntegrationActive"
            v-model:ticketQuantity="ticketQuantity"
            v-model:showPassengerFields="showPassengerFields"
            v-model:finalDestinationStationId="finalDestinationStationId"
@@ -377,6 +380,7 @@ const trips = tripsRef;
            @close="cancelBooking"
            @select-fare="selectFareForSeat"
            @confirm="confirmBooking"
+           @okohi-success="handleOkohiSuccess"
          />
 
     <!-- Modal de création de voyage -->

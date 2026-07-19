@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\Trip;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -29,7 +30,7 @@ class DashboardController extends Controller
             'data' => [
                 'total_trips_today' => $tripsToday->count(),
                 'total_tickets_today' => Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->count(),
-                'total_revenue_today' => Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->sum('price'),
+                'total_revenue_today' => Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->sum(DB::raw('COALESCE(amount_collected, price)')),
                 'occupancy_rate' => $occupancyRate,
             ],
             'message' => 'Statistiques récupérées avec succès',

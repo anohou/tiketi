@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Ticket;
 use App\Models\TicketSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -39,7 +40,30 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => $msg], $response->status());
         }
 
-        return response()->json($body);
+        $data = $body['data'] ?? $body;
+        $recentTrips = collect($data['recent_trips'] ?? []);
+        $tickets = Ticket::query()
+            ->with(['fromStation:id,name', 'toStation:id,name', 'trip:id,departure_at'])
+            ->whereIn('ticket_number', $recentTrips->pluck('ticket_id')->filter())
+            ->get()
+            ->keyBy('ticket_number');
+
+        $data['recent_trips'] = $recentTrips->map(function (array $trip) use ($tickets) {
+            $ticket = $tickets->get($trip['ticket_id'] ?? null);
+
+            if (! $ticket) {
+                return $trip;
+            }
+
+            return array_merge($trip, [
+                'route_label' => collect([$ticket->fromStation?->name, $ticket->toStation?->name])
+                    ->filter()
+                    ->implode(' → '),
+                'travelled_at' => $trip['travelled_at'] ?? $ticket->trip?->departure_at?->toIso8601String(),
+            ]);
+        })->values()->all();
+
+        return response()->json($data);
     }
 
     public function grant(Request $request, string $customerNumber)

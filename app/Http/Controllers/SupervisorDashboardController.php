@@ -6,6 +6,7 @@ use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class SupervisorDashboardController extends Controller
@@ -24,7 +25,7 @@ class SupervisorDashboardController extends Controller
         $todayStats = [
             'total_revenue' => Ticket::whereHas('trip', function ($q) use ($stationIds) {
                 $q->whereIn('origin_station_id', $stationIds);
-            })->whereBetween('created_at', [$todayStart, $todayEnd])->sum('price'),
+            })->whereBetween('created_at', [$todayStart, $todayEnd])->sum(DB::raw('COALESCE(amount_collected, price)')),
 
             'tickets_sold' => Ticket::whereHas('trip', function ($q) use ($stationIds) {
                 $q->whereIn('origin_station_id', $stationIds);
@@ -129,7 +130,7 @@ class SupervisorDashboardController extends Controller
                 // Calculate actual today's revenue for this seller
                 $todayRevenue = Ticket::where('seller_id', $seller->id)
                     ->whereBetween('created_at', [$todayStart, $todayEnd])
-                    ->sum('price');
+                    ->sum(DB::raw('COALESCE(amount_collected, price)'));
                 $ticketCount = Ticket::where('seller_id', $seller->id)
                     ->whereBetween('created_at', [$todayStart, $todayEnd])
                     ->count();

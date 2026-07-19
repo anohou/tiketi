@@ -9,6 +9,7 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class AnalyticsController extends Controller
@@ -51,12 +52,12 @@ class AnalyticsController extends Controller
         $endDate = $now->copy()->endOfDay();
 
         // Current period statistics
-        $currentRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->sum('price');
+        $currentRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->sum(DB::raw('COALESCE(amount_collected, price)'));
         $currentTickets = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->count();
         $currentTrips = Trip::whereBetween('departure_at', [$startDate, $endDate])->count();
 
         // Previous period for comparison
-        $previousRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$compareStart, $compareEnd])->sum('price');
+        $previousRevenue = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$compareStart, $compareEnd])->sum(DB::raw('COALESCE(amount_collected, price)'));
         $previousTickets = Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$compareStart, $compareEnd])->count();
 
         // Calculate growth percentages
@@ -82,7 +83,7 @@ class AnalyticsController extends Controller
             'trips' => [
                 'current' => $currentTrips,
             ],
-            'avg_ticket_price' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->avg('price') ?? 0,
+            'avg_ticket_price' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$startDate, $endDate])->avg(DB::raw('COALESCE(amount_collected, price)')) ?? 0,
             'avg_occupancy' => $this->calculateAverageOccupancy($startDate, $endDate),
         ];
 
@@ -93,7 +94,7 @@ class AnalyticsController extends Controller
         $topRoutes = Ticket::query()
             ->join('trips', 'tickets.trip_id', '=', 'trips.id')
             ->join('routes', 'trips.route_id', '=', 'routes.id')
-            ->selectRaw('routes.id, routes.name, SUM(tickets.price) as revenue, COUNT(*) as ticket_count')
+            ->selectRaw('routes.id, routes.name, SUM(COALESCE(tickets.amount_collected, tickets.price)) as revenue, COUNT(*) as ticket_count')
             ->where('tickets.status', '!=', 'cancelled')
             ->whereBetween('tickets.created_at', [$startDate, $endDate])
             ->groupBy('routes.id', 'routes.name')
@@ -104,7 +105,7 @@ class AnalyticsController extends Controller
         // Revenue by station
         $revenueByStation = Ticket::query()
             ->join('stations', 'tickets.from_station_id', '=', 'stations.id')
-            ->selectRaw('stations.id, stations.name, SUM(tickets.price) as revenue, COUNT(*) as ticket_count')
+            ->selectRaw('stations.id, stations.name, SUM(COALESCE(tickets.amount_collected, tickets.price)) as revenue, COUNT(*) as ticket_count')
             ->where('tickets.status', '!=', 'cancelled')
             ->whereBetween('tickets.created_at', [$startDate, $endDate])
             ->groupBy('stations.id', 'stations.name')
@@ -126,7 +127,7 @@ class AnalyticsController extends Controller
                 $monthEnd = $monthStart->copy()->endOfMonth();
                 $monthlyRevenue[] = [
                     'month' => $monthStart->format('M'),
-                    'revenue' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$monthStart, $monthEnd])->sum('price'),
+                    'revenue' => Ticket::where('status', '!=', 'cancelled')->whereBetween('created_at', [$monthStart, $monthEnd])->sum(DB::raw('COALESCE(amount_collected, price)')),
                 ];
             }
         }
@@ -187,7 +188,7 @@ class AnalyticsController extends Controller
             ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->orderBy('created_at')
-            ->get(['created_at', 'price']);
+            ->get(['created_at', 'price', 'amount_collected']);
 
         return $tickets
             ->groupBy(function (Ticket $ticket) use ($period) {
@@ -198,7 +199,7 @@ class AnalyticsController extends Controller
             ->map(function ($items, string $date) {
                 return [
                     'date' => Carbon::parse($date)->format('d M'),
-                    'revenue' => $items->sum('price'),
+                    'revenue' => $items->sum(fn ($t) => $t->amount_collected ?? $t->price),
                     'tickets' => $items->count(),
                 ];
             })

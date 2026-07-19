@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\OkohiClaimStatusController;
 use App\Http\Controllers\Api\OkohiDeleteController;
 use App\Http\Controllers\Api\OkohiVerificationController;
+use App\Http\Controllers\Api\OkohiWebhookController;
 use App\Http\Controllers\Api\OptimisationController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\TicketController;
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/okohi/verify', OkohiVerificationController::class)->name('okohi.verify');
 Route::delete('/okohi/delete', OkohiDeleteController::class)->name('okohi.delete');
 Route::get('/okohi/claims/{claimId}/status', OkohiClaimStatusController::class)->name('okohi.claims.status');
-Route::post('/okohi/webhook', \App\Http\Controllers\Api\OkohiWebhookController::class)->name('okohi.webhook');
+Route::post('/okohi/webhook', [OkohiWebhookController::class, 'handle'])->name('okohi.webhook');
 
 Route::middleware('throttle:public-catalog')->group(function () {
     Route::prefix('routes')->group(function () {

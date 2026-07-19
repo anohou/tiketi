@@ -44,6 +44,7 @@ const props = defineProps({
   hasActiveAssignment: Boolean,
   assignedStationId: String,
   assignedStation: String,
+  okohiIntegrationActive: { type: Boolean, default: false },
   destinations: {
     type: Array,
     default: () => []
@@ -136,6 +137,7 @@ const {
   autoSelectOptimalSeat,
   confirmBooking,
   cancelBooking,
+  handleOkohiSuccess,
   createTrip,
   applyReplicableTemplate,
   fallbackToBrowserPrint,
@@ -715,7 +717,7 @@ onMounted(() => {
                           v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(currentTrip.status)"
                           @click.stop="updateTripStatus(currentTrip.id, 'cancelled')"
                           :disabled="updatingTripStatusId === currentTrip.id"
-                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                          class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 dark:bg-rose-800 dark:hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
                           Annulé
                         </button>
@@ -914,7 +916,7 @@ onMounted(() => {
                            v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(trip.status)"
                            @click.stop="updateTripStatus(trip.id, 'cancelled')"
                            :disabled="updatingTripStatusId === trip.id"
-                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
+                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 dark:bg-rose-800 dark:hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
                            Annulé
                          </button>
@@ -1167,6 +1169,7 @@ onMounted(() => {
       :passenger-form="passengerForm"
       :passenger-form-errors="passengerFormErrors"
       :processing="processing"
+      :okohi-integration-active="okohiIntegrationActive"
       v-model:ticketQuantity="ticketQuantity"
       v-model:showPassengerFields="showPassengerFields"
       v-model:finalDestinationStationId="finalDestinationStationId"
@@ -1174,6 +1177,7 @@ onMounted(() => {
       @close="cancelBooking"
       @select-fare="selectFareForSeat"
       @confirm="confirmBooking"
+      @okohi-success="handleOkohiSuccess"
     />
 
     <!-- Modal de création de voyage -->

@@ -8,6 +8,7 @@ use App\Models\Ticket;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class ReportsController extends Controller
@@ -42,13 +43,13 @@ class ReportsController extends Controller
         // Calculate statistics
         $stats = [
             'total_tickets' => $ticketsQuery->count(),
-            'total_revenue' => $ticketsQuery->sum('price'),
-            'avg_ticket_price' => $ticketsQuery->avg('price') ?? 0,
+            'total_revenue' => $ticketsQuery->sum(DB::raw('COALESCE(amount_collected, price)')),
+            'avg_ticket_price' => $ticketsQuery->average(DB::raw('COALESCE(amount_collected, price)')) ?? 0,
         ];
 
         // Revenue by seller
         $revenueBySeller = Ticket::query()
-            ->selectRaw('seller_id, SUM(price) as total, COUNT(*) as count')
+            ->selectRaw('seller_id, SUM(COALESCE(amount_collected, price)) as total, COUNT(*) as count')
             ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('seller_id')
@@ -57,7 +58,7 @@ class ReportsController extends Controller
 
         // Revenue by station
         $revenueByStation = Ticket::query()
-            ->selectRaw('from_station_id as station_id, SUM(price) as total, COUNT(*) as count')
+            ->selectRaw('from_station_id as station_id, SUM(COALESCE(amount_collected, price)) as total, COUNT(*) as count')
             ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('from_station_id')
@@ -75,7 +76,7 @@ class ReportsController extends Controller
 
         // Daily revenue trend
         $dailyRevenue = Ticket::query()
-            ->selectRaw('DATE(created_at) as date, SUM(price) as total, COUNT(*) as count')
+            ->selectRaw('DATE(created_at) as date, SUM(COALESCE(amount_collected, price)) as total, COUNT(*) as count')
             ->where('status', '!=', 'cancelled')
             ->whereBetween('created_at', [$startDate, Carbon::parse($endDate)->endOfDay()])
             ->groupBy('date')
@@ -139,7 +140,9 @@ class ReportsController extends Controller
                 'Départ',
                 'Arrivée',
                 'Place',
-                'Prix (FCFA)',
+                'Prix Brut (FCFA)',
+                'Remise (FCFA)',
+                'Net Collecté (FCFA)',
                 'Vendeur',
                 'Passager',
             ], ';');
@@ -153,7 +156,9 @@ class ReportsController extends Controller
                     $ticket->fromStation?->name ?? '',
                     $ticket->toStation?->name ?? '',
                     $ticket->seat_number ?? '',
-                    $ticket->price,
+                    $ticket->gross_amount ?? $ticket->price,
+                    $ticket->discount_amount ?? 0,
+                    $ticket->amount_collected ?? $ticket->price,
                     $ticket->seller?->name ?? '',
                     $ticket->passenger_name ?? 'Anonyme',
                 ], ';');

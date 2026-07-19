@@ -4,6 +4,8 @@ use App\Http\Controllers\Accountant\ReportsController;
 use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\LoyaltySettingController;
 use App\Http\Controllers\Admin\OkohiConnectController;
+use App\Http\Controllers\Admin\OkohiRewardController;
+use App\Http\Controllers\Admin\OkohiTransactionsController;
 use App\Http\Controllers\Admin\RouteController;
 use App\Http\Controllers\Admin\RouteFareController;
 use App\Http\Controllers\Admin\RouteStopOrderController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\Fleet\FleetVehicleController;
 use App\Http\Controllers\Fleet\FleetVehicleTypeController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Seller\OkohiRewardRequestController;
 use App\Http\Controllers\Seller\TicketController;
 use App\Http\Controllers\Seller\TicketingController;
 use App\Http\Controllers\Seller\TransferPoolController;
@@ -120,9 +123,9 @@ Route::middleware('auth')->group(function () {
         Route::get('settings/loyalty', [LoyaltySettingController::class, 'index'])->name('settings.loyalty');
         Route::post('settings/loyalty/connect', [OkohiConnectController::class, 'connect'])->name('settings.loyalty.connect');
         Route::delete('settings/loyalty/disconnect', [OkohiConnectController::class, 'disconnect'])->name('settings.loyalty.disconnect');
-        Route::get('settings/loyalty/transactions', [App\Http\Controllers\Admin\OkohiTransactionsController::class, 'index'])->name('settings.loyalty.transactions');
-        Route::get('settings/loyalty/customers/{customerNumber}', [App\Http\Controllers\Admin\OkohiRewardController::class, 'customer'])->name('settings.loyalty.customer');
-        Route::post('settings/loyalty/customers/{customerNumber}/grant-reward', [App\Http\Controllers\Admin\OkohiRewardController::class, 'grant'])->name('settings.loyalty.grant');
+        Route::get('settings/loyalty/transactions', [OkohiTransactionsController::class, 'index'])->name('settings.loyalty.transactions');
+        Route::get('settings/loyalty/customers/{customerNumber}', [OkohiRewardController::class, 'customer'])->name('settings.loyalty.customer');
+        Route::post('settings/loyalty/customers/{customerNumber}/grant-reward', [OkohiRewardController::class, 'grant'])->name('settings.loyalty.grant');
     });
 
     // =========================================
@@ -177,6 +180,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/trips/{trip}/allocate-connections', [TransferPoolController::class, 'autoAllocate'])->name('transfer-pool.allocate');
         Route::patch('/trips/{trip}/depart', [TransferPoolController::class, 'depart'])->name('trips.depart');
         Route::patch('/trips/{trip}/status', [TicketingController::class, 'updateStatus'])->name('trips.status');
+
+        // Okohi Loyalty Integration for seller
+        Route::get('/okohi/customers/{customerNumber}', [OkohiRewardController::class, 'customer'])->name('okohi.customer');
+        Route::post('/okohi/reward-requests', [OkohiRewardRequestController::class, 'store'])->name('okohi.requests.store');
+        Route::get('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'show'])->name('okohi.requests.show');
+        Route::delete('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'destroy'])->name('okohi.requests.destroy');
+        Route::post('/okohi/reward-requests/{request}/confirm-cash', [OkohiRewardRequestController::class, 'confirmCash'])->name('okohi.requests.confirm-cash');
     });
 
     // =========================================

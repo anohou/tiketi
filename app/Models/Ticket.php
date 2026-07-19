@@ -17,6 +17,7 @@ class Ticket extends Model
     protected $fillable = [
         'ticket_number', 'trip_id', 'vehicle_id', 'seat_number', 'from_station_id', 'to_station_id', 'final_destination_station_id', 'transfer_station_id', 'price', 'seller_id', 'crew_member_id', 'station_id', 'status', 'boarding_group', 'qr_payload', 'passenger_name', 'passenger_phone', 'qr_code', 'cancelled_at', 'cancelled_by', 'cancellation_reason', 'settings',
         'boarded_at', 'boarded_by',
+        'payment_method', 'okohi_customer_number', 'okohi_reward_id', 'okohi_transaction_id', 'gross_amount', 'discount_amount', 'amount_collected',
     ];
 
     protected $casts = [

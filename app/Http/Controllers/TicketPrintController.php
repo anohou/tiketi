@@ -91,7 +91,7 @@ class TicketPrintController extends Controller
             ? Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders.station', 'vehicle'])->find($tripId)
             : null;
 
-        $totalAmount = $tickets->sum('price');
+        $totalAmount = $tickets->sum(fn ($t) => $t->amount_collected ?? $t->price);
         $routeStationOrderMap = [];
         if ($trip?->route?->relationLoaded('routeStopOrders')) {
             foreach ($trip->route->routeStopOrders as $order) {
@@ -112,7 +112,7 @@ class TicketPrintController extends Controller
                     'station_name' => $stationName,
                     'tickets' => $sortedGroup,
                     'count' => $sortedGroup->count(),
-                    'amount' => $sortedGroup->sum('price'),
+                    'amount' => $sortedGroup->sum(fn ($t) => $t->amount_collected ?? $t->price),
                 ];
             })
             ->sortBy(function (array $group) use ($routeStationOrderMap) {

@@ -8,6 +8,7 @@ use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\Vehicle;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class SellerDashboardController extends Controller
@@ -78,7 +79,7 @@ class SellerDashboardController extends Controller
         $todaySales = Ticket::where('seller_id', $user->id)
             ->whereDate('created_at', now()->today())
             ->where('status', '!=', 'cancelled')
-            ->sum('price');
+            ->sum(DB::raw('COALESCE(amount_collected, price)'));
 
         return Inertia::render('Dashboards/Seller', [
             'trips' => $trips,

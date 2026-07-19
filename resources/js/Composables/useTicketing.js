@@ -1228,6 +1228,21 @@ export function useTicketing(props, options = {}) {
     ticketingStore.setShowSuggestions(true);
   };
 
+  const handleOkohiSuccess = async (ticketId) => {
+    toastStore.success('Paiement Okohi validé ! Impression du ticket...');
+    showPassengerModal.value = false;
+    selectedSeatNumber.value = null;
+    selectedFare.value = null;
+    ticketQuantity.value = 1;
+
+    if (ticketId) {
+      await printTickets([ticketId]);
+    }
+
+    fetchSeatMap({ silent: true });
+    ticketingStore.notifySeatMapChanged();
+  };
+
   // =============================================
   const applyReplicableTemplate = (template) => {
     if (!template) return;
@@ -1533,6 +1548,7 @@ export function useTicketing(props, options = {}) {
     autoSelectOptimalSeat,
     confirmBooking,
     cancelBooking,
+    handleOkohiSuccess,
     createTrip,
     applyReplicableTemplate,
     printTickets,

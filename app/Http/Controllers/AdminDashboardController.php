@@ -33,10 +33,10 @@ class AdminDashboardController extends Controller
         $monthlySales = (clone $activeTickets)->where('created_at', '>=', $thisMonth)->count();
 
         // Revenue calculations (exclude cancelled tickets)
-        $totalRevenue = (clone $activeTickets)->sum('price') ?? 0;
-        $todayRevenue = (clone $activeTickets)->whereDate('created_at', $today)->sum('price') ?? 0;
-        $yesterdayRevenue = (clone $activeTickets)->whereDate('created_at', $yesterday)->sum('price') ?? 0;
-        $monthlyRevenue = (clone $activeTickets)->where('created_at', '>=', $thisMonth)->sum('price') ?? 0;
+        $totalRevenue = (clone $activeTickets)->sum(DB::raw('COALESCE(amount_collected, price)')) ?? 0;
+        $todayRevenue = (clone $activeTickets)->whereDate('created_at', $today)->sum(DB::raw('COALESCE(amount_collected, price)')) ?? 0;
+        $yesterdayRevenue = (clone $activeTickets)->whereDate('created_at', $yesterday)->sum(DB::raw('COALESCE(amount_collected, price)')) ?? 0;
+        $monthlyRevenue = (clone $activeTickets)->where('created_at', '>=', $thisMonth)->sum(DB::raw('COALESCE(amount_collected, price)')) ?? 0;
 
         // Growth calculations
         $salesGrowth = $yesterdaySales > 0 ? round((($todaySales - $yesterdaySales) / $yesterdaySales) * 100, 1) : 0;
@@ -82,7 +82,7 @@ class AdminDashboardController extends Controller
         ];
 
         // Sales trend for the last 7 days
-        $salesTrend = Ticket::selectRaw('DATE(created_at) as date, COUNT(*) as count, SUM(price) as revenue')
+        $salesTrend = Ticket::selectRaw('DATE(created_at) as date, COUNT(*) as count, SUM(COALESCE(amount_collected, price)) as revenue')
             ->where('created_at', '>=', Carbon::now()->subDays(7))
             ->groupBy('date')
             ->orderBy('date')

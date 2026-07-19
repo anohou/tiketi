@@ -12,6 +12,7 @@ use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\TicketConnection;
+use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
@@ -66,6 +67,7 @@ class TicketingController extends Controller
             'hasActiveAssignment' => $hasActiveAssignment,
             'assignedStationId' => $assignedStationModel?->id,
             'assignedStation' => $assignedStation,
+            'okohiIntegrationActive' => TicketSetting::getSettings()->hasOkohiIntegration(),
             'replicableTrips' => Trip::where('is_replicable', true)
                 ->get(['id', 'route_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
                 ->map(function ($trip) {
