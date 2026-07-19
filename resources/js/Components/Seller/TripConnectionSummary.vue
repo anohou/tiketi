@@ -43,7 +43,7 @@ defineEmits(['manage-connections']);
           class="flex items-center justify-between gap-3 bg-white dark:bg-slate-950 border border-violet-200 dark:border-violet-800 px-3 py-1.5 rounded-xl shadow-sm min-w-[130px] flex-1 sm:flex-initial"
         >
           <span class="font-extrabold text-violet-750 dark:text-violet-300 text-[10px]">{{ destination.name }}</span>
-          <span class="font-black text-rose-700 dark:text-white text-[11px] bg-rose-100 dark:bg-rose-600 px-2.5 py-0.5 rounded-full border border-rose-200 dark:border-transparent">
+          <span class="font-black text-rose-700 dark:text-rose-200 text-[11px] bg-rose-100 dark:bg-rose-900/70 px-2.5 py-0.5 rounded-full border border-rose-200 dark:border-rose-800/70">
             {{ destination.count }}
           </span>
         </div>

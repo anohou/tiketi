@@ -595,8 +595,8 @@ const getOccupancyRate = (available, total) => {
                             <span class="font-bold text-blue-500">Bil</span>
                             <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
                             <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
-                            <span class="font-bold text-red-500">Occ</span>
-                            <span class="font-black text-red-600">{{ seatStats.occupiedSeats }}</span>
+                            <span class="font-bold text-red-500 dark:text-rose-400/80">Occ</span>
+                            <span class="font-black text-red-600 dark:text-rose-400/80">{{ seatStats.occupiedSeats }}</span>
                             <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
                                 <span class="font-bold text-emerald-500">Lib</span>
                                 <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
@@ -732,8 +732,8 @@ const getOccupancyRate = (available, total) => {
                                 <span class="font-bold text-blue-500">Bil</span>
                                 <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
                                 <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
-                                <span class="font-bold text-rose-500">Occ</span>
-                                <span class="font-black text-rose-600">{{ seatStats.occupiedSeats }}</span>
+                                <span class="font-bold text-rose-500 dark:text-rose-400/80">Occ</span>
+                                <span class="font-black text-rose-600 dark:text-rose-400/80">{{ seatStats.occupiedSeats }}</span>
                                 <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
                                 <span class="font-bold text-emerald-500">Lib</span>
                                 <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
