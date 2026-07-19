@@ -174,6 +174,7 @@ Route::middleware('auth')->group(function () {
 
         // Trip creation (for sellers)
         Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
+        Route::put('/trips/{trip}', [TicketingController::class, 'updateTrip'])->name('trips.update');
         Route::get('/transfer-pool', [TransferPoolController::class, 'index'])->name('transfer-pool.index');
         Route::patch('/transfer-pool/{connection}/ready', [TransferPoolController::class, 'markReady'])->name('transfer-pool.ready');
         Route::post('/trips/{trip}/assign-connection', [TransferPoolController::class, 'assign'])->name('transfer-pool.assign');

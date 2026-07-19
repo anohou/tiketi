@@ -89,7 +89,10 @@ class TicketingFlowTest extends TestCase
     public function test_open_connection_keeps_one_ticket_and_can_be_assigned_to_another_trip(): void
     {
         [$admin, $firstTrip, $stations] = $this->ticketingFixture();
-        $firstTrip->update(['allows_open_connections' => true]);
+        $firstTrip->update([
+            'allows_open_connections' => true,
+            'destination_station_id' => $stations['b']->id,
+        ]);
         $secondTrip = Trip::create([
             'route_id' => $firstTrip->route_id,
             'vehicle_id' => $firstTrip->vehicle_id,
@@ -154,10 +157,96 @@ class TicketingFlowTest extends TestCase
             ->assertJsonPath('occupancies.0.connection_status', 'assigned');
     }
 
+    public function test_open_connection_rejects_a_destination_already_served_by_the_current_trip(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $trip->update(['allows_open_connections' => true]);
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $trip->route_id,
+            'seats' => [1],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Cette destination est déjà desservie par le voyage en cours après la gare sélectionnée.');
+
+        $this->assertDatabaseCount('tickets', 0);
+        $this->assertDatabaseCount('ticket_connections', 0);
+    }
+
+    public function test_open_connection_rejects_a_connection_route_in_the_opposite_direction(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $trip->update([
+            'allows_open_connections' => true,
+            'destination_station_id' => $stations['b']->id,
+        ]);
+        $oppositeRoute = Route::create([
+            'name' => 'C - B',
+            'origin_station_id' => $stations['c']->id,
+            'destination_station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+        foreach ([$stations['c'], $stations['b']] as $index => $station) {
+            RouteStopOrder::create(['route_id' => $oppositeRoute->id, 'station_id' => $station->id, 'stop_index' => $index]);
+        }
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $stations['c']->id,
+            'connection_route_id' => $oppositeRoute->id,
+            'seats' => [1],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Le trajet de correspondance ne dessert pas la destination finale dans le bon sens après le point de transit.');
+
+        $this->assertDatabaseCount('tickets', 0);
+        $this->assertDatabaseCount('ticket_connections', 0);
+    }
+
+    public function test_open_connection_requires_an_end_to_end_fare_from_origin_to_final_destination(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $korhogo = Station::create(['name' => 'Gare de Korhogo', 'code' => 'KGO', 'city' => 'Korhogo', 'active' => true]);
+        $trip->update([
+            'allows_open_connections' => true,
+            'destination_station_id' => $stations['b']->id,
+        ]);
+        $connectionRoute = Route::create([
+            'name' => 'Yamoussoukro - Korhogo',
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $korhogo->id,
+            'active' => true,
+        ]);
+        foreach ([$stations['b'], $korhogo] as $index => $station) {
+            RouteStopOrder::create(['route_id' => $connectionRoute->id, 'station_id' => $station->id, 'stop_index' => $index]);
+        }
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'final_destination_station_id' => $korhogo->id,
+            'connection_route_id' => $connectionRoute->id,
+            'seats' => [1],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Aucun tarif actif trouvé entre le point de départ et la destination finale.');
+
+        $this->assertDatabaseCount('tickets', 0);
+        $this->assertDatabaseCount('ticket_connections', 0);
+    }
+
     public function test_automatic_allocation_uses_expected_arrival_and_purchase_order(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true, 'departure_at' => now()->addHour()]);
+        $inboundTrip->update([
+            'allows_open_connections' => true,
+            'destination_station_id' => $stations['b']->id,
+            'departure_at' => now()->addHour(),
+        ]);
         $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
         OperationalSetting::current()->update([
             'automatic_connection_allocation' => false,
@@ -199,7 +288,7 @@ class TicketingFlowTest extends TestCase
     public function test_stale_automatic_allocator_cannot_reassign_an_already_assigned_connection(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $ticketId = $this->actingAs($admin)->postJson('/seller/tickets', [
             'trip_id' => $inboundTrip->id,
             'from_station_id' => $stations['a']->id,
@@ -245,6 +334,23 @@ class TicketingFlowTest extends TestCase
     public function test_marking_departure_recalculates_connection_estimate(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
+        $stationD = Station::create(['name' => 'Gare D', 'code' => 'D', 'city' => 'D', 'active' => true]);
+        $connectionRoute = Route::create([
+            'name' => 'B - D',
+            'origin_station_id' => $stations['b']->id,
+            'destination_station_id' => $stationD->id,
+            'active' => true,
+        ]);
+        foreach ([$stations['b'], $stationD] as $index => $station) {
+            RouteStopOrder::create(['route_id' => $connectionRoute->id, 'station_id' => $station->id, 'stop_index' => $index]);
+        }
+        RouteFare::create([
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stationD->id,
+            'amount' => 2500,
+            'is_bidirectional' => true,
+            'active' => true,
+        ]);
         $trip->update(['allows_open_connections' => true]);
         $trip->route->update(['estimated_duration_minutes' => 60]);
         app(TripTimingService::class)->syncPlannedTimes($trip);
@@ -252,8 +358,8 @@ class TicketingFlowTest extends TestCase
             'trip_id' => $trip->id,
             'from_station_id' => $stations['a']->id,
             'to_station_id' => $stations['b']->id,
-            'final_destination_station_id' => $stations['c']->id,
-            'connection_route_id' => $trip->route_id,
+            'final_destination_station_id' => $stationD->id,
+            'connection_route_id' => $connectionRoute->id,
             'seats' => [1],
         ])->assertCreated();
         $ticket = Ticket::findOrFail($response->json('ticket_ids.0'));
@@ -272,7 +378,7 @@ class TicketingFlowTest extends TestCase
     public function test_late_inbound_trip_flags_assigned_connection_without_releasing_its_seat(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
         OperationalSetting::current()->update(['connection_transfer_buffer_minutes' => 10]);
         $outboundTrip = Trip::create([
@@ -316,7 +422,7 @@ class TicketingFlowTest extends TestCase
     public function test_departing_connection_trip_releases_unboarded_passenger_back_to_pool(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $outboundTrip = Trip::create([
             'route_id' => $inboundTrip->route_id,
             'vehicle_id' => $inboundTrip->vehicle_id,
@@ -360,7 +466,7 @@ class TicketingFlowTest extends TestCase
     public function test_conflicted_connection_can_be_reassigned_atomically_and_is_recalculated(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
         OperationalSetting::current()->update(['connection_transfer_buffer_minutes' => 10]);
         $earlyTrip = Trip::create([
@@ -407,7 +513,7 @@ class TicketingFlowTest extends TestCase
     public function test_arriving_connection_trip_completes_boarded_connections_only(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $outboundTrip = Trip::create([
             'route_id' => $inboundTrip->route_id,
             'vehicle_id' => $inboundTrip->vehicle_id,
@@ -444,7 +550,7 @@ class TicketingFlowTest extends TestCase
     public function test_cancelled_connection_trip_releases_assigned_passenger_and_records_history(): void
     {
         [$admin, $inboundTrip, $stations] = $this->ticketingFixture();
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $outboundTrip = Trip::create([
             'route_id' => $inboundTrip->route_id,
             'vehicle_id' => $inboundTrip->vehicle_id,
@@ -508,7 +614,7 @@ class TicketingFlowTest extends TestCase
             'is_bidirectional' => true,
             'active' => true,
         ]);
-        $inboundTrip->update(['allows_open_connections' => true]);
+        $inboundTrip->update(['allows_open_connections' => true, 'destination_station_id' => $stations['b']->id]);
         $inboundTrip->route->update(['estimated_duration_minutes' => 60]);
 
         foreach ([[$stations['c']->id, 1], [$stationD->id, 2]] as [$destinationId, $seat]) {
@@ -2006,6 +2112,35 @@ class TicketingFlowTest extends TestCase
             'to_station_id' => $stations['b']->id,
             'seats' => [1],
         ])->assertStatus(201);
+    }
+
+    public function test_seller_can_modify_an_accessible_upcoming_trip_from_ticketing(): void
+    {
+        [, $trip, $stations] = $this->ticketingFixture();
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['a']->id,
+            'active' => true,
+        ]);
+        $newDeparture = now()->addHours(4)->startOfMinute();
+
+        $this->actingAs($seller)->put("/seller/trips/{$trip->id}", [
+            'code' => $trip->code,
+            'route_id' => $trip->route_id,
+            'vehicle_id' => $trip->vehicle_id,
+            'departure_at' => $newDeparture->toDateTimeString(),
+            'sales_control' => 'open',
+            'allows_open_connections' => false,
+            'automatic_connection_allocation' => true,
+            'is_replicable' => false,
+        ])->assertRedirect();
+
+        $trip->refresh();
+        $this->assertEquals($newDeparture, $trip->departure_at);
+        $this->assertSame('open', $trip->sales_control);
+        $this->assertFalse($trip->allows_open_connections);
+        $this->assertNull($trip->automatic_connection_allocation);
     }
 
     private function ticketingFixture(string $bookingType = 'seat_assignment', bool $reversed = false): array

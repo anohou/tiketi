@@ -701,8 +701,8 @@ const helpTopics = [
             body: 'Vérifiez la destination, l’heure et le plan de sièges. Si une route ou un véhicule manque, contactez le superviseur ou l’administrateur plutôt que de créer le départ avec une donnée incorrecte.',
           },
           {
-            title: 'Ventes intermédiaires',
-            body: 'Le contrôle des ventes indique si les ventes sont autorisées depuis les gares intermédiaires. Respectez la consigne définie pour le voyage.',
+            title: 'Ventes simultanées',
+            body: 'Le contrôle des ventes indique si les gares intermédiaires peuvent vendre simultanément. Respectez la consigne définie pour le voyage.',
           },
         ],
       },
@@ -726,8 +726,8 @@ const helpTopics = [
             body: 'Contrôlez l’occupation, les affectations et les données du départ avant le premier ticket. En cas d’erreur, faites corriger le voyage avant de demander aux agents de vendre.',
           },
           {
-            title: 'Ventes intermédiaires',
-            body: 'Le mode de contrôle des ventes détermine si les agents peuvent vendre seulement au départ ou aussi aux gares intermédiaires. Vérifiez qu’il correspond à la consigne d’exploitation.',
+            title: 'Ventes simultanées',
+            body: 'Le mode de contrôle des ventes détermine si les agents peuvent vendre seulement au départ ou simultanément depuis les gares intermédiaires. Vérifiez qu’il correspond à la consigne d’exploitation.',
           },
         ],
       },
@@ -758,8 +758,8 @@ const helpTopics = [
         ],
       },
       {
-        title: 'Ventes intermédiaires',
-        body: 'Le mode de contrôle des ventes détermine si les agents peuvent vendre seulement au départ ou aussi aux gares intermédiaires.',
+        title: 'Ventes simultanées',
+        body: 'Le mode de contrôle des ventes détermine si les agents peuvent vendre seulement au départ ou simultanément depuis les gares intermédiaires.',
       },
     ],
   },

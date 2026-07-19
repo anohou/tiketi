@@ -17,6 +17,7 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
+use App\Services\TripTimingService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
@@ -450,6 +451,60 @@ class TicketingController extends Controller
         }
 
         return redirect()->back()->with('status', 'Statut du voyage mis à jour.');
+    }
+
+    public function updateTrip(Request $request, Trip $trip)
+    {
+        $user = $request->user();
+        $routeStationIds = array_keys(app(TripSegmentService::class)->stationIndices($trip));
+
+        if ($user?->role === 'seller') {
+            abort_unless(
+                array_intersect($user->getActiveStationIds(), $routeStationIds) !== [],
+                403,
+                'Ce voyage ne dessert aucune de vos gares affectées.',
+            );
+            abort_unless(
+                in_array($trip->status, ['scheduled', 'boarding', 'delayed'], true),
+                403,
+                'Ce voyage ne peut plus être modifié par un vendeur.',
+            );
+        }
+
+        $validated = $request->validate([
+            'route_id' => ['required', 'uuid', 'exists:routes,id'],
+            'code' => ['nullable', 'string', 'max:255'],
+            'vehicle_id' => ['nullable', 'uuid', 'exists:vehicles,id'],
+            'departure_at' => ['required', 'date'],
+            'sales_control' => ['required', 'in:open,closed'],
+            'allows_open_connections' => ['required', 'boolean'],
+            'automatic_connection_allocation' => ['nullable', 'boolean'],
+            'is_replicable' => ['nullable', 'boolean'],
+        ]);
+
+        abort_unless(
+            $user->accessibleRoutesQuery()->whereKey($validated['route_id'])->exists(),
+            403,
+            'Vous n’avez pas accès à ce trajet.',
+        );
+
+        if ($trip->tickets()->where('status', '!=', 'cancelled')->exists()) {
+            if ($validated['route_id'] !== $trip->route_id || ($validated['vehicle_id'] ?? null) !== $trip->vehicle_id) {
+                return back()->withErrors([
+                    'route_id' => 'Le trajet et le véhicule ne peuvent plus être changés après la première vente.',
+                ]);
+            }
+        }
+
+        if (! $validated['allows_open_connections']) {
+            $validated['automatic_connection_allocation'] = null;
+        }
+
+        $validated['is_replicable'] = (bool) ($validated['is_replicable'] ?? false);
+        $trip->update($validated);
+        app(TripTimingService::class)->syncPlannedTimes($trip);
+
+        return redirect()->back()->with('status', 'Voyage modifié avec succès.');
     }
 
     public function tids(Request $request)

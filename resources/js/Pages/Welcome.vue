@@ -156,6 +156,13 @@ const fillCredentials = (user) => {
                         </template>
                     </a>
                 </div>
+
+                <div class="hidden lg:flex lg:items-center lg:gap-x-7">
+                    <a href="#features" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">La plateforme</a>
+                    <a href="#correspondances" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Correspondances</a>
+                    <a href="#tiketi-control" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Tiketi Control</a>
+                    <a href="#loyalty" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Fidélisation</a>
+                </div>
                 
                 <div v-if="canLogin" class="flex flex-1 justify-end gap-x-4 h-full items-center">
                     <Link
@@ -201,8 +208,14 @@ const fillCredentials = (user) => {
                                 <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500">Gestion de Transport</span>
                             </h1>
                             <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-                                L'outil ultime pour vos agents de billetterie, conçu pour la rapidité et la précision. Prenez le contrôle total de votre infrastructure de transport et optimisez vos revenus avec l'attribution intelligente des sièges.
+                                De la vente au guichet jusqu'au contrôle à l'embarquement, pilotez vos lignes, vos correspondances et chaque siège en temps réel. Une seule plateforme pour fluidifier le voyage et sécuriser vos revenus.
                             </p>
+                            <div class="mt-7 flex flex-wrap justify-center gap-2 lg:justify-start">
+                                <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800">Billetterie & guichet</span>
+                                <span class="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800">Correspondances</span>
+                                <span class="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800">Contrôle mobile</span>
+                                <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800">Pilotage financier</span>
+                            </div>
                             <div class="mt-10 flex items-center justify-center lg:justify-start gap-x-6">
                                 <a href="#contact" class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-1">
                                     Demander une Démo
@@ -311,13 +324,13 @@ const fillCredentials = (user) => {
                                       <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
                                     </svg>
                                 </div>
-                                Apps Mobiles Dédiées
+                                Tiketi Control sur le terrain
                             </dt>
                             <dd class="mt-6 flex flex-auto flex-col text-base leading-7 text-gray-600 dark:text-gray-300">
                                 <ul class="space-y-3 flex-1 list-disc pl-5">
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">App Vendeur (Guichet):</strong> Interface ultra-rapide pour émettre des billets.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">App Superviseur:</strong> Tour de contrôle, scan des QR codes sur le terrain.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">App Chauffeur:</strong> Manifeste numérique et validation à l'embarquement.</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Scan QR instantané :</strong> vérifiez le billet et détectez les doublons.</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Manifeste numérique :</strong> suivez les passagers et validez l'embarquement.</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Mode hors ligne :</strong> continuez le contrôle, puis synchronisez à la reconnexion.</li>
                                 </ul>
                             </dd>
                         </div>
@@ -326,6 +339,115 @@ const fillCredentials = (user) => {
                 </div>
             </div>
         </div>
+
+        <!-- Correspondances Section -->
+        <section id="correspondances" class="relative overflow-hidden border-t border-violet-100 bg-gradient-to-br from-violet-50 via-white to-indigo-50 py-24 dark:border-violet-950 dark:from-gray-950 dark:via-gray-900 dark:to-violet-950/30 sm:py-32">
+            <div class="absolute -right-24 top-12 h-72 w-72 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-700/10"></div>
+            <div class="relative mx-auto max-w-7xl px-6 lg:px-8">
+                <div class="grid items-center gap-16 lg:grid-cols-2">
+                    <div>
+                        <span class="inline-flex items-center rounded-full bg-violet-100 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">Voyage sans rupture</span>
+                        <h2 class="mt-6 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl">Les correspondances, enfin simples à opérer</h2>
+                        <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
+                            Vendez un trajet combiné avec changement de véhicule sur un seul billet. TIKETI suit le passager jusqu'à sa destination finale et donne à chaque gare la bonne information, au bon moment.
+                        </p>
+
+                        <dl class="mt-10 grid gap-6 sm:grid-cols-2">
+                            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-violet-100 dark:bg-gray-800 dark:ring-violet-900/50">
+                                <dt class="font-semibold text-gray-900 dark:text-white">Bassin de transit centralisé</dt>
+                                <dd class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Visualisez les voyageurs attendus par gare, leur statut et leur destination finale.</dd>
+                            </div>
+                            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-violet-100 dark:bg-gray-800 dark:ring-violet-900/50">
+                                <dt class="font-semibold text-gray-900 dark:text-white">Affectation intelligente</dt>
+                                <dd class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Attribuez automatiquement le meilleur siège disponible ou gardez la main en mode manuel.</dd>
+                            </div>
+                            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-violet-100 dark:bg-gray-800 dark:ring-violet-900/50">
+                                <dt class="font-semibold text-gray-900 dark:text-white">Présence confirmée</dt>
+                                <dd class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">L'agent de transit marque le passager prêt avant son placement sur le voyage de reprise.</dd>
+                            </div>
+                            <div class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-violet-100 dark:bg-gray-800 dark:ring-violet-900/50">
+                                <dt class="font-semibold text-gray-900 dark:text-white">Zéro conflit de siège</dt>
+                                <dd class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Les disponibilités sont vérifiées par segment pour empêcher toute double occupation.</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <div class="rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-gray-900/5 dark:bg-gray-800 dark:ring-white/10 sm:p-8">
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-5 dark:border-gray-700">
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">Parcours passager</p>
+                                <p class="mt-1 font-semibold text-gray-900 dark:text-white">Abidjan → Bouaké → Korhogo</p>
+                            </div>
+                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">1 billet</span>
+                        </div>
+
+                        <ol class="mt-7 space-y-3">
+                            <li class="flex gap-4 rounded-2xl bg-indigo-50 p-4 dark:bg-indigo-950/40">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">1</span>
+                                <div><p class="font-semibold text-gray-900 dark:text-white">Vente du trajet complet</p><p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Destination finale et gare de transfert enregistrées.</p></div>
+                            </li>
+                            <li class="ml-4 h-5 border-l-2 border-dashed border-violet-300 dark:border-violet-700"></li>
+                            <li class="flex gap-4 rounded-2xl bg-violet-50 p-4 ring-2 ring-violet-200 dark:bg-violet-950/40 dark:ring-violet-800">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white">2</span>
+                                <div><p class="font-semibold text-gray-900 dark:text-white">Transit confirmé à Bouaké</p><p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Le passager est prêt pour sa correspondance.</p></div>
+                            </li>
+                            <li class="ml-4 h-5 border-l-2 border-dashed border-violet-300 dark:border-violet-700"></li>
+                            <li class="flex gap-4 rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+                                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">3</span>
+                                <div><p class="font-semibold text-gray-900 dark:text-white">Place affectée pour Korhogo</p><p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Le manifeste du second véhicule est mis à jour.</p></div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tiketi Control Section -->
+        <section id="tiketi-control" class="overflow-hidden bg-slate-950 py-24 text-white sm:py-32">
+            <div class="mx-auto max-w-7xl px-6 lg:px-8">
+                <div class="grid items-center gap-16 lg:grid-cols-[0.85fr_1.15fr]">
+                    <div class="relative mx-auto w-full max-w-sm">
+                        <div class="absolute inset-8 rounded-full bg-cyan-500/30 blur-3xl"></div>
+                        <div class="relative rounded-[2.8rem] border-[10px] border-slate-800 bg-slate-50 p-4 shadow-2xl shadow-cyan-950/60">
+                            <div class="mx-auto mb-4 h-1.5 w-20 rounded-full bg-slate-300"></div>
+                            <div class="rounded-3xl bg-white p-4 text-slate-900 shadow-inner">
+                                <div class="flex items-center justify-between">
+                                    <div><p class="text-xs font-bold uppercase tracking-wider text-cyan-600">Tiketi Control</p><p class="mt-1 text-lg font-black">Contrôle billet</p></div>
+                                    <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">EN LIGNE</span>
+                                </div>
+                                <div class="mt-5 flex aspect-square items-center justify-center rounded-3xl bg-slate-950">
+                                    <div class="relative h-36 w-36 rounded-2xl border-2 border-cyan-400">
+                                        <span class="absolute -left-1 -top-1 h-8 w-8 border-l-4 border-t-4 border-white"></span>
+                                        <span class="absolute -right-1 -top-1 h-8 w-8 border-r-4 border-t-4 border-white"></span>
+                                        <span class="absolute -bottom-1 -left-1 h-8 w-8 border-b-4 border-l-4 border-white"></span>
+                                        <span class="absolute -bottom-1 -right-1 h-8 w-8 border-b-4 border-r-4 border-white"></span>
+                                        <span class="absolute left-3 right-3 top-1/2 h-0.5 bg-cyan-400 shadow-[0_0_16px_#22d3ee]"></span>
+                                    </div>
+                                </div>
+                                <div class="mt-4 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-100">
+                                    <div class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-lg font-black text-white">✓</span><div><p class="font-bold text-emerald-900">Billet valide</p><p class="text-xs text-emerald-700">Siège 18 · Abidjan → Bouaké</p></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="inline-flex items-center rounded-full bg-cyan-400/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-cyan-300 ring-1 ring-cyan-400/20">Application équipage</span>
+                        <h2 class="mt-6 text-3xl font-bold tracking-tight sm:text-5xl">Tiketi Control sécurise chaque embarquement</h2>
+                        <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+                            Donnez aux contrôleurs, chauffeurs et superviseurs les outils utiles sur le terrain. L'application reste rapide, lisible et opérationnelle même lorsque le réseau devient instable.
+                        </p>
+
+                        <div class="mt-10 grid gap-5 sm:grid-cols-2">
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-5"><p class="font-semibold text-cyan-300">Scan & anti-fraude</p><p class="mt-2 text-sm leading-6 text-slate-300">Validez le QR code, le voyage, le siège et l'état du billet en quelques secondes.</p></div>
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-5"><p class="font-semibold text-cyan-300">Manifeste en direct</p><p class="mt-2 text-sm leading-6 text-slate-300">Consultez les passagers, les correspondances et confirmez chaque embarquement.</p></div>
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-5"><p class="font-semibold text-cyan-300">Continuité hors ligne</p><p class="mt-2 text-sm leading-6 text-slate-300">Travaillez sur un cache fiable ; les actions sont rapprochées et synchronisées au retour du réseau.</p></div>
+                            <div class="rounded-2xl border border-white/10 bg-white/5 p-5"><p class="font-semibold text-cyan-300">Vue terrain complète</p><p class="mt-2 text-sm leading-6 text-slate-300">Voyages du jour, plan de salle, messages d'équipe et suivi des incidents au même endroit.</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- Les Roles Section with Image de Guichet -->
         <div id="roles" class="py-24 sm:py-32 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">

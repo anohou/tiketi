@@ -335,18 +335,81 @@ const connectionRouteModel = computed({
   set: (value) => emit('update:connectionRouteId', value || null),
 });
 
+const currentTripStationIndices = computed(() => {
+  const route = props.currentTrip?.route;
+  if (!route) return {};
+
+  const stops = route.route_stop_orders || route.routeStopOrders || [];
+  const stationIds = [
+    route.origin_station_id,
+    ...[...stops].sort((a, b) => a.stop_index - b.stop_index).map(stop => stop.station_id),
+    route.destination_station_id,
+  ].filter((stationId, index, ids) => stationId && ids.indexOf(stationId) === index);
+
+  const originIndex = stationIds.indexOf(props.currentTrip.origin_station_id);
+  const destinationIndex = stationIds.indexOf(props.currentTrip.destination_station_id);
+  const orderedStationIds = originIndex > destinationIndex ? [...stationIds].reverse() : stationIds;
+
+  return Object.fromEntries(orderedStationIds.map((stationId, index) => [stationId, index]));
+});
+
+const isServedByCurrentTripAfter = (transferId, destinationId) => {
+  const indices = currentTripStationIndices.value;
+  const transferIndex = indices[transferId];
+  const destinationIndex = indices[destinationId];
+  const tripDestinationIndex = indices[props.currentTrip?.destination_station_id];
+
+  return Number.isInteger(transferIndex)
+    && Number.isInteger(destinationIndex)
+    && Number.isInteger(tripDestinationIndex)
+    && transferIndex < destinationIndex
+    && destinationIndex <= tripDestinationIndex;
+};
+
+const routeStationIds = (route) => {
+  const stops = route.route_stop_orders || route.routeStopOrders || [];
+
+  return [
+    route.origin_station_id,
+    ...[...stops].sort((a, b) => a.stop_index - b.stop_index).map(stop => stop.station_id),
+    route.destination_station_id,
+  ].filter((stationId, index, stationIds) => stationId && stationIds.indexOf(stationId) === index);
+};
+
+const routeConnectsInTravelDirection = (route, transferId, destinationId) => {
+  const stationIds = routeStationIds(route);
+  const transferIndex = stationIds.indexOf(transferId);
+  const destinationIndex = stationIds.indexOf(destinationId);
+
+  return transferIndex !== -1 && destinationIndex !== -1 && transferIndex < destinationIndex;
+};
+
 const availableConnectionFares = computed(() => {
   if (!props.currentTrip?.allows_open_connections || !props.selectedFare?.from_station_id) return [];
   const originId = props.selectedFare.from_station_id;
   const transferId = props.selectedFare.to_station_id;
   return props.connectionFares.flatMap(fare => {
+    let isCandidate = false;
+    let connDestId = null;
+    let connDest = null;
+
     if (fare.from_station_id === originId && fare.to_station_id !== transferId) {
-      return [{ ...fare, connection_destination_id: fare.to_station_id, connection_destination: fare.to_station }];
+      isCandidate = true;
+      connDestId = fare.to_station_id;
+      connDest = fare.to_station;
+    } else if (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id !== transferId) {
+      isCandidate = true;
+      connDestId = fare.from_station_id;
+      connDest = fare.from_station;
     }
-    if (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id !== transferId) {
-      return [{ ...fare, connection_destination_id: fare.from_station_id, connection_destination: fare.from_station }];
-    }
-    return [];
+
+    if (!isCandidate || !connDestId || isServedByCurrentTripAfter(transferId, connDestId)) return [];
+
+    const hasRoute = props.connectionRoutes.some(route => routeConnectsInTravelDirection(route, transferId, connDestId));
+
+    if (!hasRoute) return [];
+
+    return [{ ...fare, connection_destination_id: connDestId, connection_destination: connDest }];
   });
 });
 
@@ -355,11 +418,13 @@ const selectedConnectionFare = computed(() => availableConnectionFares.value.fin
 const compatibleConnectionRoutes = computed(() => {
   if (!finalDestinationModel.value || !props.selectedFare?.to_station_id) return [];
   const transferId = props.selectedFare.to_station_id;
-  return props.connectionRoutes.filter(route => {
-    const stops = route.route_stop_orders || route.routeStopOrders || [];
-    const ids = [route.origin_station_id, route.destination_station_id, ...stops.map(stop => stop.station_id)];
-    return ids.includes(transferId) && ids.includes(finalDestinationModel.value);
-  });
+  return props.connectionRoutes.filter(route => routeConnectsInTravelDirection(route, transferId, finalDestinationModel.value));
+});
+
+watch(availableConnectionFares, (fares) => {
+  if (finalDestinationModel.value && !fares.some(fare => fare.connection_destination_id === finalDestinationModel.value)) {
+    finalDestinationModel.value = null;
+  }
 });
 
 watch(compatibleConnectionRoutes, (routes) => {
@@ -378,6 +443,10 @@ const seatLabel = computed(() => {
 const routeLabel = computed(() => {
   const from = props.selectedFare?.from_station?.name;
   const to = props.selectedFare?.to_station?.name;
+  const finalDestination = props.selectedFare?.sale_destination?.name;
+  if (from && to && finalDestination) {
+    return `${from} → ${finalDestination} (correspondance à ${to})`;
+  }
   if (from && to) {
     return `${from} → ${to}`;
   }
@@ -656,7 +725,11 @@ onBeforeUnmount(() => {
     <div
       ref="modalRef"
       class="absolute w-[calc(100vw-1.5rem)] bg-white/90 dark:bg-slate-900/90 rounded-3xl shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40 border border-white/60 dark:border-slate-800/80 max-h-[84vh] overflow-hidden backdrop-blur-sm transition-[width] duration-300 ease-out md:max-w-[calc(100vw-2rem)]"
-      :class="isOkohiExpanded ? 'md:w-[52rem]' : 'max-w-xl md:w-[24rem] md:max-w-none'"
+      :class="isDestinationMode
+        ? 'max-w-6xl md:w-[64rem] md:max-w-none'
+        : isOkohiExpanded
+          ? 'md:w-[52rem]'
+          : 'max-w-xl md:w-[24rem] md:max-w-none'"
       :style="{
         left: `${modalPosition.x}px`,
         top: `${modalPosition.y}px`,
@@ -680,24 +753,32 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div class="overflow-y-auto p-3 md:p-4 max-h-[calc(84vh-76px)]">
-        <template v-if="isDestinationMode">
-          <div v-if="availableFares.length > 0" class="grid gap-3">
+      <div
+        class="overflow-y-auto p-3 md:p-4 max-h-[calc(84vh-76px)]"
+        :class="isDestinationMode ? 'md:grid md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:items-start md:gap-4' : ''"
+      >
+        <div v-if="isDestinationMode" class="min-w-0 space-y-3 md:order-2">
+          <div v-if="availableFares.length > 0" class="space-y-3">
             <button
               v-for="fare in availableFares"
               :key="fare.id"
               type="button"
               @click="$emit('select-fare', fare)"
-              class="text-left relative overflow-hidden rounded-2xl transition-all duration-200 border-2 border-transparent shadow-sm hover:shadow-lg active:scale-[0.99]"
+              class="w-full text-left relative overflow-hidden rounded-2xl transition-all duration-200 border-2 border-transparent shadow-sm hover:shadow-lg active:scale-[0.99]"
               :style="{ backgroundColor: fare.color || '#0f766e' }"
             >
               <div class="p-3 md:p-4 flex items-center justify-between gap-3 md:gap-4">
                 <div class="min-w-0">
                   <div class="text-base md:text-lg font-black truncate" :style="{ color: fare.textColor || '#FFFFFF' }">
-                    {{ fare.to_station?.name }}
+                    {{ (fare.sale_destination || fare.to_station)?.name }}
                   </div>
-                  <div class="text-[11px] md:text-xs font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
-                    → depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}
+                  <div class="flex items-center gap-2 text-[11px] md:text-xs font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
+                    <span v-if="fare.is_connection" class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                      <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span>
+                      <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white/40"></span>
+                    </span>
+                    <template v-if="fare.is_connection">Correspondance à {{ fare.transfer_station?.name }}</template>
+                    <template v-else>→ depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}</template>
                   </div>
                 </div>
                 <div class="text-right shrink-0">
@@ -712,10 +793,11 @@ onBeforeUnmount(() => {
           <div v-else class="p-8 text-center text-gray-500 dark:text-slate-400">
             Aucune destination disponible pour ce voyage.
           </div>
-        </template>
+        </div>
 
-        <!-- ── Okohi claim: approved ── -->
-        <div v-if="isOkohiApproved" class="p-5 text-center space-y-3">
+        <div class="min-w-0" :class="isDestinationMode ? 'md:order-1' : ''">
+          <!-- ── Okohi claim: approved ── -->
+          <div v-if="isOkohiApproved" class="p-5 text-center space-y-3">
           <div class="w-14 h-14 rounded-full bg-green-100 dark:bg-emerald-950/40 flex items-center justify-center mx-auto">
             <CheckCircle class="text-green-500" :size="32" />
           </div>
@@ -733,7 +815,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- ── Okohi claim: rejected / expired ── -->
-        <div v-else-if="isOkohiRejected" class="p-5 text-center space-y-3">
+          <div v-else-if="isOkohiRejected" class="p-5 text-center space-y-3">
           <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center mx-auto">
             <CloseCircleIcon class="text-red-400" :size="32" />
           </div>
@@ -749,7 +831,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- ── Okohi claim: pending ── -->
-        <div v-else-if="isOkohiWaiting" class="p-5 text-center space-y-4">
+          <div v-else-if="isOkohiWaiting" class="p-5 text-center space-y-4">
           <div class="w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto relative">
             <Gift class="text-amber-500" :size="28" />
             <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 animate-ping opacity-75" />
@@ -776,7 +858,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div v-else>
+          <div v-else>
           <!-- ÉCRAN D'ATTENTE ASYNCHRONE OKOHI PENDING -->
           <div v-if="okohiRequest" class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-6 text-center shadow-sm space-y-4">
             <!-- State 1: Approved, Pending Cash -->
@@ -1142,6 +1224,7 @@ onBeforeUnmount(() => {
                 </button>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

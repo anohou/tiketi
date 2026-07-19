@@ -26,6 +26,7 @@ import History from 'vue-material-design-icons/History.vue';
 import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
 import FileExcel from 'vue-material-design-icons/FileExcel.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
+import Pencil from 'vue-material-design-icons/Pencil.vue';
 import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
 import TripConnectionSummary from '@/Components/Seller/TripConnectionSummary.vue';
 import Dropdown from '@/Components/Dropdown.vue';
@@ -79,6 +80,7 @@ const {
   createTripForm,
   createTripErrors,
   createTripProcessing,
+  isEditingTrip,
   showZoomModal,
   showTripDetailsModal,
   selectedDetailsTripId,
@@ -139,6 +141,8 @@ const {
   cancelBooking,
   handleOkohiSuccess,
   createTrip,
+  openCreateTrip,
+  openEditTrip,
   applyReplicableTemplate,
   fallbackToBrowserPrint,
   moveTripUp,
@@ -378,6 +382,20 @@ const parseRouteName = (trip) => {
   };
 }
 
+const expandedTripId = ref(null);
+
+const toggleTripDetails = (trip) => {
+  if (expandedTripId.value === trip.id) {
+    expandedTripId.value = null;
+    return;
+  }
+
+  expandedTripId.value = trip.id;
+  if (selectedTripId.value !== trip.id) {
+    selectTrip(trip.id);
+  }
+};
+
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
@@ -510,7 +528,7 @@ onMounted(() => {
                   <div class="text-[10px] font-bold text-gray-400 tracking-widest mt-1 dark:text-slate-500">{{ currentDate }}</div>
                 </div>
                 <button
-                  @click="showCreateTripModal = true"
+                  @click="openCreateTrip"
                   class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex-shrink-0"
                 >
                   <Plus :size="20" />
@@ -643,6 +661,15 @@ onMounted(() => {
                                  <template #content>
                                    <div class="py-1">
                                      <button
+                                       v-if="!['departed', 'arrived', 'cancelled'].includes(currentTrip.status)"
+                                       @click="openEditTrip(currentTrip)"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
+                                       <span>Modifier le voyage</span>
+                                     </button>
+                                     <button
                                        @click="openTripDetailsWithOverview(currentTrip.id)"
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
@@ -747,67 +774,78 @@ onMounted(() => {
                    </div>
  
                    <!-- Desktop: Show all trips with highlighted selected -->
-                   <div v-if="!isMobile && filteredTrips.length > 0" class="space-y-3">
+                   <div v-if="!isMobile && filteredTrips.length > 0" class="space-y-2">
                      <div
                        v-for="(trip, index) in filteredTrips"
                        :key="trip.id"
-                       @click="selectTrip(trip.id)"
+                       @click="toggleTripDetails(trip)"
+                       @keydown.enter.prevent="toggleTripDetails(trip)"
+                       @keydown.space.prevent="toggleTripDetails(trip)"
                        draggable="true"
+                       role="button"
+                       tabindex="0"
+                       :aria-expanded="expandedTripId === trip.id"
                        @dragstart="dragStart($event, index)"
                        @dragover.prevent
                        @dragenter="dragEnter($event, index)"
                        @dragend="dragEnd"
                        @drop="dragDrop($event, index)"
                        :class="[
-                         'p-4 rounded-3xl cursor-grab active:cursor-grabbing transition-all duration-300 border-2',
+                         'rounded-2xl cursor-pointer transition-all duration-300 border-2 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
                          selectedTripId === trip.id
-                           ? 'bg-emerald-50 border-emerald-500 dark:bg-emerald-950/20 dark:border-emerald-800 shadow-lg scale-[1.01]'
+                           ? 'bg-white border-emerald-500 dark:bg-slate-900 dark:border-emerald-700 shadow-md'
                            : ticketingStore.tripHighlights?.[trip.id]
-                             ? 'bg-amber-50 border-amber-400 dark:bg-amber-950/20 dark:border-amber-800 shadow-xl shadow-amber-200/40 dark:shadow-amber-950/20 scale-[1.01]'
-                           : 'bg-slate-50 border-transparent dark:bg-slate-900/50 hover:border-emerald-200 dark:hover:border-emerald-800 hover:bg-white dark:hover:bg-slate-800 hover:shadow-md',
+                             ? 'bg-amber-50 border-amber-400 dark:bg-amber-950/20 dark:border-amber-800 shadow-lg shadow-amber-200/30 dark:shadow-amber-950/20'
+                           : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800 hover:shadow-sm',
                          dragOverIndex === index ? 'border-dashed border-emerald-500 dark:border-emerald-600 bg-emerald-100/30 dark:bg-emerald-950/30 scale-[1.01]' : ''
                        ]"
                      >
-                       <div class="flex items-center justify-between">
-                         <div class="flex items-center gap-4 flex-1 min-w-0">
-                           <div :class="[
-                             'p-2 rounded-xl shadow-sm transition-colors',
-                             selectedTripId === trip.id ? 'bg-white dark:bg-slate-950' : 'bg-white dark:bg-slate-950 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-950/20'
-                           ]">
-                             <Bus :size="24" :class="selectedTripId === trip.id ? 'text-emerald-600' : 'text-gray-400 dark:text-slate-500'" />
+                       <div class="flex items-center gap-4 p-3.5 md:p-4">
+                         <div :class="[
+                           'flex w-[78px] shrink-0 flex-col items-center justify-center rounded-xl border px-2 py-2.5',
+                           isTripPastForDisplay(trip)
+                             ? 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-400'
+                             : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                         ]">
+                           <span class="text-2xl font-black leading-none tracking-tight tabular-nums">{{ formatTime(trip.departure_at) }}</span>
+                           <span class="mt-1 text-[9px] font-bold uppercase tracking-wide opacity-70">
+                             {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) }}
+                           </span>
+                         </div>
+
+                         <div class="min-w-0 flex-1">
+                           <div class="flex min-w-0 items-center gap-2">
+                             <div v-if="selectedTripId === trip.id" :class="['h-2 w-2 shrink-0 rounded-full', isTripPastForDisplay(trip) ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse']"></div>
+                             <div v-else-if="ticketingStore.tripHighlights?.[trip.id]" class="h-2 w-2 shrink-0 rounded-full bg-amber-500 animate-pulse"></div>
+                             <p :class="['min-w-0 truncate text-lg font-black leading-tight tracking-tight md:text-xl', isTripPastForDisplay(trip) ? 'text-slate-500' : 'text-slate-900 dark:text-white']">
+                               {{ parseRouteName(trip).destination }}
+                             </p>
+                             <span
+                               :title="trip.sales_control === 'open' ? 'Ventes simultanées autorisées' : 'Ventes à la gare d\'origine uniquement'"
+                               class="shrink-0 text-sm"
+                               aria-label="Mode de vente"
+                             >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
+                             <ChevronDown
+                               :size="20"
+                               :class="['shrink-0 text-slate-400 transition-transform duration-200 dark:text-slate-500', expandedTripId === trip.id ? 'rotate-180 text-emerald-600 dark:text-emerald-400' : '']"
+                               aria-hidden="true"
+                             />
                            </div>
-                           <div class="min-w-0">
-                             <div class="flex items-center gap-2">
-                                <div v-if="selectedTripId === trip.id" :class="['w-2 h-2 rounded-full shrink-0', isTripPastForDisplay(trip) ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse']"></div>
-                                <div v-else-if="ticketingStore.tripHighlights?.[trip.id]" class="w-2 h-2 rounded-full shrink-0 bg-amber-500 animate-pulse"></div>
-                                <div :class="['flex flex-wrap items-center gap-2 font-bold tracking-tight min-w-0', isTripPastForDisplay(trip) ? 'text-gray-500 italic' : 'text-gray-900 dark:text-slate-100']">
-                                  <span class="whitespace-nowrap">{{ trip.display_name }}</span>
-                                  <span
-                                  :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
-                                  class="text-xs shrink-0"
-                                  >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
-                                  <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
-                                    {{ trip.code || 'Code en attente' }}
-                                  </span>
-                                  <span v-if="trip.allows_open_connections" class="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[10px] font-black tracking-wider uppercase">
-                                    Correspondances
-                                  </span>
-                                  <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[10px] font-black tracking-wider uppercase">
-                                    Direct
-                                  </span>
-                                  <span v-if="trip.status === 'cancelled'" class="text-[10px] font-black bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-350 px-1.5 py-0.5 rounded uppercase">Annulé</span>
-                                  <span v-else-if="trip.status === 'delayed'" class="text-[10px] font-black bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded uppercase">Retardé</span>
-                                  <span v-else-if="trip.status === 'boarding'" class="text-[10px] font-black bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded uppercase">Embarquement</span>
-                                  <span v-else-if="isTripEnRoute(trip)" class="text-[10px] font-black bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded uppercase">En route</span>
-                                  <span v-else-if="isTripPastForDisplay(trip)" class="text-[10px] font-black bg-gray-100 dark:bg-slate-800 text-gray-500 px-1.5 py-0.5 rounded uppercase">Passé</span>
-                                </div>
-                             </div>
-                             <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
-                               {{ trip.vehicle?.identifier }} • {{ trip.vehicle?.vehicle_type?.name }}
-                             </div>
+                           <p class="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
+                             Départ : {{ parseRouteName(trip).origin }}
+                           </p>
+                           <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                             <span v-if="trip.status === 'cancelled'" class="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Annulé</span>
+                             <span v-else-if="trip.status === 'delayed'" class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">Retardé</span>
+                             <span v-else-if="trip.status === 'boarding'" class="rounded-full bg-orange-100 px-2 py-0.5 text-[9px] font-black uppercase text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">Embarquement</span>
+                             <span v-else-if="isTripEnRoute(trip)" class="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">En route</span>
+                             <span v-else-if="isTripPastForDisplay(trip)" class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-500 dark:bg-slate-800">Passé</span>
+                             <span v-else class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">À l'heure</span>
+                             <span v-if="trip.allows_open_connections" class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">Correspondance</span>
+                             <span v-else class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">Direct</span>
                            </div>
                          </div>
-                         <div class="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
+                         <div class="ml-auto flex shrink-0 items-center gap-1">
                            <div class="flex items-center gap-1.5">
                              <Link
                                :href="route('seller.ticketing.horizontal', { trip_id: trip.id })"
@@ -835,6 +873,15 @@ onMounted(() => {
                                  </template>
                                  <template #content>
                                    <div class="py-1">
+                                     <button
+                                       v-if="!['departed', 'arrived', 'cancelled'].includes(trip.status)"
+                                       @click="openEditTrip(trip)"
+                                       @dragstart.stop.prevent
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                     >
+                                       <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
+                                       <span>Modifier le voyage</span>
+                                     </button>
                                      <button
                                        @click="openTripDetailsWithOverview(trip.id)"
                                        @dragstart.stop.prevent
@@ -875,17 +922,19 @@ onMounted(() => {
                                </Dropdown>
                              </div>
                            </div>
-                           <div>
-                             <div class="text-xl font-black text-gray-900 dark:text-slate-100">
-                               {{ new Date(trip.departure_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}
-                             </div>
-                             <div class="text-[10px] text-gray-500 dark:text-slate-400 font-bold capitalize">
-                               {{ new Date(trip.departure_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' }) }}
-                             </div>
-                           </div>
                          </div>
                        </div>
-                       <TripConnectionSummary :summary="trip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(trip.status)" @manage-connections="openTripTransitPool(trip.id)" />
+                       <div v-if="expandedTripId === trip.id" class="border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40" @click.stop>
+                         <div class="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                           <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">{{ trip.code || 'Code en attente' }}</span>
+                           <span>{{ trip.vehicle?.identifier || 'Véhicule non assigné' }}</span>
+                           <span v-if="trip.vehicle?.vehicle_type?.name">• {{ trip.vehicle.vehicle_type.name }}</span>
+                           <span :title="trip.sales_control === 'open' ? 'Ventes simultanées autorisées' : 'Ventes origine uniquement'">
+                             {{ trip.sales_control === 'open' ? '🔓 Ventes simultanées' : '🔒 Ventes à l\'origine' }}
+                           </span>
+                         </div>
+
+                         <TripConnectionSummary :summary="trip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(trip.status)" @manage-connections="openTripTransitPool(trip.id)" />
                        <!-- Status actions / Seat Stats Row -->
                        <div v-if="selectedTripId === trip.id && canEditStatus(trip)" class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-dashed border-emerald-200 dark:border-emerald-800/80">
                          <button
@@ -951,6 +1000,7 @@ onMounted(() => {
                                  <span class="text-[9px] text-slate-500/70 dark:text-slate-400/70 mb-0.5 font-bold uppercase">Occ</span>
                              </div>
                          </div>
+                       </div>
                        </div>
                      </div>
                    </div>
@@ -1047,10 +1097,15 @@ onMounted(() => {
                        <div class="p-3 flex items-center justify-between">
                          <div class="flex-1 min-w-0 mr-3">
                            <div class="text-base font-bold truncate" :style="{ color: fare.textColor || '#FFFFFF' }">
-                             {{ fare.to_station?.name }}
+                             {{ (fare.sale_destination || fare.to_station)?.name }}
                            </div>
-                           <div class="text-[10px] font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
-                             → depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}
+                           <div class="flex items-center gap-2 text-[10px] font-medium" :style="{ color: fare.mutedColor || 'rgba(255,255,255,0.7)' }">
+                             <span v-if="fare.is_connection" class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                               <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span>
+                               <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white/40"></span>
+                             </span>
+                             <template v-if="fare.is_connection">Correspondance à {{ fare.transfer_station?.name }}</template>
+                             <template v-else>→ depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}</template>
                            </div>
                          </div>
                          <div class="text-right shrink-0 flex items-center gap-2">
@@ -1182,146 +1237,148 @@ onMounted(() => {
 
     <!-- Modal de création de voyage -->
     <div v-if="showCreateTripModal" class="fixed inset-0 z-[1000] flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-sm">
-      <div class="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white/95 dark:bg-slate-900 dark:border-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40">
+      <div class="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/70 bg-white/95 dark:bg-slate-900 dark:border-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40">
         <div class="p-5">
-          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">Créer un nouveau voyage</h3>
+          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">{{ isEditingTrip ? 'Modifier le voyage' : 'Créer un nouveau voyage' }}</h3>
           <form @submit.prevent="createTrip" class="mt-2 space-y-4">
-            <div v-if="props.replicableTrips && props.replicableTrips.length > 0">
-              <InputLabel for="template_select" value="Sélectionner un modèle de voyage récurrent" />
-              <select
-                id="template_select"
-                v-model="selectedTemplate"
-                class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-              >
-                <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
-                <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
-                  {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <InputLabel for="route_id" value="Route" />
-              <select
-                id="route_id"
-                v-model="createTripForm.route_id"
-                class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-                required
-              >
-                <option value="">Sélectionner une route</option>
-                <option v-for="route in routes" :key="route.id" :value="route.id">
-                  {{ route.display_name || route.name }}
-                </option>
-              </select>
-              <InputError class="mt-2" :message="createTripErrors.route_id" />
-            </div>
-
-            <div>
-              <InputLabel for="vehicle_id" value="Véhicule" />
-              <select
-                id="vehicle_id"
-                v-model="createTripForm.vehicle_id"
-                class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-              >
-                <option value="">Sélectionner un véhicule</option>
-                <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
-                  {{ vehicle.identifier }} ({{ vehicle.seat_count }} places)
-                </option>
-              </select>
-              <InputError class="mt-2" :message="createTripErrors.vehicle_id" />
-            </div>
-
-            <div>
-              <InputLabel for="departure_at" value="Heure de départ" />
-              <TextInput
-                id="departure_at"
-                v-model="createTripForm.departure_at"
-                type="datetime-local"
-                class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-                required
-              />
-              <InputError class="mt-2" :message="createTripErrors.departure_at" />
-            </div>
-
-            <div>
-              <InputLabel for="code" value="Code / Numéro de voyage" />
-              <TextInput
-                id="code"
-                v-model="createTripForm.code"
-                type="text"
-                class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-                placeholder="Sera généré automatiquement (Ex: ABJ-BKE-0800)"
-              />
-              <InputError class="mt-2" :message="createTripErrors.code" />
-            </div>
-
-            <!-- Sales Control Toggle -->
-            <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
-              <div class="flex items-center justify-between">
-                <div>
-                  <label for="sales_control" class="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    Ventes intermédiaires
-                  </label>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {{ createTripForm.sales_control === 'open' 
-                       ? '🔓 Les stations intermédiaires peuvent vendre' 
-                       : '🔒 Seule la station d\'origine peut vendre' }}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  @click="createTripForm.sales_control = createTripForm.sales_control === 'open' ? 'closed' : 'open'"
-                  :class="[
-                    'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2',
-                    createTripForm.sales_control === 'open' ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800'
-                  ]"
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div v-if="!isEditingTrip && props.replicableTrips && props.replicableTrips.length > 0" class="md:col-span-2">
+                <InputLabel for="template_select" value="Sélectionner un modèle de voyage récurrent" />
+                <select
+                  id="template_select"
+                  v-model="selectedTemplate"
+                  class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
                 >
-                  <span
+                  <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
+                  <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
+                    {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
+                  </option>
+                </select>
+              </div>
+
+              <div>
+                <InputLabel for="route_id" value="Route" />
+                <select
+                  id="route_id"
+                  v-model="createTripForm.route_id"
+                  class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                  required
+                >
+                  <option value="">Sélectionner une route</option>
+                  <option v-for="route in routes" :key="route.id" :value="route.id">
+                    {{ route.display_name || route.name }}
+                  </option>
+                </select>
+                <InputError class="mt-2" :message="createTripErrors.route_id" />
+              </div>
+
+              <div>
+                <InputLabel for="vehicle_id" value="Véhicule" />
+                <select
+                  id="vehicle_id"
+                  v-model="createTripForm.vehicle_id"
+                  class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                >
+                  <option value="">Sélectionner un véhicule</option>
+                  <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
+                    {{ vehicle.identifier }} ({{ vehicle.seat_count }} places)
+                  </option>
+                </select>
+                <InputError class="mt-2" :message="createTripErrors.vehicle_id" />
+              </div>
+
+              <div>
+                <InputLabel for="departure_at" value="Heure de départ" />
+                <TextInput
+                  id="departure_at"
+                  v-model="createTripForm.departure_at"
+                  type="datetime-local"
+                  class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                  required
+                />
+                <InputError class="mt-2" :message="createTripErrors.departure_at" />
+              </div>
+
+              <div>
+                <InputLabel for="code" value="Code / Numéro de voyage" />
+                <TextInput
+                  id="code"
+                  v-model="createTripForm.code"
+                  type="text"
+                  class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                  placeholder="Sera généré automatiquement (Ex: ABJ-BKE-0800)"
+                />
+                <InputError class="mt-2" :message="createTripErrors.code" />
+              </div>
+
+              <!-- Sales Control Toggle -->
+              <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label for="sales_control" class="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      Ventes simultanées
+                    </label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {{ createTripForm.sales_control === 'open'
+                         ? '🔓 Les stations intermédiaires peuvent vendre simultanément'
+                         : '🔒 Seule la station d\'origine peut vendre' }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    @click="createTripForm.sales_control = createTripForm.sales_control === 'open' ? 'closed' : 'open'"
                     :class="[
-                      'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                      createTripForm.sales_control === 'open' ? 'translate-x-5' : 'translate-x-0'
+                      'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2',
+                      createTripForm.sales_control === 'open' ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800'
                     ]"
-                  />
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <InputLabel for="trip_auto_allocation" value="Allocation automatique sur ce voyage" />
-              <select id="trip_auto_allocation" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-                <option :value="null">Hériter du trajet et de la compagnie</option>
-                <option :value="true">Activer pour ce voyage</option>
-                <option :value="false">Désactiver pour ce voyage</option>
-              </select>
-            </div>
-
-            <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Autoriser une destination finale au-delà de l’arrivée de ce voyage.
-                  </p>
+                  >
+                    <span
+                      :class="[
+                        'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                        createTripForm.sales_control === 'open' ? 'translate-x-5' : 'translate-x-0'
+                      ]"
+                    />
+                  </button>
                 </div>
-                <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
-                  :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.allows_open_connections ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
-                  <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.allows_open_connections ? 'translate-x-5' : 'translate-x-0']" />
-                </button>
               </div>
-            </div>
 
-            <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</label>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Recréer ce voyage chaque jour à minuit (sans bus ni équipage affectés).
-                  </p>
+              <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Autoriser une destination finale au-delà de l’arrivée de ce voyage.
+                    </p>
+                  </div>
+                  <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
+                    :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.allows_open_connections ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                    <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.allows_open_connections ? 'translate-x-5' : 'translate-x-0']" />
+                  </button>
                 </div>
-                <button type="button" @click="createTripForm.is_replicable = !createTripForm.is_replicable"
-                  :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.is_replicable ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
-                  <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.is_replicable ? 'translate-x-5' : 'translate-x-0']" />
-                </button>
+              </div>
+
+              <div v-if="createTripForm.allows_open_connections" class="md:col-span-2">
+                <InputLabel for="trip_auto_allocation" value="Allocation automatique des correspondances sur ce voyage" />
+                <select id="trip_auto_allocation" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                  <option :value="null">Hériter du trajet et de la compagnie</option>
+                  <option :value="true">Activer pour ce voyage</option>
+                  <option :value="false">Désactiver pour ce voyage</option>
+                </select>
+              </div>
+
+              <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800 md:col-span-2">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</label>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Recréer ce voyage chaque jour à minuit (sans bus ni équipage affectés).
+                    </p>
+                  </div>
+                  <button type="button" @click="createTripForm.is_replicable = !createTripForm.is_replicable"
+                    :class="['relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.is_replicable ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
+                    <span :class="['pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition', createTripForm.is_replicable ? 'translate-x-5' : 'translate-x-0']" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1338,7 +1395,7 @@ onMounted(() => {
                 :disabled="createTripProcessing"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                 >
-                {{ createTripProcessing ? 'Création...' : 'Créer' }}
+                {{ createTripProcessing ? (isEditingTrip ? 'Modification...' : 'Création...') : (isEditingTrip ? 'Enregistrer' : 'Créer') }}
               </button>
             </div>
           </form>

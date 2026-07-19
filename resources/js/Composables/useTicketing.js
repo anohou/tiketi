@@ -51,6 +51,8 @@ export function useTicketing(props, options = {}) {
 
   // Create trip modal
   const showCreateTripModal = ref(false);
+  const editingTripId = ref(null);
+  const isEditingTrip = computed(() => editingTripId.value !== null);
   const createTripForm = ref({
     code: '',
     route_id: '',
@@ -863,7 +865,12 @@ export function useTicketing(props, options = {}) {
       return false;
     });
 
-    return [...filtered].sort((a, b) => a.amount - b.amount).map((fare) => {
+    const directFares = [...filtered].sort((a, b) => {
+      const aDestinationId = a.to_station_id || a.to_station?.id || a.toStation?.id;
+      const bDestinationId = b.to_station_id || b.to_station?.id || b.toStation?.id;
+      return (stationIndexMap[aDestinationId] ?? Number.MAX_SAFE_INTEGER)
+        - (stationIndexMap[bDestinationId] ?? Number.MAX_SAFE_INTEGER);
+    }).map((fare) => {
       const fromStation = fare.from_station || fare.fromStation;
       const toStation = fare.to_station || fare.toStation;
       const fareFromId = fare.from_station_id || fromStation?.id;
@@ -877,6 +884,81 @@ export function useTicketing(props, options = {}) {
         textColor: palette.fg,
         mutedColor: palette.muted,
       };
+    });
+
+    if (!currentTrip.value.allows_open_connections) return directFares;
+
+    const tripDestinationIndex = stationIndexMap[currentTrip.value.destination_station_id];
+    const connectionOptions = directFares.flatMap((segmentFare) => {
+      const originId = segmentFare.from_station_id;
+      const transferId = segmentFare.to_station_id;
+      const transferIndex = stationIndexMap[transferId];
+
+      return (props.connectionFares || []).flatMap((endToEndFare) => {
+        let destinationId = null;
+        let destination = null;
+
+        if (endToEndFare.from_station_id === originId && endToEndFare.to_station_id !== transferId) {
+          destinationId = endToEndFare.to_station_id;
+          destination = endToEndFare.to_station || endToEndFare.toStation;
+        } else if (endToEndFare.is_bidirectional && endToEndFare.to_station_id === originId && endToEndFare.from_station_id !== transferId) {
+          destinationId = endToEndFare.from_station_id;
+          destination = endToEndFare.from_station || endToEndFare.fromStation;
+        }
+
+        if (!destinationId) return [];
+
+        const destinationIndex = stationIndexMap[destinationId];
+        const servedByCurrentTrip = transferIndex !== undefined
+          && destinationIndex !== undefined
+          && tripDestinationIndex !== undefined
+          && transferIndex < destinationIndex
+          && destinationIndex <= tripDestinationIndex;
+        if (servedByCurrentTrip) return [];
+
+        const connectionRoute = (props.connectionRoutes || []).find((route) => {
+          const stops = [...(route.route_stop_orders || route.routeStopOrders || [])]
+            .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+          const stationIds = [
+            route.origin_station_id,
+            ...stops.map(stop => stop.station_id || stop.station?.id),
+            route.destination_station_id,
+          ].filter((stationId, index, ids) => stationId && ids.indexOf(stationId) === index);
+          const routeTransferIndex = stationIds.indexOf(transferId);
+          const routeDestinationIndex = stationIds.indexOf(destinationId);
+
+          return routeTransferIndex !== -1
+            && routeDestinationIndex !== -1
+            && routeTransferIndex < routeDestinationIndex;
+        });
+        if (!connectionRoute) return [];
+
+        return [{
+          ...segmentFare,
+          id: `${segmentFare.id}:connection:${destinationId}:${connectionRoute.id}`,
+          amount: endToEndFare.amount,
+          is_connection: true,
+          segment_fare_id: segmentFare.id,
+          sale_destination: destination,
+          connection_destination_id: destinationId,
+          connection_route_id: connectionRoute.id,
+          transfer_station: segmentFare.to_station || segmentFare.toStation,
+        }];
+      });
+    });
+
+    const includedConnectionDestinations = new Set();
+    return directFares.flatMap((directFare) => {
+      const optionsForThisStop = connectionOptions
+        .filter(option => option.segment_fare_id === directFare.id)
+        .filter((option) => {
+          if (includedConnectionDestinations.has(option.connection_destination_id)) return false;
+          includedConnectionDestinations.add(option.connection_destination_id);
+          return true;
+        })
+        .sort((a, b) => a.amount - b.amount);
+
+      return [directFare, ...optionsForThisStop];
     });
   });
 
@@ -1258,20 +1340,55 @@ export function useTicketing(props, options = {}) {
     createTripForm.value.departure_at = `${currentDatePart}T${template.time}`;
   };
 
+  const openCreateTrip = () => {
+    editingTripId.value = null;
+    createTripErrors.value = {};
+    createTripForm.value = { code: '', route_id: '', vehicle_id: '', departure_at: '', status: 'scheduled', sales_control: 'closed', allows_open_connections: false, automatic_connection_allocation: null, is_replicable: false };
+    showCreateTripModal.value = true;
+  };
+
+  const openEditTrip = (trip) => {
+    if (!trip) return;
+    editingTripId.value = trip.id;
+    createTripErrors.value = {};
+    createTripForm.value = {
+      code: trip.code || '',
+      route_id: trip.route_id,
+      vehicle_id: trip.vehicle_id || '',
+      departure_at: trip.departure_at?.slice(0, 16) || '',
+      status: trip.status || 'scheduled',
+      sales_control: trip.sales_control || 'closed',
+      allows_open_connections: !!trip.allows_open_connections,
+      automatic_connection_allocation: trip.automatic_connection_allocation,
+      is_replicable: !!trip.is_replicable,
+    };
+    showCreateTripModal.value = true;
+  };
+
   // Trip Creation
   // =============================================
   const createTrip = () => {
     createTripProcessing.value = true;
     createTripErrors.value = {};
-    router.post(route('seller.trips.store'), createTripForm.value, {
+    const routeName = isEditingTrip.value ? 'seller.trips.update' : 'seller.trips.store';
+    const routeParams = isEditingTrip.value ? { trip: editingTripId.value } : undefined;
+    const url = route(routeName, routeParams);
+    const options = {
       preserveState: true,
       onSuccess: () => {
         showCreateTripModal.value = false;
+        editingTripId.value = null;
         createTripForm.value = { code: '', route_id: '', vehicle_id: '', departure_at: '', status: 'scheduled', sales_control: 'closed', allows_open_connections: false, automatic_connection_allocation: null, is_replicable: false };
       },
       onError: (errs) => { createTripErrors.value = errs; },
       onFinish: () => { createTripProcessing.value = false; },
-    });
+    };
+
+    if (isEditingTrip.value) {
+      router.put(url, createTripForm.value, options);
+    } else {
+      router.post(url, createTripForm.value, options);
+    }
   };
 
   // =============================================
@@ -1291,6 +1408,7 @@ export function useTicketing(props, options = {}) {
 
   // =============================================
   watch([() => createTripForm.value.route_id, () => createTripForm.value.departure_at], ([routeId, departureAt]) => {
+    if (isEditingTrip.value) return;
     if (routeId && departureAt) {
       const routeObj = props.routes?.find(r => r.id === routeId);
       if (routeObj) {
@@ -1305,6 +1423,12 @@ export function useTicketing(props, options = {}) {
 
         createTripForm.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
       }
+    }
+  });
+
+  watch(() => createTripForm.value.allows_open_connections, (allowsConnections) => {
+    if (!allowsConnections) {
+      createTripForm.value.automatic_connection_allocation = null;
     }
   });
 
@@ -1375,6 +1499,8 @@ export function useTicketing(props, options = {}) {
   // Fare change → fetch suggestions + segment-specific seat map
   watch(selectedFare, (newVal) => {
     if (newVal) {
+      finalDestinationStationId.value = newVal.is_connection ? newVal.connection_destination_id : null;
+      connectionRouteId.value = newVal.is_connection ? newVal.connection_route_id : null;
       ticketingStore.setFareColor?.('#22C55E');
       ticketingStore.setShowSuggestions(!seatFirstFlow.value);
       const manualSeatFlow = seatFirstFlow.value && selectedSeatNumber.value;
@@ -1474,6 +1600,8 @@ export function useTicketing(props, options = {}) {
     autoSelectOptimal,
     showPassengerFields,
     showCreateTripModal,
+    editingTripId,
+    isEditingTrip,
     createTripForm,
     createTripErrors,
     createTripProcessing,
@@ -1550,6 +1678,8 @@ export function useTicketing(props, options = {}) {
     cancelBooking,
     handleOkohiSuccess,
     createTrip,
+    openCreateTrip,
+    openEditTrip,
     applyReplicableTemplate,
     printTickets,
     fallbackToBrowserPrint,

@@ -18,6 +18,7 @@ import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Bluetooth from 'vue-material-design-icons/Bluetooth.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
+import Pencil from 'vue-material-design-icons/Pencil.vue';
 import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { useTicketing } from '@/Composables/useTicketing.js';
@@ -63,6 +64,7 @@ const {
   createTripForm,
   createTripErrors,
   createTripProcessing,
+  isEditingTrip,
   showZoomModal,
   showTripDetailsModal,
   selectedDetailsTripId,
@@ -119,6 +121,8 @@ const {
   cancelBooking,
   handleOkohiSuccess,
   createTrip,
+  openCreateTrip,
+  openEditTrip,
   applyReplicableTemplate,
   fallbackToBrowserPrint,
   page,
@@ -216,7 +220,15 @@ const trips = tripsRef;
             <Eye class="w-4 h-4 mr-2" />
             Détails
           </button>
-          <button @click="showCreateTripModal = true" class="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 flex items-center shadow-sm transition-colors">
+          <button
+            v-if="currentTrip && !['departed', 'arrived', 'cancelled'].includes(currentTrip.status)"
+            @click="openEditTrip(currentTrip)"
+            class="px-4 py-2 border border-sky-200 text-sky-700 bg-sky-50 hover:bg-sky-100 text-sm font-medium rounded-lg flex items-center shadow-sm transition-colors"
+          >
+            <Pencil class="w-4 h-4 mr-2" />
+            Modifier
+          </button>
+          <button @click="openCreateTrip" class="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 flex items-center shadow-sm transition-colors">
             <Calendar class="w-4 h-4 mr-2" />
             Nouveau Voyage
           </button>
@@ -278,7 +290,14 @@ const trips = tripsRef;
              >
                 <div class="flex flex-col items-center justify-center h-full" :style="{ color: fare.textColor || '#FFFFFF' }">
                   <div class="font-bold text-lg mb-1 transition-colors">
-                    {{ fare.to_station?.name }}
+                    {{ (fare.sale_destination || fare.to_station)?.name }}
+                  </div>
+                  <div v-if="fare.is_connection" class="inline-flex items-center gap-2 text-[10px] font-semibold opacity-80">
+                    <span class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+                      <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span>
+                      <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white/40"></span>
+                    </span>
+                    Correspondance à {{ fare.transfer_station?.name }}
                   </div>
                   <div class="text-xl font-extrabold" :style="{ color: fare.textColor || '#FFFFFF' }">
                     {{ fare.amount.toLocaleString('fr-FR') }} F
@@ -387,9 +406,9 @@ const trips = tripsRef;
     <div v-if="showCreateTripModal" class="fixed inset-0 z-[1000] flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-sm">
       <div class="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white/95 dark:bg-slate-900 dark:border-slate-800 p-5 shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40">
         <div class="mt-3">
-          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">Créer un nouveau voyage</h3>
+          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">{{ isEditingTrip ? 'Modifier le voyage' : 'Créer un nouveau voyage' }}</h3>
           <form @submit.prevent="createTrip" class="mt-2 space-y-4">
-            <div v-if="props.replicableTrips && props.replicableTrips.length > 0">
+            <div v-if="!isEditingTrip && props.replicableTrips && props.replicableTrips.length > 0">
               <InputLabel for="template_select_horizontal" value="Sélectionner un modèle de voyage récurrent" />
               <select
                 id="template_select_horizontal"
@@ -458,15 +477,6 @@ const trips = tripsRef;
               <InputError class="mt-2" :message="createTripErrors.code" />
             </div>
 
-            <div>
-              <InputLabel for="trip_auto_allocation_horizontal" value="Allocation automatique sur ce voyage" />
-              <select id="trip_auto_allocation_horizontal" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-                <option :value="null">Hériter du trajet et de la compagnie</option>
-                <option :value="true">Activer pour ce voyage</option>
-                <option :value="false">Désactiver pour ce voyage</option>
-              </select>
-            </div>
-
             <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-3 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
               <div>
                 <label class="text-xs font-semibold text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
@@ -478,6 +488,15 @@ const trips = tripsRef;
                 :class="['relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors', createTripForm.allows_open_connections ? 'bg-emerald-600' : 'bg-slate-200 dark:bg-slate-800']">
                 <span :class="['pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition', createTripForm.allows_open_connections ? 'translate-x-4' : 'translate-x-0']" />
               </button>
+            </div>
+
+            <div v-if="createTripForm.allows_open_connections">
+              <InputLabel for="trip_auto_allocation_horizontal" value="Allocation automatique des correspondances sur ce voyage" />
+              <select id="trip_auto_allocation_horizontal" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
+                <option :value="null">Hériter du trajet et de la compagnie</option>
+                <option :value="true">Activer pour ce voyage</option>
+                <option :value="false">Désactiver pour ce voyage</option>
+              </select>
             </div>
 
             <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-3 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
@@ -506,7 +525,7 @@ const trips = tripsRef;
                 :disabled="createTripProcessing"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
               >
-                {{ createTripProcessing ? 'Création...' : 'Créer' }}
+                {{ createTripProcessing ? (isEditingTrip ? 'Modification...' : 'Création...') : (isEditingTrip ? 'Enregistrer' : 'Créer') }}
               </button>
             </div>
           </form>

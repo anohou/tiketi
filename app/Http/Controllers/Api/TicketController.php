@@ -80,13 +80,27 @@ class TicketController extends Controller
             $finalDestinationId = null;
         }
 
+        if ($finalDestinationId && $this->isServedByCurrentTripAfter($trip, $toStationId, $finalDestinationId, $segments)) {
+            return $this->errorResponse(
+                $request,
+                'Cette destination est déjà desservie par le voyage en cours après la gare sélectionnée.',
+                422,
+            );
+        }
+
         $connectionRouteId = $finalDestinationId ? ($validated['connection_route_id'] ?? null) : null;
         if ($connectionRouteId) {
             $connectionRoute = Route::with('routeStopOrders')->findOrFail($connectionRouteId);
-            $stationIds = collect([$connectionRoute->origin_station_id, $connectionRoute->destination_station_id])
-                ->merge($connectionRoute->routeStopOrders->pluck('station_id'))->filter()->unique();
-            if (! $stationIds->contains($toStationId) || ! $stationIds->contains($finalDestinationId)) {
-                return $this->errorResponse($request, 'Le trajet de correspondance ne dessert pas le point de transit et la destination finale.', 422);
+            $stationIds = collect([$connectionRoute->origin_station_id])
+                ->merge($connectionRoute->routeStopOrders->sortBy('stop_index')->pluck('station_id'))
+                ->push($connectionRoute->destination_station_id)
+                ->filter()
+                ->unique()
+                ->values();
+            $transferIndex = $stationIds->search($toStationId);
+            $destinationIndex = $stationIds->search($finalDestinationId);
+            if ($transferIndex === false || $destinationIndex === false || $transferIndex >= $destinationIndex) {
+                return $this->errorResponse($request, 'Le trajet de correspondance ne dessert pas la destination finale dans le bon sens après le point de transit.', 422);
             }
         }
         [$validSegment, $segmentError, $stationIndices, $reqStartIndex, $reqEndIndex] = $segments->validateSegment($trip, $fromStationId, $toStationId);
@@ -457,6 +471,24 @@ class TicketController extends Controller
         }
 
         return $ticket->seller_id === $user->id;
+    }
+
+    private function isServedByCurrentTripAfter(
+        Trip $trip,
+        string $transferStationId,
+        string $destinationStationId,
+        TripSegmentService $segments,
+    ): bool {
+        $indices = $segments->stationIndices($trip);
+        $transferIndex = $indices[$transferStationId] ?? null;
+        $destinationIndex = $indices[$destinationStationId] ?? null;
+        $tripDestinationIndex = $indices[$trip->destination_station_id] ?? null;
+
+        return $transferIndex !== null
+            && $destinationIndex !== null
+            && $tripDestinationIndex !== null
+            && $transferIndex < $destinationIndex
+            && $destinationIndex <= $tripDestinationIndex;
     }
 
     private function errorResponse(Request $request, string $message, int $status)

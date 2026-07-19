@@ -123,6 +123,91 @@ const getAssignedStationIds = () => {
         .map(stationId => String(stationId)))];
 };
 
+const getOrderedRouteStationIds = (routeObj) => {
+    if (!routeObj) return [];
+
+    const stops = [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+
+    return [
+        routeObj.origin_station_id || routeObj.originStation?.id || routeObj.origin_station?.id,
+        ...stops.map(stop => stop.station_id || stop.station?.id),
+        routeObj.destination_station_id || routeObj.destinationStation?.id || routeObj.destination_station?.id,
+    ].filter((stationId, index, stationIds) => stationId && stationIds.indexOf(stationId) === index);
+};
+
+const getTripConnectionDestinations = (trip) => {
+    if (!trip?.allows_open_connections) return {};
+
+    const stationIds = getOrderedRouteStationIds(trip.route);
+    const originId = trip.origin_station_id || stationIds[0];
+    const tripDestinationId = trip.destination_station_id || stationIds.at(-1);
+    const tripDestinationIndex = stationIds.indexOf(tripDestinationId);
+    const routeFares = page.props.routeFares || [];
+    const connectionFares = page.props.connectionFares || [];
+    const connectionRoutes = page.props.connectionRoutes || [];
+    const destinationsByTransfer = {};
+
+    const orientFareFromOrigin = (fare) => {
+        if (fare.from_station_id === originId) {
+            return {
+                destinationId: fare.to_station_id,
+                destination: fare.to_station || fare.toStation,
+            };
+        }
+
+        if (fare.is_bidirectional && fare.to_station_id === originId) {
+            return {
+                destinationId: fare.from_station_id,
+                destination: fare.from_station || fare.fromStation,
+            };
+        }
+
+        return null;
+    };
+
+    const transferIds = new Set(routeFares
+        .map(orientFareFromOrigin)
+        .filter(Boolean)
+        .map(option => option.destinationId)
+        .filter(stationId => stationIds.indexOf(stationId) > stationIds.indexOf(originId)));
+
+    transferIds.forEach((transferId) => {
+        const transferIndex = stationIds.indexOf(transferId);
+
+        connectionFares.forEach((fare) => {
+            const option = orientFareFromOrigin(fare);
+            if (!option || !option.destinationId || option.destinationId === transferId) return;
+
+            const destinationIndex = stationIds.indexOf(option.destinationId);
+            const isAlreadyServedAfterTransfer = destinationIndex > transferIndex
+                && destinationIndex <= tripDestinationIndex;
+            if (isAlreadyServedAfterTransfer) return;
+
+            const compatibleRoute = connectionRoutes.find((routeItem) => {
+                const connectionStationIds = getOrderedRouteStationIds(routeItem);
+                const routeTransferIndex = connectionStationIds.indexOf(transferId);
+                const routeDestinationIndex = connectionStationIds.indexOf(option.destinationId);
+
+                return routeTransferIndex !== -1
+                    && routeDestinationIndex !== -1
+                    && routeTransferIndex < routeDestinationIndex;
+            });
+            if (!compatibleRoute) return;
+
+            destinationsByTransfer[transferId] ||= [];
+            if (!destinationsByTransfer[transferId].some(destination => String(destination.id) === String(option.destinationId))) {
+                destinationsByTransfer[transferId].push({
+                    id: option.destinationId,
+                    name: option.destination?.name || 'Destination',
+                });
+            }
+        });
+    });
+
+    return destinationsByTransfer;
+};
+
 const applyRealtimeSeatUpdate = (e = {}) => {
     const tripId = e.trip_id || e.trip?.id;
     if (!tripId) return;
@@ -438,6 +523,7 @@ const getTripRouteSchema = (trip) => {
     addStation(routeObj.destination_station || { id: routeObj.destination_station_id, name: routeObj.destination_station?.name });
 
     const stationIndexMap = buildTripStationIndices(trip);
+    const connectionDestinations = getTripConnectionDestinations(trip);
     return orderedStations.map((station, index) => {
         const stationId = station?.id || station?.station_id;
         const palette = getRouteStationColor(stationIndexMap[stationId] ?? index);
@@ -446,6 +532,7 @@ const getTripRouteSchema = (trip) => {
             name: station?.name || 'Station',
             color: palette.bg,
             textColor: getContrastingTextColor(palette.bg),
+            connections: connectionDestinations[stationId] || [],
         };
     });
 };
@@ -690,7 +777,7 @@ const getOccupancyRate = (available, total) => {
                         <Bus :size="16" :class="selectedTripId === trip.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'" />
                         <div class="text-sm font-bold text-slate-900 tracking-tight leading-snug whitespace-normal break-words dark:text-slate-100">{{ trip.display_name || trip.route?.name }}</div>
                         <span
-                            :title="trip.sales_control === 'open' ? 'Ventes intermédiaires autorisées' : 'Ventes origine uniquement'"
+                            :title="trip.sales_control === 'open' ? 'Ventes simultanées autorisées' : 'Ventes origine uniquement'"
                             class="text-xs shrink-0"
                         >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
                         <span v-if="isTripHighlighted(trip.id)" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>

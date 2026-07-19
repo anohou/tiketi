@@ -87,11 +87,21 @@ const nodes = computed(() => {
         const stroke = isConsulted
             ? highlightedStroke
             : (stop.stroke || fill);
+        const connections = Array.isArray(stop.connections) ? stop.connections : [];
+        const labelY = index % 2 === 0 ? 82 : 170;
+        const connectionLabelY = labelY < (props.viewBoxHeight / 2)
+            ? labelY - 22 - (Math.max(0, connections.length - 1) * 14)
+            : labelY + 22;
 
         return {
             ...stop,
             x: 60 + (index * step),
-            labelY: index % 2 === 0 ? 82 : 170,
+            labelY,
+            connectionLabelY,
+            connections: connections.map(connection => ({
+                ...connection,
+                displayName: shorten(connection.name, maxNameLength),
+            })),
             labelSize,
             displayName: shorten(stop.name, maxNameLength),
             isFirst,
@@ -148,6 +158,23 @@ const nodes = computed(() => {
                     class="fill-current font-semibold text-slate-900 dark:text-slate-100"
                 >
                     {{ node.displayName }}
+                </text>
+                <text
+                    v-if="node.connections.length"
+                    :x="node.x"
+                    :y="node.connectionLabelY"
+                    text-anchor="middle"
+                    :style="{ fontSize: `${Math.max(10, node.labelSize - 1)}px` }"
+                    class="fill-current font-semibold text-violet-600 dark:text-violet-300"
+                >
+                    <tspan
+                        v-for="(connection, connectionIndex) in node.connections"
+                        :key="connection.id"
+                        :x="node.x"
+                        :dy="connectionIndex === 0 ? 0 : 14"
+                    >
+                        ↳ {{ connection.displayName }}
+                    </tspan>
                 </text>
             </g>
         </svg>
