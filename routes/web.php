@@ -120,6 +120,9 @@ Route::middleware('auth')->group(function () {
         Route::get('settings/loyalty', [LoyaltySettingController::class, 'index'])->name('settings.loyalty');
         Route::post('settings/loyalty/connect', [OkohiConnectController::class, 'connect'])->name('settings.loyalty.connect');
         Route::delete('settings/loyalty/disconnect', [OkohiConnectController::class, 'disconnect'])->name('settings.loyalty.disconnect');
+        Route::get('settings/loyalty/transactions', [App\Http\Controllers\Admin\OkohiTransactionsController::class, 'index'])->name('settings.loyalty.transactions');
+        Route::get('settings/loyalty/customers/{customerNumber}', [App\Http\Controllers\Admin\OkohiRewardController::class, 'customer'])->name('settings.loyalty.customer');
+        Route::post('settings/loyalty/customers/{customerNumber}/grant-reward', [App\Http\Controllers\Admin\OkohiRewardController::class, 'grant'])->name('settings.loyalty.grant');
     });
 
     // =========================================
