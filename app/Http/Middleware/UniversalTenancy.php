@@ -33,7 +33,7 @@ class UniversalTenancy extends InitializeTenancyByDomain
         $host = $request->getHost();
         $centralDomains = self::centralDomains();
 
-        // Bypass tenancy pour les routes Okohi — appelées via IP ou domaine central
+        // Bypass tenancy pour les routes Okohi — appelés via IP ou domaine central
         if (str_starts_with($request->getPathInfo(), '/api/okohi/')) {
             return $next($request);
         }

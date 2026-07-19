@@ -68,6 +68,9 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => $msg], $response->status());
         }
 
-        return response()->json($body);
+        // Surface claim_id at the top level for easy frontend polling
+        $claimId = $body['data']['claim']['id'] ?? null;
+
+        return response()->json(array_merge($body, ['claim_id' => $claimId]));
     }
 }

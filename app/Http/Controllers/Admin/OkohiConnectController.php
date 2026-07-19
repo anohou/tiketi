@@ -33,6 +33,7 @@ class OkohiConnectController extends Controller
                 'code' => $data['code'],
                 'verify_url' => $appUrl.'/api/okohi/verify?tenant='.$tenantId.'&ticket_id={ticket_id}',
                 'delete_url' => $appUrl.'/api/okohi/delete',
+                'webhook_url' => $appUrl.'/api/okohi/webhook',
             ]
         );
 

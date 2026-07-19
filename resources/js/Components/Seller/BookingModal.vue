@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import axios from 'axios';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -8,6 +9,10 @@ import Close from 'vue-material-design-icons/Close.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
+import GiftIcon from 'vue-material-design-icons/Gift.vue';
+import CheckCircleIcon from 'vue-material-design-icons/CheckCircle.vue';
+import CloseCircleIcon from 'vue-material-design-icons/CloseCircle.vue';
+import ClockIcon from 'vue-material-design-icons/ClockOutline.vue';
 
 const props = defineProps({
   visible: {
@@ -62,6 +67,10 @@ const props = defineProps({
   connectionRoutes: { type: Array, default: () => [] },
   finalDestinationStationId: { type: String, default: null },
   connectionRouteId: { type: String, default: null },
+  // Okohi reward claim waiting state
+  okohiClaimId: { type: String, default: null },
+  okohiRewardTitle: { type: String, default: null },
+  okohiClaimExpiresAt: { type: String, default: null },
 });
 
 const emit = defineEmits([
@@ -72,6 +81,9 @@ const emit = defineEmits([
   'update:showPassengerFields',
   'update:finalDestinationStationId',
   'update:connectionRouteId',
+  'okohi-claim-approved',
+  'okohi-claim-rejected',
+  'okohi-claim-expired',
 ]);
 
 const isDestinationMode = computed(() => props.mode === 'destination');
@@ -231,6 +243,67 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', clampPositionToViewport);
 });
 
+// ─── Okohi claim polling ───────────────────────────────────────
+const claimStatus = ref(null); // null | 'pending' | 'approved' | 'rejected' | 'expired'
+const claimSecondsLeft = ref(0);
+let pollInterval = null;
+let countdownInterval = null;
+
+const isOkohiWaiting = computed(() => !!props.okohiClaimId && claimStatus.value === 'pending');
+const isOkohiApproved = computed(() => claimStatus.value === 'approved');
+const isOkohiRejected = computed(() => claimStatus.value === 'rejected' || claimStatus.value === 'expired');
+
+const stopPolling = () => {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+};
+
+const startCountdown = () => {
+  if (!props.okohiClaimExpiresAt) { claimSecondsLeft.value = 600; }
+  else {
+    claimSecondsLeft.value = Math.max(0, Math.floor((new Date(props.okohiClaimExpiresAt) - Date.now()) / 1000));
+  }
+  countdownInterval = setInterval(() => {
+    if (claimSecondsLeft.value > 0) claimSecondsLeft.value--;
+    else stopPolling();
+  }, 1000);
+};
+
+const pollClaim = async () => {
+  if (!props.okohiClaimId) return;
+  try {
+    const { data } = await axios.get(`/api/okohi/claims/${props.okohiClaimId}/status`);
+    const status = data?.data?.status ?? data?.status;
+    if (status && status !== 'pending') {
+      claimStatus.value = status;
+      stopPolling();
+      if (status === 'approved') emit('okohi-claim-approved', data?.data ?? data);
+      else emit('okohi-claim-rejected', data?.data ?? data);
+    }
+  } catch {
+    // silently ignore transient network errors, keep polling
+  }
+};
+
+watch(() => props.okohiClaimId, (id) => {
+  stopPolling();
+  if (id) {
+    claimStatus.value = 'pending';
+    startCountdown();
+    pollInterval = setInterval(pollClaim, 3000);
+  } else {
+    claimStatus.value = null;
+  }
+});
+
+onBeforeUnmount(() => stopPolling());
+
+const claimCountdownLabel = computed(() => {
+  const m = Math.floor(claimSecondsLeft.value / 60);
+  const s = claimSecondsLeft.value % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+});
+
 const ticketQuantityModel = computed({
   get: () => props.ticketQuantity,
   set: (value) => emit('update:ticketQuantity', Number(value)),
@@ -374,6 +447,68 @@ const totalLabel = computed(() => {
             Aucune destination disponible pour ce voyage.
           </div>
         </template>
+
+        <!-- ── Okohi claim: approved ── -->
+        <div v-if="isOkohiApproved" class="p-5 text-center space-y-3">
+          <div class="w-14 h-14 rounded-full bg-green-100 dark:bg-emerald-950/40 flex items-center justify-center mx-auto">
+            <CheckCircleIcon class="text-green-500" :size="32" />
+          </div>
+          <p class="text-base font-black text-gray-900 dark:text-slate-100">Récompense approuvée !</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Le client a accepté. Vous pouvez maintenant valider et imprimer le ticket.</p>
+          <button
+            @click="$emit('confirm')"
+            :disabled="processing"
+            class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            <div v-if="processing" class="animate-spin"><Refresh :size="18" /></div>
+            <Printer v-else :size="18" />
+            {{ processing ? 'Validation...' : 'Valider & Imprimer' }}
+          </button>
+        </div>
+
+        <!-- ── Okohi claim: rejected / expired ── -->
+        <div v-else-if="isOkohiRejected" class="p-5 text-center space-y-3">
+          <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center mx-auto">
+            <CloseCircleIcon class="text-red-400" :size="32" />
+          </div>
+          <p class="text-base font-black text-gray-900 dark:text-slate-100">
+            {{ claimStatus === 'expired' ? 'Demande expirée' : 'Récompense refusée' }}
+          </p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">
+            {{ claimStatus === 'expired' ? 'Le client n\'a pas répondu dans les 10 minutes.' : 'Le client a refusé la récompense.' }}
+          </p>
+          <button @click="$emit('close')" class="w-full py-2.5 border border-gray-300 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 text-sm font-bold hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+            Fermer
+          </button>
+        </div>
+
+        <!-- ── Okohi claim: pending ── -->
+        <div v-else-if="isOkohiWaiting" class="p-5 text-center space-y-4">
+          <div class="w-14 h-14 rounded-full bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto relative">
+            <GiftIcon class="text-amber-500" :size="28" />
+            <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 animate-ping opacity-75" />
+          </div>
+          <div>
+            <p class="text-sm font-black text-gray-900 dark:text-slate-100">En attente de validation</p>
+            <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              <span class="font-medium">{{ okohiRewardTitle }}</span>
+            </p>
+            <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Le client doit approuver depuis l'application Okohi.</p>
+          </div>
+          <div class="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400">
+            <ClockIcon :size="16" />
+            <span class="text-sm font-black font-mono tabular-nums">{{ claimCountdownLabel }}</span>
+          </div>
+          <div class="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5">
+            <div
+              class="bg-amber-400 h-1.5 rounded-full transition-all duration-1000"
+              :style="{ width: `${Math.min(100, (claimSecondsLeft / 600) * 100)}%` }"
+            />
+          </div>
+          <button @click="$emit('close')" class="w-full py-2 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
+            Annuler
+          </button>
+        </div>
 
         <div v-else class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-sm">
           <div class="text-center">
