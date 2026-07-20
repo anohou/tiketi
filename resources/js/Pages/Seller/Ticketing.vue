@@ -879,7 +879,7 @@ onBeforeUnmount(() => {
                  </div>
                  <div class="flex-1 p-3 overflow-y-auto">
                    <!-- Mobile: Show only selected trip -->
-                   <div v-if="isMobile && currentTrip" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm relative overflow-hidden">
+                   <div v-if="isMobile && currentTrip" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm relative overflow-visible">
                      <div class="flex items-start justify-between mb-2">
                        <div class="flex-1 min-w-0">
                          <div class="flex items-center gap-2 mb-1">
@@ -921,14 +921,14 @@ onBeforeUnmount(() => {
                                        v-if="!['departed', 'arrived', 'cancelled'].includes(currentTrip.status)"
                                        @click="openEditTrip(currentTrip)"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
                                        <span>Modifier le voyage</span>
                                      </button>
                                      <button
                                        @click="openTripDetailsWithOverview(currentTrip.id)"
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
                                        <span>Détails & Tickets</span>
@@ -936,7 +936,7 @@ onBeforeUnmount(() => {
                                      <button
                                        v-if="currentTrip?.has_connections"
                                        @click="openTripTransitPool(currentTrip.id)"
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
                                        <span>Correspondances</span>
@@ -944,7 +944,7 @@ onBeforeUnmount(() => {
                                      <button
                                        @click="exportTicketsToExcel(currentTrip.id)"
                                        :disabled="exportExcelLoadingTripId === currentTrip.id"
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
                                        <span>Exporter Excel</span>
@@ -952,7 +952,7 @@ onBeforeUnmount(() => {
                                      <button
                                        @click="exportTicketsToPdf(currentTrip.id)"
                                        :disabled="exportPdfLoadingTripId === currentTrip.id"
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
                                        <span>Exporter PDF</span>
@@ -1048,7 +1048,7 @@ onBeforeUnmount(() => {
                        @dragend="dragEnd"
                        @drop="dragDrop($event, index)"
                        :class="[
-                         'rounded-2xl cursor-pointer transition-all duration-300 border-2 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
+                         'relative rounded-2xl cursor-pointer transition-all duration-300 border-2 overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
                          selectedTripId === trip.id
                            ? 'bg-white border-emerald-500 dark:bg-slate-900 dark:border-emerald-700 shadow-md'
                            : ticketingStore.tripHighlights?.[trip.id]
@@ -1116,7 +1116,7 @@ onBeforeUnmount(() => {
                                        v-if="!['departed', 'arrived', 'cancelled'].includes(trip.status)"
                                        @click="openEditTrip(trip)"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
                                        <span>Modifier le voyage</span>
@@ -1124,7 +1124,7 @@ onBeforeUnmount(() => {
                                      <button
                                        @click="openTripDetailsWithOverview(trip.id)"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
                                        <span>Détails & Tickets</span>
@@ -1133,7 +1133,7 @@ onBeforeUnmount(() => {
                                        v-if="trip.has_connections"
                                        @click="openTripTransitPool(trip.id)"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
                                        <span>Correspondances</span>
@@ -1142,7 +1142,7 @@ onBeforeUnmount(() => {
                                        @click="exportTicketsToExcel(trip.id)"
                                        :disabled="exportExcelLoadingTripId === trip.id"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
                                        <span>Exporter Excel</span>
@@ -1151,7 +1151,7 @@ onBeforeUnmount(() => {
                                        @click="exportTicketsToPdf(trip.id)"
                                        :disabled="exportPdfLoadingTripId === trip.id"
                                        @dragstart.stop.prevent
-                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
+                                       class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
                                        <span>Exporter PDF</span>
