@@ -11,6 +11,10 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 import { toastStore } from '@/Stores/toastStore.js';
+import {
+  buildTripCreationDestinationOptions,
+  buildTripCreationRouteOptions,
+} from '@/Support/tripCreationDestinations.js';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -41,6 +45,10 @@ const props = defineProps({
   replicableTrips: {
     type: Array,
     default: () => []
+  },
+  stations: {
+    type: Array,
+    default: () => []
   }
 });
 
@@ -53,6 +61,7 @@ const selectedTrip = ref(null);
 const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
+
 const isEditing = ref(false);
 const exportingTripExcel = ref(false);
 const exportingTripPdf = ref(false);
@@ -60,6 +69,8 @@ const exportingTripPdf = ref(false);
 const form = ref({
   code: '',
   route_id: '',
+  origin_station_id: '',
+  destination_station_id: '',
   vehicle_id: '',
   departure_at: '',
   status: 'scheduled',
@@ -67,6 +78,29 @@ const form = ref({
   automatic_connection_allocation: null,
   is_replicable: false
 });
+
+const availableRouteOptions = computed(() => buildTripCreationRouteOptions(
+  props.routes,
+  form.value.origin_station_id,
+));
+
+const availableDestinationOptions = computed(() => buildTripCreationDestinationOptions(
+  props.routes,
+  form.value.origin_station_id,
+  form.value.route_id,
+  props.stations,
+));
+
+watch([() => form.value.origin_station_id, () => form.value.route_id], () => {
+  if (form.value.route_id
+    && !availableRouteOptions.value.some((option) => option.value === form.value.route_id)) {
+    form.value.route_id = '';
+  }
+  if (form.value.destination_station_id
+    && !availableDestinationOptions.value.some((option) => option.value === form.value.destination_station_id)) {
+    form.value.destination_station_id = '';
+  }
+}, { immediate: true });
 
 // Status options
 const statusOptions = [
@@ -114,7 +148,7 @@ const filteredTrips = computed(() => {
       trip.vehicle?.identifier.toLowerCase().includes(searchTerm)
     );
   }
-  
+
   // Filter by date
   if (dateFilter.value) {
     trips = trips.filter(trip => {
@@ -255,25 +289,22 @@ watch(() => props.trips, (newTrips) => {
   }
 }, { deep: true });
 
-watch([() => form.value.route_id, () => form.value.departure_at], ([routeId, departureAt]) => {
+watch([() => form.value.origin_station_id, () => form.value.destination_station_id, () => form.value.departure_at], ([originId, destId, departureAt]) => {
   if (isEditing.value) {
     return;
   }
   
-  if (routeId && departureAt) {
-    const routeObj = props.routes.find(r => r.id === routeId);
-    if (routeObj) {
-      const origin = routeObj.origin_station || routeObj.originStation;
-      const destination = routeObj.destination_station || routeObj.destinationStation;
-      
-      const originCode = origin?.code || (origin ? origin.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'TRP');
-      const destinationCode = destination?.code || (destination ? destination.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'DST');
-      
-      const timePart = departureAt.split('T')[1] ? departureAt.split('T')[1].replace(':', '') : '0000';
-      const cleanTime = timePart.substring(0, 4);
-      
-      form.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
-    }
+  if (originId && destId && departureAt) {
+    const origin = props.stations.find(s => s.id === originId);
+    const destination = props.stations.find(s => s.id === destId);
+
+    const originCode = origin?.code || (origin ? origin.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'TRP');
+    const destinationCode = destination?.code || (destination ? destination.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase() : 'DST');
+
+    const timePart = departureAt.split('T')[1] ? departureAt.split('T')[1].replace(':', '') : '0000';
+    const cleanTime = timePart.substring(0, 4);
+
+    form.value.code = `${originCode}-${destinationCode}-${cleanTime}`;
   }
 });
 
@@ -295,6 +326,11 @@ const getRouteName = (routeId) => {
 const applyReplicableTemplate = (template) => {
   if (!template) return;
   form.value.route_id = template.route_id;
+  const routeObj = props.routes.find(r => r.id === template.route_id);
+  if (routeObj) {
+    form.value.origin_station_id = routeObj.origin_station_id;
+    form.value.destination_station_id = routeObj.destination_station_id;
+  }
   form.value.allows_open_connections = !!template.allows_open_connections;
   form.value.automatic_connection_allocation = template.automatic_connection_allocation;
   form.value.is_replicable = true;
@@ -352,6 +388,8 @@ const openCreateModal = () => {
   form.value = {
     code: '',
     route_id: '',
+    origin_station_id: '',
+    destination_station_id: '',
     vehicle_id: '',
     departure_at: '',
     status: 'scheduled',
@@ -369,6 +407,8 @@ const openEditModal = () => {
   form.value = {
     code: selectedTrip.value.code || '',
     route_id: selectedTrip.value.route_id,
+    origin_station_id: selectedTrip.value.origin_station_id || '',
+    destination_station_id: selectedTrip.value.destination_station_id || '',
     vehicle_id: selectedTrip.value.vehicle_id || '',
     departure_at: selectedTrip.value.departure_at.slice(0, 16),
     status: selectedTrip.value.status || 'scheduled',
@@ -385,6 +425,8 @@ const closeModal = () => {
   form.value = {
     code: '',
     route_id: '',
+    origin_station_id: '',
+    destination_station_id: '',
     vehicle_id: '',
     departure_at: '',
     status: 'scheduled',
@@ -866,24 +908,68 @@ const handlePrint = () => {
           </div>
 
           <div>
-            <InputLabel for="route_id" value="Route" />
+            <InputLabel for="origin_station_id" value="Gare d'origine" />
+            <select
+              id="origin_station_id"
+              v-model="form.origin_station_id"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
+              required
+            >
+              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner une gare d'origine</option>
+              <option
+                v-for="s in stations"
+                :key="s.id"
+                :value="s.id"
+                class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              >
+                {{ s.name }}
+              </option>
+            </select>
+            <InputError :message="errors.origin_station_id" />
+          </div>
+
+          <div>
+            <InputLabel for="route_id" value="Ligne" />
             <select
               id="route_id"
               v-model="form.route_id"
               class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
+              :disabled="!form.origin_station_id"
             >
-              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner une route</option>
+              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner une ligne</option>
               <option
-                v-for="r in routes"
-                :key="r.id"
-                :value="r.id"
+                v-for="opt in availableRouteOptions"
+                :key="opt.value"
+                :value="opt.value"
                 class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               >
-                {{ r.name }} ({{ r.origin_station?.name || r.originStation?.name || r.route_stop_orders?.[0]?.station?.name || r.routeStopOrders?.[0]?.station?.name || 'Départ' }} → {{ r.destination_station?.name || r.destinationStation?.name || r.route_stop_orders?.[r.route_stop_orders.length - 1]?.station?.name || r.routeStopOrders?.[r.routeStopOrders.length - 1]?.station?.name || 'Arrivée' }})
+                {{ opt.label }}
               </option>
             </select>
             <InputError :message="errors.route_id" />
+          </div>
+
+          <div>
+            <InputLabel for="destination_station_id" value="Gare d'arrivée (Destination)" />
+            <select
+              id="destination_station_id"
+              v-model="form.destination_station_id"
+              class="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
+              required
+              :disabled="!form.route_id"
+            >
+              <option value="" class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Sélectionner une gare de destination</option>
+              <option
+                v-for="opt in availableDestinationOptions"
+                :key="opt.value"
+                :value="opt.value"
+                class="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              >
+                {{ opt.label }}
+              </option>
+            </select>
+            <InputError :message="errors.destination_station_id" />
           </div>
 
           <div>

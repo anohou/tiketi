@@ -4,7 +4,7 @@
       <!-- Left Content Column -->
       <div class="flex-1 flex flex-col min-w-0 h-full">
         <!-- Top Header -->
-        <header id="MainNav"
+        <header v-if="!focusMode" id="MainNav"
           :class="[
             'h-[70px] flex items-center justify-between px-4 shrink-0 transition-all shadow-sm border-b',
             isLandlord 
@@ -211,7 +211,13 @@
       </div>
 
       <!-- Right Trip Sidebar Column (Persistent & Full Height) - Hidden for accountant/executive -->
-      <aside v-if="showTripSidebar" class="hidden xl:block w-[320px] h-screen shrink-0 border-l border-slate-200 bg-white shadow-xl z-50 dark:border-slate-800 dark:bg-slate-900">
+      <aside
+        v-if="showTripSidebar"
+        :class="[
+          'h-screen shrink-0 border-l border-slate-200 bg-white shadow-xl z-50 dark:border-slate-800 dark:bg-slate-900',
+          focusMode ? 'block w-[420px] 2xl:w-[440px]' : 'hidden xl:block w-[320px]'
+        ]"
+      >
         <TripSidebar />
       </aside>
 
@@ -276,6 +282,10 @@ const props = defineProps({
         default: false
       },
       hideTripSidebar: {
+        type: Boolean,
+        default: false
+      },
+      focusMode: {
         type: Boolean,
         default: false
       }

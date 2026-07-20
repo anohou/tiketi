@@ -47,9 +47,6 @@ final class TripStateMachine
                 'cancelled' => $this->timing->markCancelled($locked),
                 default => tap($locked, function (Trip $model) use ($target) {
                     $model->status = $target;
-                    if ($target === 'boarding') {
-                        $model->sales_control = 'open';
-                    }
                     $model->save();
                 })->fresh(),
             };

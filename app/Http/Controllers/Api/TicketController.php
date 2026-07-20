@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\OptimisationService;
 use App\Services\TicketQueryService;
 use App\Services\TripSegmentService;
+use App\Services\TripStationProgression;
 use App\Services\TripTimingService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -76,6 +77,14 @@ class TicketController extends Controller
             return $this->errorResponse($request, 'Ce voyage n’autorise pas les correspondances ouvertes.', 422);
         }
 
+        if ($finalDestinationId && $finalDestinationId === $fromStationId) {
+            return $this->errorResponse(
+                $request,
+                'La destination finale d’une correspondance doit être différente de la gare d’origine.',
+                422,
+            );
+        }
+
         if ($finalDestinationId && $finalDestinationId === $toStationId) {
             $finalDestinationId = null;
         }
@@ -90,7 +99,10 @@ class TicketController extends Controller
 
         $connectionRouteId = $finalDestinationId ? ($validated['connection_route_id'] ?? null) : null;
         if ($connectionRouteId) {
-            $connectionRoute = Route::with('routeStopOrders')->findOrFail($connectionRouteId);
+            $connectionRoute = Route::with('routeStopOrders')->find($connectionRouteId);
+            if (! $connectionRoute || ! $connectionRoute->active) {
+                return $this->errorResponse($request, 'Le trajet de correspondance sélectionné est invalide ou inactif.', 422);
+            }
             $stationIds = collect([$connectionRoute->origin_station_id])
                 ->merge($connectionRoute->routeStopOrders->sortBy('stop_index')->pluck('station_id'))
                 ->push($connectionRoute->destination_station_id)
@@ -99,8 +111,8 @@ class TicketController extends Controller
                 ->values();
             $transferIndex = $stationIds->search($toStationId);
             $destinationIndex = $stationIds->search($finalDestinationId);
-            if ($transferIndex === false || $destinationIndex === false || $transferIndex >= $destinationIndex) {
-                return $this->errorResponse($request, 'Le trajet de correspondance ne dessert pas la destination finale dans le bon sens après le point de transit.', 422);
+            if ($transferIndex === false || $destinationIndex === false) {
+                return $this->errorResponse($request, 'La destination finale n\'appartient pas au bassin de correspondance de cette route.', 422);
             }
         }
         [$validSegment, $segmentError, $stationIndices, $reqStartIndex, $reqEndIndex] = $segments->validateSegment($trip, $fromStationId, $toStationId);
@@ -109,9 +121,45 @@ class TicketController extends Controller
             return $this->errorResponse($request, $segmentError, 422);
         }
 
-        $pricePerSeat = $finalDestinationId
-            ? $segments->fareAmount($fromStationId, $finalDestinationId)
-            : $segments->fareAmount($fromStationId, $toStationId);
+        $pricePerSeat = null;
+        $fareCalculation = [];
+
+        if ($finalDestinationId) {
+            // First search for global explicit fare
+            $globalFare = $segments->fareAmount($fromStationId, $finalDestinationId);
+            if ($globalFare !== null) {
+                $pricePerSeat = $globalFare;
+                $fareCalculation = [
+                    'type' => 'global',
+                    'amount' => $globalFare,
+                ];
+            } else {
+                // Sum the two segments
+                $first = $segments->fareAmount($fromStationId, $toStationId);
+                $second = $segments->fareAmount($toStationId, $finalDestinationId);
+                if ($first !== null && $second !== null) {
+                    $pricePerSeat = $first + $second;
+                    $fareCalculation = [
+                        'type' => 'segments_sum',
+                        'amount' => $pricePerSeat,
+                        'segments' => [
+                            ['from_station_id' => $fromStationId, 'to_station_id' => $toStationId, 'amount' => $first],
+                            ['from_station_id' => $toStationId, 'to_station_id' => $finalDestinationId, 'amount' => $second],
+                        ],
+                    ];
+                }
+            }
+        } else {
+            $directFare = $segments->fareAmount($fromStationId, $toStationId);
+            if ($directFare !== null) {
+                $pricePerSeat = $directFare;
+                $fareCalculation = [
+                    'type' => 'direct',
+                    'amount' => $directFare,
+                ];
+            }
+        }
+
         if ($pricePerSeat === null) {
             return $this->errorResponse($request, 'Aucun tarif actif trouvé entre le point de départ et la destination finale.', 422);
         }
@@ -138,16 +186,20 @@ class TicketController extends Controller
 
             $isAtOriginStation = in_array($trip->origin_station_id, $assignedStationIds);
 
-            if (! $isAtOriginStation && $trip->isSalesClosed()) {
-                $seatsFreedAtThisStation = $trip->tripSeatOccupancies
-                    ->filter(fn ($occ) => $occ->ticket && $occ->ticket->to_station_id === $fromStationId)
-                    ->pluck('seat_number')
-                    ->toArray();
+            if ($trip->status === 'departed') {
+                $activeStationId = app(TripStationProgression::class)->activeSalesStationId($trip);
+                if ($fromStationId !== $activeStationId) {
+                    return $this->errorResponse($request, 'Cette gare n’a pas encore la main sur les ventes de ce voyage. Attendez le départ de la gare précédente.', 403);
+                }
+            }
+
+            if (! $isAtOriginStation && $trip->isSalesClosed() && $trip->status !== 'departed') {
+                $seatsFreedAtThisStation = $segments->freedSeatsForStation($trip, $fromStationId);
 
                 $seatsNotFreed = array_diff($validated['seats'], $seatsFreedAtThisStation);
 
                 if (! empty($seatsNotFreed)) {
-                    return $this->errorResponse($request, 'Ce voyage est fermé aux ventes intermédiaires. Vous ne pouvez vendre que les places libérées à votre gare.', 403);
+                    return $this->errorResponse($request, 'La vente simultanée est désactivée jusqu’au départ de ce voyage. Vous ne pouvez vendre que les places libérées à votre gare.', 403);
                 }
             }
         }
@@ -218,6 +270,9 @@ class TicketController extends Controller
                     'gross_amount' => $pricePerSeat,
                     'discount_amount' => 0,
                     'amount_collected' => $pricePerSeat,
+                    'settings' => [
+                        'fare_calculation' => $fareCalculation,
+                    ],
                 ]);
                 $ticket->load(['fromStation', 'toStation']);
                 $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);

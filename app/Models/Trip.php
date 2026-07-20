@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TripStationProgression;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -45,7 +46,25 @@ class Trip extends Model
         'is_replicable' => 'boolean',
     ];
 
-    protected $appends = ['total_seats', 'available_seats', 'occupied_seats_count', 'sold_tickets_count', 'display_name'];
+    protected $appends = [
+        'total_seats',
+        'available_seats',
+        'occupied_seats_count',
+        'sold_tickets_count',
+        'display_name',
+        'active_sales_station_id',
+        'next_sales_station_id',
+    ];
+
+    public function getActiveSalesStationIdAttribute(): ?string
+    {
+        return app(TripStationProgression::class)->activeSalesStationId($this);
+    }
+
+    public function getNextSalesStationIdAttribute(): ?string
+    {
+        return app(TripStationProgression::class)->nextStationId($this);
+    }
 
     /**
      * Get the display name for this trip (origin -> destination)

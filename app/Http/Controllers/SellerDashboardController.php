@@ -22,13 +22,19 @@ class SellerDashboardController extends Controller
                 ->upcomingFirst()
                 ->limit(10)
                 ->get();
-            $routes = BusRoute::all();
+            $routes = BusRoute::with(['originStation', 'destinationStation', 'routeStopOrders.station'])->get();
+            if ($user->role === 'supervisor') {
+                $routes = $user->accessibleRoutesQuery()
+                    ->with(['originStation', 'destinationStation', 'routeStopOrders.station'])
+                    ->orderBy('name')
+                    ->get();
+            }
         } else {
             // Unifier avec la logique de TicketingController: Basé sur les stations assignées
             $assignedStationIds = $user->getActiveStationIds();
 
             $routes = $user->accessibleRoutesQuery()
-                ->with(['originStation', 'destinationStation'])
+                ->with(['originStation', 'destinationStation', 'routeStopOrders.station'])
                 ->get()
                 ->map(function ($route) use ($assignedStationIds) {
                     // Determine if route should be displayed in reverse direction
@@ -75,6 +81,15 @@ class SellerDashboardController extends Controller
                 : null;
         }
         $vehicles = Vehicle::with('vehicleType')->get();
+        $assignedStationIds = $user->getActiveStationIds();
+        $canSelectTripOrigin = in_array($user->role, ['admin', 'supervisor'], true);
+        $originStations = ($user->role === 'admin'
+            ? Station::where('active', true)
+            : Station::where('active', true)->whereIn('id', $assignedStationIds))
+            ->orderBy('name')
+            ->get(['id', 'name', 'city', 'code']);
+        $assignedStation = $assignedStation
+            ?? ($assignedStationIds ? Station::find($assignedStationIds[0])?->name : null);
 
         $todaySales = Ticket::where('seller_id', $user->id)
             ->whereDate('created_at', now()->today())
@@ -88,6 +103,8 @@ class SellerDashboardController extends Controller
             'todaySales' => $todaySales,
             'hasActiveAssignment' => $hasActiveAssignment ?? true,
             'assignedStation' => $assignedStation ?? null,
+            'canSelectTripOrigin' => $canSelectTripOrigin,
+            'originStations' => $originStations,
         ]);
     }
 }

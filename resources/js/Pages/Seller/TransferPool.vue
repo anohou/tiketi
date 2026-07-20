@@ -61,10 +61,17 @@ const actionableConnections = computed(() => filteredConnections.value.filter(it
 ));
 const assigned = computed(() => filteredConnections.value.filter(item => ['assigned', 'boarded'].includes(item.status)));
 const compatibleTrips = (connection) => props.trips.filter(trip => {
-  if (connection.route_id && trip.route_id !== connection.route_id) return false;
-  const stops = trip.route?.route_stop_orders || [];
-  const ids = [trip.origin_station_id, ...stops.map(stop => stop.station_id), trip.destination_station_id];
-  return ids.includes(connection.transfer_station_id) && ids.includes(connection.destination_station_id);
+  const stops = [...(trip.route?.route_stop_orders || trip.route?.routeStopOrders || [])]
+    .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+  const ids = [
+    trip.origin_station_id,
+    ...stops.map(stop => stop.station_id || stop.station?.id),
+    trip.destination_station_id
+  ].filter(Boolean);
+
+  const transferIdx = ids.indexOf(connection.transfer_station_id);
+  const destIdx = ids.indexOf(connection.destination_station_id);
+  return transferIdx !== -1 && destIdx !== -1 && transferIdx < destIdx;
 });
 const markReady = (connection) => router.patch(route('seller.transfer-pool.ready', connection.id), {}, { preserveScroll: true });
 const assign = (connection) => {

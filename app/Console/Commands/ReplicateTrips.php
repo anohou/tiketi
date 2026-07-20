@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Events\TripCreated;
 use App\Models\Tenant;
 use App\Models\Trip;
 use App\Services\TripTimingService;
@@ -75,6 +76,8 @@ class ReplicateTrips extends Command
             // Check if already replicated for tomorrow to avoid duplicates
             $alreadyExists = Trip::where('route_id', $trip->route_id)
                 ->where('departure_at', $tomorrowDeparture)
+                ->where('origin_station_id', $trip->origin_station_id)
+                ->where('destination_station_id', $trip->destination_station_id)
                 ->exists();
 
             if ($alreadyExists) {
@@ -100,7 +103,12 @@ class ReplicateTrips extends Command
             ]);
 
             // Sync planned timing estimates
-            app(TripTimingService::class)->syncPlannedTimes($newTrip);
+            $newTrip = app(TripTimingService::class)->syncPlannedTimes($newTrip);
+            try {
+                TripCreated::dispatch($newTrip);
+            } catch (\Throwable $exception) {
+                $this->warn("Trip {$newTrip->id} replicated but its realtime event could not be broadcast.");
+            }
             $count++;
         }
 

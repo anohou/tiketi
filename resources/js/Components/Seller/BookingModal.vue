@@ -68,8 +68,7 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  connectionFares: { type: Array, default: () => [] },
-  connectionRoutes: { type: Array, default: () => [] },
+  connectionOptions: { type: Array, default: () => [] },
   finalDestinationStationId: { type: String, default: null },
   connectionRouteId: { type: String, default: null },
   // Okohi reward claim waiting state
@@ -334,104 +333,52 @@ const connectionRouteModel = computed({
   get: () => props.connectionRouteId,
   set: (value) => emit('update:connectionRouteId', value || null),
 });
+const showConnections = ref(false);
+const connectionSearch = ref('');
 
-const currentTripStationIndices = computed(() => {
-  const route = props.currentTrip?.route;
-  if (!route) return {};
+const normalizeSearch = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase();
 
-  const stops = route.route_stop_orders || route.routeStopOrders || [];
-  const stationIds = [
-    route.origin_station_id,
-    ...[...stops].sort((a, b) => a.stop_index - b.stop_index).map(stop => stop.station_id),
-    route.destination_station_id,
-  ].filter((stationId, index, ids) => stationId && ids.indexOf(stationId) === index);
+const filteredConnectionOptions = computed(() => {
+  const search = normalizeSearch(connectionSearch.value.trim());
+  if (!search) return props.connectionOptions;
 
-  const originIndex = stationIds.indexOf(props.currentTrip.origin_station_id);
-  const destinationIndex = stationIds.indexOf(props.currentTrip.destination_station_id);
-  const orderedStationIds = originIndex > destinationIndex ? [...stationIds].reverse() : stationIds;
-
-  return Object.fromEntries(orderedStationIds.map((stationId, index) => [stationId, index]));
+  return props.connectionOptions.filter((option) =>
+    normalizeSearch(`${option.station?.name} ${option.station?.city}`).includes(search)
+  );
 });
 
-const isServedByCurrentTripAfter = (transferId, destinationId) => {
-  const indices = currentTripStationIndices.value;
-  const transferIndex = indices[transferId];
-  const destinationIndex = indices[destinationId];
-  const tripDestinationIndex = indices[props.currentTrip?.destination_station_id];
+const selectedConnectionOption = computed(() => props.connectionOptions.find(
+  (option) => option.station?.id === finalDestinationModel.value
+));
 
-  return Number.isInteger(transferIndex)
-    && Number.isInteger(destinationIndex)
-    && Number.isInteger(tripDestinationIndex)
-    && transferIndex < destinationIndex
-    && destinationIndex <= tripDestinationIndex;
+const selectConnectionOption = (option) => {
+  if (option.price === null || !option.route?.id) return;
+  finalDestinationModel.value = option.station.id;
+  connectionRouteModel.value = option.route.id;
 };
 
-const routeStationIds = (route) => {
-  const stops = route.route_stop_orders || route.routeStopOrders || [];
-
-  return [
-    route.origin_station_id,
-    ...[...stops].sort((a, b) => a.stop_index - b.stop_index).map(stop => stop.station_id),
-    route.destination_station_id,
-  ].filter((stationId, index, stationIds) => stationId && stationIds.indexOf(stationId) === index);
-};
-
-const routeConnectsInTravelDirection = (route, transferId, destinationId) => {
-  const stationIds = routeStationIds(route);
-  const transferIndex = stationIds.indexOf(transferId);
-  const destinationIndex = stationIds.indexOf(destinationId);
-
-  return transferIndex !== -1 && destinationIndex !== -1 && transferIndex < destinationIndex;
-};
-
-const availableConnectionFares = computed(() => {
-  if (!props.currentTrip?.allows_open_connections || !props.selectedFare?.from_station_id) return [];
-  const originId = props.selectedFare.from_station_id;
-  const transferId = props.selectedFare.to_station_id;
-  return props.connectionFares.flatMap(fare => {
-    let isCandidate = false;
-    let connDestId = null;
-    let connDest = null;
-
-    if (fare.from_station_id === originId && fare.to_station_id !== transferId) {
-      isCandidate = true;
-      connDestId = fare.to_station_id;
-      connDest = fare.to_station;
-    } else if (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id !== transferId) {
-      isCandidate = true;
-      connDestId = fare.from_station_id;
-      connDest = fare.from_station;
-    }
-
-    if (!isCandidate || !connDestId || isServedByCurrentTripAfter(transferId, connDestId)) return [];
-
-    const hasRoute = props.connectionRoutes.some(route => routeConnectsInTravelDirection(route, transferId, connDestId));
-
-    if (!hasRoute) return [];
-
-    return [{ ...fare, connection_destination_id: connDestId, connection_destination: connDest }];
-  });
-});
-
-const selectedConnectionFare = computed(() => availableConnectionFares.value.find(fare => fare.connection_destination_id === finalDestinationModel.value));
-
-const compatibleConnectionRoutes = computed(() => {
-  if (!finalDestinationModel.value || !props.selectedFare?.to_station_id) return [];
-  const transferId = props.selectedFare.to_station_id;
-  return props.connectionRoutes.filter(route => routeConnectsInTravelDirection(route, transferId, finalDestinationModel.value));
-});
-
-watch(availableConnectionFares, (fares) => {
-  if (finalDestinationModel.value && !fares.some(fare => fare.connection_destination_id === finalDestinationModel.value)) {
+watch(showConnections, (enabled) => {
+  if (!enabled) {
     finalDestinationModel.value = null;
+    connectionRouteModel.value = null;
+    connectionSearch.value = '';
   }
 });
 
-watch(compatibleConnectionRoutes, (routes) => {
-  if (!routes.some(route => route.id === connectionRouteModel.value)) {
-    connectionRouteModel.value = routes[0]?.id || null;
+watch(() => props.visible, (visible) => {
+  if (visible) {
+    showConnections.value = !!finalDestinationModel.value;
+    connectionSearch.value = '';
   }
-}, { immediate: true });
+});
+
+watch(() => props.selectedFare?.id, () => {
+  showConnections.value = false;
+  connectionSearch.value = '';
+});
 
 const seatLabel = computed(() => {
   if (props.seatsToBook.length > 1) {
@@ -443,7 +390,7 @@ const seatLabel = computed(() => {
 const routeLabel = computed(() => {
   const from = props.selectedFare?.from_station?.name;
   const to = props.selectedFare?.to_station?.name;
-  const finalDestination = props.selectedFare?.sale_destination?.name;
+  const finalDestination = selectedConnectionOption.value?.station?.name || props.selectedFare?.sale_destination?.name;
   if (from && to && finalDestination) {
     return `${from} → ${finalDestination} (correspondance à ${to})`;
   }
@@ -457,7 +404,7 @@ const amountLabel = computed(() => {
   if (useOkohi.value && okohiAmounts.value) {
     return `${okohiAmounts.value.net.toLocaleString('fr-FR')} FCFA`;
   }
-  const amount = selectedConnectionFare.value?.amount ?? props.selectedFare?.amount ?? 0;
+  const amount = selectedConnectionOption.value?.price ?? props.selectedFare?.amount ?? 0;
   return `${amount.toLocaleString('fr-FR')} FCFA`;
 });
 
@@ -465,7 +412,7 @@ const totalLabel = computed(() => {
   if (useOkohi.value && okohiAmounts.value) {
     return `${okohiAmounts.value.net.toLocaleString('fr-FR')} FCFA`;
   }
-  const amount = selectedConnectionFare.value?.amount ?? props.selectedFare?.amount ?? 0;
+  const amount = selectedConnectionOption.value?.price ?? props.selectedFare?.amount ?? 0;
   return `${(amount * props.ticketQuantity).toLocaleString('fr-FR')} FCFA`;
 });
 
@@ -491,7 +438,7 @@ const preg_match_js = (pattern, str) => {
 
 const okohiAmounts = computed(() => {
   if (!props.selectedFare || !useOkohi.value) return null;
-  const gross = selectedConnectionFare.value?.amount ?? props.selectedFare?.amount ?? 0;
+  const gross = selectedConnectionOption.value?.price ?? props.selectedFare?.amount ?? 0;
   if (!selectedReward.value) return { gross, discount: 0, net: gross };
 
   const title = selectedReward.value.title;
@@ -729,7 +676,9 @@ onBeforeUnmount(() => {
         ? 'max-w-6xl md:w-[64rem] md:max-w-none'
         : isOkohiExpanded
           ? 'md:w-[52rem]'
-          : 'max-w-xl md:w-[24rem] md:max-w-none'"
+          : showConnections
+            ? 'max-w-4xl md:w-[52rem] md:max-w-none'
+            : 'max-w-xl md:w-[24rem] md:max-w-none'"
       :style="{
         left: `${modalPosition.x}px`,
         top: `${modalPosition.y}px`,
@@ -958,7 +907,12 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- PARCOURS DE VENTE NORMAL / FORMULAIRE OKOHI -->
-          <div v-else class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-sm">
+          <div
+            v-else
+            class="grid items-start gap-4"
+            :class="showConnections ? 'grid-cols-2' : 'grid-cols-1'"
+          >
+          <div class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-sm">
             <div
               class="text-center"
               :class="isOkohiExpanded ? 'md:grid md:grid-cols-[18rem_minmax(0,1fr)] md:gap-x-5 md:text-left' : ''"
@@ -992,24 +946,29 @@ onBeforeUnmount(() => {
                 {{ amountLabel }}
               </div>
 
-              <!-- CORRESPONDANCE (Uniquement hors Okohi pour simplifier le MVP) -->
-              <div v-if="!useOkohi && currentTrip?.allows_open_connections && availableConnectionFares.length" class="mt-4 text-left">
-                <InputLabel for="final_destination" value="Destination finale avec correspondance (optionnel)" />
-                <select id="final_destination" v-model="finalDestinationModel" class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500">
-                  <option :value="null">Trajet direct — {{ selectedFare?.to_station?.name }}</option>
-                  <option v-for="fare in availableConnectionFares" :key="fare.id" :value="fare.connection_destination_id">
-                    {{ fare.connection_destination?.name }} — tarif {{ selectedFare?.from_station?.name }} → {{ fare.connection_destination?.name }} ({{ fare.amount.toLocaleString('fr-FR') }} FCFA), changement à {{ selectedFare?.to_station?.name }}
-                  </option>
-                </select>
-                <p v-if="finalDestinationModel" class="mt-1 text-xs text-amber-700 dark:text-amber-300">Un seul ticket sera imprimé. Le voyage suivant sera attribué au point de correspondance.</p>
-                <div v-if="finalDestinationModel" class="mt-3">
-                  <InputLabel for="connection_route" value="Trajet de reprise" />
-                  <select id="connection_route" v-model="connectionRouteModel" required class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-                    <option value="">Sélectionner le trajet</option>
-                    <option v-for="routeItem in compatibleConnectionRoutes" :key="routeItem.id" :value="routeItem.id">{{ routeItem.name }}</option>
-                  </select>
-                  <p v-if="compatibleConnectionRoutes.length === 0" class="mt-1 text-xs text-red-600">Aucun trajet ne dessert cette correspondance.</p>
+              <div v-if="connectionOptions.length > 0" class="mt-4 rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 text-left dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondance</div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400">
+                      Afficher les destinations possibles via {{ selectedFare?.to_station?.name }}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="showConnections"
+                    @click="showConnections = !showConnections"
+                    class="relative h-7 w-12 shrink-0 rounded-full transition-colors"
+                    :class="showConnections ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
+                  >
+                    <span
+                      class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"
+                      :class="showConnections ? 'translate-x-5' : 'translate-x-0'"
+                    />
+                  </button>
                 </div>
+
               </div>
 
               <!-- BLOC INTEGRATION OKOHI SELLER -->
@@ -1225,9 +1184,51 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+
+          <aside v-if="showConnections" class="rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20 md:p-4">
+            <div class="mb-3 text-left">
+              <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondances possibles</div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400">Via {{ selectedFare?.to_station?.name }}</div>
+            </div>
+
+            <TextInput
+              v-model="connectionSearch"
+              type="search"
+              placeholder="Rechercher une destination"
+              class="block w-full rounded-xl border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+
+            <div v-if="filteredConnectionOptions.length" class="mt-3 max-h-[calc(84vh-12rem)] space-y-2 overflow-y-auto pr-1">
+              <button
+                v-for="option in filteredConnectionOptions"
+                :key="`${option.station.id}:${option.route?.id}`"
+                type="button"
+                :disabled="option.price === null"
+                @click="selectConnectionOption(option)"
+                class="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                :class="selectedConnectionOption?.station?.id === option.station.id
+                  ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30'"
+              >
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-black">{{ option.station.name }}</div>
+                  <div class="mt-0.5 text-[10px] opacity-75">{{ option.details }}</div>
+                </div>
+                <div v-if="option.price !== null" class="shrink-0 text-right">
+                  <div class="text-base font-black">{{ option.price.toLocaleString('fr-FR') }}</div>
+                  <div class="text-[9px] font-bold opacity-75">FCFA</div>
+                </div>
+                <div v-else class="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400">Non tarifé</div>
+              </button>
+            </div>
+            <div v-else class="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Aucune correspondance trouvée.
+            </div>
+          </aside>
           </div>
         </div>
       </div>
     </div>
+  </div>
   </div>
 </template>

@@ -86,6 +86,8 @@ class SeatMapUpdated implements ShouldBroadcastNow
                 'sold_tickets_count' => $this->trip->sold_tickets_count,
                 'origin_station_id' => $this->trip->origin_station_id,
                 'destination_station_id' => $this->trip->destination_station_id,
+                'active_sales_station_id' => $this->trip->active_sales_station_id,
+                'next_sales_station_id' => $this->trip->next_sales_station_id,
                 'route' => [
                     'id' => $this->trip->route?->id,
                     'name' => $this->trip->route?->name,

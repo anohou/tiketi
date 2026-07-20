@@ -17,6 +17,7 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
+use App\Services\TripStationProgression;
 use App\Services\TripTimingService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -30,15 +31,19 @@ class TicketingController extends Controller
         return Inertia::render('Seller/Ticketing', $this->getTicketingData(request('trip_id')));
     }
 
-    public function horizontal()
+    public function focus()
     {
-        return Inertia::render('Seller/TicketingHorizontal', $this->getTicketingData(request('trip_id')));
+        return Inertia::render('Seller/Ticketing', [
+            ...$this->getTicketingData(request('trip_id')),
+            'focusMode' => true,
+        ]);
     }
 
     private function getTicketingData(?string $selectedTripId = null): array
     {
         $user = auth()->user();
         $isAdmin = $user->isAdmin();
+        $canSelectTripOrigin = $isAdmin || $user->role === 'supervisor';
 
         $assignedStationIds = $user->getActiveStationIds();
         $hasActiveAssignment = $isAdmin || count($assignedStationIds) > 0;
@@ -49,7 +54,27 @@ class TicketingController extends Controller
 
         $trips = $this->loadTrips($isAdmin, $assignedStationIds, $selectedTripId);
         $routeFares = $this->loadFares($isAdmin, $assignedStationIds);
-        $routes = $this->loadRoutes($isAdmin);
+        $routes = $this->loadRoutes($isAdmin, $assignedStationModel?->id, $canSelectTripOrigin);
+        $originStations = ($isAdmin
+            ? Station::where('active', true)
+            : Station::where('active', true)->whereIn('id', $assignedStationIds))
+            ->orderBy('name')
+            ->get(['id', 'name', 'city', 'code']);
+
+        $replicableTripsQuery = Trip::where('is_replicable', true);
+        if (! $isAdmin) {
+            $replicableTripsQuery
+                ->whereIn('route_id', $routes->pluck('id'))
+                ->whereIn('origin_station_id', $assignedStationIds);
+        }
+
+        $tripItems = $trips instanceof LengthAwarePaginator
+            ? $trips->getCollection()
+            : collect($trips);
+        $colorTrip = $selectedTripId
+            ? $tripItems->firstWhere('id', $selectedTripId)
+            : $tripItems->first();
+        $assignedStationColor = $this->resolveAssignedStationColor($colorTrip, $assignedStationModel?->id);
 
         $this->enrichTripsWithSeatCounts($trips);
 
@@ -68,21 +93,47 @@ class TicketingController extends Controller
             'hasActiveAssignment' => $hasActiveAssignment,
             'assignedStationId' => $assignedStationModel?->id,
             'assignedStation' => $assignedStation,
+            'canSelectTripOrigin' => $canSelectTripOrigin,
+            'originStations' => $originStations,
+            'assignedStationColor' => $assignedStationColor,
             'okohiIntegrationActive' => TicketSetting::getSettings()->hasOkohiIntegration(),
-            'replicableTrips' => Trip::where('is_replicable', true)
-                ->get(['id', 'route_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
+            'replicableTrips' => $replicableTripsQuery
+                ->get(['id', 'route_id', 'origin_station_id', 'destination_station_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
                 ->map(function ($trip) {
                     return [
                         'id' => $trip->id,
                         'route_id' => $trip->route_id,
+                        'origin_station_id' => $trip->origin_station_id,
+                        'destination_station_id' => $trip->destination_station_id,
                         'time' => $trip->departure_at ? $trip->departure_at->format('H:i') : '00:00',
                         'allows_open_connections' => (bool) $trip->allows_open_connections,
                         'automatic_connection_allocation' => $trip->automatic_connection_allocation,
                         'code' => $trip->code,
                     ];
                 })
-                ->unique(fn ($item) => $item['route_id'].'-'.$item['time'])
+                ->unique(fn ($item) => $item['route_id'].'-'.$item['origin_station_id'].'-'.$item['destination_station_id'].'-'.$item['time'])
                 ->values(),
+        ];
+    }
+
+    private function resolveAssignedStationColor(?Trip $trip, ?string $stationId): ?array
+    {
+        if (! $trip || ! $stationId) {
+            return null;
+        }
+
+        $stationIndex = app(TripSegmentService::class)->stationIndices($trip)[$stationId] ?? null;
+        if ($stationIndex === null) {
+            return null;
+        }
+
+        $hues = [220, 270, 25, 165, 330, 195, 140, 350];
+        $hue = $hues[$stationIndex % count($hues)];
+
+        return [
+            'bg' => "hsl({$hue}, 80%, 75%)",
+            'fg' => '#0F172A',
+            'muted' => 'rgba(15,23,42,0.65)',
         ];
     }
 
@@ -146,10 +197,20 @@ class TicketingController extends Controller
             $paginated = $finalQuery->paginate(15)->withQueryString();
             $paginated->getCollection()->each(function ($trip) {
                 $hasAssigned = $trip->assignedConnections->isNotEmpty();
-                $hasTransit = TicketConnection::where('transfer_station_id', $trip->origin_station_id)
-                    ->where('route_id', $trip->route_id)
-                    ->whereIn('status', ['pending', 'ready'])
-                    ->exists();
+                $indices = app(TripSegmentService::class)->stationIndices($trip);
+                $originIndex = $indices[$trip->origin_station_id] ?? null;
+                if ($originIndex !== null) {
+                    $destinationIds = collect($indices)
+                        ->filter(fn ($index) => $index > $originIndex)
+                        ->keys()
+                        ->all();
+                    $hasTransit = TicketConnection::where('transfer_station_id', $trip->origin_station_id)
+                        ->whereIn('destination_station_id', $destinationIds)
+                        ->whereIn('status', ['pending', 'ready'])
+                        ->exists();
+                } else {
+                    $hasTransit = false;
+                }
                 $trip->has_connections = $hasAssigned || $hasTransit;
             });
 
@@ -179,10 +240,20 @@ class TicketingController extends Controller
 
         $trips->each(function ($trip) {
             $hasAssigned = $trip->assignedConnections->isNotEmpty();
-            $hasTransit = TicketConnection::where('transfer_station_id', $trip->origin_station_id)
-                ->where('route_id', $trip->route_id)
-                ->whereIn('status', ['pending', 'ready'])
-                ->exists();
+            $indices = app(TripSegmentService::class)->stationIndices($trip);
+            $originIndex = $indices[$trip->origin_station_id] ?? null;
+            if ($originIndex !== null) {
+                $destinationIds = collect($indices)
+                    ->filter(fn ($index) => $index > $originIndex)
+                    ->keys()
+                    ->all();
+                $hasTransit = TicketConnection::where('transfer_station_id', $trip->origin_station_id)
+                    ->whereIn('destination_station_id', $destinationIds)
+                    ->whereIn('status', ['pending', 'ready'])
+                    ->exists();
+            } else {
+                $hasTransit = false;
+            }
             $trip->has_connections = $hasAssigned || $hasTransit;
         });
 
@@ -223,16 +294,56 @@ class TicketingController extends Controller
         })->values();
     }
 
-    private function loadRoutes(bool $isAdmin)
+    private function loadRoutes(bool $isAdmin, ?string $assignedStationId = null, bool $canSelectTripOrigin = false)
     {
-        if ($isAdmin) {
-            return Route::orderBy('name')->get(['id', 'name']);
+        $stationRelations = [
+            'originStation:id,name,code',
+            'destinationStation:id,name,code',
+            'routeStopOrders:id,route_id,station_id,stop_index',
+            'routeStopOrders.station:id,name,code',
+        ];
+
+        if ($canSelectTripOrigin) {
+            return ($isAdmin ? Route::query() : auth()->user()->accessibleRoutesQuery())
+                ->where('active', true)
+                ->with($stationRelations)
+                ->orderBy('name')
+                ->get();
         }
 
         return auth()->user()->accessibleRoutesQuery()
-            ->with(['originDestination', 'targetDestination'])
+            ->with($stationRelations)
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(function (Route $route) use ($assignedStationId) {
+                $orderedStations = collect([$route->originStation])
+                    ->concat($route->routeStopOrders->sortBy('stop_index')->pluck('station'))
+                    ->push($route->destinationStation)
+                    ->filter()
+                    ->unique('id')
+                    ->values();
+
+                $creationOrigin = $orderedStations->firstWhere('id', $assignedStationId);
+                if (! $creationOrigin) {
+                    return null;
+                }
+
+                $creationDestination = $creationOrigin->id === $orderedStations->last()?->id
+                    ? $orderedStations->first()
+                    : $orderedStations->last();
+
+                if (! $creationDestination || $creationDestination->id === $creationOrigin->id) {
+                    return null;
+                }
+
+                $route->setAttribute('creation_origin_station', $creationOrigin);
+                $route->setAttribute('creation_destination_station', $creationDestination);
+                $route->setAttribute('display_name', $creationOrigin->name.' → '.$creationDestination->name);
+
+                return $route;
+            })
+            ->filter()
+            ->values();
     }
 
     private function enrichTripsWithSeatCounts($trips): void
@@ -407,30 +518,49 @@ class TicketingController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:scheduled,boarding,departed,arrived,cancelled,delayed,embarquement,parti,en_route,arrive,arrivé,retardé,retarde'],
             'reason' => ['nullable', 'string', 'max:500'],
+            'station_id' => ['nullable', 'uuid', 'exists:stations,id'],
         ]);
 
         $user = $request->user();
+        $target = TripStatus::normalize($validated['status']);
+        $progression = app(TripStationProgression::class);
+        $activeSalesStationId = $progression->activeSalesStationId($trip);
+        $departureStationId = $validated['station_id'] ?? $activeSalesStationId;
+
         if ($user?->role === 'seller') {
-            $target = TripStatus::normalize($validated['status']);
             $routeStationIds = array_keys(app(TripSegmentService::class)->stationIndices($trip));
             $hasLocalAccess = array_intersect($user->getActiveStationIds(), $routeStationIds) !== [];
             abort_unless($hasLocalAccess, 403, 'Ce voyage ne dessert aucune de vos gares affectées.');
-            abort_unless(
-                in_array($target, ['scheduled', 'boarding', 'delayed'], true),
-                403,
-                'Un vendeur ne peut pas déclarer seul le départ, l’arrivée ou l’annulation globale.',
-            );
+
+            if ($target === 'departed') {
+                abort_unless(
+                    $departureStationId === $activeSalesStationId
+                    && in_array($departureStationId, $user->getActiveStationIds(), true),
+                    403,
+                    'Seule la gare qui a actuellement la main peut enregistrer son départ.',
+                );
+            } else {
+                abort_unless(
+                    in_array($target, ['scheduled', 'boarding', 'delayed'], true),
+                    403,
+                    'Un vendeur ne peut pas déclarer seul l’arrivée ou l’annulation globale.',
+                );
+            }
         }
 
         try {
-            app(TripStateMachine::class)->transition(
-                $trip,
-                $validated['status'],
-                $request->user(),
-                'seller_web',
-                $validated['reason'] ?? null,
-            );
-        } catch (InvalidTripTransition $exception) {
+            if ($target === 'departed' && $trip->status === 'departed') {
+                $trip = $progression->advance($trip, $departureStationId);
+            } else {
+                $trip = app(TripStateMachine::class)->transition(
+                    $trip,
+                    $validated['status'],
+                    $request->user(),
+                    'seller_web',
+                    $validated['reason'] ?? null,
+                );
+            }
+        } catch (InvalidTripTransition|\DomainException $exception) {
             return redirect()->back()->withErrors(['status' => $exception->getMessage()]);
         }
 
@@ -444,7 +574,7 @@ class TicketingController extends Controller
                 ]),
                 [],
                 'trip.status_updated',
-                $trip->origin_station_id
+                $departureStationId
             ));
         } catch (\Exception $e) {
             Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
@@ -504,6 +634,20 @@ class TicketingController extends Controller
         $trip->update($validated);
         app(TripTimingService::class)->syncPlannedTimes($trip);
 
+        try {
+            SeatMapUpdated::dispatch(
+                $trip->fresh(['route.routeStopOrders.station', 'originStation', 'destinationStation', 'vehicle.vehicleType']),
+                [],
+                'trip.updated',
+                $trip->origin_station_id,
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Échec de diffusion du voyage modifié.', [
+                'trip_id' => $trip->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         return redirect()->back()->with('status', 'Voyage modifié avec succès.');
     }
 
@@ -546,21 +690,28 @@ class TicketingController extends Controller
             $tripsQuery->where(function ($query) use ($stationId) {
                 $isUuid = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $stationId);
                 if ($isUuid) {
-                    $query->where('origin_station_id', $stationId);
+                    $query->where('origin_station_id', $stationId)
+                        ->orWhere('destination_station_id', $stationId)
+                        ->orWhereHas('route', function ($routeQuery) use ($stationId) {
+                            $routeQuery->where('origin_station_id', $stationId)
+                                ->orWhere('destination_station_id', $stationId)
+                                ->orWhereHas('routeStopOrders', fn ($stopQuery) => $stopQuery->where('station_id', $stationId));
+                        });
                 } else {
-                    $query->whereHas('originStation', function ($q) use ($stationId) {
-                        $q->where('name', 'like', "%{$stationId}%")
-                            ->orWhere('city', 'like', "%{$stationId}%");
-                    });
+                    $stationMatches = fn ($stationQuery) => $stationQuery->where(
+                        fn ($matchQuery) => $matchQuery
+                            ->where('name', 'like', "%{$stationId}%")
+                            ->orWhere('city', 'like', "%{$stationId}%")
+                    );
+
+                    $query->whereHas('originStation', $stationMatches)
+                        ->orWhereHas('destinationStation', $stationMatches)
+                        ->orWhereHas('route.routeStopOrders.station', $stationMatches);
                 }
             });
         }
 
         $trips = $tripsQuery->get();
-        $this->enrichTripsWithSeatCounts($trips);
-
-        // Load all active stations for the filter/selector
-        $stations = Station::where('active', true)->orderBy('name')->get(['id', 'name', 'city']);
 
         $selectedStation = null;
         if ($stationId) {
@@ -568,9 +719,24 @@ class TicketingController extends Controller
             if ($isUuid) {
                 $selectedStation = Station::find($stationId);
             } else {
-                $selectedStation = Station::where('name', 'like', "%{$stationId}%")->first();
+                $selectedStation = Station::where('name', 'like', "%{$stationId}%")
+                    ->orWhere('city', 'like', "%{$stationId}%")
+                    ->first();
             }
         }
+
+        if ($selectedStation) {
+            $segments = app(TripSegmentService::class);
+            $trips = $trips->filter(function ($trip) use ($selectedStation, $segments) {
+                $indices = $segments->stationIndices($trip);
+
+                return isset($indices[$selectedStation->id]);
+            })->values();
+        }
+
+        $this->enrichTripsWithSeatCounts($trips);
+
+        $stations = Station::where('active', true)->orderBy('name')->get(['id', 'name', 'city']);
 
         return Inertia::render('Seller/TidsBoard', [
             'trips' => $trips,

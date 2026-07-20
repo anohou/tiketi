@@ -161,7 +161,12 @@ class OptimisationService
         // - avant le départ: uniquement les sièges qui se libèrent à cette gare
         // - après le départ: sièges libres + sièges qui se libèrent à cette gare
         if ($trip->isSalesClosed() && $boardingStationId && $boardingStationId !== $trip->origin_station_id) {
-            $availableSeats = app(TripSegmentService::class)->sellableSeatsForStation($trip, $boardingStationId);
+            if ($trip->status === 'departed'
+                && ! app(TripStationProgression::class)->isActiveSalesStation($trip, $boardingStationId)) {
+                $availableSeats = [];
+            } else {
+                $availableSeats = app(TripSegmentService::class)->sellableSeatsForStation($trip, $boardingStationId);
+            }
         }
 
         if ($troncon === 'short') {

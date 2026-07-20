@@ -4,15 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Domain\Trips\InvalidTripTransition;
 use App\Domain\Trips\TripStateMachine;
+use App\Events\SeatMapUpdated;
 use App\Events\TripCreated;
 use App\Http\Controllers\Controller;
 use App\Models\Route;
+use App\Models\Station;
 use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
 use App\Services\AutomaticConnectionAllocator;
 use App\Services\TripTimingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class TripController extends Controller
@@ -72,29 +75,33 @@ class TripController extends Controller
         }
 
         $routes = auth()->user()->accessibleRoutesQuery()
-            ->with(['originStation', 'destinationStation'])
+            ->with(['originStation', 'destinationStation', 'routeStopOrders.station'])
             ->orderBy('name')
             ->get();
 
         $vehicles = Vehicle::where('active', true)->orderBy('identifier')->get(['id', 'identifier']);
+        $stations = Station::where('active', true)->orderBy('name')->get(['id', 'name', 'city']);
 
         return Inertia::render('Admin/Trips/Index', [
             'trips' => $trips,
             'routes' => $routes,
             'vehicles' => $vehicles,
+            'stations' => $stations,
             'replicableTrips' => Trip::where('is_replicable', true)
-                ->get(['id', 'route_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
+                ->get(['id', 'route_id', 'origin_station_id', 'destination_station_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
                 ->map(function ($trip) {
                     return [
                         'id' => $trip->id,
                         'route_id' => $trip->route_id,
+                        'origin_station_id' => $trip->origin_station_id,
+                        'destination_station_id' => $trip->destination_station_id,
                         'time' => $trip->departure_at ? $trip->departure_at->format('H:i') : '00:00',
                         'allows_open_connections' => (bool) $trip->allows_open_connections,
                         'automatic_connection_allocation' => $trip->automatic_connection_allocation,
                         'code' => $trip->code,
                     ];
                 })
-                ->unique(fn ($item) => $item['route_id'].'-'.$item['time'])
+                ->unique(fn ($item) => $item['route_id'].'-'.$item['origin_station_id'].'-'.$item['destination_station_id'].'-'.$item['time'])
                 ->values(),
         ]);
     }
@@ -134,6 +141,8 @@ class TripController extends Controller
                     }
                 },
             ],
+            'origin_station_id' => 'nullable|uuid|exists:stations,id',
+            'destination_station_id' => 'nullable|uuid|exists:stations,id',
             'vehicle_id' => 'nullable|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'nullable|in:scheduled,boarding,departed,arrived,cancelled',
@@ -173,27 +182,65 @@ class TripController extends Controller
             ]);
         }
 
-        if ($user->role === 'admin') {
-            // Admins create trips in the route's default direction
-            $data['origin_station_id'] = $defaultOriginStationId;
-            $data['destination_station_id'] = $defaultDestinationStationId;
-        } else {
-            // For sellers/supervisors, check their assigned stations
-            $assignedStationIds = $user->getActiveStationIds();
+        $data['origin_station_id'] = $data['origin_station_id'] ?? null;
+        $data['destination_station_id'] = $data['destination_station_id'] ?? null;
 
-            // If seller's station is the route's destination (but not origin), reverse the direction
-            $isReversed = in_array($defaultDestinationStationId, $assignedStationIds)
-                && ! in_array($defaultOriginStationId, $assignedStationIds);
-
-            if ($isReversed) {
-                // Seller is at destination, so trip goes: destination -> origin
-                $data['origin_station_id'] = $defaultDestinationStationId;
-                $data['destination_station_id'] = $defaultOriginStationId;
+        if (! $data['origin_station_id'] || ! $data['destination_station_id']) {
+            if ($user->role === 'admin') {
+                // Admins create trips in the route's default direction
+                $data['origin_station_id'] = $data['origin_station_id'] ?? $defaultOriginStationId;
+                $data['destination_station_id'] = $data['destination_station_id'] ?? $defaultDestinationStationId;
             } else {
-                // Normal direction
-                $data['origin_station_id'] = $defaultOriginStationId;
-                $data['destination_station_id'] = $defaultDestinationStationId;
+                // A seller creates the journey from the station where they work,
+                // even when that station is an intermediate stop on the route.
+                $assignedStationIds = $user->getActiveStationIds();
+                $routeStationIds = $this->resolveOrderedRouteStationIds($route);
+                $sellerOriginStationId = collect($assignedStationIds)
+                    ->first(fn ($stationId) => in_array($stationId, $routeStationIds, true));
+
+                if (! $sellerOriginStationId) {
+                    return back()->withErrors([
+                        'route_id' => 'Cette route ne dessert aucune de vos gares affectées.',
+                    ]);
+                }
+
+                $data['origin_station_id'] = $data['origin_station_id'] ?? $sellerOriginStationId;
+                $data['destination_station_id'] = $data['destination_station_id'] ?? ($sellerOriginStationId === $defaultDestinationStationId
+                    ? $defaultOriginStationId
+                    : $defaultDestinationStationId);
             }
+        }
+
+        // Validate access rights for non-admin creators
+        if ($user->role !== 'admin') {
+            $assignedStationIds = $user->getActiveStationIds();
+            if (! in_array($data['origin_station_id'], $assignedStationIds, true)) {
+                return back()->withErrors([
+                    'origin_station_id' => 'Vous n\'avez pas le droit de créer un voyage depuis cette gare.',
+                ]);
+            }
+        }
+
+        // Validate route connectivity and direction
+        $stationIds = collect([$route->origin_station_id])
+            ->concat($route->routeStopOrders->sortBy('stop_index')->pluck('station_id'))
+            ->push($route->destination_station_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $originIdx = array_search($data['origin_station_id'], $stationIds, true);
+        $destIdx = array_search($data['destination_station_id'], $stationIds, true);
+
+        if ($originIdx === false) {
+            return back()->withErrors(['origin_station_id' => 'La gare d’origine n’appartient pas à la route sélectionnée.']);
+        }
+        if ($destIdx === false) {
+            return back()->withErrors(['destination_station_id' => 'La gare de destination n’appartient pas à la route sélectionnée.']);
+        }
+        if ($originIdx === $destIdx) {
+            return back()->withErrors(['destination_station_id' => 'La destination doit être différente de la gare d’origine.']);
         }
 
         $trip = Trip::create($data);
@@ -201,7 +248,14 @@ class TripController extends Controller
 
         app(AutomaticConnectionAllocator::class)->allocateForTrip($trip, $user);
 
-        TripCreated::dispatch($trip);
+        try {
+            TripCreated::dispatch($trip);
+        } catch (\Throwable $exception) {
+            Log::warning('Échec de diffusion du voyage créé.', [
+                'trip_id' => $trip->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         // Redirect based on user role
         if ($user->role === 'admin') {
@@ -239,6 +293,8 @@ class TripController extends Controller
     {
         $data = $request->validate([
             'route_id' => 'required|uuid|exists:routes,id',
+            'origin_station_id' => 'nullable|uuid|exists:stations,id',
+            'destination_station_id' => 'nullable|uuid|exists:stations,id',
             'vehicle_id' => 'nullable|uuid|exists:vehicles,id',
             'departure_at' => 'required|date',
             'status' => 'required|in:scheduled,boarding,departed,arrived,cancelled,delayed',
@@ -248,6 +304,33 @@ class TripController extends Controller
             'automatic_connection_allocation' => 'nullable|boolean',
             'is_replicable' => 'nullable|boolean',
         ]);
+
+        $route = Route::with('routeStopOrders')->findOrFail($data['route_id']);
+        $originId = $data['origin_station_id'] ?? $trip->origin_station_id;
+        $destId = $data['destination_station_id'] ?? $trip->destination_station_id;
+
+        if ($originId && $destId) {
+            $stationIds = collect([$route->origin_station_id])
+                ->concat($route->routeStopOrders->sortBy('stop_index')->pluck('station_id'))
+                ->push($route->destination_station_id)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $originIdx = array_search($originId, $stationIds, true);
+            $destIdx = array_search($destId, $stationIds, true);
+
+            if ($originIdx === false) {
+                return back()->withErrors(['origin_station_id' => 'La gare d’origine n’appartient pas à la route sélectionnée.']);
+            }
+            if ($destIdx === false) {
+                return back()->withErrors(['destination_station_id' => 'La gare de destination n’appartient pas à la route sélectionnée.']);
+            }
+            if ($originIdx === $destIdx) {
+                return back()->withErrors(['destination_station_id' => 'La destination doit être différente de la gare d’origine.']);
+            }
+        }
 
         if (! empty($data['vehicle_id'])) {
             $vehicle = Vehicle::findOrFail($data['vehicle_id']);
@@ -286,6 +369,20 @@ class TripController extends Controller
             }
         }
 
+        try {
+            SeatMapUpdated::dispatch(
+                $trip->fresh(['route.routeStopOrders.station', 'originStation', 'destinationStation', 'vehicle.vehicleType']),
+                [],
+                'trip.updated',
+                $trip->origin_station_id,
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Échec de diffusion du voyage modifié.', [
+                'trip_id' => $trip->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         return redirect()->route('admin.trips.index');
     }
 
@@ -314,5 +411,16 @@ class TripController extends Controller
             $route->origin_station_id ?? $stationIds->first(),
             $route->destination_station_id ?? ($stationIds->count() > 1 ? $stationIds->last() : $stationIds->first()),
         ];
+    }
+
+    private function resolveOrderedRouteStationIds(Route $route): array
+    {
+        return collect([$route->origin_station_id])
+            ->concat($route->routeStopOrders()->orderBy('stop_index')->pluck('station_id'))
+            ->push($route->destination_station_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 }

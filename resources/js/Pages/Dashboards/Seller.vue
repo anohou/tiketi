@@ -1,6 +1,6 @@
 <script setup>
 import MainNavLayout from '@/Layouts/MainNavLayout.vue'
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { router, Link, useForm, usePage } from '@inertiajs/vue3'
 import Bus from 'vue-material-design-icons/Bus.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
@@ -17,6 +17,10 @@ import InputLabel from '@/Components/InputLabel.vue'
 import TextInput from '@/Components/TextInput.vue'
 import InputError from '@/Components/InputError.vue'
 import { ticketingStore } from '@/Stores/ticketingStore.js'
+import {
+  buildTripCreationDestinationOptions,
+  buildTripCreationRouteOptions,
+} from '@/Support/tripCreationDestinations.js'
 
 const props = defineProps({
     trips: Array,
@@ -24,15 +28,53 @@ const props = defineProps({
     vehicles: Array,
     todaySales: Number,
     hasActiveAssignment: Boolean,
-    assignedStation: String
+    assignedStation: String,
+    canSelectTripOrigin: { type: Boolean, default: false },
+    originStations: { type: Array, default: () => [] },
 })
 
 const showCreateTripModal = ref(false)
 const createTripForm = useForm({
   route_id: '',
+  origin_station_id: '',
+  destination_station_id: '',
   vehicle_id: '',
   departure_at: '',
 })
+
+const availableRouteOptions = computed(() => buildTripCreationRouteOptions(
+  props.routes,
+  createTripForm.origin_station_id,
+));
+
+const availableDestinationOptions = computed(() => buildTripCreationDestinationOptions(
+  props.routes,
+  createTripForm.origin_station_id,
+  createTripForm.route_id,
+));
+
+watch([() => createTripForm.origin_station_id, () => createTripForm.route_id], () => {
+  if (createTripForm.route_id
+    && !availableRouteOptions.value.some((option) => option.value === createTripForm.route_id)) {
+    createTripForm.route_id = '';
+  }
+  if (createTripForm.destination_station_id
+    && !availableDestinationOptions.value.some((option) => option.value === createTripForm.destination_station_id)) {
+    createTripForm.destination_station_id = '';
+  }
+}, { immediate: true });
+
+
+const openCreateTripModal = () => {
+  const stationAssignments = page.props.auth.user?.station_assignments || []
+  const stationIds = [...new Set(stationAssignments.map(assignment => String(assignment.station_id)).filter(Boolean))]
+  createTripForm.origin_station_id = stationIds[0] || ''
+  createTripForm.destination_station_id = ''
+  createTripForm.route_id = ''
+  createTripForm.vehicle_id = ''
+  createTripForm.departure_at = ''
+  showCreateTripModal.value = true
+}
 
 const currentTime = ref('')
 const currentDate = ref('')
@@ -278,7 +320,7 @@ const createTrip = () => {
                 <div class="text-[10px] font-bold text-slate-400 tracking-widest mt-1 dark:text-slate-500">{{ currentDate }}</div>
               </div>
               <button 
-                 @click="showCreateTripModal = true"
+                 @click="openCreateTripModal()"
                  class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex-shrink-0"
               >
                 <Plus :size="20" />
@@ -498,19 +540,55 @@ const createTrip = () => {
 
         <form @submit.prevent="createTrip" class="space-y-4">
           <div>
-            <InputLabel for="route" value="Trajet" />
+            <InputLabel value="Gare d'origine" />
+            <select
+              v-if="canSelectTripOrigin"
+              v-model="createTripForm.origin_station_id"
+              class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
+              required
+            >
+              <option value="">Sélectionnez une gare d'origine</option>
+              <option v-for="station in originStations" :key="station.id" :value="station.id">
+                {{ station.name }}
+              </option>
+            </select>
+            <div v-else class="mt-1 block w-full px-4 py-2 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 dark:text-slate-100 rounded-xl text-sm font-bold">
+              {{ assignedStation }}
+            </div>
+            <InputError :message="createTripForm.errors.origin_station_id" class="mt-2" />
+          </div>
+
+          <div>
+            <InputLabel for="route" value="Ligne" />
             <select
                 id="route"
                 v-model="createTripForm.route_id"
                 class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
                 required
             >
-                <option value="" disabled class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez un trajet</option>
-                <option v-for="busRoute in routes" :key="busRoute.id" :value="busRoute.id" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                    {{ busRoute.display_name || busRoute.name }}
+                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez une ligne</option>
+                <option v-for="opt in availableRouteOptions" :key="opt.value" :value="opt.value" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                    {{ opt.label }}
                 </option>
             </select>
             <InputError :message="createTripForm.errors.route_id" class="mt-2" />
+          </div>
+
+          <div>
+            <InputLabel for="destination" value="Gare de destination" />
+            <select
+                id="destination"
+                v-model="createTripForm.destination_station_id"
+                class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
+                required
+                :disabled="!createTripForm.route_id"
+            >
+                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez une destination</option>
+                <option v-for="opt in availableDestinationOptions" :key="opt.value" :value="opt.value" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                    {{ opt.label }}
+                </option>
+            </select>
+            <InputError :message="createTripForm.errors.destination_station_id" class="mt-2" />
           </div>
 
           <div>

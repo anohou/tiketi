@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue';
-import { Link, router, usePage } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
@@ -13,6 +13,8 @@ import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Minus from 'vue-material-design-icons/Minus.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
+import Lock from 'vue-material-design-icons/Lock.vue';
+import LockOpen from 'vue-material-design-icons/LockOpen.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue';
@@ -63,7 +65,10 @@ const resetZoom = () => {
 };
 
 const page = usePage();
-const isTicketingPage = computed(() => route().current('seller.ticketing'));
+const isTicketingPage = computed(() => route().current('seller.ticketing') || route().current('seller.ticketing.focus'));
+const currentTicketingRoute = computed(() => route().current('seller.ticketing.focus')
+    ? 'seller.ticketing.focus'
+    : 'seller.ticketing');
 
 const emit = defineEmits(['seat-click']);
 
@@ -255,7 +260,7 @@ const selectTrip = (trip) => {
         
         // If on ticketing page, notify parent to sync
         if (isTicketingPage.value) {
-            router.visit(route('seller.ticketing', { trip_id: trip.id }), {
+            router.visit(route(currentTicketingRoute.value, { trip_id: trip.id }), {
                 preserveState: true,
                 preserveScroll: true,
                 replace: true
@@ -277,6 +282,21 @@ const formatTime = (dateString) => {
         hour: '2-digit',
         minute: '2-digit'
     });
+};
+
+const areDownstreamSalesActive = (trip) => trip?.status === 'departed'
+    ? (!assignedStationId.value || trip?.active_sales_station_id === assignedStationId.value)
+    : trip?.sales_control === 'open';
+
+const getSalesControlTitle = (trip) => {
+    if (trip?.status === 'departed') {
+        return trip?.active_sales_station_id === assignedStationId.value
+            ? 'Votre gare a la main sur les ventes'
+            : 'En attente du départ de la gare précédente';
+    }
+    return trip?.sales_control === 'open'
+        ? 'Ventes simultanées autorisées'
+        : 'Ventes simultanées désactivées jusqu’au départ';
 };
 
 onMounted(() => {
@@ -495,8 +515,39 @@ const currentStationPalette = computed(() => {
 
 const currentStationSellableSeatNumbers = computed(() => {
     if (!assignedStationId.value) return [];
-    const sellableSeatsByStation = seatMap.value?.sellable_seats_by_station || {};
-    return (sellableSeatsByStation[assignedStationId.value] || [])
+    const originStationId = selectedTrip.value?.origin_station_id
+        || selectedTrip.value?.route?.origin_station_id;
+    const isClosedAtIntermediateStation = selectedTrip.value?.status === 'departed'
+        ? selectedTrip.value?.active_sales_station_id !== assignedStationId.value
+        : selectedTrip.value?.sales_control === 'closed'
+            && originStationId !== assignedStationId.value;
+    const seatsByStation = isClosedAtIntermediateStation
+        ? (seatMap.value?.freed_seats_by_station || {})
+        : (seatMap.value?.sellable_seats_by_station || {});
+
+    return (seatsByStation[assignedStationId.value] || [])
+        .map((seatNumber) => Number(seatNumber))
+        .filter((seatNumber) => Number.isFinite(seatNumber));
+});
+
+const currentStationFreedSeatNumbers = computed(() => {
+    if (!assignedStationId.value) return [];
+
+    if (selectedTrip.value?.status === 'departed') {
+        const stationIndices = buildTripStationIndices(selectedTrip.value);
+        const stationIndex = stationIndices[assignedStationId.value];
+        const activeStationIndex = stationIndices[selectedTrip.value?.active_sales_station_id];
+
+        // Only upcoming stations preview their future released seats. Once the
+        // handoff reaches this station, normal sales replace the visual alert.
+        if (stationIndex === undefined
+            || activeStationIndex === undefined
+            || stationIndex <= activeStationIndex) {
+            return [];
+        }
+    }
+
+    return (seatMap.value?.freed_seats_by_station?.[assignedStationId.value] || [])
         .map((seatNumber) => Number(seatNumber))
         .filter((seatNumber) => Number.isFinite(seatNumber));
 });
@@ -612,7 +663,7 @@ const getOccupancyRate = (available, total) => {
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-white border-l border-slate-200 overflow-hidden shadow-xl w-[320px] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30">
+    <div class="flex h-full w-full flex-col overflow-hidden border-l border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30">
         <!-- Header -->
         <div class="p-5 bg-gradient-to-br from-emerald-50 to-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0 dark:border-slate-800 dark:from-slate-900 dark:to-slate-950">
             <div>
@@ -626,19 +677,6 @@ const getOccupancyRate = (available, total) => {
                 <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-emerald-600 disabled:opacity-50 dark:hover:bg-slate-800">
                     <Refresh :size="18" :class="{ 'animate-spin': loading }" />
                 </button>
-                <Link
-                    v-if="selectedTripId"
-                    :href="route('seller.ticketing.horizontal', { trip_id: selectedTripId })"
-                    class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                    title="Vue horizontale"
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" class="w-[18px] h-[18px]">
-                        <path
-                            fill="currentColor"
-                            d="M4 4h7v2H7.41l3.3 3.3-1.42 1.4L6 7.41V11H4V4Zm16 0v7h-2V7.41l-3.29 3.29-1.42-1.4L16.59 6H13V4h7Zm0 16h-7v-2h3.59l-3.3-3.3 1.42-1.4L18 16.59V13h2v7Zm-16 0v-7h2v3.59l3.29-3.29 1.42 1.4L7.41 18H11v2H4Z"
-                        />
-                    </svg>
-                </Link>
             </div>
         </div>
 
@@ -674,8 +712,8 @@ const getOccupancyRate = (available, total) => {
                 <!-- Seat Map -->
                 <template v-else-if="seatMapReady">
                     <!-- Stats Row -->
-                    <div class="px-3 py-2 flex items-center justify-between bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
-                        <div class="flex items-center gap-1 text-xs">
+                    <div class="px-3 py-2 flex items-center justify-between gap-3 bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-xs">
                             <span class="font-bold text-gray-500 dark:text-slate-400">Cap</span>
                             <span class="font-black text-gray-800 dark:text-slate-100">{{ seatStats.total }}</span>
                             <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
@@ -692,7 +730,7 @@ const getOccupancyRate = (available, total) => {
                                 <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                         </div>
                         <!-- Zoom Controls -->
-                        <div class="flex items-center gap-0.5 bg-white rounded border border-gray-200 dark:border-slate-700 dark:bg-slate-900">
+                        <div class="flex shrink-0 items-center gap-0.5 bg-white rounded border border-gray-200 dark:border-slate-700 dark:bg-slate-900">
                             <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
                                 <Minus :size="12" class="text-gray-600" />
                             </button>
@@ -717,6 +755,7 @@ const getOccupancyRate = (available, total) => {
                                 :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
                                 :sellable-seat-numbers="currentStationSellableSeatNumbers"
+                                :released-seat-numbers="currentStationFreedSeatNumbers"
                                 :sellable-seat-border-color="currentStationSellableSeatBorderColor"
                                 @seat-click="handleSeatClick"
                                 class="w-full h-full"
@@ -777,9 +816,12 @@ const getOccupancyRate = (available, total) => {
                         <Bus :size="16" :class="selectedTripId === trip.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'" />
                         <div class="text-sm font-bold text-slate-900 tracking-tight leading-snug whitespace-normal break-words dark:text-slate-100">{{ trip.display_name || trip.route?.name }}</div>
                         <span
-                            :title="trip.sales_control === 'open' ? 'Ventes simultanées autorisées' : 'Ventes origine uniquement'"
-                            class="text-xs shrink-0"
-                        >{{ trip.sales_control === 'open' ? '🔓' : '🔒' }}</span>
+                            :title="getSalesControlTitle(trip)"
+                            :class="['inline-flex shrink-0 items-center', areDownstreamSalesActive(trip) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400']"
+                        >
+                            <LockOpen v-if="areDownstreamSalesActive(trip)" :size="18" aria-hidden="true" />
+                            <Lock v-else :size="18" aria-hidden="true" />
+                        </span>
                         <span v-if="isTripHighlighted(trip.id)" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                         <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <button
@@ -811,8 +853,8 @@ const getOccupancyRate = (available, total) => {
 
                     <div v-else-if="seatMap">
                         <!-- Compact Stats Row -->
-                        <div class="px-3 py-2 flex items-center justify-between bg-slate-50 border-b border-slate-100 dark:border-slate-800 dark:bg-slate-800/60">
-                        <div class="flex items-center gap-1 text-xs">
+                        <div class="px-3 py-2 flex items-center justify-between gap-3 bg-slate-50 border-b border-slate-100 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-xs">
                             <span class="font-bold text-slate-500 dark:text-slate-400">Cap</span>
                             <span class="font-black text-slate-800 dark:text-slate-100">{{ seatStats.total }}</span>
                             <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
@@ -825,7 +867,7 @@ const getOccupancyRate = (available, total) => {
                                 <span class="font-bold text-emerald-500">Lib</span>
                                 <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
                             </div>
-                            <div class="flex items-center gap-0.5 bg-white rounded border border-slate-200 dark:border-slate-700 dark:bg-slate-900">
+                            <div class="flex shrink-0 items-center gap-0.5 bg-white rounded border border-slate-200 dark:border-slate-700 dark:bg-slate-900">
                                 <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-slate-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
                                     <Minus :size="12" class="text-slate-600" />
                                 </button>
@@ -850,6 +892,7 @@ const getOccupancyRate = (available, total) => {
                                 :selected-color="selectedSeatColor"
                                     :show-suggestions="ticketingStore.showSuggestions"
                                     :sellable-seat-numbers="currentStationSellableSeatNumbers"
+                                    :released-seat-numbers="currentStationFreedSeatNumbers"
                                     :sellable-seat-border-color="currentStationSellableSeatBorderColor"
                                     @seat-click="handleSeatClick"
                                     class="w-full h-full"
@@ -860,7 +903,7 @@ const getOccupancyRate = (available, total) => {
                         <!-- "Vendre" button -->
                         <div class="p-3 border-t border-slate-100 dark:border-slate-800">
                             <button
-                                @click="router.visit(route('seller.ticketing', { trip_id: trip.id }))"
+                                @click="router.visit(route(currentTicketingRoute, { trip_id: trip.id }))"
                                 class="w-full bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <Seat :size="14" />

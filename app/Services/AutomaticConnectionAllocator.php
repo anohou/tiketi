@@ -35,7 +35,6 @@ class AutomaticConnectionAllocator
 
         $connections = TicketConnection::with('ticket')
             ->where('transfer_station_id', $trip->origin_station_id)
-            ->where('route_id', $trip->route_id)
             ->whereIn('destination_station_id', $destinationIds)
             ->whereIn('status', ['pending', 'ready'])
             ->where(function ($query) use ($latestArrival) {

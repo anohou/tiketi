@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
@@ -27,6 +27,8 @@ const isRefreshing = ref(false);
 
 let clockInterval = null;
 let pollInterval = null;
+let realtimeStationId = null;
+let fullscreenChangeHandler = null;
 
 const updateClock = () => {
   const now = new Date();
@@ -59,6 +61,26 @@ const refreshData = () => {
   });
 };
 
+const unsubscribeRealtimeStation = () => {
+  if (window.Echo && realtimeStationId) {
+    window.Echo.leave(`tids.station.${realtimeStationId}`);
+  }
+  realtimeStationId = null;
+};
+
+const subscribeRealtimeStation = (stationId) => {
+  unsubscribeRealtimeStation();
+  if (!window.Echo || !stationId) return;
+
+  realtimeStationId = stationId;
+  try {
+    window.Echo.channel(`tids.station.${stationId}`)
+      .listen('.TidsUpdated', refreshData);
+  } catch (e) {
+    console.warn('Realtime subscription failed, relying on polling fallback:', e);
+  }
+};
+
 const toggleFullscreen = () => {
   if (!document.fullscreenElement) {
     document.documentElement.requestFullscreen().then(() => {
@@ -81,33 +103,20 @@ onMounted(() => {
   pollInterval = setInterval(refreshData, 25000);
 
   // Sync fullscreen state if changed via browser hotkeys (ESC)
-  const handleFullscreenChange = () => {
+  fullscreenChangeHandler = () => {
     isFullscreen.value = !!document.fullscreenElement;
   };
-  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('fullscreenchange', fullscreenChangeHandler);
+  subscribeRealtimeStation(props.selectedStationId);
+});
 
-  // Auto-subscribe to WebSockets if Echo is present and authenticated
-  const echo = window.Echo;
-  if (echo && props.selectedStationId) {
-    try {
-      echo.private(`station.${props.selectedStationId}`)
-        .listen('.SeatMapUpdated', () => refreshData())
-        .listen('.TripCreated', () => refreshData());
-    } catch (e) {
-      console.warn('Realtime subscription failed, relying on polling fallback:', e);
-    }
-  }
+watch(() => props.selectedStationId, subscribeRealtimeStation);
 
-  onUnmounted(() => {
-    if (clockInterval) clearInterval(clockInterval);
-    if (pollInterval) clearInterval(pollInterval);
-    document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    
-    const echo = window.Echo;
-    if (echo && props.selectedStationId) {
-      echo.leave(`station.${props.selectedStationId}`);
-    }
-  });
+onUnmounted(() => {
+  if (clockInterval) clearInterval(clockInterval);
+  if (pollInterval) clearInterval(pollInterval);
+  if (fullscreenChangeHandler) document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
+  unsubscribeRealtimeStation();
 });
 
 const parseRouteName = (trip) => {

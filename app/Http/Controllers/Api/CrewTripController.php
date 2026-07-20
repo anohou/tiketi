@@ -6,6 +6,7 @@ use App\Domain\Trips\CrewTripAccessPolicy;
 use App\Domain\Trips\CrewTripVisibility;
 use App\Domain\Trips\InvalidTripTransition;
 use App\Domain\Trips\TripStateMachine;
+use App\Domain\Trips\TripStatus;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
@@ -13,6 +14,7 @@ use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Services\SeatMapService;
 use App\Services\TripSegmentService;
+use App\Services\TripStationProgression;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -120,17 +122,26 @@ class CrewTripController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:scheduled,boarding,departed,arrived,cancelled,delayed,embarquement,parti,en_route,arrive,arrivé,retardé,retarde'],
             'reason' => ['nullable', 'string', 'max:500'],
+            'station_id' => ['nullable', 'uuid', 'exists:stations,id'],
         ]);
 
+        $target = TripStatus::normalize($validated['status']);
+        $progression = app(TripStationProgression::class);
+        $departureStationId = $validated['station_id'] ?? $progression->activeSalesStationId($trip);
+
         try {
-            $trip = app(TripStateMachine::class)->transition(
-                $trip,
-                $validated['status'],
-                $request->user(),
-                'crew_api',
-                $validated['reason'] ?? null,
-            );
-        } catch (InvalidTripTransition $exception) {
+            if ($target === 'departed' && $trip->status === 'departed') {
+                $trip = $progression->advance($trip, $departureStationId);
+            } else {
+                $trip = app(TripStateMachine::class)->transition(
+                    $trip,
+                    $validated['status'],
+                    $request->user(),
+                    'crew_api',
+                    $validated['reason'] ?? null,
+                );
+            }
+        } catch (InvalidTripTransition|\DomainException $exception) {
             return response()->json([
                 'code' => 'invalid_trip_transition',
                 'message' => $exception->getMessage(),
@@ -147,7 +158,7 @@ class CrewTripController extends Controller
                 ]),
                 [],
                 'trip.status_updated',
-                $trip->origin_station_id
+                $departureStationId
             ));
         } catch (\Exception $e) {
             Log::warning('Échec broadcast SeatMapUpdated: '.$e->getMessage());
@@ -193,6 +204,8 @@ class CrewTripController extends Controller
             'estimated_duration_minutes' => $trip->route?->estimated_duration_minutes,
             'status' => $trip->status,
             'sales_control' => $trip->sales_control,
+            'active_sales_station_id' => $trip->active_sales_station_id,
+            'next_sales_station_id' => $trip->next_sales_station_id,
             'settings' => $trip->settings,
             'permissions' => [
                 'can_sell_on_board' => $canSellOnBoard,

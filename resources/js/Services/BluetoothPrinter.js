@@ -231,26 +231,27 @@ class BluetoothPrinter {
         commands += this.pair('DEPART', ticketData.from_stop, width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
-        commands += `${this.fit('DESTINATION', width)}\n`;
+        commands += `${this.fit(ticketData.transfer_stop ? 'DESTINATION FINALE' : 'DESTINATION', width)}\n`;
         commands += this.SIZE_DOUBLE;
-        commands += `${this.fit(ticketData.to_stop, 16)}\n`;
+        this.wrap(ticketData.to_stop, 16).slice(0, 2).forEach(line => {
+            commands += `${line}\n`;
+        });
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_OFF;
 
-        commands += this.ALIGN_CENTER;
-        commands += this.BOLD_ON;
-        commands += this.SIZE_DOUBLE;
-        commands += `${this.fit(`${ticketData.date} ${ticketData.time}`, 16)}\n`;
-        commands += this.SIZE_NORMAL;
-        commands += this.BOLD_OFF;
         commands += this.ALIGN_LEFT;
+        if (ticketData.transfer_stop) {
+            commands += this.pair('CORRESP.', ticketData.transfer_stop, width);
+        }
+        commands += this.line('-', width);
+        commands += this.pair('DATE DEPART', ticketData.date, width);
         commands += this.pair('VEHICULE', ticketData.vehicle_number, width);
 
         commands += this.line('-', width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
         commands += this.SIZE_DOUBLE;
-        commands += `PLACE ${ticketData.seat_number}\n`;
+        commands += this.pair(`S. ${ticketData.seat_number}`, `H. ${ticketData.time}`, 16);
         commands += this.BOLD_OFF;
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;

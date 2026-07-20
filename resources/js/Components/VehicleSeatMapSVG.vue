@@ -34,6 +34,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  releasedSeatNumbers: {
+    type: Array,
+    default: () => []
+  },
   sellableSeatBorderColor: {
     type: String,
     default: null
@@ -57,6 +61,12 @@ const emit = defineEmits(['seat-click']);
 
 const sellableSeatSet = computed(() => new Set(
   (props.sellableSeatNumbers || [])
+    .map((seatNumber) => Number(seatNumber))
+    .filter((seatNumber) => Number.isFinite(seatNumber))
+));
+
+const releasedSeatSet = computed(() => new Set(
+  (props.releasedSeatNumbers || [])
     .map((seatNumber) => Number(seatNumber))
     .filter((seatNumber) => Number.isFinite(seatNumber))
 ));
@@ -288,7 +298,7 @@ const getSeatColor = (seat) => {
 const getSeatStrokeColor = (seat) => {
   if (isSelected(seat.number)) return '#FFFFFF';
   if (isSuggestedSeat(seat)) return '#16A34A';
-  if (seat.isOccupied && sellableSeatSet.value.has(Number(seat.number)) && props.sellableSeatBorderColor) {
+  if (isReleasedSeat(seat) && props.sellableSeatBorderColor) {
     return props.sellableSeatBorderColor;
   }
   return '#475569';
@@ -296,19 +306,13 @@ const getSeatStrokeColor = (seat) => {
 
 const getSeatStrokeWidth = (seat) => {
   if (isSelected(seat.number) || isSuggestedSeat(seat)) return 3;
-  if (seat.isOccupied && sellableSeatSet.value.has(Number(seat.number)) && props.sellableSeatBorderColor) {
+  if (isReleasedSeat(seat) && props.sellableSeatBorderColor) {
     return 4;
   }
   return 2;
 };
 
-const isSellableOccupiedSeat = (seat) => {
-  return Boolean(
-    seat.isOccupied
-    && sellableSeatSet.value.has(Number(seat.number))
-    && props.sellableSeatBorderColor
-  );
-};
+const isReleasedSeat = (seat) => releasedSeatSet.value.has(Number(seat.number));
 
 const isSuggestedSeat = (seat) => {
   return isSuggested(seat.number);
@@ -333,8 +337,14 @@ const getSuggestionRank = (seatNumber) => {
 
 const isSelected = (seatNumber) => props.selectedSeat === seatNumber;
 
+const isSeatClickable = (seat) => {
+  return !seat.isOccupied
+    || sellableSeatSet.value.has(Number(seat.number))
+    || props.allowOccupiedClick;
+};
+
 const handleSeatClick = (seat) => {
-  if (!seat.isOccupied || props.allowOccupiedClick) {
+  if (isSeatClickable(seat)) {
     emit('seat-click', seat.number);
   }
 };
@@ -432,9 +442,9 @@ const handleSeatClick = (seat) => {
           :style="{ animationDelay: `${getSuggestionRank(seat.number) * 0.1}s` }"
         />
 
-        <!-- Sellable seat halo (occupied seats that can be resold from the current station) -->
+        <!-- Released seat halo (passenger gets off at the current station) -->
         <rect
-          v-if="isSellableOccupiedSeat(seat)"
+          v-if="isReleasedSeat(seat)"
           :x="seat.x - 3"
           :y="seat.y - 3"
           :width="SEAT_WIDTH + 6"
@@ -529,12 +539,12 @@ const handleSeatClick = (seat) => {
           style="pointer-events: all !important;"
           class="cursor-pointer hover:bg-black hover:bg-opacity-10"
           :class="[
-            seat.isOccupied ? 'cursor-not-allowed' : 'cursor-pointer',
+            isSeatClickable(seat) ? 'cursor-pointer' : 'cursor-not-allowed',
             isSelected(seat.number) ? 'border-2 border-white' : ''
           ]"
           @click.stop="handleSeatClick(seat)"
         >
-          <title>{{ seat.isOccupied ? (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Occupé jusqu'à la gare de départ` : `Occupé - ${seat.destination_name}`) : (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`) }}</title>
+          <title>{{ isReleasedSeat(seat) ? `Place ${seat.number} — libération prévue à votre gare` : (seat.isOccupied ? (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Occupé jusqu'à la gare de départ` : `Occupé - ${seat.destination_name}`) : (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`)) }}</title>
         </rect>
       </g>
       

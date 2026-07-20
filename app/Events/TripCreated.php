@@ -2,6 +2,7 @@
 
 namespace App\Events;
 
+use App\Models\Trip;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -13,15 +14,7 @@ class TripCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $trip;
-
-    /**
-     * Create a new event instance.
-     */
-    public function __construct($trip)
-    {
-        $this->trip = $trip;
-    }
+    public function __construct(public Trip $trip) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -30,35 +23,36 @@ class TripCreated implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
-        // Broadcast to all stations involved in the trip
-        $channels = [];
-
-        // Load route stops if not loaded
         $this->trip->loadMissing('route.routeStopOrders');
         $route = $this->trip->route;
 
-        // Origin Station
-        if ($route->origin_station_id) {
-            $channels[] = new PrivateChannel('station.'.$route->origin_station_id);
-        }
+        // Include the trip terminals as well as the route terminals. They can
+        // differ for reversed or partially-operated trips.
+        $stationIds = [
+            $this->trip->origin_station_id,
+            $this->trip->destination_station_id,
+            $route?->origin_station_id,
+            $route?->destination_station_id,
+        ];
 
-        // Destination Station
-        if ($route->destination_station_id) {
-            $channels[] = new PrivateChannel('station.'.$route->destination_station_id);
-        }
-
-        // Intermediate Stops linked to stations
-        foreach ($route->routeStopOrders as $stop) {
+        foreach ($route?->routeStopOrders ?? [] as $stop) {
             if ($stop->station_id) {
-                $channels[] = new PrivateChannel('station.'.$stop->station_id);
+                $stationIds[] = $stop->station_id;
             }
         }
 
-        // Broadcast to global channel for admins/executives
-        $channels[] = new PrivateChannel('trips.global');
-        $channels[] = new PrivateChannel('network.global');
+        $channelNames = collect($stationIds)
+            ->filter()
+            ->unique()
+            ->map(fn (string $stationId) => 'station.'.$stationId)
+            ->push('trips.global')
+            ->push('network.global')
+            ->unique()
+            ->values();
 
-        return array_unique($channels, SORT_REGULAR);
+        return $channelNames
+            ->map(fn (string $channelName) => new PrivateChannel($channelName))
+            ->all();
     }
 
     /**
@@ -67,5 +61,31 @@ class TripCreated implements ShouldBroadcastNow
     public function broadcastAs(): string
     {
         return 'TripCreated';
+    }
+
+    public function broadcastWith(): array
+    {
+        $this->trip->loadMissing(['route', 'originStation', 'destinationStation', 'vehicle.vehicleType']);
+
+        return [
+            'trip' => [
+                'id' => $this->trip->id,
+                'code' => $this->trip->code,
+                'display_name' => $this->trip->display_name,
+                'departure_at' => $this->trip->departure_at?->toIso8601String(),
+                'status' => $this->trip->status,
+                'sales_control' => $this->trip->sales_control,
+                'available_seats' => $this->trip->available_seats,
+                'total_seats' => $this->trip->total_seats,
+                'origin_station_id' => $this->trip->origin_station_id,
+                'destination_station_id' => $this->trip->destination_station_id,
+                'active_sales_station_id' => $this->trip->active_sales_station_id,
+                'next_sales_station_id' => $this->trip->next_sales_station_id,
+                'origin_station' => $this->trip->originStation,
+                'destination_station' => $this->trip->destinationStation,
+                'route' => $this->trip->route,
+                'vehicle' => $this->trip->vehicle,
+            ],
+        ];
     }
 }

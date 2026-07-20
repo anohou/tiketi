@@ -88,7 +88,7 @@ const helpTopics = [
     title: 'Vendre un ticket',
     description: 'Préparer le voyage, sélectionner une destination, vendre la place et imprimer le ticket.',
     audience: ['admin', 'supervisor', 'seller'],
-    routes: ['seller.ticketing', 'seller.ticketing.horizontal', 'supervisor.ticketing'],
+    routes: ['seller.ticketing', 'supervisor.ticketing'],
     pathPrefixes: ['/seller/ticketing', '/supervisor/ticketing'],
     image: '/images/help/ticketing-auto.png',
     roleVariants: {
@@ -100,7 +100,7 @@ const helpTopics = [
             body: 'En tant que vendeur, vous pouvez créer un voyage pour les routes et les gares auxquelles vous êtes affecté. Le sens du voyage est déterminé à partir de votre gare lorsque cela est nécessaire.',
             steps: [
               'Depuis Accueil ou Voyages, cliquez sur Nouveau Voyage.',
-              'Choisissez une route disponible dans votre périmètre.',
+              'Choisissez d’abord la ligne, puis la destination parmi les gares desservies par cette ligne.',
               'Sélectionnez le véhicule et renseignez la date et l’heure de départ.',
               'Vérifiez le code proposé et le contrôle des ventes.',
               'Activez les correspondances ou la réplication uniquement si l’exploitation le prévoit.',
@@ -109,7 +109,7 @@ const helpTopics = [
           },
           {
             title: 'Si votre voyage ne s’affiche pas',
-            body: 'Vérifiez d’abord votre gare, la date et la route. Une route absente de la liste indique généralement qu’elle n’appartient pas à votre périmètre d’affectation.',
+            body: 'Vérifiez d’abord votre gare, la date et la destination. Une destination absente indique généralement qu’aucun itinéraire actif de votre périmètre ne permet de la desservir.',
             steps: [
               'Actualisez la liste et vérifiez la date du départ.',
               'Contrôlez votre gare active et vos affectations.',
@@ -222,7 +222,7 @@ const helpTopics = [
     title: 'Connecter l’imprimante Bluetooth',
     description: 'Préparer, connecter et dépanner l’imprimante thermique du guichet.',
     audience: ['admin', 'supervisor', 'seller'],
-    routes: ['seller.ticketing', 'seller.ticketing.horizontal'],
+    routes: ['seller.ticketing'],
     pathPrefixes: ['/seller/ticketing'],
     image: '/images/help/ticketing-auto.png',
     sections: [
@@ -277,7 +277,7 @@ const helpTopics = [
     title: 'Drapeaux, badges et indicateurs',
     description: 'Comprendre les signaux visuels affichés dans TIKETI et les actions associées.',
     audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
-    routes: ['seller.ticketing', 'seller.ticketing.horizontal', 'admin.trips.index', 'accountant.reports', 'executive.analytics'],
+    routes: ['seller.ticketing', 'admin.trips.index', 'accountant.reports', 'executive.analytics'],
     pathPrefixes: ['/seller/ticketing', '/admin/trips', '/accountant/reports', '/executive/analytics'],
     image: '/images/help/ticketing-auto.png',
     sections: [
@@ -297,7 +297,7 @@ const helpTopics = [
       },
       {
         title: 'Cadenas de vente',
-        body: 'Le cadenas ouvert signifie que les ventes intermédiaires sont autorisées. Le cadenas fermé signifie que la vente est limitée au départ principal, sauf places réellement libérées à la gare intermédiaire selon la configuration du voyage.',
+        body: 'Avant le départ, le cadenas ouvert autorise la vente simultanée. Le cadenas fermé limite la vente à la gare d’origine, sauf places réellement libérées. Après le départ, les gares suivantes peuvent vendre les places disponibles.',
       },
       {
         title: 'Badges actif/inactif',
@@ -315,7 +315,7 @@ const helpTopics = [
     title: 'Algorithme de suggestion des sièges',
     description: 'Comprendre pourquoi TIKETI propose certaines places plutôt que d’autres.',
     audience: ['admin', 'supervisor', 'seller'],
-    routes: ['seller.ticketing', 'seller.ticketing.horizontal', 'supervisor.ticketing'],
+    routes: ['seller.ticketing', 'supervisor.ticketing'],
     pathPrefixes: ['/seller/ticketing', '/supervisor/ticketing'],
     image: '/images/help/ticketing-manual.png',
     sections: [
@@ -383,7 +383,7 @@ const helpTopics = [
     title: 'Problèmes fréquents au guichet',
     description: 'Réponses rapides aux blocages courants pendant la vente.',
     audience: ['admin', 'supervisor', 'seller'],
-    routes: ['seller.ticketing', 'seller.ticketing.horizontal'],
+    routes: ['seller.ticketing'],
     pathPrefixes: ['/seller/ticketing'],
     image: '/images/help/ticketing-auto.png',
     sections: [
@@ -1049,7 +1049,6 @@ const routeContextLabels = {
   'admin.trips.index': 'Page Voyages administrateur',
   'seller.dashboard': 'Accueil vendeur',
   'seller.ticketing': 'Page Voyages vendeur',
-  'seller.ticketing.horizontal': 'Billetterie horizontale',
   'seller.tickets.index': 'Liste des tickets',
   'supervisor.ticketing': 'Billetterie superviseur',
   'supervisor.dashboard': 'Tour de contrôle',
@@ -1087,11 +1086,9 @@ const routeContextLabels = {
 const roleRouteContextLabels = {
   admin: {
     'seller.ticketing': 'Billetterie administrateur',
-    'seller.ticketing.horizontal': 'Billetterie administrateur',
   },
   seller: {
     'seller.ticketing': 'Page Voyages vendeur',
-    'seller.ticketing.horizontal': 'Page Voyages vendeur',
   },
   supervisor: {
     'supervisor.ticketing': 'Billetterie superviseur',

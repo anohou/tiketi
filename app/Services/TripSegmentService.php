@@ -35,6 +35,25 @@ class TripSegmentService
         }
         $addStation($route->destination_station_id);
 
+        $originId = $trip->origin_station_id ?? $route->origin_station_id;
+        $destId = $trip->destination_station_id ?? $route->destination_station_id;
+
+        $originIdx = array_search($originId, $orderedStationIds, true);
+        $destIdx = array_search($destId, $orderedStationIds, true);
+
+        if ($originIdx !== false && $destIdx !== false) {
+            if ($originIdx <= $destIdx) {
+                // Forward direction
+                $slicedStationIds = array_slice($orderedStationIds, $originIdx, $destIdx - $originIdx + 1);
+            } else {
+                // Reversed direction
+                $slicedStationIds = array_slice($orderedStationIds, $destIdx, $originIdx - $destIdx + 1);
+                $slicedStationIds = array_reverse($slicedStationIds);
+            }
+
+            return array_flip($slicedStationIds);
+        }
+
         $indices = array_flip($orderedStationIds);
 
         if ($this->isReversed($trip)) {

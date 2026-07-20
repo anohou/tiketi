@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { toastStore } from '@/Stores/toastStore.js';
 import { router, Link, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
@@ -45,6 +45,9 @@ const props = defineProps({
   hasActiveAssignment: Boolean,
   assignedStationId: String,
   assignedStation: String,
+  canSelectTripOrigin: { type: Boolean, default: false },
+  originStations: { type: Array, default: () => [] },
+  focusMode: { type: Boolean, default: false },
   okohiIntegrationActive: { type: Boolean, default: false },
   destinations: {
     type: Array,
@@ -81,7 +84,6 @@ const {
   createTripErrors,
   createTripProcessing,
   isEditingTrip,
-  showZoomModal,
   showTripDetailsModal,
   selectedDetailsTripId,
   openTripDetails,
@@ -103,27 +105,18 @@ const {
   bluetoothPrinterConnected,
   bluetoothPrinterName,
   toggleBluetoothPrinter,
-  zoomLevel,
-  panX,
-  panY,
-  isDragging,
-  handleWheel,
-  zoomIn,
-  zoomOut,
-  handleMouseDown,
-  handleMouseMove,
-  handleMouseUp,
-  resetZoom,
   bookingSidePanelOpen,
   currentTrip,
   isTripPassed,
   seatsToBook,
-  totalAmount,
   canBookTickets,
+  totalAmount,
   seatStats,
   getOccupancyRate,
   filteredTrips,
   availableFares,
+  availableRouteOptions,
+  availableDestinationOptions,
   buildTripStationIndices,
   getStationColor,
   currentStationSellableSeatNumbers,
@@ -162,6 +155,121 @@ const {
 
 const assignedStationPalette = computed(() => getAssignedStationPalette());
 
+const basinDestinations = computed(() => {
+  const directFare = selectedFare.value;
+  if (!directFare?.has_connections || directFare.is_connection) return [];
+
+  const transferId = directFare.to_station_id;
+  const originId = directFare.from_station_id || props.assignedStationId;
+  const currentRouteId = currentTrip.value?.route_id || currentTrip.value?.route?.id;
+  const connectionRoutes = (props.connectionRoutes || []).filter((route) => route.id !== currentRouteId);
+
+  const destIds = new Set();
+  connectionRoutes.forEach(route => {
+    const stops = [...(route.route_stop_orders || route.routeStopOrders || [])]
+      .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+    const stationIds = [
+      route.origin_station_id,
+      ...stops.map(stop => stop.station_id || stop.station?.id),
+      route.destination_station_id,
+    ].filter(Boolean);
+
+    if (stationIds.includes(transferId)) {
+      stationIds.forEach((stationId) => {
+        if (stationId !== transferId) destIds.add(stationId);
+      });
+    }
+  });
+
+  const currentTripIndices = buildTripStationIndices(currentTrip.value);
+  const tripDestinationIndex = currentTripIndices[currentTrip.value.destination_station_id];
+  const transferIndex = currentTripIndices[transferId];
+
+  const destinationsList = [];
+  destIds.forEach(destId => {
+    if (destId === originId) return;
+
+    const servedByCurrentTrip = transferIndex !== undefined
+      && currentTripIndices[destId] !== undefined
+      && tripDestinationIndex !== undefined
+      && transferIndex < currentTripIndices[destId]
+      && currentTripIndices[destId] <= tripDestinationIndex;
+
+    if (servedByCurrentTrip) return;
+
+    let stationObj = null;
+    connectionRoutes.forEach(r => {
+      if (r.origin_station_id === destId && r.originStation) stationObj = r.originStation;
+      if (r.destination_station_id === destId && r.destinationStation) stationObj = r.destinationStation;
+      const stops = r.route_stop_orders || r.routeStopOrders || [];
+      stops.forEach(s => {
+        const st = s.station || s;
+        if (st && st.id === destId) stationObj = st;
+      });
+    });
+
+    if (!stationObj) return;
+
+    let price = null;
+    let details = '';
+    let globalFare = props.connectionFares.find(fare =>
+      (fare.from_station_id === originId && fare.to_station_id === destId) ||
+      (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id === destId)
+    );
+
+    if (globalFare) {
+      price = globalFare.amount;
+      details = 'Tarif global direct';
+    } else {
+      let firstSegment = props.routeFares.find(fare =>
+        (fare.from_station_id === originId && fare.to_station_id === transferId) ||
+        (fare.is_bidirectional && fare.to_station_id === originId && fare.from_station_id === transferId)
+      );
+      let secondSegment = props.connectionFares.find(fare =>
+        (fare.from_station_id === transferId && fare.to_station_id === destId) ||
+        (fare.is_bidirectional && fare.to_station_id === transferId && fare.from_station_id === destId)
+      );
+
+      if (firstSegment && secondSegment) {
+        price = firstSegment.amount + secondSegment.amount;
+        details = `Somme des segments (${firstSegment.amount} F + ${secondSegment.amount} F)`;
+      } else {
+        details = 'Tarif manquant (non disponible)';
+      }
+    }
+
+    const matchingRoute = connectionRoutes.find((route) => {
+      const stops = [...(route.route_stop_orders || route.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+      const stationIds = [
+        route.origin_station_id,
+        ...stops.map(stop => stop.station_id || stop.station?.id),
+        route.destination_station_id,
+      ].filter(Boolean);
+      const routeTransferIndex = stationIds.indexOf(transferId);
+      const routeDestinationIndex = stationIds.indexOf(destId);
+
+      return routeTransferIndex !== -1
+        && routeDestinationIndex !== -1
+        && routeTransferIndex !== routeDestinationIndex;
+    });
+
+    destinationsList.push({
+      station: stationObj,
+      price,
+      details,
+      route: matchingRoute
+    });
+  });
+
+  return destinationsList;
+});
+
+const handleFareClick = (fare) => {
+  if (isTripPassed.value || isFareDisabled(fare)) return;
+  selectedFare.value = fare;
+};
+
 const tripDetailsModalTab = ref('overview');
 
 const openTripDetailsWithOverview = (tripId) => {
@@ -176,11 +284,15 @@ const openTripTransitPool = (tripId) => {
 
 const updatingTripStatusId = ref(null);
 const updateTripStatus = async (tripId, status) => {
+  const trip = trips.value.find((candidate) => candidate.id === tripId);
   let confirmMessage = "";
   if (status === 'boarding') {
     confirmMessage = "Voulez-vous vraiment démarrer l'embarquement pour ce voyage ?";
   } else if (status === 'departed') {
-    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme parti ? Les ventes seront fermées.";
+    const stationName = props.assignedStation || 'la gare qui a actuellement la main';
+    confirmMessage = trip?.status === 'departed'
+      ? `Confirmer le départ de ${stationName} ? La main sur les ventes passera à la gare suivante.`
+      : `Confirmer le départ de ${stationName} ? Le voyage sera en route vers la gare suivante.`;
   } else if (status === 'delayed') {
     confirmMessage = "Voulez-vous vraiment marquer ce voyage comme retardé ?";
   } else if (status === 'cancelled') {
@@ -195,7 +307,10 @@ const updateTripStatus = async (tripId, status) => {
 
   updatingTripStatusId.value = tripId;
   try {
-    await axios.patch(route('seller.trips.status', { trip: tripId }), { status });
+    await axios.patch(route('seller.trips.status', { trip: tripId }), {
+      status,
+      station_id: status === 'departed' ? props.assignedStationId : undefined,
+    });
     toastStore.success('Le statut du voyage a été mis à jour.');
     router.reload({ preserveScroll: true });
   } catch (error) {
@@ -212,8 +327,14 @@ const canEditStatus = (trip) => {
   if (isStaff) {
     return !['arrived'].includes(trip.status);
   }
-  // For normal seller (vendeur)
-  return !['departed', 'arrived', 'cancelled'].includes(trip.status);
+
+  // A seller can change the operational status only for the station that has
+  // the current hand-off. Simultaneous ticket sales do not grant that right.
+  if (!props.assignedStationId || trip.active_sales_station_id !== props.assignedStationId) {
+    return false;
+  }
+
+  return !['arrived', 'cancelled'].includes(trip.status);
 };
 
 // Aliases and reactive states specific to the vertical paginated layout
@@ -221,8 +342,63 @@ const trips = tripsRef;
 const showHistory = ref(false);
 const isMobile = ref(window.innerWidth < 768);
 const showTripSelectionModal = ref(false);
-const isTripEnRoute = (trip) => trip?.status === 'departed';
-const isTripPastForDisplay = (trip) => !isTripEnRoute(trip) && new Date(trip.departure_at) < new Date();
+const getTripStationPhase = (trip) => {
+  if (!trip) return 'unknown';
+  if (trip.status === 'cancelled') return 'cancelled';
+  if (trip.status === 'arrived') return 'arrived';
+  if (trip.status === 'boarding') return 'boarding';
+  if (trip.status === 'delayed') return 'delayed';
+
+  if (trip.status === 'departed') {
+    if (!props.assignedStationId) return 'en_route';
+
+    const stationIndices = buildTripStationIndices(trip);
+    const currentStationIndex = stationIndices[props.assignedStationId];
+    const activeStationIndex = stationIndices[trip.active_sales_station_id];
+
+    if (currentStationIndex === undefined || activeStationIndex === undefined) {
+      return 'en_route';
+    }
+    if (currentStationIndex < activeStationIndex) return 'departed_from_station';
+    if (currentStationIndex === activeStationIndex) return 'en_route_to_station';
+
+    return 'upcoming_station';
+  }
+
+  return new Date(trip.departure_at) < new Date() ? 'past' : 'scheduled';
+};
+
+const isTripPastForDisplay = (trip) => ['past', 'arrived', 'cancelled', 'departed_from_station'].includes(getTripStationPhase(trip));
+
+const getTripStationStatusLabel = (trip) => {
+  const phase = getTripStationPhase(trip);
+  const labels = {
+    cancelled: 'Annulé',
+    arrived: 'Arrivé',
+    boarding: 'Embarquement',
+    delayed: 'Retardé',
+    en_route: 'En route',
+    en_route_to_station: 'En route vers votre gare',
+    departed_from_station: 'Parti de votre gare',
+    upcoming_station: 'À venir',
+    past: 'Voyage passé',
+    scheduled: 'En cours',
+  };
+
+  return labels[phase] || 'En cours';
+};
+
+const getTripStationStatusClass = (trip) => {
+  const phase = getTripStationPhase(trip);
+  if (phase === 'cancelled') return 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300';
+  if (phase === 'delayed') return 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300';
+  if (phase === 'boarding') return 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300';
+  if (['en_route', 'en_route_to_station'].includes(phase)) return 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
+  if (['departed_from_station', 'past', 'arrived'].includes(phase)) return 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300';
+  if (phase === 'upcoming_station') return 'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300';
+
+  return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300';
+};
 
 const selectedTemplate = ref(null);
 watch(selectedTemplate, (newTemplate) => {
@@ -278,6 +454,59 @@ const scrollToSeats = () => {
     const el = document.getElementById('mobile-seat-map');
     if (el) el.scrollIntoView({ behavior: 'smooth' });
   }, 100);
+};
+
+const fullscreenNavigationInProgress = ref(false);
+
+const getFullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+
+const navigateTicketingFocusMode = (enabled) => {
+  const query = currentTrip.value?.id ? { trip_id: currentTrip.value.id } : {};
+  const normalRoute = page.props.auth.user.role === 'supervisor'
+    ? 'supervisor.ticketing'
+    : 'seller.ticketing';
+
+  router.get(route(enabled ? 'seller.ticketing.focus' : normalRoute, query));
+};
+
+const toggleTicketingFocusMode = async () => {
+  const shouldExit = props.focusMode || Boolean(getFullscreenElement());
+  fullscreenNavigationInProgress.value = true;
+
+  try {
+    if (shouldExit) {
+      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+      if (getFullscreenElement() && exitFullscreen) {
+        await exitFullscreen.call(document);
+      }
+      navigateTicketingFocusMode(false);
+      return;
+    }
+
+    const root = document.documentElement;
+    const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
+
+    if (!requestFullscreen) {
+      toastStore.error('Le plein écran n’est pas pris en charge par ce navigateur.');
+      return;
+    }
+
+    await requestFullscreen.call(root);
+    navigateTicketingFocusMode(true);
+  } catch (error) {
+    console.error('Impossible d’activer le plein écran de la billetterie.', error);
+    toastStore.error('Le navigateur a refusé l’ouverture en plein écran.');
+  } finally {
+    window.setTimeout(() => {
+      fullscreenNavigationInProgress.value = false;
+    }, 500);
+  }
+};
+
+const handleTicketingFullscreenChange = () => {
+  if (!getFullscreenElement() && props.focusMode && !fullscreenNavigationInProgress.value) {
+    navigateTicketingFocusMode(false);
+  }
 };
 
 // Exports feature setup
@@ -415,10 +644,30 @@ const getAirportStatus = (trip) => {
       color: 'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-405 dark:bg-orange-950/30 dark:border-orange-850/50 font-black animate-pulse' 
     };
   }
-  if (trip.status === 'departed' || trip.status === 'arrived') {
-    return { 
-      label: 'PARTI', 
-      color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50' 
+  if (trip.status === 'arrived') {
+    return {
+      label: 'ARRIVÉ',
+      color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50'
+    };
+  }
+  if (trip.status === 'departed') {
+    const phase = getTripStationPhase(trip);
+    if (phase === 'departed_from_station') {
+      return {
+        label: 'PARTI DE VOTRE GARE',
+        color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-400 dark:bg-slate-900/40 dark:border-slate-800/50'
+      };
+    }
+    if (phase === 'upcoming_station') {
+      return {
+        label: 'À VENIR',
+        color: 'text-sky-700 bg-sky-50 border border-sky-200 dark:text-sky-300 dark:bg-sky-950/30 dark:border-sky-800/50'
+      };
+    }
+
+    return {
+      label: phase === 'en_route_to_station' ? 'EN ROUTE VERS VOTRE GARE' : 'EN ROUTE',
+      color: 'text-blue-700 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-950/30 dark:border-blue-800/50'
     };
   }
   if (trip.available_seats <= 0) {
@@ -455,14 +704,21 @@ const sortedTripsForModal = computed(() => {
 });
 
 onMounted(() => {
+  document.addEventListener('fullscreenchange', handleTicketingFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleTicketingFullscreenChange);
   window.addEventListener('resize', () => {
     isMobile.value = window.innerWidth < 768;
   });
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', handleTicketingFullscreenChange);
+  document.removeEventListener('webkitfullscreenchange', handleTicketingFullscreenChange);
+});
 </script>
 
 <template>
-  <MainNavLayout :show-nav="!isMobile" :full-height="true">
+  <MainNavLayout :show-nav="!isMobile" :full-height="true" :focus-mode="focusMode">
     <div class="flex-1 flex flex-col gap-4 min-h-0 bg-slate-50/70 dark:bg-slate-950 p-4 md:p-6 lg:p-8">
           
           <!-- Full-page blocking message if no station assigned (for sellers and supervisors) -->
@@ -533,6 +789,21 @@ onMounted(() => {
                 >
                   <Plus :size="20" />
                   <span>Nouveau Voyage</span>
+                </button>
+                <button
+                  type="button"
+                  @click="toggleTicketingFocusMode"
+                  class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 md:h-12 md:w-12 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                  :title="focusMode ? 'Quitter le plein écran' : 'Afficher la billetterie en plein écran'"
+                  :aria-label="focusMode ? 'Quitter le plein écran' : 'Afficher la billetterie en plein écran'"
+                >
+                  <Close v-if="focusMode" :size="22" aria-hidden="true" />
+                  <svg v-else viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </svg>
                 </button>
                 <button 
                   @click="toggleBluetoothPrinter" 
@@ -614,7 +885,7 @@ onMounted(() => {
                          <div class="flex items-center gap-2 mb-1">
                            <div :class="['w-2 h-2 rounded-full shrink-0', currentTrip.status === 'cancelled' ? 'bg-rose-500' : (isTripPastForDisplay(currentTrip) ? 'bg-gray-400' : 'bg-emerald-500 animate-pulse')]"></div>
                             <div :class="['text-[10px] uppercase font-bold tracking-wider', currentTrip.status === 'cancelled' ? 'text-rose-600 dark:text-rose-400' : (currentTrip.status === 'delayed' ? 'text-amber-600 dark:text-amber-400' : (currentTrip.status === 'boarding' ? 'text-orange-600 dark:text-orange-400' : (isTripPastForDisplay(currentTrip) ? 'text-gray-500' : 'text-emerald-600 dark:text-emerald-400')))]">
-                              {{ currentTrip.status === 'cancelled' ? 'Annulé' : (currentTrip.status === 'delayed' ? 'Retardé' : (currentTrip.status === 'boarding' ? 'Embarquement' : (isTripEnRoute(currentTrip) ? 'En route' : (isTripPastForDisplay(currentTrip) ? 'Voyage passé' : 'En cours')))) }}
+                              {{ getTripStationStatusLabel(currentTrip) }}
                             </div>
                          </div>
                          <div class="flex items-center gap-2 flex-wrap">
@@ -635,20 +906,6 @@ onMounted(() => {
                        </div>
                          <div class="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
                            <div class="flex items-center gap-1.5">
-                             <Link
-                               :href="route('seller.ticketing.horizontal', { trip_id: currentTrip.id })"
-                               @click.stop
-                               class="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors disabled:opacity-50"
-                               title="Vue horizontale"
-                             >
-                               <svg viewBox="0 0 24 24" aria-hidden="true" class="w-4 h-4">
-                                 <path
-                                   fill="currentColor"
-                                   d="M4 4h7v2H7.41l3.3 3.3-1.42 1.4L6 7.41V11H4V4Zm16 0v7h-2V7.41l-3.29 3.29-1.42-1.4L16.59 6H13V4h7Zm0 16h-7v-2h3.59l-3.3-3.3 1.42-1.4L18 16.59V13h2v7Zm-16 0v-7h2v3.59l3.29-3.29 1.42 1.4L7.41 18H11v2H4Z"
-                                 />
-                               </svg>
-                               <span class="sr-only">Vue horizontale</span>
-                             </Link>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
                                  <template #trigger>
@@ -713,7 +970,7 @@ onMounted(() => {
                          </div>
                        </div>
                      </div>
-                     <TripConnectionSummary :summary="currentTrip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(currentTrip.status)" @manage-connections="openTripTransitPool(currentTrip.id)" />
+                     <TripConnectionSummary :summary="currentTrip.connection_summary" :is-past="isTripPastForDisplay(currentTrip)" @manage-connections="openTripTransitPool(currentTrip.id)" />
                       <!-- Status actions / Seat Stats Row -->
                       <div v-if="canEditStatus(currentTrip)" class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <button
@@ -725,12 +982,12 @@ onMounted(() => {
                           Embarquement
                         </button>
                         <button
-                          v-if="['scheduled', 'boarding', 'delayed'].includes(currentTrip.status)"
+                          v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(currentTrip.status)"
                           @click.stop="updateTripStatus(currentTrip.id, 'departed')"
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Parti
+                          Déclarer le départ
                         </button>
                         <button
                           v-if="['scheduled', 'boarding'].includes(currentTrip.status)"
@@ -835,33 +1092,15 @@ onMounted(() => {
                              Départ : {{ parseRouteName(trip).origin }}
                            </p>
                            <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                             <span v-if="trip.status === 'cancelled'" class="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-black uppercase text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Annulé</span>
-                             <span v-else-if="trip.status === 'delayed'" class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">Retardé</span>
-                             <span v-else-if="trip.status === 'boarding'" class="rounded-full bg-orange-100 px-2 py-0.5 text-[9px] font-black uppercase text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">Embarquement</span>
-                             <span v-else-if="isTripEnRoute(trip)" class="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">En route</span>
-                             <span v-else-if="isTripPastForDisplay(trip)" class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-500 dark:bg-slate-800">Passé</span>
-                             <span v-else class="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">À l'heure</span>
+                             <span :class="['rounded-full px-2 py-0.5 text-[9px] font-black uppercase', getTripStationStatusClass(trip)]">
+                               {{ getTripStationStatusLabel(trip) }}
+                             </span>
                              <span v-if="trip.allows_open_connections" class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">Correspondance</span>
                              <span v-else class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">Direct</span>
                            </div>
                          </div>
                          <div class="ml-auto flex shrink-0 items-center gap-1">
                            <div class="flex items-center gap-1.5">
-                             <Link
-                               :href="route('seller.ticketing.horizontal', { trip_id: trip.id })"
-                               @click.stop
-                               @dragstart.stop.prevent
-                               class="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-350 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors disabled:opacity-50"
-                               title="Vue horizontale"
-                             >
-                               <svg viewBox="0 0 24 24" aria-hidden="true" class="w-4 h-4">
-                                 <path
-                                   fill="currentColor"
-                                   d="M4 4h7v2H7.41l3.3 3.3-1.42 1.4L6 7.41V11H4V4Zm16 0v7h-2V7.41l-3.29 3.29-1.42-1.4L16.59 6H13V4h7Zm0 16h-7v-2h3.59l-3.3-3.3 1.42-1.4L18 16.59V13h2v7Zm-16 0v-7h2v3.59l3.29-3.29 1.42 1.4L7.41 18H11v2H4Z"
-                                 />
-                               </svg>
-                               <span class="sr-only">Vue horizontale</span>
-                             </Link>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
                                  <template #trigger>
@@ -934,7 +1173,7 @@ onMounted(() => {
                            </span>
                          </div>
 
-                         <TripConnectionSummary :summary="trip.connection_summary" :is-past="['departed', 'arrived', 'cancelled'].includes(trip.status)" @manage-connections="openTripTransitPool(trip.id)" />
+                         <TripConnectionSummary :summary="trip.connection_summary" :is-past="isTripPastForDisplay(trip)" @manage-connections="openTripTransitPool(trip.id)" />
                        <!-- Status actions / Seat Stats Row -->
                        <div v-if="selectedTripId === trip.id && canEditStatus(trip)" class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-dashed border-emerald-200 dark:border-emerald-800/80">
                          <button
@@ -946,12 +1185,12 @@ onMounted(() => {
                            Embarquement
                          </button>
                          <button
-                           v-if="['scheduled', 'boarding', 'delayed'].includes(trip.status)"
+                           v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(trip.status)"
                            @click.stop="updateTripStatus(trip.id, 'departed')"
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Parti
+                           Déclarer le départ
                          </button>
                          <button
                            v-if="['scheduled', 'boarding'].includes(trip.status)"
@@ -1080,7 +1319,7 @@ onMounted(() => {
                        </template>
 
                       <div v-for="fare in availableFares" :key="fare.id"
-                          @click="(!isTripPassed && !isFareDisabled(fare)) && (selectedFare = fare)"
+                          @click="handleFareClick(fare)"
                           :class="[
                     'relative overflow-hidden rounded-3xl transition-all duration-300 border-2 shadow-sm',
                     (isTripPassed || isFareDisabled(fare)) ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer active:scale-[0.98]',
@@ -1106,6 +1345,11 @@ onMounted(() => {
                              </span>
                              <template v-if="fare.is_connection">Correspondance à {{ fare.transfer_station?.name }}</template>
                              <template v-else>→ depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}</template>
+                           </div>
+                           <div class="flex items-center gap-2 mt-1">
+                             <span v-if="fare.has_connections" class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-white/20 text-white border border-white/10 uppercase tracking-wider">
+                               🔗 Correspondance
+                             </span>
                            </div>
                          </div>
                          <div class="text-right shrink-0 flex items-center gap-2">
@@ -1218,8 +1462,7 @@ onMounted(() => {
       :selected-seat-number="selectedSeatNumber"
       :selected-fare="selectedFare"
       :available-fares="availableFares"
-      :connection-fares="connectionFares"
-      :connection-routes="connectionRoutes"
+      :connection-options="basinDestinations"
       :seats-to-book="seatsToBook"
       :passenger-form="passengerForm"
       :passenger-form-errors="passengerFormErrors"
@@ -1257,19 +1500,57 @@ onMounted(() => {
               </div>
 
               <div>
-                <InputLabel for="route_id" value="Route" />
+                <InputLabel for="origin_station_display" value="Gare d'origine" />
+                <select
+                  v-if="props.canSelectTripOrigin"
+                  id="origin_station_display"
+                  v-model="createTripForm.origin_station_id"
+                  class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                  required
+                  :disabled="isEditingTrip"
+                >
+                  <option value="">Sélectionner une gare d'origine</option>
+                  <option v-for="station in props.originStations" :key="station.id" :value="station.id">
+                    {{ station.name }}
+                  </option>
+                </select>
+                <div v-else class="mt-1 block w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 text-sm font-semibold select-none">
+                  {{ props.assignedStation || 'Toutes les gares' }}
+                </div>
+                <InputError class="mt-2" :message="createTripErrors.origin_station_id" />
+              </div>
+
+              <div>
+                <InputLabel for="route_id" value="Ligne" />
                 <select
                   id="route_id"
                   v-model="createTripForm.route_id"
                   class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
                   required
                 >
-                  <option value="">Sélectionner une route</option>
-                  <option v-for="route in routes" :key="route.id" :value="route.id">
-                    {{ route.display_name || route.name }}
+                  <option value="">Sélectionner une ligne</option>
+                  <option v-for="opt in availableRouteOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
                   </option>
                 </select>
                 <InputError class="mt-2" :message="createTripErrors.route_id" />
+              </div>
+
+              <div>
+                <InputLabel for="destination_station_id" value="Gare d'arrivée (Destination)" />
+                <select
+                  id="destination_station_id"
+                  v-model="createTripForm.destination_station_id"
+                  class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
+                  required
+                  :disabled="!createTripForm.route_id"
+                >
+                  <option value="">Sélectionner une destination</option>
+                  <option v-for="opt in availableDestinationOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+                <InputError class="mt-2" :message="createTripErrors.destination_station_id" />
               </div>
 
               <div>
@@ -1399,53 +1680,6 @@ onMounted(() => {
               </button>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Zoom Modal for Seat Map -->
-    <div v-if="showZoomModal" class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-900/55 dark:bg-black/60 p-4 backdrop-blur-[2px]">
-      <div class="relative flex h-full w-full max-h-[90vh] max-w-7xl flex-col overflow-hidden rounded-3xl border border-white/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_24px_70px_rgba(15,23,42,0.18)]">
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-emerald-50 to-slate-50 dark:from-slate-950/20 dark:to-slate-900/20 px-6 py-4">
-          <div>
-            <h3 class="text-xl font-bold text-gray-900 dark:text-slate-100">Plan des Places</h3>
-            <p class="text-sm text-gray-600 dark:text-slate-400 mt-1">
-              {{ currentTrip?.display_name }} - {{ currentTrip?.vehicle?.identifier }}
-            </p>
-          </div>
-          <button @click="showZoomModal = false" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-350 transition-colors">
-            <Close class="w-8 h-8" />
-          </button>
-        </div>
-
-        <!-- Legend Removed -->
-
-        <!-- Seat Map with Scroll -->
-        <div class="flex flex-1 items-center justify-center overflow-auto bg-slate-50 dark:bg-slate-950/40 p-6">
-          <div class="transform rotate-90">
-            <VehicleSeatMapSVG
-              :key="'modal-' + (currentTrip?.id || 'default')"
-              v-if="currentTrip?.vehicle?.vehicle_type"
-              :vehicle-type="currentTrip.vehicle.vehicle_type"
-              :seat-map="seatMap"
-              :suggested-seats="suggestedSeats"
-              :show-suggestions="ticketingStore.showSuggestions && !!selectedFare && suggestedSeats.length > 0"
-              :selected-seat="selectedSeatNumber"
-              :selected-color="selectedSeatColor"
-              :sellable-seat-numbers="currentStationSellableSeatNumbers"
-              :sellable-seat-border-color="currentStationSellableSeatBorderColor"
-              :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role) || isSalesClosedForSeller"
-              :vertical-mode="true"
-              @seat-click="handleSeatClick"
-              class="scale-125"
-            />
-          </div>
-        </div>
-
-        <!-- Instructions -->
-        <div class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-6 py-3 text-center text-sm text-slate-600 dark:text-slate-400">
-          Le véhicule est affiché horizontalement. Utilisez le défilement pour voir toutes les places. Cliquez sur une place pour réserver.
         </div>
       </div>
     </div>

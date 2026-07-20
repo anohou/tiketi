@@ -156,7 +156,7 @@ Route::middleware('auth')->group(function () {
 
         // Ticketing (POS Interface)
         Route::get('/ticketing', [TicketingController::class, 'index'])->name('ticketing');
-        Route::get('/ticketing-horizontal', [TicketingController::class, 'horizontal'])->name('ticketing.horizontal');
+        Route::get('/ticketing-focus', [TicketingController::class, 'focus'])->name('ticketing.focus');
         Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 
         // API-like endpoints for ticketing

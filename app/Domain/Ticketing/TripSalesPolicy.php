@@ -6,6 +6,7 @@ use App\Models\CrewMember;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\User;
+use App\Services\TripStationProgression;
 
 final class TripSalesPolicy
 {
@@ -18,8 +19,9 @@ final class TripSalesPolicy
         if (in_array($trip->status, ['arrived', 'cancelled'], true)) {
             return SalesDecision::deny('trip_terminal', 'Aucune vente n’est permise sur un voyage terminé ou annulé.');
         }
-        if ($trip->status === 'departed' && $fromStationId === $trip->origin_station_id) {
-            return SalesDecision::deny('origin_sales_closed', 'Les ventes au départ de la gare d’origine sont fermées après le départ.');
+        if ($trip->status === 'departed'
+            && ! app(TripStationProgression::class)->isActiveSalesStation($trip, $fromStationId)) {
+            return SalesDecision::deny('station_turn_pending', 'Cette gare n’a pas encore la main sur les ventes de ce voyage. Attendez le départ de la gare précédente.');
         }
         if ($fromStationId === $toStationId) {
             return SalesDecision::deny('invalid_segment', 'La gare de départ et la destination doivent être différentes.');

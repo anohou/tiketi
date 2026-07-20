@@ -67,10 +67,26 @@ class TripTimingService
     public function markDeparted(Trip $trip, ?CarbonInterface $departedAt = null): Trip
     {
         $departedAt ??= now();
+        $progression = app(TripStationProgression::class);
+        $departedStationId = $progression->activeSalesStationId($trip);
+        $nextStationId = $progression->nextStationId($trip);
+        $settings = $trip->settings ?? [];
+
+        if ($departedStationId && $nextStationId) {
+            $departedStations = data_get($settings, 'sales_progress.departed_station_ids', []);
+            $departedStations[] = $departedStationId;
+            data_set($settings, 'sales_progress.active_station_id', $nextStationId);
+            data_set($settings, 'sales_progress.departed_station_ids', array_values(array_unique($departedStations)));
+            data_set($settings, 'sales_progress.departures.'.$departedStationId, $departedAt->toIso8601String());
+            data_set($settings, 'sales_progress.last_departed_station_id', $departedStationId);
+            data_set($settings, 'sales_progress.last_departed_at', $departedAt->toIso8601String());
+        }
+
         $trip->update([
             'status' => 'departed',
             'sales_control' => 'closed',
             'actual_departed_at' => $departedAt,
+            'settings' => $settings,
             'estimated_arrival_at' => $trip->route?->estimated_duration_minutes
                 ? $departedAt->copy()->addMinutes($trip->route->estimated_duration_minutes)
                 : null,
