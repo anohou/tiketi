@@ -147,12 +147,26 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             throw new \RuntimeException('PostgreSQL app username is not configured.');
         }
 
-        $connection = $this->tenantRuntimeConnection($name);
-        $connection->statement(sprintf(
+        // Database and schema ownership belong to the provisioner. PostgreSQL
+        // only emits a warning when a non-owner attempts some GRANT statements,
+        // so executing every grant through the runtime connection can appear to
+        // succeed while leaving the backup role without schema access.
+        $this->getProvisionerConnection()->statement(sprintf(
+            'GRANT CONNECT ON DATABASE %s TO %s',
+            $this->quoteIdentifier($name),
+            $this->quoteIdentifier($backupUser),
+        ));
+        $provisionerConnection = $this->tenantProvisionerConnection($name);
+        $provisionerConnection->statement(sprintf(
             'GRANT USAGE ON SCHEMA %s TO %s',
             $this->quoteIdentifier($schema),
             $this->quoteIdentifier($backupUser),
         ));
+
+        // Tenant migrations run as the application role, which owns their
+        // tables and sequences. Object and default privileges must therefore be
+        // granted through that role rather than through the schema owner.
+        $connection = $this->tenantRuntimeConnection($name);
         $connection->statement(sprintf(
             'GRANT SELECT ON ALL TABLES IN SCHEMA %s TO %s',
             $this->quoteIdentifier($schema),
@@ -175,6 +189,41 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             $this->quoteIdentifier($schema),
             $this->quoteIdentifier($backupUser),
         ));
+
+        $schemaGranted = $provisionerConnection->selectOne(
+            'SELECT CASE WHEN has_schema_privilege(?, ?, \'USAGE\') THEN 1 ELSE 0 END AS granted',
+            [$backupUser, $schema],
+        );
+        $missingTables = $provisionerConnection->selectOne(
+            <<<'SQL'
+                SELECT COUNT(*) AS count
+                FROM pg_class AS c
+                JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = ?
+                  AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+                  AND NOT has_table_privilege(?, format('%I.%I', n.nspname, c.relname), 'SELECT')
+                SQL,
+            [$schema, $backupUser],
+        );
+        $missingSequences = $provisionerConnection->selectOne(
+            <<<'SQL'
+                SELECT COUNT(*) AS count
+                FROM pg_class AS c
+                JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = ?
+                  AND c.relkind = 'S'
+                  AND NOT has_sequence_privilege(?, format('%I.%I', n.nspname, c.relname), 'SELECT')
+                SQL,
+            [$schema, $backupUser],
+        );
+
+        if ((int) ($schemaGranted?->granted ?? 0) !== 1
+            || (int) ($missingTables?->count ?? -1) !== 0
+            || (int) ($missingSequences?->count ?? -1) !== 0) {
+            throw new \RuntimeException(
+                "Backup privilege verification failed for tenant database [{$name}]."
+            );
+        }
     }
 
     public function deleteDatabase(TenantWithDatabase $tenant): bool
@@ -200,6 +249,23 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             'SELECT 1 FROM pg_database WHERE datname = ?',
             [$name],
         );
+    }
+
+    /** @return list<string> */
+    public function listTenantDatabaseNames(): array
+    {
+        $prefix = config('tenancy.database.prefix');
+        if (! is_string($prefix) || $prefix === '') {
+            throw new \RuntimeException('TENANT_DB_PREFIX must be configured before reconciling tenant databases.');
+        }
+
+        return array_values(array_map(
+            static fn (object $row): string => (string) $row->datname,
+            $this->getProvisionerConnection()->select(
+                'SELECT datname FROM pg_database WHERE datname LIKE ? ORDER BY datname',
+                [$prefix.'%'],
+            ),
+        ));
     }
 
     protected function validateDatabaseName(string $name): void
