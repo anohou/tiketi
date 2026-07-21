@@ -4,6 +4,7 @@ use App\Http\Middleware\ConfigureHostScopedCookies;
 use App\Http\Middleware\CrewMiddleware;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RejectCrewToken;
+use App\Http\Middleware\RequireInitializedTenancy;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\UniversalTenancy;
 use App\Http\Middleware\VerifyCsrfToken;
@@ -62,6 +63,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'crew' => CrewMiddleware::class,
             'non_crew' => RejectCrewToken::class,
             'role' => RoleMiddleware::class,
+            'tenant.initialized' => RequireInitializedTenancy::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

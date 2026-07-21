@@ -81,6 +81,10 @@ return [
             'options' => [],
         ],
 
+        'tenant_backup' => [
+            'username' => env('DB_BACKUP_USER'),
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

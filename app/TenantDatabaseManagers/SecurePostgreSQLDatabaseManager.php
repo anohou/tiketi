@@ -30,6 +30,7 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
         $this->validateDatabaseName($name);
 
         $appUser = config('database.connections.pgsql.username');
+        $backupUser = config('database.connections.tenant_backup.username');
         $provisionerUser = config('database.connections.tenant_provisioner.username');
         $schema = $this->primarySchemaName(config('database.connections.pgsql.search_path', 'public'));
 
@@ -62,6 +63,13 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
             $this->quoteIdentifier($name),
             $this->quoteIdentifier($appUser),
         ));
+        if (is_string($backupUser) && $backupUser !== '') {
+            $this->getProvisionerConnection()->statement(sprintf(
+                'GRANT CONNECT ON DATABASE %s TO %s',
+                $this->quoteIdentifier($name),
+                $this->quoteIdentifier($backupUser),
+            ));
+        }
         $tenantProvisioner = $this->tenantProvisionerConnection($name);
 
         $tenantProvisioner->statement(sprintf(
@@ -116,6 +124,57 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
         ]);
 
         return true;
+    }
+
+    public function grantBackupPrivileges(TenantWithDatabase $tenant): void
+    {
+        $name = $tenant->database()->getName();
+        $this->validateDatabaseName($name);
+
+        $backupUser = config('database.connections.tenant_backup.username');
+        if (! is_string($backupUser) || $backupUser === '') {
+            Log::warning('Skipping tenant backup grants because DB_BACKUP_USER is not configured.', [
+                'tenant_id' => $tenant->id,
+                'database_name' => $name,
+            ]);
+
+            return;
+        }
+
+        $appUser = config('database.connections.pgsql.username');
+        $schema = $this->primarySchemaName(config('database.connections.pgsql.search_path', 'public'));
+        if (! is_string($appUser) || $appUser === '') {
+            throw new \RuntimeException('PostgreSQL app username is not configured.');
+        }
+
+        $connection = $this->tenantRuntimeConnection($name);
+        $connection->statement(sprintf(
+            'GRANT USAGE ON SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($backupUser),
+        ));
+        $connection->statement(sprintf(
+            'GRANT SELECT ON ALL TABLES IN SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($backupUser),
+        ));
+        $connection->statement(sprintf(
+            'GRANT SELECT ON ALL SEQUENCES IN SCHEMA %s TO %s',
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($backupUser),
+        ));
+        $connection->statement(sprintf(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT SELECT ON TABLES TO %s',
+            $this->quoteIdentifier($appUser),
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($backupUser),
+        ));
+        $connection->statement(sprintf(
+            'ALTER DEFAULT PRIVILEGES FOR ROLE %s IN SCHEMA %s GRANT SELECT ON SEQUENCES TO %s',
+            $this->quoteIdentifier($appUser),
+            $this->quoteIdentifier($schema),
+            $this->quoteIdentifier($backupUser),
+        ));
     }
 
     public function deleteDatabase(TenantWithDatabase $tenant): bool
@@ -199,5 +258,16 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
         DB::purge('tenant_provisioner_database');
 
         return DB::connection('tenant_provisioner_database');
+    }
+
+    protected function tenantRuntimeConnection(string $database): ConnectionInterface
+    {
+        $config = config('database.connections.pgsql');
+        $config['database'] = $database;
+
+        config(['database.connections.tenant_runtime_database' => $config]);
+        DB::purge('tenant_runtime_database');
+
+        return DB::connection('tenant_runtime_database');
     }
 }
