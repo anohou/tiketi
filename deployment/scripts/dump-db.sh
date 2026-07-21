@@ -98,11 +98,6 @@ dump_one_database() {
     metadata_path="${BACKUP_OUTPUT_DIR}/${artifact_base}.metadata.json"
     plain_sql_path="${BACKUP_OUTPUT_DIR}/${artifact_base}.sql"
 
-    if [[ "${scope}" == "application_database" ]]; then
-        app_db_log "Running backup-role privilege preflight for '${db_name}'..."
-        app_db_backup_privilege_preflight "${db_name}" "${RBAC_SCHEMA_NAME}"
-    fi
-
     app_db_log "Creating custom-format archive at ${archive_path}"
     app_db_pg_dump_to_file "${APP_DB_BACKUP_PASS}" "${APP_DB_BACKUP_USER}" "${db_name}" "custom" "${archive_path}"
 
@@ -149,18 +144,57 @@ EOF
     if [[ "${ALSO_PLAIN_SQL}" == "true" ]]; then
         app_db_log "  plain SQL: ${plain_sql_path}"
     fi
+    backup_archives+=("${archive_path}")
 }
 
-dump_one_database "${DB_NAME}" "application_database"
+backup_databases=("${DB_NAME}")
+backup_scopes=("application_database")
+backup_archives=()
 
 if [[ "${INCLUDE_TENANT_DBS}" == "true" ]]; then
     [[ -n "${TENANT_DB_PREFIX:-}" ]] || app_db_err "TENANT_DB_PREFIX is required when --include-tenant-dbs is used"
     app_db_log "Enumerating tenant databases with prefix '${TENANT_DB_PREFIX}'..."
+    tenant_databases=()
     while IFS= read -r tenant_db; do
         [[ -n "${tenant_db}" ]] || continue
-        dump_one_database "${tenant_db}" "tenant_database"
+        tenant_databases+=("${tenant_db}")
     done < <(app_db_psql_admin_query postgres "SELECT datname FROM pg_database WHERE datname LIKE $(app_db_sql_literal "${TENANT_DB_PREFIX}%") ORDER BY datname")
+
+    for tenant_db in "${tenant_databases[@]}"; do
+        backup_databases+=("${tenant_db}")
+        backup_scopes+=("tenant_database")
+    done
 fi
+
+app_db_log "Running backup-role privilege preflight for the complete ${#backup_databases[@]}-database backup set..."
+for backup_db in "${backup_databases[@]}"; do
+    app_db_backup_privilege_preflight "${backup_db}" "${RBAC_SCHEMA_NAME}"
+done
+app_db_log "Backup-role privilege preflight passed for the complete backup set."
+
+for index in "${!backup_databases[@]}"; do
+    dump_one_database "${backup_databases[$index]}" "${backup_scopes[$index]}"
+done
+
+backup_set_path="${BACKUP_OUTPUT_DIR}/${APP_SLUG}-backup-set_${timestamp_compact}.metadata.json"
+{
+    printf '{\n'
+    printf '  "app_slug": "%s",\n' "${APP_SLUG}"
+    printf '  "timestamp_utc": "%s",\n' "${timestamp_utc}"
+    printf '  "complete": true,\n'
+    printf '  "includes_tenant_databases": %s,\n' "${INCLUDE_TENANT_DBS}"
+    printf '  "database_count": %s,\n' "${#backup_databases[@]}"
+    printf '  "databases": [\n'
+    for index in "${!backup_databases[@]}"; do
+        separator=','
+        [[ "${index}" == "$((${#backup_databases[@]} - 1))" ]] && separator=''
+        printf '    {"name":"%s","scope":"%s","archive":"%s"}%s\n' \
+            "${backup_databases[$index]}" "${backup_scopes[$index]}" "${backup_archives[$index]}" "${separator}"
+    done
+    printf '  ]\n'
+    printf '}\n'
+} > "${backup_set_path}"
+app_db_log "Complete backup-set manifest: ${backup_set_path}"
 
 cat <<'EOF'
 WARNING:
