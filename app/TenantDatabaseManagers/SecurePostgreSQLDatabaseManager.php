@@ -133,12 +133,9 @@ class SecurePostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
 
         $backupUser = config('database.connections.tenant_backup.username');
         if (! is_string($backupUser) || $backupUser === '') {
-            Log::warning('Skipping tenant backup grants because DB_BACKUP_USER is not configured.', [
-                'tenant_id' => $tenant->id,
-                'database_name' => $name,
-            ]);
-
-            return;
+            throw new \RuntimeException(
+                'DB_BACKUP_USER must be configured before granting tenant backup privileges.'
+            );
         }
 
         $appUser = config('database.connections.pgsql.username');
