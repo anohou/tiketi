@@ -16,7 +16,7 @@ err() { echo "[admin] ERROR: $*" >&2; exit 1; }
 # Allow operator-side env overrides while keeping template defaults.
 CREATE_ADMIN_MODE="${CREATE_ADMIN_MODE:-artisan_command}"
 CREATE_ADMIN_COMMAND="${CREATE_ADMIN_COMMAND:-admin:create}"
-CREATE_ADMIN_DEFAULT_ROLE="${CREATE_ADMIN_DEFAULT_ROLE:-superadmin}"
+CREATE_ADMIN_DEFAULT_ROLE="${CREATE_ADMIN_DEFAULT_ROLE:-super_admin}"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: ./create-admin.sh [admin-command-options]"

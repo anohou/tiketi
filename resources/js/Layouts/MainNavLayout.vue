@@ -303,7 +303,7 @@ const { isDark, toggleTheme } = useTheme();
 const page = usePage();
 const user = page.props.auth.user || {};
 
-const isLandlord = computed(() => user.role === 'superadmin');
+const isLandlord = computed(() => ['superadmin', 'super_admin'].includes(user.role));
 
 // Get assigned stations from page props (populated by HandleInertiaRequests middleware)
 const assignedStations = computed(() => page.props.assignedStations || []);
@@ -402,8 +402,8 @@ onBeforeUnmount(() => {
 const showTripSidebar = computed(() => {
     if (props.hideTripSidebar) return false;
 
-    // Hide sidebar for superadmin (Landlord)
-    if (user.role === 'superadmin') return false;
+    // Hide sidebar for super admin (Landlord)
+    if (['superadmin', 'super_admin'].includes(user.role)) return false;
 
     if (user.role === 'accountant') return false;
     if (user.role === 'fleet_manager') return false;
@@ -478,7 +478,7 @@ const navItems = computed(() => {
           label: 'Véhicules',
           icon: Bus
       });
-  } else if (user.role === 'superadmin') {
+  } else if (['superadmin', 'super_admin'].includes(user.role)) {
       // Landlord (Superadmin) navigation
       baseItems.push({
           route: 'landlord.tenants.index',

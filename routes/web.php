@@ -65,7 +65,7 @@ Route::get('/dashboard', function () {
     }
 
     return match ($user->role) {
-        'superadmin' => redirect()->route('landlord.tenants.index'),
+        'superadmin', 'super_admin' => redirect()->route('landlord.tenants.index'),
         'admin' => redirect()->route('admin.dashboard'),
         'fleet_manager' => redirect()->route('fleet.dashboard'),
         'supervisor' => redirect()->route('supervisor.dashboard'),

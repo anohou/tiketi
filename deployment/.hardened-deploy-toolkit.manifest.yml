@@ -74,7 +74,7 @@ parameters:
   create_admin_sync_command: true
   create_admin_command_template: 'generic-admin-create'
   create_admin_model: 'App\Models\User'
-  create_admin_default_role: 'superadmin'
+  create_admin_default_role: 'super_admin'
   create_admin_default_active: true
   github_actions_enabled: true
   github_actions_php_version: 8.3

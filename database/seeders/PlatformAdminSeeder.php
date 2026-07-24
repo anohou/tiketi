@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 /**
  * Platform Admin Seeder
  *
- * Creates a superadmin user for the central (landlord) database.
+ * Creates a super-admin user for the central (landlord) database.
  * This user can log in to the central domain and manage tenants.
  */
 class PlatformAdminSeeder extends Seeder
@@ -21,7 +21,7 @@ class PlatformAdminSeeder extends Seeder
             'name' => 'Platform Admin',
             'email' => 'admin@transport.ci',
             'password' => Hash::make('password'),
-            'role' => 'superadmin',
+            'role' => 'super_admin',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

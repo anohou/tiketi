@@ -26,7 +26,8 @@ class RequireInitializedTenancy
             return $next($request);
         }
 
-        if ($request->user()?->role === 'superadmin' && $request->route()?->getName() !== 'landlord.tenants.index') {
+        if (in_array($request->user()?->role, ['superadmin', 'super_admin'], true)
+            && $request->route()?->getName() !== 'landlord.tenants.index') {
             return redirect()->route('landlord.tenants.index');
         }
 

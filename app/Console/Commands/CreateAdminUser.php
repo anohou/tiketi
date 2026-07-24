@@ -35,7 +35,7 @@ class CreateAdminUser extends Command
 
     private const EMAIL_VERIFIED_COLUMN = 'email_verified_at';
 
-    private const DEFAULT_ROLE = 'superadmin';
+    private const DEFAULT_ROLE = 'super_admin';
 
     private const DEFAULT_ACTIVE = true;
 
@@ -74,7 +74,7 @@ class CreateAdminUser extends Command
         ], [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email:rfc', 'max:255'],
-            'role' => ['required', 'in:superadmin'],
+            'role' => ['required', 'in:super_admin'],
             'password' => ['required', 'string', Password::min(12)->mixedCase()->numbers()->symbols()],
         ]);
 
@@ -95,7 +95,10 @@ class CreateAdminUser extends Command
         /** @var Model|null $existing */
         $existing = $modelClass::query()->where(self::EMAIL_COLUMN, $email)->first();
         if ($existing && ! $updateRequested) {
-            $this->error("A user with email [{$email}] already exists. Re-run with --update to update it.");
+            $this->error(
+                "A user with email [{$email}] already exists. "
+                .'Re-run through the toolkit with ADMIN_UPDATE=true make create-app-admin.'
+            );
 
             return self::FAILURE;
         }

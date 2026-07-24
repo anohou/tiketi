@@ -158,7 +158,7 @@ create_admin:
   sync_command: true
   command_template: 'generic-admin-create'
   model: 'App\Models\User'
-  default_role: 'superadmin'
+  default_role: 'super_admin'
   default_active: true
   columns:
     name: 'name'

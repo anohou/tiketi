@@ -196,9 +196,14 @@ backup_set_path="${BACKUP_OUTPUT_DIR}/${APP_SLUG}-backup-set_${timestamp_compact
 } > "${backup_set_path}"
 app_db_log "Complete backup-set manifest: ${backup_set_path}"
 
-cat <<'EOF'
+if [[ "${INCLUDE_TENANT_DBS}" == "true" ]]; then
+    app_db_log "Tenant-inclusive backup complete: application database plus $((${#backup_databases[@]} - 1)) tenant database(s)."
+else
+    cat <<'EOF'
 WARNING:
-Default backups contain ONLY the application database.
+This backup contains ONLY the application database.
 Use --include-tenant-dbs to include tenant databases.
-It does NOT include PostgreSQL globals (roles, users, tablespaces).
 EOF
+fi
+
+app_db_log "PostgreSQL globals (roles, users, tablespaces) are not included."
