@@ -2,10 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Controllers\Api\OkohiVerificationController;
 use App\Models\OkohiRewardRequest;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
+use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketSetting;
 use App\Models\Trip;
@@ -14,6 +16,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use Illuminate\Console\Command;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -48,6 +51,7 @@ class TestOkohiLiveHttpCommand extends Command
 
         if (! file_exists($okohiDbPath)) {
             $this->error("Fichier base Okohi introuvable : {$okohiDbPath}");
+
             return 1;
         }
 
@@ -240,6 +244,7 @@ class TestOkohiLiveHttpCommand extends Command
             $this->line("   ✓ Données Okohi prêtes pour le client {$customerNumber} | Webhook réglé sur : {$tiketiUrl}/api/okohi/webhook");
         } catch (\Exception $e) {
             $this->error("   ❌ Erreur d'initialisation SGBD Okohi : {$e->getMessage()}");
+
             return 1;
         }
 
@@ -257,12 +262,13 @@ class TestOkohiLiveHttpCommand extends Command
             if ($ping->status() === 404 || $ping->successful()) {
                 $this->line("   ✓ Serveur HTTP Okohi opérationnel et joignable sur {$okohiUrl} !");
             } else {
-                $this->warn("   ⚠️ Serveur HTTP Okohi a répondu avec le statut : ".$ping->status());
+                $this->warn('   ⚠️ Serveur HTTP Okohi a répondu avec le statut : '.$ping->status());
             }
         } catch (\Exception $e) {
             $this->error("   ❌ Impossible de contacter le serveur HTTP Okohi sur {$okohiUrl}.");
-            $this->warn("      Conseil : Démarrez le serveur Okohi avec la commande :");
-            $this->warn("      cd /Users/alexisnanou/Works/billeterie/okohi-new-api && php artisan serve --port=8001");
+            $this->warn('      Conseil : Démarrez le serveur Okohi avec la commande :');
+            $this->warn('      cd /Users/alexisnanou/Works/billeterie/okohi-new-api && php artisan serve --port=8001');
+
             return 1;
         }
 
@@ -272,8 +278,8 @@ class TestOkohiLiveHttpCommand extends Command
         $this->newLine();
         $this->info('3️⃣ Configuration du sous-système Tiketi...');
 
-        if (class_exists(\App\Models\Tenant::class) && ! tenancy()->initialized) {
-            $tenant = \App\Models\Tenant::first();
+        if (class_exists(Tenant::class) && ! tenancy()->initialized) {
+            $tenant = Tenant::first();
             if ($tenant) {
                 tenancy()->initialize($tenant);
                 $this->line("   ✓ Tenant Tiketi initialisé : {$tenant->id}");
@@ -355,6 +361,7 @@ class TestOkohiLiveHttpCommand extends Command
 
         if (! $lookupResponse->successful()) {
             $this->error("   ❌ Erreur HTTP de recherche client ({$lookupResponse->status()}) : ".$lookupResponse->body());
+
             return 1;
         }
 
@@ -367,7 +374,7 @@ class TestOkohiLiveHttpCommand extends Command
         // STEP 5 : FLUX TEMPS RÉEL HTTP 2/5 — Demande de Récompense via HTTP POST Okohi
         // -------------------------------------------------------------
         $this->newLine();
-        $this->info("5️⃣ [RESEAU HTTP 2/5] Réservation de siège & Octroi de la récompense via HTTP POST Okohi...");
+        $this->info('5️⃣ [RESEAU HTTP 2/5] Réservation de siège & Octroi de la récompense via HTTP POST Okohi...');
 
         $rewardRequest = OkohiRewardRequest::create([
             'idempotency_key' => 'idem-'.(string) Str::uuid(),
@@ -404,6 +411,7 @@ class TestOkohiLiveHttpCommand extends Command
 
         if (! $grantResponse->successful()) {
             $this->error("   ❌ Erreur HTTP lors de l'octroi de la récompense : ".$grantResponse->body());
+
             return 1;
         }
 
@@ -425,6 +433,7 @@ class TestOkohiLiveHttpCommand extends Command
 
         if (! $approveResponse->successful()) {
             $this->error("   ❌ Erreur HTTP lors de l'approbation du claim chez Okohi : ".$approveResponse->body());
+
             return 1;
         }
 
@@ -439,6 +448,7 @@ class TestOkohiLiveHttpCommand extends Command
 
         if (! $ticket) {
             $this->error("   ❌ Le billet n'a pas été généré par le Webhook HTTP de Tiketi !");
+
             return 1;
         }
 
@@ -449,11 +459,11 @@ class TestOkohiLiveHttpCommand extends Command
         // STEP 7 : FLUX TEMPS RÉEL HTTP 4/5 — Vérification / Scan HTTP Tiketi
         // -------------------------------------------------------------
         $this->newLine();
-        $this->info("7️⃣ [RESEAU HTTP 4/5] Contrôle sur le terrain via /api/okohi/verify...");
+        $this->info('7️⃣ [RESEAU HTTP 4/5] Contrôle sur le terrain via /api/okohi/verify...');
 
-        $verifyController = app(\App\Http\Controllers\Api\OkohiVerificationController::class);
+        $verifyController = app(OkohiVerificationController::class);
         $verifySignature = hash_hmac('sha256', '', $integrationKey);
-        $verifyRequest = \Illuminate\Http\Request::create(
+        $verifyRequest = Request::create(
             "/api/okohi/verify?ticket_id={$ticket->ticket_number}",
             'GET',
             [], [], [],
@@ -464,7 +474,8 @@ class TestOkohiLiveHttpCommand extends Command
         $verifyContent = json_decode($verifyResponse->getContent(), true);
 
         if ($verifyResponse->getStatusCode() !== 200 || empty($verifyContent['valid'])) {
-            $this->error("   ❌ Échec du contrôle du billet via HTTP : ".json_encode($verifyContent));
+            $this->error('   ❌ Échec du contrôle du billet via HTTP : '.json_encode($verifyContent));
+
             return 1;
         }
 
@@ -481,13 +492,14 @@ class TestOkohiLiveHttpCommand extends Command
             ->post("{$okohiUrl}/api/v1/partner/reward-claims/{$claimId}/reverse");
 
         if (! $reverseResponse->successful()) {
-            $this->error("   ❌ Échec de la réversion HTTP des points : ".$reverseResponse->body());
+            $this->error('   ❌ Échec de la réversion HTTP des points : '.$reverseResponse->body());
+
             return 1;
         }
 
         $ticket->update(['status' => 'cancelled']);
 
-        $this->line("   ✓ [HTTP 200 OK] Réversion des points enregistrée avec succès chez Okohi ! Billet annulé.");
+        $this->line('   ✓ [HTTP 200 OK] Réversion des points enregistrée avec succès chez Okohi ! Billet annulé.');
 
         // -------------------------------------------------------------
         // RECAPITULATIF FINAL
@@ -500,11 +512,11 @@ class TestOkohiLiveHttpCommand extends Command
         $this->table(
             ['Étape', 'Méthode HTTP & URL', 'Résultat', 'Détails'],
             [
-                ['1', "GET {$okohiUrl}/api/v1/partner/customers/{$customerNumber}", '200 OK', "Client résolu : Jean Kouassi (1000 pts)"],
+                ['1', "GET {$okohiUrl}/api/v1/partner/customers/{$customerNumber}", '200 OK', 'Client résolu : Jean Kouassi (1000 pts)'],
                 ['2', "POST {$okohiUrl}/api/v1/partner/customers/.../grant-reward", '201 Created', "Claim ID: {$claimId}"],
                 ['3', "POST {$tiketiUrl}/api/okohi/webhook (Approbation)", '200 OK', "Billet émis {$ticket->ticket_number}"],
-                ['4', "GET {$tiketiUrl}/api/okohi/verify?ticket_id=...", '200 OK', "Billet valide confirmé"],
-                ['5', "POST {$okohiUrl}/api/v1/partner/reward-claims/.../reverse", '200 OK', "Points réversés au client"],
+                ['4', "GET {$tiketiUrl}/api/okohi/verify?ticket_id=...", '200 OK', 'Billet valide confirmé'],
+                ['5', "POST {$okohiUrl}/api/v1/partner/reward-claims/.../reverse", '200 OK', 'Points réversés au client'],
             ]
         );
 

@@ -178,7 +178,7 @@ class OkohiRewardRequest extends Model
                 'amount_collected' => $amountCollected,
             ];
 
-            if (!empty($finalDestinationId)) {
+            if (! empty($finalDestinationId)) {
                 $ticketData['is_connection'] = true;
                 $ticketData['transfer_station_id'] = $this->to_station_id;
                 $ticketData['connection_route_id'] = $this->request_payload['connection_route_id'] ?? null;

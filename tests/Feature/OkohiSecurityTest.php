@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\TicketSetting;
-
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;

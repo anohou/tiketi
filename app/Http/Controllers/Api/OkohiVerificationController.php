@@ -50,7 +50,7 @@ class OkohiVerificationController extends Controller
         // Fallback : parcourir tous les tenants (anciens liens sans ?tenant=)
         $found = null;
 
-        $tenants->each(function (Tenant $tenant) use ($ticketId, $key, &$found) {
+        $tenants->each(function (Tenant $tenant) use ($ticketId, &$found) {
             if ($found !== null) {
                 return false;
             }

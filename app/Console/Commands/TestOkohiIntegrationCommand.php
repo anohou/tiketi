@@ -2,10 +2,13 @@
 
 namespace App\Console\Commands;
 
+use App\Http\Controllers\Api\OkohiVerificationController;
+use App\Http\Controllers\Api\OkohiWebhookController;
 use App\Models\OkohiRewardRequest;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
+use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketSetting;
 use App\Models\Trip;
@@ -14,8 +17,8 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use Illuminate\Console\Command;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class TestOkohiIntegrationCommand extends Command
@@ -34,6 +37,7 @@ class TestOkohiIntegrationCommand extends Command
         $okohiDbPath = $this->option('okohi-db');
         if (! file_exists($okohiDbPath)) {
             $this->error("Base de données Okohi introuvable à la trajectoire : {$okohiDbPath}");
+
             return 1;
         }
 
@@ -207,6 +211,7 @@ class TestOkohiIntegrationCommand extends Command
             $this->line("   ✓ Avantage d'essai créé : {$reward->title} (ID: {$rewardId})");
         } catch (\Exception $e) {
             $this->error("   ❌ Erreur d'initialisation Okohi DB : {$e->getMessage()}");
+
             return 1;
         }
 
@@ -216,8 +221,8 @@ class TestOkohiIntegrationCommand extends Command
         $this->newLine();
         $this->info('2️⃣ [TIKETI] Configuration locale du sous-système Tiketi...');
 
-        if (class_exists(\App\Models\Tenant::class) && ! tenancy()->initialized) {
-            $tenant = \App\Models\Tenant::first();
+        if (class_exists(Tenant::class) && ! tenancy()->initialized) {
+            $tenant = Tenant::first();
             if ($tenant) {
                 tenancy()->initialize($tenant);
                 $this->line("   ✓ Tenant Tiketi initialisé : {$tenant->id}");
@@ -311,7 +316,7 @@ class TestOkohiIntegrationCommand extends Command
             ],
         ];
 
-        $this->line("   ✓ Client résolu : Jean Kouassi | Solde : 1000 points");
+        $this->line('   ✓ Client résolu : Jean Kouassi | Solde : 1000 points');
         $this->line("   ✓ Avantage éligible : 50% de réduction (ID: {$rewardId})");
 
         // -------------------------------------------------------------
@@ -400,8 +405,8 @@ class TestOkohiIntegrationCommand extends Command
         $signature = hash_hmac('sha256', $rawJson, $integrationKey);
 
         // Envoi interne/direct du contrôleur Webhook
-        $webhookController = app(\App\Http\Controllers\Api\OkohiWebhookController::class);
-        $requestObj = \Illuminate\Http\Request::create(
+        $webhookController = app(OkohiWebhookController::class);
+        $requestObj = Request::create(
             '/api/okohi/webhook',
             'POST',
             [],
@@ -415,17 +420,19 @@ class TestOkohiIntegrationCommand extends Command
         $responseContent = json_decode($response->getContent(), true);
 
         if ($response->getStatusCode() !== 200 || empty($responseContent['valid'])) {
-            $this->error("   ❌ Échec du Webhook : ".json_encode($responseContent));
+            $this->error('   ❌ Échec du Webhook : '.json_encode($responseContent));
+
             return 1;
         }
 
         $ticket = Ticket::find($responseContent['ticket_id']);
         if (! $ticket) {
             $this->error("   ❌ Le billet n'a pas été créé par le Webhook !");
+
             return 1;
         }
 
-        $this->line("   ✓ Signature HMAC vérifiée avec succès (SHA-256)");
+        $this->line('   ✓ Signature HMAC vérifiée avec succès (SHA-256)');
         $this->line("   ✓ Webhook exécuté : Billet émis N° {$ticket->ticket_number}");
         $this->line("   ✓ Prix Brut: {$ticket->gross_amount} FCFA | Réduction Okohi: {$ticket->discount_amount} FCFA | Montant Encaissé: {$ticket->amount_collected} FCFA");
 
@@ -435,10 +442,10 @@ class TestOkohiIntegrationCommand extends Command
         $this->newLine();
         $this->info('6️⃣ [FLUX 4/5] Contrôle sur le terrain & Vérification du Billet...');
 
-        $verifyController = app(\App\Http\Controllers\Api\OkohiVerificationController::class);
+        $verifyController = app(OkohiVerificationController::class);
         $verifySignature = hash_hmac('sha256', '', $integrationKey);
 
-        $verifyRequest = \Illuminate\Http\Request::create(
+        $verifyRequest = Request::create(
             "/api/okohi/verify?ticket_id={$ticket->ticket_number}",
             'GET',
             [],
@@ -451,11 +458,12 @@ class TestOkohiIntegrationCommand extends Command
         $verifyContent = json_decode($verifyResponse->getContent(), true);
 
         if ($verifyResponse->getStatusCode() !== 200 || empty($verifyContent['valid'])) {
-            $this->error("   ❌ Échec de la vérification du billet : ".json_encode($verifyContent));
+            $this->error('   ❌ Échec de la vérification du billet : '.json_encode($verifyContent));
+
             return 1;
         }
 
-        $this->line("   ✓ Contrôle Okohi / Équipage réussi ! (Statut: valide)");
+        $this->line('   ✓ Contrôle Okohi / Équipage réussi ! (Statut: valide)');
         $this->line("   ✓ Données retournées : Ticket #{$verifyContent['data']['ticket_id']}, Montant net: {$verifyContent['data']['amount']} FCFA");
 
         // -------------------------------------------------------------
@@ -493,7 +501,7 @@ class TestOkohiIntegrationCommand extends Command
                 ['2', 'Blocage Siège & RewardClaim', 'SUCCÈS', "Siège 12 réservé — Claim ID: {$claimId}"],
                 ['3', 'Webhook HMAC SHA-256', 'SUCCÈS', "Billet émis {$ticket->ticket_number} (Encaissé: 2500 FCFA)"],
                 ['4', 'Scan & Vérification API', 'SUCCÈS', "Billet valide confirmé par l'API Okohi"],
-                ['5', 'Annulation & Réversion', 'SUCCÈS', "Billet annulé, 100 points restitués au client"],
+                ['5', 'Annulation & Réversion', 'SUCCÈS', 'Billet annulé, 100 points restitués au client'],
             ]
         );
 

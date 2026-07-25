@@ -3,6 +3,7 @@
 use App\Http\Middleware\ConfigureHostScopedCookies;
 use App\Http\Middleware\CrewMiddleware;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\OkohiSignatureVerification;
 use App\Http\Middleware\RejectCrewToken;
 use App\Http\Middleware\RequireAuthorizedControlDevice;
 use App\Http\Middleware\RequireAuthorizedWebDevice;
@@ -68,7 +69,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.initialized' => RequireInitializedTenancy::class,
             'authorized.control.device' => RequireAuthorizedControlDevice::class,
             'authorized.web.device' => RequireAuthorizedWebDevice::class,
-            'okohi.signature' => \App\Http\Middleware\OkohiSignatureVerification::class,
+            'okohi.signature' => OkohiSignatureVerification::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

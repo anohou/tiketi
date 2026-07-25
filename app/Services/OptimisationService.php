@@ -70,6 +70,7 @@ class OptimisationService
                     'from_station_id' => $occupancy->from_station_id,
                     'to_station_id' => $occupancy->to_station_id,
                 ]);
+
                 return $ticket;
             });
 
