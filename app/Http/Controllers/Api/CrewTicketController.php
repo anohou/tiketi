@@ -9,9 +9,11 @@ use App\Domain\Trips\CrewTripAccessPolicy;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
+use App\Models\TicketCompensation;
 use App\Models\TicketConnection;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
+use App\Services\OfflineCacheSigner;
 use App\Services\OptimisationService;
 use App\Services\TripSegmentService;
 use Closure;
@@ -85,10 +87,11 @@ class CrewTicketController extends Controller
     public function tickets(Request $request, Trip $trip)
     {
         $this->assertCrewVehicleAccess($request, $trip);
+        $trip->loadMissing(['originStation', 'destinationStation']);
 
         $tickets = Ticket::with(['fromStation', 'toStation', 'finalDestinationStation', 'connection', 'boardedBy', 'seller'])
             ->where('trip_id', $trip->id)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'issued')
             ->orderBy('seat_number')
             ->get();
 
@@ -107,7 +110,30 @@ class CrewTicketController extends Controller
                 return $ticket;
             });
 
-        $tickets = $tickets->concat($connectionTickets)->sortBy('seat_number')->values()
+        $replacementTickets = TicketCompensation::with([
+            'ticket.fromStation',
+            'ticket.toStation',
+            'ticket.finalDestinationStation',
+            'ticket.connection',
+            'ticket.boardedBy',
+            'boardedBy',
+        ])
+            ->where('replacement_trip_id', $trip->id)
+            ->where('compensation_type', 'free_rebooking')
+            ->where('status', 'executed')
+            ->get()
+            ->filter(fn (TicketCompensation $compensation) => $compensation->ticket?->status === 'issued')
+            ->map(function (TicketCompensation $compensation) use ($trip) {
+                $ticket = $compensation->ticket;
+                $ticket->seat_number = $compensation->replacement_seat_number;
+                $ticket->boarded_at = $compensation->boarded_at;
+                $ticket->setRelation('fromStation', $trip->originStation);
+                $ticket->setRelation('toStation', $trip->destinationStation);
+
+                return $ticket;
+            });
+
+        $tickets = $tickets->concat($connectionTickets)->concat($replacementTickets)->sortBy('seat_number')->values()
             ->map(fn (Ticket $ticket) => $this->ticketPayload($ticket, $trip->id));
 
         $offlineCache = $this->offlineTicketCachePayload($trip, $tickets->all());
@@ -517,12 +543,31 @@ class CrewTicketController extends Controller
     private function ticketPayload(Ticket $ticket, ?string $contextTripId = null): array
     {
         $connection = $ticket->connection;
-        $compensation = $ticket->compensations()->where('status', 'executed')->latest('executed_at')->first();
-        $replacementApplies = $compensation?->compensation_type === 'free_rebooking'
-            && $compensation->replacement_trip_id === $contextTripId;
+        $replacement = $contextTripId
+            ? $ticket->compensations()
+                ->with([
+                    'boardedBy',
+                    'replacementTrip.originStation',
+                    'replacementTrip.destinationStation',
+                ])
+                ->where('status', 'executed')
+                ->where('compensation_type', 'free_rebooking')
+                ->where('replacement_trip_id', $contextTripId)
+                ->latest('executed_at')
+                ->first()
+            : null;
+        $compensation = $replacement
+            ?? $ticket->compensations()->where('status', 'executed')->latest('executed_at')->first();
+        $replacementApplies = $replacement !== null;
         $connectionBoarding = $connection && $contextTripId
             && $connection->trip_id === $contextTripId
             && $ticket->trip_id !== $contextTripId;
+        $fromStation = $replacementApplies
+            ? $replacement->replacementTrip?->originStation
+            : ($connectionBoarding ? $connection->transferStation : $ticket->fromStation);
+        $toStation = $replacementApplies
+            ? $replacement->replacementTrip?->destinationStation
+            : ($connectionBoarding ? $connection->destinationStation : $ticket->toStation);
 
         return [
             'id' => $ticket->id,
@@ -533,14 +578,16 @@ class CrewTicketController extends Controller
             'passenger_name' => $ticket->passenger_name,
             'passenger_phone' => $ticket->passenger_phone,
             'status' => $ticket->status,
-            'boarded_at' => ($connectionBoarding ? $connection->boarded_at : $ticket->boarded_at)?->toIso8601String(),
-            'from_station' => ($connectionBoarding ? $connection->transferStation : $ticket->fromStation) ? [
-                'id' => ($connectionBoarding ? $connection->transferStation : $ticket->fromStation)->id,
-                'name' => ($connectionBoarding ? $connection->transferStation : $ticket->fromStation)->name,
+            'boarded_at' => ($replacementApplies
+                ? $replacement->boarded_at
+                : ($connectionBoarding ? $connection->boarded_at : $ticket->boarded_at))?->toIso8601String(),
+            'from_station' => $fromStation ? [
+                'id' => $fromStation->id,
+                'name' => $fromStation->name,
             ] : null,
-            'to_station' => ($connectionBoarding ? $connection->destinationStation : $ticket->toStation) ? [
-                'id' => ($connectionBoarding ? $connection->destinationStation : $ticket->toStation)->id,
-                'name' => ($connectionBoarding ? $connection->destinationStation : $ticket->toStation)->name,
+            'to_station' => $toStation ? [
+                'id' => $toStation->id,
+                'name' => $toStation->name,
             ] : null,
             'final_destination' => $ticket->finalDestinationStation ? [
                 'id' => $ticket->finalDestinationStation->id,
@@ -572,10 +619,16 @@ class CrewTicketController extends Controller
                 'replacement_trip_id' => $compensation->replacement_trip_id,
                 'replacement_seat_number' => $compensation->replacement_seat_number,
             ] : null,
-            'boarded_by' => ($connectionBoarding ? $connection?->boardedBy : $ticket->boardedBy) ? [
-                'id' => ($connectionBoarding ? $connection->boardedBy : $ticket->boardedBy)->id,
-                'name' => ($connectionBoarding ? $connection->boardedBy : $ticket->boardedBy)->name,
-            ] : null,
+            'boarded_by' => ($replacementApplies
+                ? $replacement->boardedBy
+                : ($connectionBoarding ? $connection?->boardedBy : $ticket->boardedBy)) ? [
+                    'id' => ($replacementApplies
+                        ? $replacement->boardedBy
+                        : ($connectionBoarding ? $connection->boardedBy : $ticket->boardedBy))->id,
+                    'name' => ($replacementApplies
+                        ? $replacement->boardedBy
+                        : ($connectionBoarding ? $connection->boardedBy : $ticket->boardedBy))->name,
+                ] : null,
         ];
     }
 
@@ -583,7 +636,7 @@ class CrewTicketController extends Controller
     {
         $generatedAt = now();
         $payload = [
-            'schema_version' => 1,
+            'schema_version' => 2,
             'trip_id' => (string) $trip->id,
             'generated_at' => $generatedAt->toIso8601String(),
             'expires_at' => $generatedAt->copy()
@@ -602,12 +655,12 @@ class CrewTicketController extends Controller
             ])->values()->all(),
         ];
         $encodedPayload = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        $signingKey = (string) (config('transport.offline.cache_signing_key') ?: config('app.key'));
+        $payloadHash = hash('sha256', $encodedPayload);
 
         return [
             ...$payload,
-            'payload_hash' => hash('sha256', $encodedPayload),
-            'signature' => hash_hmac('sha256', $encodedPayload, $signingKey),
+            'payload_hash' => $payloadHash,
+            ...app(OfflineCacheSigner::class)->signPayloadHash($payloadHash),
         ];
     }
 

@@ -4,13 +4,13 @@ namespace App\Models;
 
 use App\Support\PhoneNumber;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Laravel\Sanctum\HasApiTokens;
 
-class CrewMember extends Model
+class CrewMember extends Authenticatable
 {
     use HasApiTokens, HasUuids;
 

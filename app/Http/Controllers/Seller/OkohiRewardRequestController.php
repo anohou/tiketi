@@ -26,12 +26,31 @@ class OkohiRewardRequestController extends Controller
             'customer_number' => 'required|string',
             'reward_id' => 'required|string',
             'idempotency_key' => 'required|string',
+            'final_destination_station_id' => 'nullable|uuid|exists:stations,id',
+            'connection_route_id' => 'nullable|uuid|exists:routes,id',
+            'passenger_name' => 'nullable|string|max:255',
+            'passenger_phone' => 'nullable|string|max:50',
         ]);
 
-        // Enforce idempotency
+        // Enforce idempotency & prevent duplicate Okohi requests for active seat holds
         $existing = OkohiRewardRequest::where('idempotency_key', $validated['idempotency_key'])->first();
         if ($existing) {
             return response()->json($existing);
+        }
+
+        $existingPending = OkohiRewardRequest::where('trip_id', $validated['trip_id'])
+            ->where('seat_number', $validated['seat_number'])
+            ->whereIn('status', ['pending', 'approved_pending_cash'])
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if ($existingPending) {
+            if ($existingPending->customer_number === $validated['customer_number']) {
+                return response()->json($existingPending, 200);
+            }
+
+            return response()->json(['error' => 'Ce siège fait déjà l\'objet d\'une demande en cours.'], 409);
         }
 
         try {
@@ -76,7 +95,7 @@ class OkohiRewardRequestController extends Controller
                 return response()->json(['error' => 'L\'intégration Okohi n\'est pas configurée.'], 400);
             }
 
-            $expiresAt = now()->addMinutes(3);
+            $expiresAt = now()->addMinutes(5);
 
             $rewardRequest = OkohiRewardRequest::create([
                 'seller_id' => auth()->id(),
@@ -130,9 +149,13 @@ class OkohiRewardRequestController extends Controller
             $okohiTxId = data_get($body, 'data.claim.id') ?? $body['transaction_id'] ?? $body['id'] ?? $rewardRequest->id;
             $rewardRequest->update([
                 'okohi_transaction_id' => $okohiTxId,
-                'request_payload' => [
+                'request_payload' => array_filter([
                     'reward_id' => $validated['reward_id'],
-                ],
+                    'final_destination_station_id' => $validated['final_destination_station_id'] ?? null,
+                    'connection_route_id' => $validated['connection_route_id'] ?? null,
+                    'passenger_name' => $validated['passenger_name'] ?? null,
+                    'passenger_phone' => $validated['passenger_phone'] ?? null,
+                ]),
                 'response_payload' => $body,
             ]);
 
@@ -141,8 +164,21 @@ class OkohiRewardRequestController extends Controller
         } catch (\Exception $e) {
             Log::error('Okohi grant-reward API failed: '.$e->getMessage());
 
+            $isDuplicateClaim = str_contains($e->getMessage(), 'already has a pending claim');
+
+            if ($isDuplicateClaim) {
+                // Customer already has an active pending claim on Okohi side.
+                // Keep the seat hold active on Tiketi side to preserve alignment.
+                $rewardRequest->update([
+                    'status' => 'pending',
+                    'last_error' => null,
+                ]);
+
+                return response()->json($rewardRequest, 202);
+            }
+
             DB::beginTransaction();
-            // Release the hold on failure
+            // Release the hold on true failure
             TripSeatOccupancy::where('okohi_reward_request_id', $rewardRequest->id)->delete();
             $rewardRequest->update([
                 'status' => 'failed',
@@ -282,5 +318,36 @@ class OkohiRewardRequestController extends Controller
 
             return response()->json(['error' => 'Échec de l\'émission du ticket: '.$e->getMessage()], 422);
         }
+    }
+
+    public function pendingForSeat(Request $request)
+    {
+        $validated = $request->validate([
+            'trip_id' => 'required|uuid|exists:trips,id',
+            'seat_number' => 'required|integer',
+        ]);
+
+        $pending = OkohiRewardRequest::where('trip_id', $validated['trip_id'])
+            ->where('seat_number', $validated['seat_number'])
+            ->whereIn('status', ['pending', 'approved_pending_cash'])
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        return response()->json($pending);
+    }
+
+    public function pendingForTrip(Request $request)
+    {
+        $validated = $request->validate([
+            'trip_id' => 'required|uuid|exists:trips,id',
+        ]);
+
+        $requests = OkohiRewardRequest::where('trip_id', $validated['trip_id'])
+            ->whereIn('status', ['pending', 'approved_pending_cash'])
+            ->where('expires_at', '>', now())
+            ->get();
+
+        return response()->json($requests);
     }
 }

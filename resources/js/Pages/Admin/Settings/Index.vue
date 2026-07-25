@@ -17,6 +17,7 @@ import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
+import ShieldLock from 'vue-material-design-icons/ShieldLock.vue';
 
 const page = usePage();
 const user = computed(() => page.props.auth.user || {});
@@ -59,6 +60,7 @@ const configSections = computed(() => {
         { name: 'Identité & Logo', route: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Nom, contact et visuel de la compagnie' },
         { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
         { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
+        { name: 'Appareils autorisés', route: 'admin.settings.devices.index', icon: ShieldLock, description: 'Contrôler les appareils TIKETI et Control' },
       ]
     },
     {

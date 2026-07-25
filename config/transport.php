@@ -23,7 +23,7 @@ return [
         'confirmed_retention_days' => env('OFFLINE_CONFIRMED_RETENTION_DAYS', 7),
         'rejected_retention_days' => env('OFFLINE_REJECTED_RETENTION_DAYS', 30),
         'ticket_cache_ttl_minutes' => env('OFFLINE_TICKET_CACHE_TTL_MINUTES', 360),
-        'cache_signing_key' => env('OFFLINE_CACHE_SIGNING_KEY'),
+        'signing_private_key' => env('OFFLINE_CACHE_SIGNING_PRIVATE_KEY'),
     ],
     /*
     |--------------------------------------------------------------------------

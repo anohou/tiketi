@@ -23,10 +23,12 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Routes publiques (trajets et véhicules)
-Route::get('/okohi/verify', OkohiVerificationController::class)->name('okohi.verify');
-Route::delete('/okohi/delete', OkohiDeleteController::class)->name('okohi.delete');
-Route::get('/okohi/claims/{claimId}/status', OkohiClaimStatusController::class)->name('okohi.claims.status');
+// Routes Okohi sécurisées
+Route::middleware(['throttle:60,1', 'okohi.signature'])->group(function () {
+    Route::get('/okohi/verify', OkohiVerificationController::class)->name('okohi.verify');
+    Route::delete('/okohi/delete', OkohiDeleteController::class)->name('okohi.delete');
+    Route::get('/okohi/claims/{claimId}/status', OkohiClaimStatusController::class)->name('okohi.claims.status');
+});
 Route::post('/okohi/webhook', [OkohiWebhookController::class, 'handle'])->name('okohi.webhook');
 
 Route::middleware('throttle:public-catalog')->group(function () {
@@ -68,7 +70,7 @@ Route::middleware(['auth:sanctum', 'non_crew', 'throttle:operational-api'])->gro
 Route::prefix('crew')->group(function () {
     Route::post('/login', [CrewAuthController::class, 'login']);
 
-    Route::middleware(['auth:sanctum', 'crew'])->group(function () {
+    Route::middleware(['auth:sanctum', 'crew', 'authorized.control.device'])->group(function () {
         Route::post('/logout', [CrewAuthController::class, 'logout']);
         Route::get('/me', [CrewAuthController::class, 'me']);
         Route::get('/sessions', [CrewAuthController::class, 'sessions']);

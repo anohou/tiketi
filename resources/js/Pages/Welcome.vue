@@ -11,7 +11,6 @@ const props = defineProps({
     canLogin: { type: Boolean },
     isTenant: { type: Boolean, default: false },
     tenant: { type: Object, default: null },
-    users: { type: Array, default: () => [] },
     canResetPassword: { type: Boolean },
     status: { type: String },
 });
@@ -30,10 +29,6 @@ const submit = () => {
     });
 };
 
-const fillCredentials = (user) => {
-    form.email = user.email;
-    form.password = 'password';
-};
 </script>
 
 <template>

@@ -4,6 +4,8 @@ use App\Models\User;
 
 return [
 
+    'allow_public_registration' => env('AUTH_ALLOW_PUBLIC_REGISTRATION', false),
+
     /*
     |--------------------------------------------------------------------------
     | Authentication Defaults

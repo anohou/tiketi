@@ -28,6 +28,7 @@ const form = ref({
   cc_label: props.settings?.cc_label || '',
   footer_messages: props.settings?.footer_messages || ['Valable pour ce voyage', 'Non remboursable'],
   baggage_policy_message: props.settings?.baggage_policy_message || "La perte des bagages transportés doit faire l'objet d'une déclaration aux agences de la société.",
+  baggage_policy_message_2: props.settings?.baggage_policy_message_2 || "Les objets de valeur doivent faire l'objet d'une déclaration en sus de l'enregistrement avec pièces justificatives avant le départ.",
   print_qr_code: props.settings?.print_qr_code || false,
 });
 
@@ -138,7 +139,13 @@ const wrapEscPos = (value, width = 32) => {
   if (currentLine) lines.push(currentLine);
   return lines;
 };
-const previewBluetoothBaggageLines = computed(() => wrapEscPos(`1. ${form.value.baggage_policy_message || ''}`, 32));
+const previewBluetoothBaggageLines = computed(() => {
+  const lines1 = wrapEscPos(`1. ${form.value.baggage_policy_message || ''}`, 32);
+  const lines2 = form.value.baggage_policy_message_2
+    ? wrapEscPos(`2. ${form.value.baggage_policy_message_2}`, 32)
+    : [];
+  return [...lines1, ...lines2];
+});
 const bluetoothPreviewTimestamp = new Date().toLocaleString('fr-FR', {
   day: '2-digit',
   month: '2-digit',
@@ -308,7 +315,7 @@ const submit = () => {
                   <div class="text-[9px] text-justify">
                     1. {{ form.baggage_policy_message || '[Message bagages]' }}
                     <br />
-                    2. Les objets de valeur doivent faire l'objet d'une déclaration en sus de l'enregistrement avec pièces justificatives avant le départ.
+                    2. {{ form.baggage_policy_message_2 || '[Message objets de valeur]' }}
                   </div>
                   <div class="text-center text-[10px] mt-3">{{ previewTimestamp }}</div>
                 </div>
@@ -460,16 +467,29 @@ const submit = () => {
                 </div>
 
                 <div>
-                  <InputLabel for="baggage_policy_message" value="Message déclaration bagages" />
+                  <InputLabel for="baggage_policy_message" value="Message déclaration bagages (Point 1)" />
                   <textarea
                     v-model="form.baggage_policy_message"
                     id="baggage_policy_message"
-                    rows="4"
+                    rows="3"
                     class="w-full rounded-md border-orange-200 bg-white text-slate-900 shadow-sm focus:border-green-500 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
                     :class="{ 'border-red-500': errors.baggage_policy_message }"
                     placeholder="La perte des bagages transportés..."
                   />
                   <InputError class="mt-2" :message="errors.baggage_policy_message" />
+                </div>
+
+                <div>
+                  <InputLabel for="baggage_policy_message_2" value="Message déclaration bagages (Point 2)" />
+                  <textarea
+                    v-model="form.baggage_policy_message_2"
+                    id="baggage_policy_message_2"
+                    rows="3"
+                    class="w-full rounded-md border-orange-200 bg-white text-slate-900 shadow-sm focus:border-green-500 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
+                    :class="{ 'border-red-500': errors.baggage_policy_message_2 }"
+                    placeholder="Les objets de valeur doivent faire l'objet..."
+                  />
+                  <InputError class="mt-2" :message="errors.baggage_policy_message_2" />
                 </div>
 
                 <!-- QR Code Settings -->

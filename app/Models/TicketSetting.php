@@ -25,6 +25,16 @@ class TicketSetting extends Model
         'settings' => 'array',
     ];
 
+    protected $appends = [
+        'baggage_policy_message_2',
+    ];
+
+    public function getBaggagePolicyMessage2Attribute(): ?string
+    {
+        return data_get($this->settings, 'baggage_policy_message_2')
+            ?? "Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.";
+    }
+
     public static function getSettings(): self
     {
         return static::query()->orderBy('id')->first() ?? static::create(
@@ -36,6 +46,9 @@ class TicketSetting extends Model
                 'print_qr_code' => true,
                 'okohi_integration_url' => null,
                 'okohi_integration_key' => null,
+                'settings' => [
+                    'baggage_policy_message_2' => "Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.",
+                ],
             ]
         );
     }

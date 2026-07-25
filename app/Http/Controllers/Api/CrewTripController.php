@@ -10,6 +10,7 @@ use App\Domain\Trips\TripStatus;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Ticket;
+use App\Models\TicketCompensation;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Services\SeatMapService;
@@ -33,7 +34,7 @@ class CrewTripController extends Controller
             'tickets.fromStation',
             'tickets.toStation',
         ])
-            ->withCount(['tickets as tickets_count' => fn ($query) => $query->where('status', '!=', 'cancelled')]);
+            ->withCount(['tickets as tickets_count' => fn ($query) => $query->where('status', 'issued')]);
 
         $trips = $visibility->filter($visibility->apply($query, $crewMember)->get(), $crewMember)
             ->sortBy(function (Trip $trip) {
@@ -87,6 +88,29 @@ class CrewTripController extends Controller
                 return $ticket;
             });
 
+        $replacementTickets = TicketCompensation::with([
+            'ticket.fromStation',
+            'ticket.toStation',
+            'ticket.finalDestinationStation',
+            'ticket.connection',
+            'ticket.boardedBy',
+            'boardedBy',
+        ])
+            ->where('replacement_trip_id', $trip->id)
+            ->where('compensation_type', 'free_rebooking')
+            ->where('status', 'executed')
+            ->get()
+            ->filter(fn (TicketCompensation $compensation) => $compensation->ticket?->status === 'issued')
+            ->map(function (TicketCompensation $compensation) use ($trip) {
+                $ticket = $compensation->ticket;
+                $ticket->seat_number = $compensation->replacement_seat_number;
+                $ticket->boarded_at = $compensation->boarded_at;
+                $ticket->setRelation('fromStation', $trip->originStation);
+                $ticket->setRelation('toStation', $trip->destinationStation);
+
+                return $ticket;
+            });
+
         $vehicleType = $trip->vehicle?->vehicleType;
         $seatMap = [];
         if ($vehicleType) {
@@ -100,7 +124,13 @@ class CrewTripController extends Controller
 
         return response()->json([
             'trip' => $this->tripPayload($trip, $seatMap),
-            'manifest' => $trip->tickets->concat($connectionTickets)->map(fn (Ticket $ticket) => $this->ticketPayload($ticket, $trip->id))->values(),
+            'manifest' => $trip->tickets
+                ->where('status', 'issued')
+                ->concat($connectionTickets)
+                ->concat($replacementTickets)
+                ->sortBy('seat_number')
+                ->map(fn (Ticket $ticket) => $this->ticketPayload($ticket, $trip->id))
+                ->values(),
             'occupancy' => [
                 'total_seats' => $trip->total_seats,
                 'available_seats' => $trip->available_seats,
@@ -178,7 +208,7 @@ class CrewTripController extends Controller
     private function tripPayload(Trip $trip, array $seatMap = []): array
     {
         $soldSeatsByStation = $trip->tickets
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'issued')
             ->whereNotNull('from_station_id')
             ->countBy('from_station_id');
 
@@ -261,6 +291,15 @@ class CrewTripController extends Controller
     private function ticketPayload(Ticket $ticket, ?string $contextTripId = null): array
     {
         $connection = $ticket->connection;
+        $replacement = $contextTripId
+            ? $ticket->compensations()
+                ->with('boardedBy')
+                ->where('status', 'executed')
+                ->where('compensation_type', 'free_rebooking')
+                ->where('replacement_trip_id', $contextTripId)
+                ->latest('executed_at')
+                ->first()
+            : null;
         $isConnectionSegment = $connection && $contextTripId
             && $connection->trip_id === $contextTripId
             && $ticket->trip_id !== $contextTripId;
@@ -268,11 +307,11 @@ class CrewTripController extends Controller
         return [
             'id' => $ticket->id,
             'ticket_number' => $ticket->ticket_number,
-            'seat_number' => $ticket->seat_number,
+            'seat_number' => $replacement?->replacement_seat_number ?? $ticket->seat_number,
             'passenger_name' => $ticket->passenger_name,
             'passenger_phone' => $ticket->passenger_phone,
             'status' => $ticket->status,
-            'boarded_at' => $ticket->boarded_at?->toIso8601String(),
+            'boarded_at' => ($replacement?->boarded_at ?? $ticket->boarded_at)?->toIso8601String(),
             'from_station' => $ticket->fromStation ? [
                 'id' => $ticket->fromStation->id,
                 'name' => $ticket->fromStation->name,
@@ -281,15 +320,16 @@ class CrewTripController extends Controller
                 'id' => $ticket->toStation->id,
                 'name' => $ticket->toStation->name,
             ] : null,
-            'boarded_by' => $ticket->boardedBy ? [
-                'id' => $ticket->boardedBy->id,
-                'name' => $ticket->boardedBy->name,
+            'boarded_by' => ($replacement?->boardedBy ?? $ticket->boardedBy) ? [
+                'id' => ($replacement?->boardedBy ?? $ticket->boardedBy)->id,
+                'name' => ($replacement?->boardedBy ?? $ticket->boardedBy)->name,
             ] : null,
             'final_destination' => $ticket->finalDestinationStation ? [
                 'id' => $ticket->finalDestinationStation->id,
                 'name' => $ticket->finalDestinationStation->name,
             ] : null,
             'is_connection_segment' => $isConnectionSegment,
+            'is_replacement_segment' => $replacement !== null,
             'connection' => $connection ? [
                 'status' => $connection->status,
                 'trip_id' => $connection->trip_id,

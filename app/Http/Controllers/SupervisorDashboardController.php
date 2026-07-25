@@ -45,7 +45,7 @@ class SupervisorDashboardController extends Controller
             ->where('departure_at', '>=', now())
             ->where('departure_at', '<=', now()->addHours(24))
             ->withCount(['tickets as tickets_count' => function ($q) {
-                $q->where('status', '!=', 'cancelled');
+                $q->where('status', 'issued');
             }])
             ->with([
                 'route:id,name',

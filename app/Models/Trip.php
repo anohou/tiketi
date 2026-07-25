@@ -92,13 +92,13 @@ class Trip extends Model
         // sinon fallback sur une requête (évite les N+1 dans les listes)
         if ($this->relationLoaded('tripSeatOccupancies')) {
             $occupied = $this->tripSeatOccupancies
-                ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status !== 'cancelled')
+                ->filter(fn ($occupancy) => ! $occupancy->ticket || $occupancy->ticket->status === 'issued')
                 ->pluck('seat_number')
                 ->unique()
                 ->count();
         } else {
             $occupied = TripSeatOccupancy::where('trip_id', $this->id)
-                ->whereHas('ticket', fn ($query) => $query->where('status', '!=', 'cancelled'))
+                ->whereHas('ticket', fn ($query) => $query->where('status', 'issued'))
                 ->distinct('seat_number')
                 ->count('seat_number');
         }
@@ -114,11 +114,11 @@ class Trip extends Model
     public function getSoldTicketsCountAttribute(): int
     {
         if ($this->relationLoaded('tickets')) {
-            return $this->tickets->where('status', '!=', 'cancelled')->count();
+            return $this->tickets->where('status', 'issued')->count();
         }
 
         return Ticket::where('trip_id', $this->id)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'issued')
             ->count();
     }
 

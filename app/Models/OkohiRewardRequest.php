@@ -88,14 +88,17 @@ class OkohiRewardRequest extends Model
         $optService = app(OptimisationService::class);
         $boardingGroup = $optService->computeBoardingGroup($trip->vehicle->vehicleType, $this->seat_number);
 
-        $pricePerSeat = app(TripSegmentService::class)->fareAmount($this->from_station_id, $this->to_station_id);
+        $finalDestinationId = $this->request_payload['final_destination_station_id'] ?? null;
+        $targetDestinationId = $finalDestinationId ?: $this->to_station_id;
+
+        $pricePerSeat = app(TripSegmentService::class)->fareAmount($this->from_station_id, $targetDestinationId);
         if ($pricePerSeat === null) {
-            throw new \Exception('Fare not found between these stations');
+            $pricePerSeat = app(TripSegmentService::class)->fareAmount($this->from_station_id, $this->to_station_id) ?? 0;
         }
 
         $grossAmount = $pricePerSeat;
 
-        return DB::transaction(function () use ($trip, $sellerStationId, $boardingGroup, $grossAmount, $discountAmount, $amountCollected) {
+        return DB::transaction(function () use ($trip, $sellerStationId, $boardingGroup, $grossAmount, $discountAmount, $amountCollected, $finalDestinationId, $targetDestinationId) {
             // Lock and verify hold
             $hold = TripSeatOccupancy::where('okohi_reward_request_id', $this->id)
                 ->lockForUpdate()
@@ -152,12 +155,12 @@ class OkohiRewardRequest extends Model
                 throw new \Exception('Ce siège est déjà réservé ou bloqué par une autre demande sur ce trajet.');
             }
 
-            $ticket = Ticket::create([
+            $ticketData = [
                 'ticket_number' => 'TKT-'.strtoupper(Str::random(8)),
                 'trip_id' => $this->trip_id,
                 'vehicle_id' => $trip->vehicle_id,
                 'from_station_id' => $this->from_station_id,
-                'to_station_id' => $this->to_station_id,
+                'to_station_id' => $targetDestinationId,
                 'seat_number' => $this->seat_number,
                 'passenger_name' => $this->response_payload['claim']['customer']['first_name'] ?? $this->response_payload['customer']['name'] ?? 'Client Okohi',
                 'passenger_phone' => $this->customer_number,
@@ -173,7 +176,15 @@ class OkohiRewardRequest extends Model
                 'gross_amount' => $grossAmount,
                 'discount_amount' => $discountAmount,
                 'amount_collected' => $amountCollected,
-            ]);
+            ];
+
+            if (!empty($finalDestinationId)) {
+                $ticketData['is_connection'] = true;
+                $ticketData['transfer_station_id'] = $this->to_station_id;
+                $ticketData['connection_route_id'] = $this->request_payload['connection_route_id'] ?? null;
+            }
+
+            $ticket = Ticket::create($ticketData);
 
             $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);
 

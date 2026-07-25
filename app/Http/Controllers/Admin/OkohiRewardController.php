@@ -18,11 +18,14 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => 'Integration not configured'], 400);
         }
 
-        $baseUrl = rtrim(config('services.okohi.base_url'), '/');
+        $integrationUrl = rtrim($settings->okohi_integration_url ?: config('services.okohi.base_url', 'http://127.0.0.1:8001'), '/');
+        if (! str_contains($integrationUrl, '/api/v1/partner')) {
+            $integrationUrl .= '/api/v1/partner';
+        }
 
         $response = Http::timeout(15)
             ->withHeader('X-Okohi-Integration-Key', $settings->okohi_integration_key)
-            ->get("{$baseUrl}/api/v1/partner/customers/{$customerNumber}");
+            ->get("{$integrationUrl}/customers/{$customerNumber}");
 
         $body = $response->json();
 
@@ -76,11 +79,14 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => 'Integration not configured'], 400);
         }
 
-        $baseUrl = rtrim(config('services.okohi.base_url'), '/');
+        $integrationUrl = rtrim($settings->okohi_integration_url ?: config('services.okohi.base_url', 'http://127.0.0.1:8001'), '/');
+        if (! str_contains($integrationUrl, '/api/v1/partner')) {
+            $integrationUrl .= '/api/v1/partner';
+        }
 
         $response = Http::timeout(15)
             ->withHeader('X-Okohi-Integration-Key', $settings->okohi_integration_key)
-            ->post("{$baseUrl}/api/v1/partner/customers/{$customerNumber}/grant-reward", [
+            ->post("{$integrationUrl}/customers/{$customerNumber}/grant-reward", [
                 'reward_id' => $request->reward_id,
             ]);
 

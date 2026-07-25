@@ -36,11 +36,21 @@ class TicketSettingController extends Controller
             'footer_messages' => 'nullable|array',
             'footer_messages.*' => 'string|max:255',
             'baggage_policy_message' => 'nullable|string|max:1000',
+            'baggage_policy_message_2' => 'nullable|string|max:1000',
             'print_qr_code' => 'boolean',
         ]);
 
         $settings = TicketSetting::getSettings();
-        $settings->update($validated);
+
+        $settingsData = $settings->settings ?? [];
+        if ($request->has('baggage_policy_message_2')) {
+            $settingsData['baggage_policy_message_2'] = $validated['baggage_policy_message_2'];
+        }
+
+        $settings->update(array_merge(
+            collect($validated)->except('baggage_policy_message_2')->all(),
+            ['settings' => $settingsData]
+        ));
 
         return back()->with('success', 'Paramètres d\'impression mis à jour avec succès.');
     }

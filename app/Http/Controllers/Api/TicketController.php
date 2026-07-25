@@ -385,6 +385,7 @@ class TicketController extends Controller
                 'cc_label' => null,
                 'footer_messages' => ['Valable pour ce voyage', 'Non remboursable'],
                 'baggage_policy_message' => "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",
+                'baggage_policy_message_2' => "Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.",
                 'print_qr_code' => false,
                 'qr_code_base_url' => null,
                 'okohi_enabled' => false,

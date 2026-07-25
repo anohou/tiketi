@@ -16,11 +16,25 @@ class OkohiClaimUpdated implements ShouldBroadcastNow
         public readonly string $claimId,
         public readonly string $status,
         public readonly array $payload,
+        public readonly ?string $tenantId = null,
+        public readonly ?string $tripId = null,
+        public readonly ?int $seatNumber = null,
     ) {}
 
     public function broadcastOn(): array
     {
-        return [new Channel('okohi.claims.'.$this->claimId)];
+        $channels = [new Channel('okohi.claims.'.$this->claimId)];
+
+        $tId = $this->tenantId ?? (tenancy()->initialized ? tenant('id') : null);
+        if ($tId) {
+            $channels[] = new Channel('tenant.'.$tId.'.okohi');
+        }
+
+        if ($this->tripId) {
+            $channels[] = new Channel('trips.'.$this->tripId);
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string
@@ -34,6 +48,9 @@ class OkohiClaimUpdated implements ShouldBroadcastNow
             'claim_id' => $this->claimId,
             'status' => $this->status,
             'payload' => $this->payload,
+            'tenant_id' => $this->tenantId ?? (tenancy()->initialized ? tenant('id') : null),
+            'trip_id' => $this->tripId,
+            'seat_number' => $this->seatNumber,
         ];
     }
 }

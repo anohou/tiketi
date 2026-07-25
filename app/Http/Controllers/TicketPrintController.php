@@ -27,6 +27,8 @@ class TicketPrintController extends Controller
             'seller',
         ])->findOrFail($ticketId);
 
+        $this->authorize('print', $ticket);
+
         $qrCode = ($settings->print_qr_code || $settings->hasOkohiIntegration())
             ? QrCode::size(96)->margin(0)->generate($ticket->printableQrValue($settings))
             : null;
@@ -58,6 +60,10 @@ class TicketPrintController extends Controller
             'seller',
         ])->whereIn('id', $ticketIds)->get();
 
+        foreach ($tickets as $ticket) {
+            $this->authorize('print', $ticket);
+        }
+
         $qrCodes = [];
         if ($settings->print_qr_code || $settings->hasOkohiIntegration()) {
             foreach ($tickets as $ticket) {
@@ -80,6 +86,7 @@ class TicketPrintController extends Controller
      */
     public function exportPdf(Request $request)
     {
+        $this->authorize('exportPdf', Ticket::class);
         $user = auth()->user();
         $tripId = $request->get('trip_id');
         $hasExplicitDateRange = $request->filled('start_date') || $request->filled('end_date');

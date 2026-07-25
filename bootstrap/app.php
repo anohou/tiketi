@@ -4,6 +4,8 @@ use App\Http\Middleware\ConfigureHostScopedCookies;
 use App\Http\Middleware\CrewMiddleware;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RejectCrewToken;
+use App\Http\Middleware\RequireAuthorizedControlDevice;
+use App\Http\Middleware\RequireAuthorizedWebDevice;
 use App\Http\Middleware\RequireInitializedTenancy;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\UniversalTenancy;
@@ -39,9 +41,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
+            UniversalTenancy::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
-            UniversalTenancy::class,
         ]);
 
         $middleware->api(append: [
@@ -64,6 +66,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'non_crew' => RejectCrewToken::class,
             'role' => RoleMiddleware::class,
             'tenant.initialized' => RequireInitializedTenancy::class,
+            'authorized.control.device' => RequireAuthorizedControlDevice::class,
+            'authorized.web.device' => RequireAuthorizedWebDevice::class,
+            'okohi.signature' => \App\Http\Middleware\OkohiSignatureVerification::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -290,13 +290,14 @@ const doorPositions = computed(() => {
 });
 
 const getSeatColor = (seat) => {
-  if (seat.isOccupied) return seat.color || '#EF4444';
+  if (seat.isOccupied) return seat.color || (seat.isOkohiPending ? '#F59E0B' : '#EF4444');
   if (isSelected(seat.number)) return props.selectedColor || '#A855F7';
   return '#94A3B8';
 };
 
 const getSeatStrokeColor = (seat) => {
   if (isSelected(seat.number)) return '#FFFFFF';
+  if (seat.isOkohiPending) return '#F59E0B';
   if (isSuggestedSeat(seat)) return '#16A34A';
   if (isReleasedSeat(seat) && props.sellableSeatBorderColor) {
     return props.sellableSeatBorderColor;
@@ -305,7 +306,7 @@ const getSeatStrokeColor = (seat) => {
 };
 
 const getSeatStrokeWidth = (seat) => {
-  if (isSelected(seat.number) || isSuggestedSeat(seat)) return 3;
+  if (isSelected(seat.number) || isSuggestedSeat(seat) || seat.isOkohiPending) return 3;
   if (isReleasedSeat(seat) && props.sellableSeatBorderColor) {
     return 4;
   }
@@ -339,6 +340,7 @@ const isSelected = (seatNumber) => props.selectedSeat === seatNumber;
 
 const isSeatClickable = (seat) => {
   return !seat.isOccupied
+    || seat.isOkohiPending
     || sellableSeatSet.value.has(Number(seat.number))
     || props.allowOccupiedClick;
 };
@@ -517,6 +519,26 @@ const handleSeatClick = (seat) => {
           </text>
         </g>
         
+        <!-- Okohi Pending Badge -->
+        <g v-if="seat.isOkohiPending" class="pointer-events-none">
+          <circle
+            :cx="seat.x + 2"
+            :cy="seat.y + 2"
+            r="8"
+            fill="#F59E0B"
+            stroke="white"
+            stroke-width="1.5"
+          />
+          <text
+            :x="seat.x + 2"
+            :y="seat.y + 5"
+            text-anchor="middle"
+            class="text-[8px] select-none fill-white font-bold"
+          >
+            🎁
+          </text>
+        </g>
+
         <!-- Seat Number -->
         <text 
           :x="seat.x + SEAT_WIDTH / 2" 

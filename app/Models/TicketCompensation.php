@@ -17,7 +17,13 @@ class TicketCompensation extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['amount' => 'integer', 'approved_at' => 'datetime', 'executed_at' => 'datetime', 'settings' => 'array'];
+    protected $casts = [
+        'amount' => 'integer',
+        'approved_at' => 'datetime',
+        'executed_at' => 'datetime',
+        'boarded_at' => 'datetime',
+        'settings' => 'array',
+    ];
 
     public function ticket()
     {
@@ -32,5 +38,10 @@ class TicketCompensation extends Model
     public function requestedBy()
     {
         return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    public function boardedBy()
+    {
+        return $this->belongsTo(CrewMember::class, 'boarded_by');
     }
 }

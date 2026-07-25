@@ -27,7 +27,7 @@ class TripController extends Controller
     {
         $user = auth()->user();
         $query = Trip::withCount(['tickets as tickets_count' => function ($q) {
-            $q->where('status', '!=', 'cancelled');
+            $q->where('status', 'issued');
         }])
             ->with([
                 'route.originStation',
@@ -102,7 +102,7 @@ class TripController extends Controller
             'destinationStation',
         ])
             ->withCount(['tickets as tickets_count' => function ($q) {
-                $q->where('status', '!=', 'cancelled');
+                $q->where('status', 'issued');
             }])
             ->findOrFail($id);
     }
@@ -176,16 +176,20 @@ class TripController extends Controller
 
         $occupiedSeatsLookup = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
             if (! $occupancy->ticket) {
-                return false;
-            }
+                $isOkohiHold = $occupancy->okohi_reward_request_id
+                    && $occupancy->expires_at
+                    && $occupancy->expires_at->isFuture();
 
-            if ($occupancy->ticket->status === 'cancelled') {
+                if (! $isOkohiHold) {
+                    return false;
+                }
+            } elseif ($occupancy->ticket->status === 'cancelled') {
                 return false;
             }
 
             // Get Ticket Segment Indices
-            $ticketFromIdx = $stationIndices[$occupancy->from_station_id ?? $occupancy->ticket->from_station_id] ?? null;
-            $ticketToIdx = $stationIndices[$occupancy->to_station_id ?? $occupancy->ticket->to_station_id] ?? null;
+            $ticketFromIdx = $stationIndices[$occupancy->from_station_id ?? $occupancy->ticket?->from_station_id] ?? null;
+            $ticketToIdx = $stationIndices[$occupancy->to_station_id ?? $occupancy->ticket?->to_station_id] ?? null;
 
             // Safety fallback: if stations not found in current route, assume occupied to be safe
             if ($ticketFromIdx === null || $ticketToIdx === null) {
@@ -197,16 +201,19 @@ class TripController extends Controller
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
 
         })->keyBy('seat_number')->map(function ($occupancy) use ($stationIndices, $totalStops) {
-            $ticketToStation = $occupancy->toStation ?? $occupancy->ticket->toStation;
-            $ticketFromIdx = $stationIndices[$occupancy->from_station_id ?? $occupancy->ticket->from_station_id] ?? 0;
-            $ticketToIdx = $stationIndices[$occupancy->to_station_id ?? $occupancy->ticket->to_station_id] ?? null;
+            $isOkohiHold = ! $occupancy->ticket && $occupancy->okohi_reward_request_id;
+            $ticketToStation = $occupancy->toStation ?? $occupancy->ticket?->toStation;
+            $ticketFromIdx = $stationIndices[$occupancy->from_station_id ?? $occupancy->ticket?->from_station_id] ?? 0;
+            $ticketToIdx = $stationIndices[$occupancy->to_station_id ?? $occupancy->ticket?->to_station_id] ?? null;
 
             $fromIdx = $ticketFromIdx;
             $toIdx = $ticketToIdx !== null ? $ticketToIdx : max(0, $totalStops - 1);
 
             return [
-                'destination_name' => $ticketToStation->name ?? 'Inconnu',
-                'color' => $this->getStopColor($fromIdx, $toIdx, $totalStops),
+                'destination_name' => $isOkohiHold ? 'Attente Okohi 🎁' : ($ticketToStation->name ?? 'Inconnu'),
+                'is_okohi_pending' => $isOkohiHold,
+                'okohi_reward_request_id' => $occupancy->okohi_reward_request_id,
+                'color' => $isOkohiHold ? '#F59E0B' : $this->getStopColor($fromIdx, $toIdx, $totalStops),
             ];
         });
 
@@ -241,6 +248,8 @@ class TripController extends Controller
 
                     $processedRow[] = array_merge($seat, [
                         'isOccupied' => $isOccupied,
+                        'isOkohiPending' => $isOccupied && ($seatData['is_okohi_pending'] ?? false),
+                        'okohiRewardRequestId' => $isOccupied ? ($seatData['okohi_reward_request_id'] ?? null) : null,
                         'destination_name' => $isOccupied ? $seatData['destination_name'] : null,
                         'color' => $isOccupied ? $seatData['color'] : '#94A3B8',
                     ]);
@@ -275,7 +284,7 @@ class TripController extends Controller
             'occupied_seats_count' => $occupiedSeatsLookup->count(),
             'available_seats_count' => $seatCount - $occupiedSeatsLookup->count(),
             'sold_tickets_count' => Ticket::where('trip_id', $trip->id)
-                ->where('status', '!=', 'cancelled')
+                ->where('status', 'issued')
                 ->count(),
             'vehicle_type' => $vehicleType,
             'freed_seats_by_station' => $freedSeatsByStation,
@@ -337,7 +346,7 @@ class TripController extends Controller
         // A connection ticket keeps the id of its inbound trip. The occupancy,
         // rather than ticket.trip_id, tells us on which trip it owns a seat.
         $occupancies = $trip->tripSeatOccupancies
-            ->filter(fn ($occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->filter(fn ($occupancy) => $occupancy->ticket?->status === 'issued')
             ->map(function ($occupancy) use ($trip) {
                 $ticket = $occupancy->ticket;
                 $ticketConnection = $ticket->connection;

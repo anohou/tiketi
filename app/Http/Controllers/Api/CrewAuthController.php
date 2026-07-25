@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Domain\Trips\CrewTripVisibility;
 use App\Http\Controllers\Controller;
+use App\Models\AuthorizedDevice;
 use App\Models\CrewMember;
 use App\Models\Trip;
+use App\Services\DeviceAccessService;
+use App\Services\OfflineCacheSigner;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +18,8 @@ use Illuminate\Support\Str;
 
 class CrewAuthController extends Controller
 {
+    public function __construct(private readonly DeviceAccessService $devices) {}
+
     public function login(Request $request)
     {
         $validated = $request->validate([
@@ -22,6 +27,9 @@ class CrewAuthController extends Controller
             'pin' => ['required', 'string', 'regex:/^\d{4,12}$/'],
             'device_name' => ['nullable', 'string', 'max:255'],
             'device_id' => ['nullable', 'string', 'max:255'],
+            'device_secret' => ['nullable', 'string', 'size:64', 'regex:/^[a-f0-9]+$/i'],
+            'device_platform' => ['nullable', 'string', 'max:100'],
+            'app_version' => ['nullable', 'string', 'max:100'],
         ]);
 
         $phone = PhoneNumber::normalize($validated['phone']);
@@ -68,11 +76,52 @@ class CrewAuthController extends Controller
             $crewMember->forceFill(['phone' => $phone])->save();
         }
 
+        $authorizedDevice = null;
+        if ($this->devices->isEnabled(AuthorizedDevice::CHANNEL_CONTROL)) {
+            if (blank($validated['device_id'] ?? null)
+                || ! Str::isUuid($validated['device_id'])
+                || blank($validated['device_secret'] ?? null)) {
+                return response()->json([
+                    'message' => 'Cette version de TIKETI Control doit être mise à jour pour autoriser cet appareil.',
+                    'code' => 'DEVICE_ID_REQUIRED',
+                ], 403);
+            }
+
+            $authorizedDevice = $this->devices->requestControlDevice(
+                $request,
+                $crewMember,
+                $validated['device_id'],
+                strtolower($validated['device_secret']),
+                $validated['device_name'] ?? null,
+                $validated['device_platform'] ?? null,
+                $validated['app_version'] ?? null,
+            );
+
+            if (! $authorizedDevice->isApproved()) {
+                return response()->json([
+                    'message' => match ($authorizedDevice->status) {
+                        AuthorizedDevice::STATUS_REVOKED => 'Cet appareil a été révoqué par un administrateur.',
+                        AuthorizedDevice::STATUS_REJECTED => 'Cet appareil a été refusé par un administrateur.',
+                        default => 'Cet appareil est en attente d’autorisation par un administrateur.',
+                    },
+                    'code' => match ($authorizedDevice->status) {
+                        AuthorizedDevice::STATUS_REVOKED => 'DEVICE_REVOKED',
+                        AuthorizedDevice::STATUS_REJECTED => 'DEVICE_REJECTED',
+                        default => 'DEVICE_APPROVAL_REQUIRED',
+                    },
+                    'request_id' => $authorizedDevice->id,
+                ], 403);
+            }
+        }
+
         $tokenName = $this->tokenName($validated['device_name'] ?? 'Crew Mobile', $deviceFingerprint);
         $crewMember->tokens()->where('name', $tokenName)->delete();
 
         $expiresAt = now()->addDays((int) config('transport.crew_auth.token_expiration_days', 30));
         $token = $crewMember->createToken($tokenName, ['crew'], $expiresAt);
+        if ($authorizedDevice) {
+            $token->accessToken->forceFill(['authorized_device_id' => $authorizedDevice->id])->save();
+        }
 
         return response()->json([
             'token_type' => 'Bearer',
@@ -229,6 +278,7 @@ class CrewAuthController extends Controller
             'phone' => $crewMember->phone,
             'role' => $crewMember->role,
             'active' => $crewMember->active,
+            'offline_cache_verification' => app(OfflineCacheSigner::class)->verificationDescriptor(),
             'tenant' => tenancy()->initialized ? [
                 'id' => (string) tenant('id'),
                 'name' => (string) tenant('name'),
@@ -253,7 +303,7 @@ class CrewAuthController extends Controller
             ] : null,
             'today_trips' => $todayTrips->map(function ($trip) {
                 $soldSeatsByStation = $trip->tickets
-                    ->where('status', '!=', 'cancelled')
+                    ->where('status', 'issued')
                     ->whereNotNull('from_station_id')
                     ->countBy('from_station_id');
 

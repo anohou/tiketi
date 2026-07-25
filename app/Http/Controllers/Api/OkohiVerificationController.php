@@ -58,7 +58,7 @@ class OkohiVerificationController extends Controller
             tenancy()->initialize($tenant);
 
             $settings = TicketSetting::getSettings();
-            if ($settings->okohi_integration_key && (! $key || ! hash_equals($settings->okohi_integration_key, $key))) {
+            if (! $this->isAuthorized($request, $settings)) {
                 tenancy()->end();
 
                 return;
@@ -66,10 +66,10 @@ class OkohiVerificationController extends Controller
 
             $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
-            if ($ticket && $ticket->status !== 'cancelled') {
+            if ($ticket?->status === 'issued') {
                 $found = [
                     'ticket_id' => $ticket->ticket_number,
-                    'amount' => (int) $ticket->price,
+                    'amount' => (int) ($ticket->amount_collected ?? $ticket->price),
                     'timestamp' => $ticket->created_at?->timestamp ?? 0,
                 ];
             }
@@ -87,25 +87,51 @@ class OkohiVerificationController extends Controller
     private function respond(Request $request, string $ticketId): JsonResponse
     {
         $settings = TicketSetting::getSettings();
-        $key = $request->header('X-Okohi-Integration-Key');
 
-        if ($settings->okohi_integration_key && (! $key || ! hash_equals($settings->okohi_integration_key, $key))) {
+        if (! $this->isAuthorized($request, $settings)) {
             return response()->json(['valid' => false, 'message' => 'Unauthorized'], 401);
         }
 
         $ticket = Ticket::where('ticket_number', $ticketId)->first();
 
-        if (! $ticket || $ticket->status === 'cancelled') {
-            return response()->json(['valid' => false, 'message' => 'Ticket not found or cancelled']);
+        if ($ticket?->status !== 'issued') {
+            return response()->json(['valid' => false, 'message' => 'Ticket not found, cancelled or refunded']);
         }
 
         return response()->json([
             'valid' => true,
             'data' => [
                 'ticket_id' => $ticket->ticket_number,
-                'amount' => (int) $ticket->price,
+                'amount' => (int) ($ticket->amount_collected ?? $ticket->price),
                 'timestamp' => $ticket->created_at?->timestamp ?? 0,
             ],
         ]);
+    }
+
+    private function isAuthorized(Request $request, TicketSetting $settings): bool
+    {
+        $secret = (string) $settings->okohi_integration_key;
+        if ($secret === '') {
+            return true;
+        }
+
+        $signature = (string) ($request->headers->get('x-okohi-signature') ?? '');
+        $key = (string) ($request->headers->get('x-okohi-integration-key') ?? '');
+
+        if ($signature !== '') {
+            $rawBody = (string) $request->getContent();
+            $fullUrl = $request->fullUrl();
+            $method = $request->getMethod();
+            $tsHeader = (string) ($request->headers->get('x-okohi-timestamp') ?? '');
+            $nonceHeader = (string) ($request->headers->get('x-okohi-nonce') ?? '');
+            $canonicalPayload = implode('|', array_filter([$method, $fullUrl, $tsHeader, $nonceHeader, $rawBody]));
+
+            $sig1 = hash_hmac('sha256', $rawBody, $secret);
+            $sig2 = hash_hmac('sha256', $canonicalPayload, $secret);
+
+            return hash_equals($sig1, $signature) || hash_equals($sig2, $signature);
+        }
+
+        return $key !== '' && hash_equals($secret, $key);
     }
 }

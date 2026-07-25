@@ -81,9 +81,12 @@
                 @endif
             @endforeach
         </div>
+        @php
+            $baggagePolicyMessage2 = $settings->baggage_policy_message_2 ?? "Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.";
+        @endphp
         <div class="disclaimer">
             1. {{ $baggagePolicyMessage }}<br>
-            2. Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.
+            2. {{ $baggagePolicyMessage2 }}
         </div>
         <div class="timestamp">{{ $ticket->created_at->format('d/m/Y H:i:s') }}</div>
     </div>

@@ -90,6 +90,7 @@ const {
   showPassengerModal,
   showDestinationModal,
   selectedSeatNumber,
+  activeOkohiRequest,
   seatSelectionMode,
   seatFirstFlow,
   selectedSeatColor,
@@ -132,6 +133,7 @@ const {
   autoSelectOptimalSeat,
   confirmBooking,
   cancelBooking,
+  continueSalesAfterOkohiRequest,
   handleOkohiSuccess,
   createTrip,
   openCreateTrip,
@@ -150,7 +152,11 @@ const {
   hasFreedSeatsForSeller,
   isFareDisabled,
   getAssignedStationPalette,
-  page,
+    pendingOkohiRequestsForCurrentTrip,
+    pendingOkohiCountdowns,
+    openPendingOkohiModal,
+    stopPendingOkohiPolling,
+    page,
 } = ticketing;
 
 const assignedStationPalette = computed(() => getAssignedStationPalette());
@@ -579,6 +585,12 @@ const formatTime = (dateString) => {
         hour: '2-digit',
         minute: '2-digit'
     })
+}
+
+const formatCountdown = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 const formatDate = (dateString) => {
@@ -1415,6 +1427,38 @@ onBeforeUnmount(() => {
                           <span>Correspondances</span>
                         </button>
                       </div>
+
+                      <!-- Pending Okohi Rewards Widget -->
+                      <div v-if="pendingOkohiRequestsForCurrentTrip.length > 0" class="mt-2 p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-2xl space-y-2">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                          <span class="flex items-center gap-1">
+                            <span>🎁 {{ pendingOkohiRequestsForCurrentTrip.length }} Privilège(s) Okohi en attente</span>
+                          </span>
+                        </div>
+                        <div v-for="req in pendingOkohiRequestsForCurrentTrip" :key="req.id" class="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/40 text-xs shadow-sm">
+                          <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                              <span class="font-black text-amber-700 dark:text-amber-400">Siège {{ req.seat_number }}</span>
+                              <span class="text-slate-500 text-[10px] font-semibold">({{ req.customer_number }})</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 mt-1">
+                              <Clock :size="12" class="text-amber-500 shrink-0" />
+                              <span class="font-mono text-[10px] font-bold" :class="(pendingOkohiCountdowns[req.id] || 0) < 30 ? 'text-red-500 animate-pulse' : 'text-amber-600'">
+                                {{ formatCountdown(pendingOkohiCountdowns[req.id] || 0) }}
+                              </span>
+                              <div class="flex-1 max-w-[60px] bg-amber-100 dark:bg-amber-900/40 rounded-full h-1.5">
+                                <div class="bg-amber-500 h-1.5 rounded-full transition-all duration-1000" :style="{ width: `${Math.min(100, ((pendingOkohiCountdowns[req.id] || 0) / 300) * 100)}%` }"></div>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            @click="openPendingOkohiModal(req)"
+                            class="shrink-0 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[10px] rounded-lg shadow-sm transition-all flex items-center gap-1"
+                          >
+                            <span>Gérer</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
@@ -1460,6 +1504,7 @@ onBeforeUnmount(() => {
       :mode="showDestinationModal ? 'destination' : 'passenger'"
       :current-trip="currentTrip"
       :selected-seat-number="selectedSeatNumber"
+      :initial-okohi-request="activeOkohiRequest"
       :selected-fare="selectedFare"
       :available-fares="availableFares"
       :connection-options="basinDestinations"
@@ -1473,6 +1518,7 @@ onBeforeUnmount(() => {
       v-model:finalDestinationStationId="finalDestinationStationId"
       v-model:connectionRouteId="connectionRouteId"
       @close="cancelBooking"
+      @continue-sales="continueSalesAfterOkohiRequest"
       @select-fare="selectFareForSeat"
       @confirm="confirmBooking"
       @okohi-success="handleOkohiSuccess"

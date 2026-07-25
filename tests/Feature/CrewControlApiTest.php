@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Events\SeatMapUpdated;
+use App\Models\AuthorizedDevice;
 use App\Models\CrewMember;
 use App\Models\OperationalSetting;
 use App\Models\Route;
@@ -19,6 +20,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
 use App\Models\VehicleType;
+use App\Services\OfflineCacheSigner;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -26,6 +28,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -59,6 +62,62 @@ class CrewControlApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('crew_member.id', $crewMember->id)
             ->assertJsonPath('crew_member.today_trips.0.id', $trip->id);
+    }
+
+    public function test_control_device_requires_tenant_approval_and_revocation_is_immediate(): void
+    {
+        [$crewMember] = $this->crewFixture();
+        $operational = OperationalSetting::current();
+        $operational->update([
+            'settings' => ['device_restrictions' => ['control' => true, 'web' => false]],
+        ]);
+
+        $deviceId = (string) Str::uuid();
+        $payload = [
+            'phone' => $crewMember->phone,
+            'pin' => '1234',
+            'device_name' => 'Tablette quai 2',
+            'device_id' => $deviceId,
+            'device_secret' => str_repeat('a', 64),
+            'device_platform' => 'android',
+        ];
+
+        $this->postJson('/api/crew/login', $payload)
+            ->assertForbidden()
+            ->assertJsonPath('code', 'DEVICE_APPROVAL_REQUIRED')
+            ->assertJsonPath('request_id', $deviceId);
+
+        $this->assertDatabaseHas('authorized_devices', [
+            'id' => $deviceId,
+            'channel' => 'control',
+            'status' => 'pending',
+            'requested_by_id' => $crewMember->id,
+        ]);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+
+        AuthorizedDevice::query()->findOrFail($deviceId)->update([
+            'status' => AuthorizedDevice::STATUS_APPROVED,
+            'approved_at' => now(),
+        ]);
+
+        $token = $this->postJson('/api/crew/login', $payload)
+            ->assertOk()
+            ->json('access_token');
+
+        $storedToken = PersonalAccessToken::findToken($token);
+        $this->assertSame($deviceId, $storedToken->authorized_device_id);
+
+        AuthorizedDevice::query()->findOrFail($deviceId)->update([
+            'status' => AuthorizedDevice::STATUS_REVOKED,
+            'revoked_at' => now(),
+        ]);
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/crew/me')
+            ->assertForbidden()
+            ->assertJsonPath('code', 'DEVICE_REVOKED');
+
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $storedToken->id]);
     }
 
     public function test_crew_member_can_log_in_with_or_without_spaces_in_phone(): void
@@ -623,18 +682,30 @@ class CrewControlApiTest extends TestCase
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson("/api/crew/trips/{$trip->id}/tickets")
             ->assertOk()
-            ->assertJsonPath('offline_cache.schema_version', 1)
+            ->assertJsonPath('offline_cache.schema_version', 2)
+            ->assertJsonPath('offline_cache.signature_algorithm', 'Ed25519')
             ->assertJsonPath('offline_cache.trip_id', $trip->id)
             ->assertJsonMissingPath('offline_cache.tickets.0.passenger_name')
             ->assertJsonMissingPath('offline_cache.tickets.0.passenger_phone')
             ->assertJsonMissingPath('offline_cache.tickets.0.price');
 
         $cache = $response->json('offline_cache');
-        $payload = collect($cache)->except(['payload_hash', 'signature'])->all();
+        $payload = collect($cache)->except([
+            'payload_hash',
+            'signature',
+            'signature_algorithm',
+            'key_id',
+        ])->all();
         $encoded = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $verification = app(OfflineCacheSigner::class)->verificationDescriptor();
 
         $this->assertSame(hash('sha256', $encoded), $cache['payload_hash']);
-        $this->assertSame(64, strlen($cache['signature']));
+        $this->assertSame($verification['key_id'], $cache['key_id']);
+        $this->assertTrue(sodium_crypto_sign_verify_detached(
+            base64_decode($cache['signature'], true),
+            $cache['payload_hash'],
+            base64_decode($verification['public_key'], true),
+        ));
         $this->assertGreaterThan(now(), Carbon::parse($cache['expires_at']));
     }
 
@@ -744,6 +815,43 @@ class CrewControlApiTest extends TestCase
         $this->assertSame(2500, Ticket::findOrFail($ticketId)->price);
     }
 
+    public function test_executed_refund_invalidates_ticket_frees_seat_and_is_not_verifiable(): void
+    {
+        [$crewMember, $trip, $stations] = $this->crewFixture();
+        TicketSetting::getSettings()->update([
+            'okohi_integration_key' => 'test-integration-key',
+            'settings' => ['allow_crew_sales' => true],
+        ]);
+        $crewToken = $this->loginTokenFor($crewMember);
+        $ticketId = $this->withHeader('Authorization', 'Bearer '.$crewToken)
+            ->postJson("/api/crew/trips/{$trip->id}/tickets/sell", [
+                'from_station_id' => $stations['a'],
+                'to_station_id' => $stations['c'],
+                'seat_number' => 3,
+                'passenger_name' => 'Passager remboursé',
+                'passenger_phone' => '+22505050505',
+            ])->assertCreated()->json('ticket.id');
+        $ticket = Ticket::findOrFail($ticketId);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        $this->actingAs($admin)->postJson("/seller/tickets/{$ticketId}/compensations", [
+            'incident_type' => 'trip_cancelled',
+            'compensation_type' => 'refund',
+            'reason' => 'Voyage annulé par l’exploitant.',
+        ])->assertCreated()
+            ->assertJsonPath('compensation.status', 'executed')
+            ->assertJsonPath('compensation.amount', 2500);
+
+        $this->assertSame('refunded', $ticket->fresh()->status);
+        $this->assertDatabaseMissing('trip_seat_occupancies', ['ticket_id' => $ticketId]);
+
+        $this->app['auth']->forgetGuards();
+        $this->withHeader('X-Okohi-Integration-Key', 'test-integration-key')
+            ->getJson('/api/okohi/verify?ticket_id='.$ticket->ticket_number)
+            ->assertOk()
+            ->assertJsonPath('valid', false);
+    }
+
     public function test_free_rebooking_reserves_replacement_seat_atomically(): void
     {
         [$crewMember, $trip, $stations] = $this->crewFixture();
@@ -790,6 +898,36 @@ class CrewControlApiTest extends TestCase
             'from_station_id' => $stations['a'],
             'to_station_id' => $stations['c'],
         ]);
+
+        $replacementTrip->update(['status' => 'boarding']);
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Authorization', 'Bearer '.$crewToken)
+            ->getJson("/api/crew/trips/{$replacementTrip->id}/tickets")
+            ->assertOk()
+            ->assertJsonPath('tickets.0.id', $firstTicketId)
+            ->assertJsonPath('tickets.0.seat_number', 2);
+
+        $ticket = Ticket::findOrFail($firstTicketId);
+        $this->withHeader('Authorization', 'Bearer '.$crewToken)
+            ->postJson('/api/crew/tickets/scan', [
+                'qr_payload' => $ticket->ticket_number,
+                'trip_id' => $replacementTrip->id,
+            ])->assertOk()
+            ->assertJsonPath('valid', true)
+            ->assertJsonPath('ticket.seat_number', 2);
+
+        $this->withHeader('Authorization', 'Bearer '.$crewToken)
+            ->patchJson("/api/crew/trips/{$replacementTrip->id}/tickets/{$firstTicketId}/board")
+            ->assertOk()
+            ->assertJsonPath('ticket.boarded_at', fn ($value) => filled($value));
+
+        $this->assertDatabaseHas('ticket_compensations', [
+            'ticket_id' => $firstTicketId,
+            'replacement_trip_id' => $replacementTrip->id,
+            'boarded_by' => $crewMember->id,
+        ]);
+        $this->assertNull($ticket->fresh()->boarded_at);
 
         $this->actingAs($admin)->postJson("/seller/tickets/{$secondTicketId}/compensations", [
             'incident_type' => 'trip_cancelled',
@@ -932,6 +1070,34 @@ class CrewControlApiTest extends TestCase
                 $table->timestamp('last_used_at')->nullable();
                 $table->timestamp('expires_at')->nullable();
                 $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('authorized_devices')) {
+            Schema::create('authorized_devices', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->char('secret_hash', 64);
+                $table->string('channel', 20)->index();
+                $table->string('status', 20)->default('pending')->index();
+                $table->string('name')->nullable();
+                $table->string('platform')->nullable();
+                $table->string('app_version')->nullable();
+                $table->string('requested_by_type', 40)->nullable();
+                $table->uuid('requested_by_id')->nullable()->index();
+                $table->uuid('approved_by_user_id')->nullable()->index();
+                $table->string('last_ip', 45)->nullable();
+                $table->text('last_user_agent')->nullable();
+                $table->timestamp('requested_at')->nullable();
+                $table->timestamp('approved_at')->nullable();
+                $table->timestamp('revoked_at')->nullable();
+                $table->timestamp('last_seen_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasColumn('personal_access_tokens', 'authorized_device_id')) {
+            Schema::table('personal_access_tokens', function (Blueprint $table) {
+                $table->uuid('authorized_device_id')->nullable()->index();
             });
         }
 
@@ -1167,6 +1333,8 @@ class CrewControlApiTest extends TestCase
                 $table->timestamp('executed_at')->nullable();
                 $table->uuid('replacement_trip_id')->nullable();
                 $table->unsignedInteger('replacement_seat_number')->nullable();
+                $table->timestamp('boarded_at')->nullable();
+                $table->uuid('boarded_by')->nullable();
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });

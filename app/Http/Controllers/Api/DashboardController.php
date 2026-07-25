@@ -29,8 +29,8 @@ class DashboardController extends Controller
             'success' => true,
             'data' => [
                 'total_trips_today' => $tripsToday->count(),
-                'total_tickets_today' => Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->count(),
-                'total_revenue_today' => Ticket::whereDate('created_at', today())->where('status', '!=', 'cancelled')->sum(DB::raw('COALESCE(amount_collected, price)')),
+                'total_tickets_today' => Ticket::whereDate('created_at', today())->where('status', 'issued')->count(),
+                'total_revenue_today' => Ticket::whereDate('created_at', today())->where('status', 'issued')->sum(DB::raw('COALESCE(amount_collected, price)')),
                 'occupancy_rate' => $occupancyRate,
             ],
             'message' => 'Statistiques récupérées avec succès',

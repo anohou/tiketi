@@ -85,6 +85,7 @@ export function useTicketing(props, options = {}) {
   const showPassengerModal = ref(false);
   const showDestinationModal = ref(false);
   const selectedSeatNumber = ref(null);
+  const activeOkohiRequest = ref(null);
   const seatSelectionMode = ref(false);
   const seatFirstFlow = ref(false);
   const selectedSeatColor = computed(() => '#22C55E');
@@ -164,6 +165,7 @@ export function useTicketing(props, options = {}) {
       phone_numbers: ['+225 XX XX XX XX XX'],
       footer_messages: ['Valable pour ce voyage', 'Non remboursable'],
       baggage_policy_message: "La perte des bagages transportes doit faire l'objet d'une declaration aux agences de la societe.",
+      baggage_policy_message_2: "Les objets de valeur doivent faire l'objet d'une declaration en sus de l'enregistrement avec pieces justificatives avant le depart.",
       print_qr_code: true,
       qr_code_base_url: null,
     };
@@ -320,6 +322,44 @@ export function useTicketing(props, options = {}) {
     }
   };
 
+  const okohiNotifications = ref([]);
+
+  const dismissOkohiNotif = (id) => {
+    okohiNotifications.value = okohiNotifications.value.filter(n => n.id !== id);
+  };
+
+  const applyRealtimeOkohiClaimUpdate = (e = {}) => {
+    fetchSeatMap({ silent: true });
+    ticketingStore.notifySeatMapChanged();
+
+    const status = e.status || e.payload?.status || 'approved';
+    const localStatus = e.payload?.local_status || status;
+    const seatNum = e.seat_number || e.payload?.seat_number;
+    const claimId = e.claim_id;
+
+    if (localStatus === 'approved_pending_cash') {
+      toastStore.success(`🎁 Privilège Okohi validé pour le Siège ${seatNum || ''} ! Encaisser le montant restant.`);
+      okohiNotifications.value.unshift({
+        id: claimId || Date.now(),
+        seatNumber: seatNum,
+        tripId: e.trip_id,
+        status: 'approved_pending_cash',
+        message: `Siège ${seatNum ? '#' + seatNum : ''} - Privilège Okohi validé (À encaisser)`,
+      });
+    } else if (localStatus === 'confirmed') {
+      toastStore.success(`🎁 Privilège Okohi validé pour le Siège ${seatNum || ''} ! Billet émis avec succès.`);
+      okohiNotifications.value.unshift({
+        id: claimId || Date.now(),
+        seatNumber: seatNum,
+        tripId: e.trip_id,
+        status: 'confirmed',
+        message: `Siège ${seatNum ? '#' + seatNum : ''} - Billet Okohi émis`,
+      });
+    } else if (status === 'rejected' || status === 'expired') {
+      toastStore.warning(`Demande Okohi ${status === 'expired' ? 'expirée' : 'refusée'} (Siège ${seatNum || ''}).`);
+    }
+  };
+
   const subscribeStationChannels = () => {
     const echo = window.Echo;
     if (!echo) return;
@@ -346,6 +386,13 @@ export function useTicketing(props, options = {}) {
         .listen('.SeatMapUpdated', applyRealtimeSeatMapUpdate)
         .listen('.TripCreated', applyRealtimeTripCreated);
       currentStationChannels.value = [...currentStationChannels.value, 'network.global'];
+    }
+
+    const tenantId = page.props.tenant?.id || page.props.auth?.user?.tenant_id;
+    if (tenantId) {
+      echo.channel(`tenant.${tenantId}.okohi`)
+        .listen('.claim.updated', applyRealtimeOkohiClaimUpdate);
+      currentStationChannels.value = [...currentStationChannels.value, `tenant.${tenantId}.okohi`];
     }
   };
 
@@ -514,7 +561,7 @@ export function useTicketing(props, options = {}) {
 
       rows.forEach((row) => {
         row.forEach((seat) => {
-          if (seat?.type === 'seat' && allowedSeats.has(Number(seat.number))) {
+          if (seat?.type === 'seat' && !seat.isOccupied && !seat.isOkohiPending && allowedSeats.has(Number(seat.number))) {
             orderedSeats.push(Number(seat.number));
           }
         });
@@ -1023,12 +1070,105 @@ export function useTicketing(props, options = {}) {
 
   const currentStationSellableSeatBorderColor = computed(() => getAssignedStationPalette()?.bg || null);
 
+  const pendingOkohiRequestsForCurrentTrip = ref([]);
+  const pendingOkohiCountdowns = ref({});
+  let pendingOkohiPollInterval = null;
+  let pendingOkohiCountdownInterval = null;
+
+  const computePendingOkohiCountdowns = () => {
+    const map = {};
+    const now = Date.now();
+    for (const req of pendingOkohiRequestsForCurrentTrip.value) {
+      if (req.expires_at) {
+        map[req.id] = Math.max(0, Math.floor((new Date(req.expires_at).getTime() - now) / 1000));
+      } else {
+        map[req.id] = 300;
+      }
+    }
+    return map;
+  };
+
+  const startPendingOkohiCountdown = () => {
+    stopPendingOkohiCountdown();
+    pendingOkohiCountdowns.value = computePendingOkohiCountdowns();
+    pendingOkohiCountdownInterval = setInterval(() => {
+      pendingOkohiCountdowns.value = computePendingOkohiCountdowns();
+    }, 1000);
+  };
+
+  const stopPendingOkohiCountdown = () => {
+    if (pendingOkohiCountdownInterval) {
+      clearInterval(pendingOkohiCountdownInterval);
+      pendingOkohiCountdownInterval = null;
+    }
+  };
+
+  const startPendingOkohiPolling = (tripId) => {
+    stopPendingOkohiPolling();
+    if (!tripId) return;
+    const poll = async () => {
+      try {
+        const response = await axios.get(route('seller.okohi.requests.pending-trip'), {
+          params: { trip_id: tripId },
+        });
+        const freshData = response.data || [];
+        const oldIds = new Set(pendingOkohiRequestsForCurrentTrip.value.map(r => r.id));
+        const newIds = new Set(freshData.map(r => r.id));
+        const changed = freshData.length !== pendingOkohiRequestsForCurrentTrip.value.length
+          || freshData.some(r => !oldIds.has(r.id))
+          || pendingOkohiRequestsForCurrentTrip.value.some(r => !newIds.has(r.id));
+        if (changed) {
+          pendingOkohiRequestsForCurrentTrip.value = freshData;
+          pendingOkohiCountdowns.value = computePendingOkohiCountdowns();
+        }
+      } catch (error) {
+        console.error('Failed to poll pending Okohi requests for trip:', error);
+      }
+    };
+    poll();
+    startPendingOkohiCountdown();
+    pendingOkohiPollInterval = setInterval(poll, 5000);
+  };
+
+  const stopPendingOkohiPolling = () => {
+    stopPendingOkohiCountdown();
+    if (pendingOkohiPollInterval) {
+      clearInterval(pendingOkohiPollInterval);
+      pendingOkohiPollInterval = null;
+    }
+  };
+
+  const fetchPendingOkohiRequestsForTrip = async () => {
+    if (!selectedTripId.value) {
+      pendingOkohiRequestsForCurrentTrip.value = [];
+      return;
+    }
+    try {
+      const response = await axios.get(route('seller.okohi.requests.pending-trip'), {
+        params: { trip_id: selectedTripId.value },
+      });
+      pendingOkohiRequestsForCurrentTrip.value = response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch pending Okohi requests for trip:', error);
+    }
+  };
+
+  const openPendingOkohiModal = (req) => {
+    activeOkohiRequest.value = req;
+    selectedSeatNumber.value = req.seat_number;
+    showDestinationModal.value = false;
+    resetPassengerModalState();
+    showPassengerModal.value = true;
+  };
+
   // =============================================
   // API Methods
   // =============================================
   function fetchSeatMap({ silent = false } = {}) {
     if (!selectedTripId.value) return Promise.resolve();
     if (!silent) seatMapLoading.value = true;
+
+    fetchPendingOkohiRequestsForTrip();
 
     const params = { _t: new Date().getTime() };
     if (sendsSegmentParams && selectedFare.value) {
@@ -1060,7 +1200,16 @@ export function useTicketing(props, options = {}) {
       });
       const apiSuggestions = response.data.suggested_seats || response.data.data?.suggestions || [];
       if (apiSuggestions.length > 0) {
-        suggestedSeats.value = apiSuggestions;
+        suggestedSeats.value = apiSuggestions.filter(s => {
+          const seatNum = Number(s.seat_number);
+          const mapData = seatMap.value?.seat_map;
+          const rows = Array.isArray(mapData) ? mapData : [...(mapData?.lower_deck || []), ...(mapData?.upper_deck || [])];
+          for (const row of rows) {
+            const seat = row.find(sg => Number(sg.number) === seatNum);
+            if (seat && (seat.isOccupied || seat.isOkohiPending)) return false;
+          }
+          return true;
+        });
       } else {
         const fallbackSeatNumbers = getStationSellableSeatNumbers(selectedFare.value);
         suggestedSeats.value = fallbackSeatNumbers.length > 0
@@ -1134,11 +1283,13 @@ export function useTicketing(props, options = {}) {
   };
 
   const openPassengerModal = () => {
+    activeOkohiRequest.value = null;
     resetPassengerModalState();
     showPassengerModal.value = true;
   };
 
   const openDestinationModalForSeat = (seatNumber) => {
+    activeOkohiRequest.value = null;
     selectedSeatNumber.value = seatNumber;
     seatSelectionMode.value = true;
     seatFirstFlow.value = true;
@@ -1173,6 +1324,18 @@ export function useTicketing(props, options = {}) {
     for (const row of rows) {
       const found = row.find(s => s.number === seatNumber);
       if (found) { seatObj = found; break; }
+    }
+
+    if (seatObj?.isOkohiPending) {
+      const pendingRequest = pendingOkohiRequestsForCurrentTrip.value.find(
+        request => Number(request.seat_number) === Number(seatNumber)
+      ) || {
+        id: seatObj.okohiRewardRequestId,
+        seat_number: seatNumber,
+        status: 'pending',
+      };
+      openPendingOkohiModal(pendingRequest);
+      return;
     }
 
     const seatNum = Number(seatNumber);
@@ -1322,16 +1485,38 @@ export function useTicketing(props, options = {}) {
     finalDestinationStationId.value = null;
     connectionRouteId.value = null;
     selectedSeatNumber.value = null;
+    activeOkohiRequest.value = null;
     ticketingStore.selectSeat?.(null);
     suggestedSeats.value = [];
     ticketingStore.setSuggestions([]);
     ticketingStore.setShowSuggestions(true);
+    fetchSeatMap({ silent: true });
+  };
+
+  const continueSalesAfterOkohiRequest = async () => {
+    showPassengerModal.value = false;
+    showDestinationModal.value = false;
+    seatSelectionMode.value = false;
+    seatFirstFlow.value = false;
+    selectedSeatNumber.value = null;
+    activeOkohiRequest.value = null;
+    selectedFare.value = null;
+    resetPassengerModalState();
+    ticketingStore.selectSeat?.(null);
+    suggestedSeats.value = [];
+    ticketingStore.setSuggestions([]);
+    ticketingStore.setShowSuggestions(true);
+    ticketingStore.notifySeatMapChanged();
+
+    await fetchSeatMap({ silent: true });
+    ticketingStore.notifySeatMapChanged();
   };
 
   const handleOkohiSuccess = async (ticketId) => {
     toastStore.success('Paiement Okohi validé ! Impression du ticket...');
     showPassengerModal.value = false;
     selectedSeatNumber.value = null;
+    activeOkohiRequest.value = null;
     selectedFare.value = null;
     ticketQuantity.value = 1;
 
@@ -1565,11 +1750,16 @@ export function useTicketing(props, options = {}) {
       seatSelectionMode.value = false;
       seatFirstFlow.value = false;
       selectedSeatNumber.value = null;
+      activeOkohiRequest.value = null;
+      startPendingOkohiPolling(newVal);
       fetchSeatMap();
       ensureRealtimeFallback();
-    } else if (realtimeFallbackInterval) {
-      clearInterval(realtimeFallbackInterval);
-      realtimeFallbackInterval = null;
+    } else {
+      stopPendingOkohiPolling();
+      if (realtimeFallbackInterval) {
+        clearInterval(realtimeFallbackInterval);
+        realtimeFallbackInterval = null;
+      }
     }
   });
 
@@ -1652,6 +1842,7 @@ export function useTicketing(props, options = {}) {
   onUnmounted(() => {
     unsubscribeTripChannel();
     unsubscribeStationChannels();
+    stopPendingOkohiPolling();
     if (realtimeFallbackInterval) clearInterval(realtimeFallbackInterval);
     if (clockInterval) clearInterval(clockInterval);
   });
@@ -1688,6 +1879,7 @@ export function useTicketing(props, options = {}) {
     showPassengerModal,
     showDestinationModal,
     selectedSeatNumber,
+    activeOkohiRequest,
     seatSelectionMode,
     seatFirstFlow,
     selectedSeatColor,
@@ -1743,6 +1935,7 @@ export function useTicketing(props, options = {}) {
     autoSelectOptimalSeat,
     confirmBooking,
     cancelBooking,
+    continueSalesAfterOkohiRequest,
     handleOkohiSuccess,
     createTrip,
     openCreateTrip,
@@ -1765,6 +1958,15 @@ export function useTicketing(props, options = {}) {
     hasFreedSeatsForSeller,
     isFareDisabled,
     getFreedSeatCountForFare,
+
+    // Okohi Realtime Notifications
+    okohiNotifications,
+    dismissOkohiNotif,
+    pendingOkohiRequestsForCurrentTrip,
+    pendingOkohiCountdowns,
+    fetchPendingOkohiRequestsForTrip,
+    openPendingOkohiModal,
+    stopPendingOkohiPolling,
 
     // Page
     page,

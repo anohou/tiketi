@@ -402,7 +402,7 @@ class TicketingController extends Controller
             $trip->connection_summary = [
                 'outgoing' => $this->summarizeConnections(
                     $trip->tickets
-                        ->where('status', '!=', 'cancelled')
+                        ->where('status', 'issued')
                         ->pluck('connection')
                         ->filter()
                 ),
@@ -618,7 +618,7 @@ class TicketingController extends Controller
             'Vous n’avez pas accès à ce trajet.',
         );
 
-        if ($trip->tickets()->where('status', '!=', 'cancelled')->exists()) {
+        if ($trip->tickets()->where('status', 'issued')->exists()) {
             if ($validated['route_id'] !== $trip->route_id || ($validated['vehicle_id'] ?? null) !== $trip->vehicle_id) {
                 return back()->withErrors([
                     'route_id' => 'Le trajet et le véhicule ne peuvent plus être changés après la première vente.',

@@ -44,10 +44,10 @@ class OptimisationService
         // Détecter si le voyage est inversé par rapport à la direction par défaut de la route
         $isReversedTrip = app(TripSegmentService::class)->isReversed($trip);
 
-        $tickets = TripSeatOccupancy::where('trip_id', $tripId)
+        $issuedTickets = TripSeatOccupancy::where('trip_id', $tripId)
             ->with(['ticket.toStation', 'ticket.fromStation'])
             ->get()
-            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket?->status === 'issued')
             ->map(function (TripSeatOccupancy $occupancy) {
                 $ticket = clone $occupancy->ticket;
                 $ticket->seat_number = $occupancy->seat_number;
@@ -56,6 +56,24 @@ class OptimisationService
 
                 return $ticket;
             });
+
+        // Include Okohi holds as occupied seats so they are excluded from suggestions
+        $okohiHolds = TripSeatOccupancy::where('trip_id', $tripId)
+            ->whereNotNull('okohi_reward_request_id')
+            ->whereNull('ticket_id')
+            ->where('expires_at', '>', now())
+            ->get()
+            ->map(function (TripSeatOccupancy $occupancy) {
+                $ticket = new Ticket;
+                $ticket->forceFill([
+                    'seat_number' => $occupancy->seat_number,
+                    'from_station_id' => $occupancy->from_station_id,
+                    'to_station_id' => $occupancy->to_station_id,
+                ]);
+                return $ticket;
+            });
+
+        $tickets = $issuedTickets->concat($okohiHolds);
 
         // Récupérer la configuration du véhicule
         $vehicleType = $trip->vehicle->vehicleType;
@@ -166,13 +184,6 @@ class OptimisationService
                 $availableSeats = [];
             } else {
                 $availableSeats = app(TripSegmentService::class)->sellableSeatsForStation($trip, $boardingStationId);
-            }
-        }
-
-        if ($troncon === 'short') {
-            $frontZoneSeats = $this->filterSeatsByPhysicalZone($availableSeats, $seatMapInfo, 'front');
-            if (count($frontZoneSeats) >= $maxSuggestions) {
-                $availableSeats = $frontZoneSeats;
             }
         }
 
@@ -616,17 +627,9 @@ class OptimisationService
         $seatsPerZone = $totalSeats / max(1, $numZones);
         $seatInfo = $seatMapInfo['seats'][$seatNumber] ?? ['type' => 'middle', 'adjacent_aisle_seats' => [], 'adjacent_window_seats' => [], 'row' => 999, 'col' => 999];
 
-        // Zone du siège (basée sur le classement de proximité)
+        // Zone du siège (basée sur le classement de proximité à la porte la plus proche D1/D2)
         $seatRank = $seatMapInfo['seats'][$seatNumber]['proximity_rank'] ?? 999;
         $seatZone = (int) ceil($seatRank / $seatsPerZone);
-
-        if ($troncon === 'short') {
-            $seatRow = $seatMapInfo['seats'][$seatNumber]['row_rank'] ?? 999;
-            $rowsWithSeats = $seatMapInfo['rows_with_seats'] ?? 1;
-            $rowZone = (int) ceil(($seatRow / max(1, $rowsWithSeats)) * max(1, $numZones));
-            $seatZone = max(1, $rowZone);
-        }
-
         $seatZone = max(1, min($numZones, $seatZone));
 
         if ($seatZone === $targetZone) {
@@ -682,18 +685,8 @@ class OptimisationService
         $proximityRatio = $totalSeats > 1 ? 1 - (($seatRank - 1) / ($totalSeats - 1)) : 1;
 
         if ($troncon === 'short') {
-            $score += $proximityRatio * 350;
-            $reasons[] = 'Proche porte';
-
-            $seatRow = $seatInfo['row_rank'] ?? 999;
-            $rowsWithSeats = max(1, $seatMapInfo['rows_with_seats'] ?? 1);
-            $frontnessRatio = 1 - min(1, ($seatRow - 1) / max(1, $rowsWithSeats - 1));
-            $score += $frontnessRatio * 900;
-
-            if ($seatRow >= max(1, $rowsWithSeats - 2)) {
-                $score -= 1200;
-                $reasons[] = 'Arrière évité';
-            }
+            $score += $proximityRatio * 1250;
+            $reasons[] = 'Proche sortie (D1/D2)';
         } elseif ($troncon === 'long') {
             $score += (1 - $proximityRatio) * 120;
         } else {
@@ -868,13 +861,13 @@ class OptimisationService
 
         $totalSeats = $trip->vehicle->vehicleType->seat_count;
         $occupiedSeats = $trip->tripSeatOccupancies
-            ->filter(fn ($occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->filter(fn ($occupancy) => $occupancy->ticket?->status === 'issued')
             ->pluck('seat_number')
             ->unique()
             ->count();
 
         $soldTickets = Ticket::where('trip_id', $tripId)
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'issued')
             ->count();
 
         $occupancyRate = $totalSeats > 0 ? ($occupiedSeats / $totalSeats) * 100 : 0;

@@ -26,7 +26,7 @@ class AdminDashboardController extends Controller
         $yesterday = Carbon::yesterday();
 
         // Calculate statistics (exclude cancelled tickets)
-        $activeTickets = Ticket::where('status', '!=', 'cancelled');
+        $activeTickets = Ticket::where('status', 'issued');
         $totalSales = (clone $activeTickets)->count();
         $todaySales = (clone $activeTickets)->whereDate('created_at', $today)->count();
         $yesterdaySales = (clone $activeTickets)->whereDate('created_at', $yesterday)->count();

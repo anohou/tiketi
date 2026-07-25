@@ -75,6 +75,7 @@ const props = defineProps({
   okohiClaimId: { type: String, default: null },
   okohiRewardTitle: { type: String, default: null },
   okohiClaimExpiresAt: { type: String, default: null },
+  initialOkohiRequest: { type: Object, default: null },
 });
 
 const emit = defineEmits([
@@ -89,9 +90,11 @@ const emit = defineEmits([
   'okohi-claim-rejected',
   'okohi-claim-expired',
   'okohi-success',
+  'continue-sales',
 ]);
 
-const isDestinationMode = computed(() => props.mode === 'destination');
+const okohiRequest = ref(props.initialOkohiRequest);
+const isDestinationMode = computed(() => props.mode === 'destination' && !okohiRequest.value);
 const modalRef = ref(null);
 const dragHandleRef = ref(null);
 const isDragging = ref(false);
@@ -102,6 +105,7 @@ const STORAGE_KEY = 'tiketi.bookingModal.position';
 const DEFAULT_MODAL_WIDTH = 384;
 const DEFAULT_MODAL_HEIGHT = 600;
 const EDGE_MARGIN = 16;
+let pendingSeatCheckSequence = 0;
 
 const getViewportBounds = () => ({
   width: window.innerWidth,
@@ -224,16 +228,64 @@ const handleDragging = (event) => {
   };
 };
 
+const checkPendingSeatRequest = async () => {
+  if (!props.currentTrip?.id || !props.selectedSeatNumber) return;
+  const checkSequence = ++pendingSeatCheckSequence;
+  const tripId = props.currentTrip.id;
+  const seatNumber = props.selectedSeatNumber;
+
+  if (props.initialOkohiRequest) {
+    okohiRequest.value = props.initialOkohiRequest;
+    if (props.initialOkohiRequest.customer_number) {
+      okohiCardNumber.value = props.initialOkohiRequest.customer_number;
+    }
+    startCountdown();
+    startPolling();
+    return;
+  }
+
+  okohiRequest.value = null;
+  try {
+    const response = await axios.get(route('seller.okohi.requests.pending-seat'), {
+      params: {
+        trip_id: tripId,
+        seat_number: seatNumber,
+      },
+    });
+    if (
+      checkSequence !== pendingSeatCheckSequence
+      || !props.visible
+      || props.currentTrip?.id !== tripId
+      || Number(props.selectedSeatNumber) !== Number(seatNumber)
+    ) {
+      return;
+    }
+    if (response.data && response.data.id) {
+      okohiRequest.value = response.data;
+      if (response.data.customer_number) {
+        okohiCardNumber.value = response.data.customer_number;
+      }
+      startCountdown();
+      startPolling();
+    }
+  } catch (error) {
+    console.error('Failed to check pending seat request:', error);
+  }
+};
+
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
       restorePosition();
+      checkPendingSeatRequest();
     } else {
+      pendingSeatCheckSequence++;
       stopDragging();
-      if (okohiRequest.value) {
-        cancelOkohiRequest();
-      }
+      if (countdownInterval) clearInterval(countdownInterval);
+      if (pollingInterval) clearInterval(pollingInterval);
+      okohiRequest.value = null;
+      resetOkohi();
     }
   }
 );
@@ -249,9 +301,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleDragging);
   window.removeEventListener('mouseup', stopDragging);
   window.removeEventListener('resize', clampPositionToViewport);
-  if (okohiRequest.value) {
-    cancelOkohiRequest();
-  }
 });
 
 // ─── Okohi claim polling ───────────────────────────────────────
@@ -360,10 +409,13 @@ const selectConnectionOption = (option) => {
   connectionRouteModel.value = option.route.id;
 };
 
+const clearSelectedConnection = () => {
+  finalDestinationModel.value = null;
+  connectionRouteModel.value = null;
+};
+
 watch(showConnections, (enabled) => {
   if (!enabled) {
-    finalDestinationModel.value = null;
-    connectionRouteModel.value = null;
     connectionSearch.value = '';
   }
 });
@@ -423,7 +475,6 @@ const isOkohiSearching = ref(false);
 const okohiSearchError = ref(null);
 const okohiCustomer = ref(null);
 const selectedReward = ref(null);
-const okohiRequest = ref(null);
 const countdown = ref(180);
 const processingOkohi = ref(false);
 const idempotencyKey = ref('');
@@ -473,6 +524,7 @@ const resetOkohi = () => {
 
 watch(useOkohi, (val) => {
   if (val) {
+    showConnections.value = false;
     ticketQuantityModel.value = 1;
     idempotencyKey.value = generateIdempotencyKey();
   } else {
@@ -535,6 +587,9 @@ const searchOkohiCustomer = async () => {
   try {
     const response = await axios.get(route('seller.okohi.customer', { customerNumber: okohiCardNumber.value.trim().toUpperCase() }));
     okohiCustomer.value = response.data;
+    if (okohiCustomer.value && props.passengerForm && !props.passengerForm.name) {
+      props.passengerForm.name = okohiCustomerName.value;
+    }
   } catch (error) {
     console.error(error);
     okohiSearchError.value = error.response?.data?.error || 'Client introuvable ou erreur de connexion.';
@@ -558,6 +613,10 @@ const initiateOkohiRequest = async () => {
       customer_number: okohiCardNumber.value.trim().toUpperCase(),
       reward_id: selectedReward.value.id,
       idempotency_key: idempotencyKey.value,
+      final_destination_station_id: finalDestinationModel.value || null,
+      connection_route_id: connectionRouteModel.value || null,
+      passenger_name: props.passengerForm?.name || null,
+      passenger_phone: props.passengerForm?.phone || null,
     };
 
     const response = await axios.post(route('seller.okohi.requests.store'), payload);
@@ -575,7 +634,19 @@ const initiateOkohiRequest = async () => {
 
 const startCountdown = () => {
   if (countdownInterval) clearInterval(countdownInterval);
-  countdown.value = 180;
+  if (okohiRequest.value?.expires_at) {
+    const expiresAt = new Date(okohiRequest.value.expires_at).getTime();
+    const now = Date.now();
+    countdown.value = Math.max(0, Math.floor((expiresAt - now) / 1000));
+  } else {
+    countdown.value = 300;
+  }
+
+  if (countdown.value <= 0) {
+    handleTimeout();
+    return;
+  }
+
   countdownInterval = setInterval(() => {
     if (countdown.value > 0) {
       countdown.value--;
@@ -629,6 +700,8 @@ const cancelOkohiRequest = async () => {
 
   try {
     await axios.delete(route('seller.okohi.requests.destroy', { request: requestId }));
+    toastStore.info('La demande Okohi a été annulée et le siège a été libéré.');
+    emit('close');
   } catch (error) {
     console.error('Failed to cancel request on server', error);
   }
@@ -655,6 +728,15 @@ const formatTime = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
+const closeOrContinueSales = () => {
+  if (okohiRequest.value) {
+    emit('continue-sales');
+    return;
+  }
+
+  emit('close');
 };
 
 onBeforeUnmount(() => {
@@ -697,7 +779,7 @@ onBeforeUnmount(() => {
             Siège {{ selectedSeatNumber }} sélectionné
           </p>
         </div>
-        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer">
+        <button @click="closeOrContinueSales" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer">
           <Close class="w-6 h-6" />
         </button>
       </div>
@@ -897,8 +979,16 @@ onBeforeUnmount(() => {
               <div class="pt-2 flex flex-col gap-2">
                 <button
                   type="button"
+                  @click="closeOrContinueSales"
+                  class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all active:scale-[0.99] flex items-center justify-center gap-1.5"
+                >
+                  <Gift :size="16" />
+                  <span>Poursuivre d'autres ventes (Fermer)</span>
+                </button>
+                <button
+                  type="button"
                   @click="cancelOkohiRequest"
-                  class="w-full py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-bold text-sm rounded-xl border border-red-200/50 dark:border-red-900/30 transition-all active:scale-[0.99]"
+                  class="w-full py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-bold text-xs rounded-xl border border-red-200/50 dark:border-red-900/30 transition-all"
                 >
                   Annuler la demande
                 </button>
@@ -907,328 +997,342 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- PARCOURS DE VENTE NORMAL / FORMULAIRE OKOHI -->
-          <div
-            v-else
-            class="grid items-start gap-4"
-            :class="showConnections ? 'grid-cols-2' : 'grid-cols-1'"
-          >
-          <div class="bg-white/50 dark:bg-slate-950/30 border border-white/60 dark:border-slate-800/80 rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-sm">
-            <div
-              class="text-center"
-              :class="isOkohiExpanded ? 'md:grid md:grid-cols-[18rem_minmax(0,1fr)] md:gap-x-5 md:text-left' : ''"
-            >
-              <div class="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1 md:mb-2">{{ seatLabel }}</div>
-              <div class="text-xs md:text-sm text-gray-600 dark:text-slate-300 mb-2">{{ routeLabel }}</div>
+          <div v-else :class="showConnections ? 'grid grid-cols-1 md:grid-cols-2 gap-4 items-start' : ''">
+            <div class="min-w-0">
+              <div
+                class="text-center"
+                :class="isOkohiExpanded ? 'md:grid md:grid-cols-[18rem_minmax(0,1fr)] md:gap-x-5 md:text-left' : ''"
+              >
+                <div class="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-100 mb-1 md:mb-2">{{ seatLabel }}</div>
+                <div class="text-xs md:text-sm text-gray-600 dark:text-slate-300 mb-2">{{ routeLabel }}</div>
 
-              <!-- Toggle Okohi Integration -->
-              <div v-if="okohiIntegrationActive" class="mb-4 inline-flex items-center bg-slate-100 dark:bg-slate-850 p-1 rounded-xl border border-white/50 dark:border-slate-800/50 shadow-inner">
-                <button
-                  type="button"
-                  @click="useOkohi = false"
-                  class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                  :class="!useOkohi ? 'bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
-                >
-                  Paiement Espèces
-                </button>
-                <button
-                  type="button"
-                  @click="useOkohi = true"
-                  class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
-                  :class="useOkohi ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
-                >
-                  <Gift :size="13" />
-                  Privilège Okohi
-                </button>
-              </div>
-
-              <!-- Price tag -->
-              <div class="text-xl md:text-2xl font-bold mt-2" :class="useOkohi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'">
-                {{ amountLabel }}
-              </div>
-
-              <div v-if="connectionOptions.length > 0" class="mt-4 rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 text-left dark:border-indigo-900/50 dark:bg-indigo-950/20">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondance</div>
-                    <div class="text-[11px] text-slate-500 dark:text-slate-400">
-                      Afficher les destinations possibles via {{ selectedFare?.to_station?.name }}
-                    </div>
-                  </div>
+                <!-- Toggle Okohi Integration -->
+                <div v-if="okohiIntegrationActive" class="mb-4 inline-flex items-center bg-slate-100 dark:bg-slate-850 p-1 rounded-xl border border-white/50 dark:border-slate-800/50 shadow-inner">
                   <button
                     type="button"
-                    role="switch"
-                    :aria-checked="showConnections"
-                    @click="showConnections = !showConnections"
-                    class="relative h-7 w-12 shrink-0 rounded-full transition-colors"
-                    :class="showConnections ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
+                    @click="useOkohi = false"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    :class="!useOkohi ? 'bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
                   >
-                    <span
-                      class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"
-                      :class="showConnections ? 'translate-x-5' : 'translate-x-0'"
-                    />
+                    Paiement Espèces
+                  </button>
+                  <button
+                    type="button"
+                    @click="useOkohi = true"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1"
+                    :class="useOkohi ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
+                  >
+                    <Gift :size="13" />
+                    Privilège Okohi
                   </button>
                 </div>
 
-              </div>
+                <!-- Price tag -->
+                <div class="text-xl md:text-2xl font-bold mt-2" :class="useOkohi ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'">
+                  {{ amountLabel }}
+                </div>
 
-              <!-- BLOC INTEGRATION OKOHI SELLER -->
-              <div
-                v-if="useOkohi"
-                class="mt-4 space-y-3 border-t border-gray-150 pt-4 text-left dark:border-slate-800"
-                :class="isOkohiExpanded ? 'md:contents' : ''"
-              >
-                <div :class="isOkohiExpanded ? 'md:col-start-1 md:mt-4' : ''">
-                  <InputLabel for="okohi_card" value="Numéro de carte fidélité Okohi" />
-                  <div class="mt-1 flex gap-2">
-                    <div class="relative flex-1">
-                      <TextInput
-                        id="okohi_card"
-                        v-model="okohiCardNumber"
-                        type="text"
-                        class="block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 font-bold uppercase"
-                        placeholder="OKH-XXXXXX"
-                        @input="e => { if (!e.target.value.toUpperCase().startsWith('OKH-')) okohiCardNumber = 'OKH-' }"
-                      />
+                <div v-if="connectionOptions.length > 0" class="mt-4 rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 text-left dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondance</div>
+                      <div class="text-[11px] text-slate-500 dark:text-slate-400">
+                        Afficher les destinations possibles via {{ selectedFare?.to_station?.name }}
+                      </div>
                     </div>
                     <button
                       type="button"
-                      :disabled="isOkohiSearching || okohiCardNumber.trim() === 'OKH-'"
-                      @click="searchOkohiCustomer"
-                      class="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-xl hover:bg-slate-700 disabled:opacity-50 font-bold text-xs flex items-center gap-1 transition-colors"
+                      role="switch"
+                      :aria-checked="showConnections"
+                      @click="showConnections = !showConnections"
+                      class="relative h-7 w-12 shrink-0 rounded-full transition-colors cursor-pointer"
+                      :class="showConnections ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'"
                     >
-                      <Refresh v-if="isOkohiSearching" :size="14" class="animate-spin" />
-                      <span>{{ isOkohiSearching ? 'Vérification...' : 'Vérifier' }}</span>
+                      <span
+                        class="absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform"
+                        :class="showConnections ? 'translate-x-5' : 'translate-x-0'"
+                      />
+                    </button>
+                  </div>
+
+                  <!-- Selected connection destination badge -->
+                  <div v-if="selectedConnectionOption" class="mt-3 p-2.5 bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300 dark:border-indigo-800 rounded-xl flex items-center justify-between text-left shadow-sm">
+                    <div>
+                      <div class="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 tracking-wider">Destination choisie</div>
+                      <div class="text-xs font-bold text-slate-900 dark:text-slate-100 mt-0.5">{{ selectedConnectionOption.station?.name }}</div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="clearSelectedConnection"
+                      class="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/60 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-lg border border-red-200 dark:border-red-900/30 transition-colors cursor-pointer"
+                    >
+                      Effacer
                     </button>
                   </div>
                 </div>
 
-                <!-- Okohi error -->
-                <div v-if="okohiSearchError" class="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl p-3 flex gap-2 items-start text-xs text-red-600 dark:text-red-400" :class="isOkohiExpanded ? 'md:col-start-1' : ''">
-                  <AlertCircle :size="16" class="shrink-0 mt-0.5" />
-                  <span>{{ okohiSearchError }}</span>
-                </div>
-
-                <!-- Customer found details -->
+                <!-- BLOC INTEGRATION OKOHI SELLER -->
                 <div
-                  v-if="okohiCustomer"
-                  class="rounded-xl border border-emerald-200 bg-slate-50 p-4 text-left shadow-sm dark:border-emerald-900/50 dark:bg-slate-900"
-                  :class="isOkohiExpanded ? 'md:col-start-2 md:row-start-1 md:row-span-6 md:space-y-4' : 'space-y-3'"
+                  v-if="useOkohi"
+                  class="mt-4 space-y-3 border-t border-gray-150 pt-4 text-left dark:border-slate-800"
+                  :class="isOkohiExpanded ? 'md:contents' : ''"
                 >
-                  <div class="flex items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
-                    <div class="rounded-lg bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
-                      <Gift :size="18" />
-                    </div>
-                    <div>
-                      <p class="text-sm font-black text-slate-800 dark:text-slate-100">Vérification Okohi</p>
-                      <p class="text-[11px] text-slate-500 dark:text-slate-400">Identité, voyages récents et privilèges disponibles</p>
-                    </div>
-                  </div>
-                  <div class="flex justify-between items-center">
-                    <div>
-                      <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Client</p>
-                      <p class="text-sm font-bold text-gray-800 dark:text-slate-100">{{ okohiCustomerName }}</p>
-                    </div>
-                    <div class="text-right">
-                      <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Solde</p>
-                      <p class="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                        {{ okohiBalanceLabel }}
-                      </p>
+                  <div :class="isOkohiExpanded ? 'md:col-start-1 md:mt-4' : ''">
+                    <InputLabel for="okohi_card" value="Numéro de carte fidélité Okohi" />
+                    <div class="mt-1 flex gap-2">
+                      <div class="relative flex-1">
+                        <TextInput
+                          id="okohi_card"
+                          v-model="okohiCardNumber"
+                          type="text"
+                          class="block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 font-bold uppercase"
+                          placeholder="OKH-XXXXXX"
+                          @input="e => { if (!e.target.value.toUpperCase().startsWith('OKH-')) okohiCardNumber = 'OKH-' }"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        :disabled="isOkohiSearching || okohiCardNumber.trim() === 'OKH-'"
+                        @click="searchOkohiCustomer"
+                        class="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-xl hover:bg-slate-700 disabled:opacity-50 font-bold text-xs flex items-center gap-1 transition-colors"
+                      >
+                        <Refresh v-if="isOkohiSearching" :size="14" class="animate-spin" />
+                        <span>{{ isOkohiSearching ? 'Vérification...' : 'Vérifier' }}</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div class="border-t border-slate-200 pt-3 dark:border-slate-800">
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                      <p class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400">Voyages récents</p>
-                      <span class="text-[11px] text-gray-400">Vérification client</span>
+                  <!-- Okohi error -->
+                  <div v-if="okohiSearchError" class="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl p-3 flex gap-2 items-start text-xs text-red-600 dark:text-red-400" :class="isOkohiExpanded ? 'md:col-start-1' : ''">
+                    <AlertCircle :size="16" class="shrink-0 mt-0.5" />
+                    <span>{{ okohiSearchError }}</span>
+                  </div>
+
+                  <!-- Customer found details -->
+                  <div
+                    v-if="okohiCustomer"
+                    class="rounded-xl border border-emerald-200 bg-slate-50 p-4 text-left shadow-sm dark:border-emerald-900/50 dark:bg-slate-900"
+                    :class="isOkohiExpanded ? 'md:col-start-2 md:row-start-1 md:row-span-6 md:space-y-4' : 'space-y-3'"
+                  >
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-3 dark:border-slate-800">
+                      <div class="rounded-lg bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400">
+                        <Gift :size="18" />
+                      </div>
+                      <div>
+                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">Vérification Okohi</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Identité, voyages récents et privilèges disponibles</p>
+                      </div>
                     </div>
-                    <div v-if="okohiCustomer.recent_trips?.length" class="max-h-44 space-y-2 overflow-y-auto pr-1">
-                      <div
-                        v-for="trip in okohiCustomer.recent_trips"
-                        :key="trip.id"
-                        class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"
-                      >
-                        <div class="flex items-start justify-between gap-3">
-                          <div class="min-w-0">
-                            <p class="truncate font-bold text-slate-700 dark:text-slate-200">{{ trip.route_label || trip.title || 'Voyage Tiketi' }}</p>
-                            <p class="mt-0.5 font-mono text-[11px] text-slate-400">Ticket {{ trip.ticket_id || 'non renseigné' }}</p>
-                          </div>
-                          <div class="shrink-0 text-right">
-                            <p class="font-semibold text-slate-600 dark:text-slate-300">{{ formatOkohiTripDate(trip.travelled_at) }}</p>
-                            <p v-if="trip.amount !== null" class="mt-0.5 text-[11px] text-slate-400">{{ Number(trip.amount).toLocaleString('fr-FR') }} FCFA</p>
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Client</p>
+                        <p class="text-sm font-bold text-gray-800 dark:text-slate-100">{{ okohiCustomerName }}</p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Solde</p>
+                        <p class="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                          {{ okohiBalanceLabel }}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="border-t border-slate-200 pt-3 dark:border-slate-800">
+                      <div class="mb-2 flex items-center justify-between gap-2">
+                        <p class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400">Voyages récents</p>
+                        <span class="text-[11px] text-gray-400">Vérification client</span>
+                      </div>
+                      <div v-if="okohiCustomer.recent_trips?.length" class="max-h-44 space-y-2 overflow-y-auto pr-1">
+                        <div
+                          v-for="trip in okohiCustomer.recent_trips"
+                          :key="trip.id"
+                          class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-950"
+                        >
+                          <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                              <p class="truncate font-bold text-slate-700 dark:text-slate-200">{{ trip.route_label || trip.title || 'Voyage Tiketi' }}</p>
+                              <p class="mt-0.5 font-mono text-[11px] text-slate-400">Ticket {{ trip.ticket_id || 'non renseigné' }}</p>
+                            </div>
+                            <div class="shrink-0 text-right">
+                              <p class="font-semibold text-slate-600 dark:text-slate-300">{{ formatOkohiTripDate(trip.travelled_at) }}</p>
+                              <p v-if="trip.amount !== null" class="mt-0.5 text-[11px] text-slate-400">{{ Number(trip.amount).toLocaleString('fr-FR') }} FCFA</p>
+                            </div>
                           </div>
                         </div>
                       </div>
+                      <p v-else class="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
+                        Aucun voyage confirmé trouvé pour cette compagnie.
+                      </p>
                     </div>
-                    <p v-else class="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
-                      Aucun voyage confirmé trouvé pour cette compagnie.
-                    </p>
-                  </div>
 
-                  <!-- Rewards dropdown selector -->
-                  <div>
-                    <InputLabel for="okohi_reward" value="Privilège à appliquer" />
-                    <select
-                      id="okohi_reward"
-                      v-model="selectedReward"
-                      class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-bold"
-                    >
-                      <option :value="null">Sélectionner un privilège...</option>
-                      <option v-for="reward in eligibleRewards" :key="reward.id" :value="reward">
-                        {{ reward.title }} (Coût: {{ reward.points_required ?? reward.cost_in_times }} pts)
-                      </option>
-                    </select>
+                    <!-- Rewards dropdown selector -->
+                    <div>
+                      <InputLabel for="okohi_reward" value="Privilège à appliquer" />
+                      <select
+                        id="okohi_reward"
+                        v-model="selectedReward"
+                        class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-bold"
+                      >
+                        <option :value="null">Sélectionner un privilège...</option>
+                        <option v-for="reward in eligibleRewards" :key="reward.id" :value="reward">
+                          {{ reward.title }} (Coût: {{ reward.points_required ?? reward.cost_in_times }} pts)
+                        </option>
+                      </select>
+                    </div>
                   </div>
+                </div>
+
+                <!-- QUANTITY SELECTOR -->
+                <div v-if="!useOkohi" class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
+                  <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Quantité:</span>
+                  <div class="flex items-center bg-white/85 dark:bg-slate-900/85 rounded-xl border border-white/70 dark:border-slate-800/80 shadow-sm overflow-hidden">
+                    <button
+                      type="button"
+                      @click="ticketQuantityModel = Math.max(1, ticketQuantityModel - 1)"
+                      class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-l-xl border-r border-white/70 dark:border-slate-800/80"
+                    >-</button>
+                    <input
+                      v-model.number="ticketQuantityModel"
+                      type="number"
+                      min="1"
+                      max="10"
+                      class="w-12 py-1 text-center border-0 focus:ring-0 text-gray-900 dark:text-slate-100 bg-transparent font-bold"
+                    />
+                    <button
+                      type="button"
+                      @click="ticketQuantityModel = Math.min(10, ticketQuantityModel + 1)"
+                      class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-r-xl border-l border-white/70 dark:border-slate-800/80"
+                    >+</button>
+                  </div>
+                </div>
+                <div v-else class="mt-3 md:mt-4 text-xs font-bold text-slate-600 dark:text-slate-300 bg-emerald-50/70 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-center">
+                  Quantité : 1 siège (Privilège individuel Okohi)
+                </div>
+                <div v-if="!useOkohi && ticketQuantityModel > 1" class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300 mt-2">
+                  Total: {{ totalLabel }}
                 </div>
               </div>
 
-              <!-- QUANTITY SELECTOR (Uniquement pour paiement espèces) -->
-              <div v-if="!useOkohi" class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
-                <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Quantité:</span>
-                <div class="flex items-center bg-white/85 dark:bg-slate-900/85 rounded-xl border border-white/70 dark:border-slate-800/80 shadow-sm overflow-hidden">
-                  <button
-                    type="button"
-                    @click="ticketQuantityModel = Math.max(1, ticketQuantityModel - 1)"
-                    class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-l-xl border-r border-white/70 dark:border-slate-800/80"
-                  >-</button>
-                  <input
-                    v-model.number="ticketQuantityModel"
-                    type="number"
-                    min="1"
-                    max="10"
-                    class="w-12 py-1 text-center border-0 focus:ring-0 text-gray-900 dark:text-slate-100 bg-transparent font-bold"
-                  />
-                  <button
-                    type="button"
-                    @click="ticketQuantityModel = Math.min(10, ticketQuantityModel + 1)"
-                    class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-r-xl border-l border-white/70 dark:border-slate-800/80"
-                  >+</button>
-                </div>
-              </div>
-              <div v-if="!useOkohi && ticketQuantityModel > 1" class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300 mt-2">
-                Total: {{ totalLabel }}
-              </div>
-            </div>
-
-            <!-- INFORMATIONS PASSAGER (Seulement pour paiement espèces) -->
-            <button
-              v-if="!useOkohi"
-              @click="showPassengerFieldsModel = !showPassengerFieldsModel"
-              class="w-full flex items-center justify-between p-3 bg-white/55 dark:bg-slate-950/40 hover:bg-white/75 dark:hover:bg-slate-900/50 rounded-xl mt-4 mb-3 transition-colors border border-white/60 dark:border-slate-800/80"
-            >
-              <span class="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300">Informations passager (optionnel)</span>
-              <ChevronDown :class="{ 'rotate-180': showPassengerFieldsModel }" class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-transform" />
-            </button>
-
-            <div v-show="!useOkohi && showPassengerFieldsModel" class="space-y-3 mb-3 md:mb-4">
-              <div>
-                <InputLabel for="passenger_name" value="Nom du passager" />
-                <TextInput
-                  id="passenger_name"
-                  v-model="passengerForm.name"
-                  type="text"
-                  class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
-                  placeholder="Nom complet"
-                />
-                <InputError class="mt-2" :message="passengerFormErrors.name" />
-              </div>
-
-              <div>
-                <InputLabel for="passenger_phone" value="Téléphone" />
-                <TextInput
-                  id="passenger_phone"
-                  v-model="passengerForm.phone"
-                  type="tel"
-                  class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
-                  placeholder="Ex: 0102030405"
-                />
-                <InputError class="mt-2" :message="passengerFormErrors.phone" />
-              </div>
-            </div>
-
-            <!-- ACTION FOOTER BAR -->
-            <div class="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pt-4 pb-2 border-t border-gray-150 dark:border-slate-800 mt-4">
-              <div class="flex items-center justify-end space-x-3">
-                <button
-                  type="button"
-                  @click="$emit('close')"
-                  class="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
-                >
-                  Annuler
-                </button>
-
-                <!-- BUTTON FOR OKOHI VALIDATION -->
-                <button
-                  v-if="useOkohi"
-                  type="button"
-                  :disabled="processingOkohi || !selectedReward"
-                  @click="initiateOkohiRequest"
-                  class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold shadow-sm transition-colors cursor-pointer"
-                >
-                  <Refresh v-if="processingOkohi" :size="16" class="animate-spin mr-2" />
-                  <Gift v-else :size="16" class="mr-2" />
-                  <span>{{ processingOkohi ? 'Envoi...' : 'Utiliser ce privilège' }}</span>
-                </button>
-
-                <!-- BUTTON FOR CASH VALIDATION (STANDARD) -->
-                <button
-                  v-else
-                  type="button"
-                  @click="$emit('confirm')"
-                  :disabled="processing"
-                  class="px-5 py-2 bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-850 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold cursor-pointer"
-                >
-                  <div v-if="processing" class="animate-spin mr-2"><Refresh :size="16" /></div>
-                  <Printer v-else :size="16" class="mr-2" />
-                  <span>{{ processing ? 'Validation...' : 'Valider & Imprimer' }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <aside v-if="showConnections" class="rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20 md:p-4">
-            <div class="mb-3 text-left">
-              <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondances possibles</div>
-              <div class="text-[11px] text-slate-500 dark:text-slate-400">Via {{ selectedFare?.to_station?.name }}</div>
-            </div>
-
-            <TextInput
-              v-model="connectionSearch"
-              type="search"
-              placeholder="Rechercher une destination"
-              class="block w-full rounded-xl border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            />
-
-            <div v-if="filteredConnectionOptions.length" class="mt-3 max-h-[calc(84vh-12rem)] space-y-2 overflow-y-auto pr-1">
+              <!-- INFORMATIONS PASSAGER -->
               <button
-                v-for="option in filteredConnectionOptions"
-                :key="`${option.station.id}:${option.route?.id}`"
                 type="button"
-                :disabled="option.price === null"
-                @click="selectConnectionOption(option)"
-                class="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                :class="selectedConnectionOption?.station?.id === option.station.id
-                  ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30'"
+                @click="showPassengerFieldsModel = !showPassengerFieldsModel"
+                class="w-full flex items-center justify-between p-3 bg-white/55 dark:bg-slate-950/40 hover:bg-white/75 dark:hover:bg-slate-900/50 rounded-xl mt-4 mb-3 transition-colors border border-white/60 dark:border-slate-800/80 cursor-pointer"
               >
-                <div class="min-w-0">
-                  <div class="truncate text-sm font-black">{{ option.station.name }}</div>
-                  <div class="mt-0.5 text-[10px] opacity-75">{{ option.details }}</div>
-                </div>
-                <div v-if="option.price !== null" class="shrink-0 text-right">
-                  <div class="text-base font-black">{{ option.price.toLocaleString('fr-FR') }}</div>
-                  <div class="text-[9px] font-bold opacity-75">FCFA</div>
-                </div>
-                <div v-else class="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400">Non tarifé</div>
+                <span class="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300">Informations passager (optionnel)</span>
+                <ChevronDown :class="{ 'rotate-180': showPassengerFieldsModel }" class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-transform" />
               </button>
+
+              <div v-show="showPassengerFieldsModel" class="space-y-3 mb-3 md:mb-4 text-left">
+                <div>
+                  <InputLabel for="passenger_name" value="Nom du passager" />
+                  <TextInput
+                    id="passenger_name"
+                    v-model="passengerForm.name"
+                    type="text"
+                    class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    placeholder="Nom complet"
+                  />
+                  <InputError class="mt-2" :message="passengerFormErrors.name" />
+                </div>
+
+                <div>
+                  <InputLabel for="passenger_phone" value="Téléphone" />
+                  <TextInput
+                    id="passenger_phone"
+                    v-model="passengerForm.phone"
+                    type="tel"
+                    class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    placeholder="Ex: 0102030405"
+                  />
+                  <InputError class="mt-2" :message="passengerFormErrors.phone" />
+                </div>
+              </div>
+
+              <!-- ACTION FOOTER BAR -->
+              <div class="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm pt-4 pb-2 border-t border-gray-150 dark:border-slate-800 mt-4">
+                <div class="flex items-center justify-end space-x-3">
+                  <button
+                    type="button"
+                    @click="$emit('close')"
+                    class="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
+                  >
+                    Annuler
+                  </button>
+
+                  <!-- BUTTON FOR OKOHI VALIDATION -->
+                  <button
+                    v-if="useOkohi"
+                    type="button"
+                    :disabled="processingOkohi || !selectedReward"
+                    @click="initiateOkohiRequest"
+                    class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Refresh v-if="processingOkohi" :size="16" class="animate-spin mr-2" />
+                    <Gift v-else :size="16" class="mr-2" />
+                    <span>{{ processingOkohi ? 'Envoi...' : 'Utiliser ce privilège' }}</span>
+                  </button>
+
+                  <!-- BUTTON FOR CASH VALIDATION (STANDARD) -->
+                  <button
+                    v-else
+                    type="button"
+                    @click="$emit('confirm')"
+                    :disabled="processing"
+                    class="px-5 py-2 bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-850 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold cursor-pointer"
+                  >
+                    <div v-if="processing" class="animate-spin mr-2"><Refresh :size="16" /></div>
+                    <Printer v-else :size="16" class="mr-2" />
+                    <span>{{ processing ? 'Validation...' : 'Valider & Imprimer' }}</span>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div v-else class="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              Aucune correspondance trouvée.
-            </div>
-          </aside>
+
+            <!-- ASIDE CORRESPONDANCES (COLUMN 2) -->
+            <aside v-if="showConnections" class="rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20 md:p-4 sticky top-0">
+              <div class="mb-3 text-left">
+                <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondances possibles</div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">Via {{ selectedFare?.to_station?.name }}</div>
+              </div>
+
+              <TextInput
+                v-model="connectionSearch"
+                type="search"
+                placeholder="Rechercher une destination"
+                class="block w-full rounded-xl border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              />
+
+              <div v-if="filteredConnectionOptions.length" class="mt-3 max-h-[calc(84vh-12rem)] space-y-2 overflow-y-auto pr-1">
+                <button
+                  v-for="option in filteredConnectionOptions"
+                  :key="`${option.station.id}:${option.route?.id}`"
+                  type="button"
+                  :disabled="option.price === null"
+                  @click="selectConnectionOption(option)"
+                  class="flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                  :class="selectedConnectionOption?.station?.id === option.station.id
+                    ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-indigo-700 dark:hover:bg-indigo-950/30'"
+                >
+                  <div class="min-w-0">
+                    <div class="truncate text-sm font-black">{{ option.station.name }}</div>
+                    <div class="mt-0.5 text-[10px] opacity-75">{{ option.details }}</div>
+                  </div>
+                  <div v-if="option.price !== null" class="shrink-0 text-right">
+                    <div class="text-base font-black">{{ option.price.toLocaleString('fr-FR') }}</div>
+                    <div class="text-[9px] font-bold opacity-75">FCFA</div>
+                  </div>
+                  <div v-else class="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400">Non tarifé</div>
+                </button>
+              </div>
+              <div v-else class="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                Aucune correspondance trouvée.
+              </div>
+            </aside>
           </div>
-        </div>
       </div>
     </div>
+  </div>
   </div>
   </div>
 </template>

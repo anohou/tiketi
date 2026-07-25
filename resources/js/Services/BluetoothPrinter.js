@@ -297,6 +297,11 @@ class BluetoothPrinter {
             this.wrap(`1. ${settings.baggage_policy_message}`, width).forEach(line => {
                 commands += `${line}\n`;
             });
+            if (settings.baggage_policy_message_2) {
+                this.wrap(`2. ${settings.baggage_policy_message_2}`, width).forEach(line => {
+                    commands += `${line}\n`;
+                });
+            }
             commands += this.ALIGN_CENTER;
         }
 

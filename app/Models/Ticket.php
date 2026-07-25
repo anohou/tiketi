@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -34,6 +35,16 @@ class Ticket extends Model
                 $model->id = (string) Str::uuid();
             }
         });
+    }
+
+    public function scopeIssued(Builder $query): Builder
+    {
+        return $query->where('status', 'issued');
+    }
+
+    public function scopeRevenueEligible(Builder $query): Builder
+    {
+        return $query->issued();
     }
 
     public function trip()

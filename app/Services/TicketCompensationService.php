@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\OperationalSetting;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
@@ -26,6 +27,15 @@ class TicketCompensationService
             $direct = in_array($user->role, ['admin', 'supervisor'], true)
                 || ($user->role === 'seller' && (bool) data_get($settings->settings, 'seller_compensation_enabled', false));
             $amount = (int) ($data['amount'] ?? 0);
+            if ($data['compensation_type'] === 'refund' && $amount === 0) {
+                $amount = (int) ($ticket->amount_collected ?? $ticket->price);
+            }
+            if ($data['compensation_type'] === 'refund'
+                && $amount > (int) ($ticket->amount_collected ?? $ticket->price)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'Le remboursement ne peut pas dépasser le montant net encaissé.',
+                ]);
+            }
             $limit = (int) data_get($settings->settings, 'seller_compensation_max_amount', 0);
             if ($user->role === 'seller' && $limit > 0 && $amount > $limit) {
                 $direct = false;
@@ -49,7 +59,7 @@ class TicketCompensationService
                 'replacement_seat_number' => $data['replacement_seat_number'] ?? null,
             ]);
             if ($direct) {
-                $this->applyTravelEntitlement($compensation, $ticket);
+                $this->applyCompensation($compensation, $ticket);
             }
 
             return $compensation->fresh(['ticket', 'replacementTrip']);
@@ -68,10 +78,51 @@ class TicketCompensationService
                 throw ValidationException::withMessages(['compensation' => 'Cette compensation a déjà été traitée.']);
             }
             $compensation->update(['status' => 'executed', 'approved_by' => $user->id, 'executed_by' => $user->id, 'approved_at' => now(), 'executed_at' => now()]);
-            $this->applyTravelEntitlement($compensation, $compensation->ticket);
+            $this->applyCompensation($compensation, $compensation->ticket);
 
             return $compensation->fresh(['ticket', 'replacementTrip']);
         });
+    }
+
+    private function applyCompensation(TicketCompensation $compensation, Ticket $ticket): void
+    {
+        if ($compensation->compensation_type === 'refund') {
+            $this->applyRefund($compensation, $ticket);
+
+            return;
+        }
+
+        $this->applyTravelEntitlement($compensation, $ticket);
+    }
+
+    private function applyRefund(TicketCompensation $compensation, Ticket $ticket): void
+    {
+        $ticket = Ticket::query()->whereKey($ticket->id)->lockForUpdate()->firstOrFail();
+        $settings = $ticket->settings ?? [];
+        data_set($settings, 'refund.reference', $compensation->reference);
+        data_set($settings, 'refund.amount', (int) $compensation->amount);
+        data_set($settings, 'refund.executed_at', now()->toIso8601String());
+
+        if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {
+            data_set($settings, 'okohi_refund_status', 'refund_pending');
+        }
+
+        TripSeatOccupancy::query()->where('ticket_id', $ticket->id)->delete();
+        $ticket->connection()->update(['status' => 'cancelled']);
+        $ticket->update([
+            'status' => 'refunded',
+            'settings' => $settings,
+        ]);
+
+        if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {
+            $tenantId = function_exists('tenancy') && tenancy()->initialized ? (string) tenant('id') : null;
+            DB::afterCommit(fn () => CancelOrReverseOkohiClaimJob::dispatch(
+                $ticket->okohi_transaction_id,
+                'reverse',
+                $tenantId,
+                $ticket->id,
+            ));
+        }
     }
 
     private function applyTravelEntitlement(TicketCompensation $compensation, Ticket $ticket): void

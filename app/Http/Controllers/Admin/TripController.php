@@ -27,7 +27,7 @@ class TripController extends Controller
     {
         $trips = Trip::with(['route.originStation', 'route.destinationStation', 'route.routeStopOrders', 'vehicle', 'tickets.toStation'])
             ->withCount(['tickets as tickets_count' => function ($q) {
-                $q->where('status', '!=', 'cancelled');
+                $q->where('status', 'issued');
             }])
             ->upcomingFirst()
             ->paginate(20);

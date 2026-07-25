@@ -93,7 +93,7 @@ class SellerDashboardController extends Controller
 
         $todaySales = Ticket::where('seller_id', $user->id)
             ->whereDate('created_at', now()->today())
-            ->where('status', '!=', 'cancelled')
+            ->where('status', 'issued')
             ->sum(DB::raw('COALESCE(amount_collected, price)'));
 
         return Inertia::render('Dashboards/Seller', [

@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -x vendor/bin/pint ]]; then
-            vendor/bin/pint --test || echo "Pint reported style issues; continuing for now."
+            vendor/bin/pint --test
           else
             echo "Pint is not installed; skipping style check."
           fi
@@ -109,15 +109,6 @@ jobs:
             echo "No composer manifest found; skipping static analysis."
           fi
 
-      - name: Run secret scan
-        run: |
-          set -euo pipefail
-          if [[ -x scripts/secret-scan.sh ]]; then
-            ./scripts/secret-scan.sh
-          else
-            echo "Secret scan script not found; skipping."
-          fi
-
       - name: Validate database migrations
         run: |
           set -euo pipefail
@@ -126,6 +117,24 @@ jobs:
           else
             echo "Migration check script not found; skipping."
           fi
+
+      - name: Audit PHP dependencies
+        run: composer audit --locked
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build frontend
+        run: npm run build
 
   build-and-push:
     name: Build and Push Image
@@ -263,7 +272,6 @@ jobs:
 
       - name: Scan pushed image digest for vulnerabilities
         uses: aquasecurity/trivy-action@v0.35.0
-        continue-on-error: true
         with:
           image-ref: ${{ steps.digest.outputs.repo_digest }}
           format: table

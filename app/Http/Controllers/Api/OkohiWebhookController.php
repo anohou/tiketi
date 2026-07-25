@@ -201,7 +201,7 @@ class OkohiWebhookController extends Controller
                     $this->broadcastClaimUpdate($claimId, 'approved', array_merge($request->all(), [
                         'local_status' => 'approved_pending_cash',
                         'amount_collected' => $amountCollected,
-                    ]));
+                    ]), $rewardRequest);
 
                     return response()->json([
                         'valid' => true,
@@ -219,7 +219,7 @@ class OkohiWebhookController extends Controller
                 $this->broadcastClaimUpdate($claimId, 'approved', array_merge($request->all(), [
                     'local_status' => 'confirmed',
                     'ticket_id' => $ticket->id,
-                ]));
+                ]), $rewardRequest);
 
                 return response()->json([
                     'valid' => true,
@@ -356,14 +356,21 @@ class OkohiWebhookController extends Controller
         ];
     }
 
-    private function broadcastClaimUpdate(?string $claimId, string $status, array $payload): void
+    private function broadcastClaimUpdate(?string $claimId, string $status, array $payload, ?OkohiRewardRequest $rewardRequest = null): void
     {
         if (! $claimId) {
             return;
         }
 
         try {
-            event(new OkohiClaimUpdated($claimId, $status, $payload));
+            event(new OkohiClaimUpdated(
+                claimId: $claimId,
+                status: $status,
+                payload: $payload,
+                tenantId: tenancy()->initialized ? tenant('id') : null,
+                tripId: $rewardRequest?->trip_id,
+                seatNumber: $rewardRequest?->seat_number
+            ));
         } catch (\Throwable $exception) {
             Log::warning('Unable to broadcast Okohi claim update: '.$exception->getMessage());
         }

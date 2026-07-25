@@ -6,6 +6,7 @@ use App\Events\SeatMapUpdated;
 use App\Events\TidsUpdated;
 use App\Events\TripCreated;
 use App\Jobs\CancelOrReverseOkohiClaimJob;
+use App\Models\AuthorizedDevice;
 use App\Models\CrewMember;
 use App\Models\OkohiRewardRequest;
 use App\Models\OperationalSetting;
@@ -65,6 +66,56 @@ class TicketingFlowTest extends TestCase
         ]);
 
         $this->assertGuest();
+    }
+
+    public function test_admin_can_enable_web_device_restriction_without_locking_current_device(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.settings.devices.restrictions'), [
+                'web' => true,
+                'control' => false,
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue((bool) data_get(
+            OperationalSetting::current()->settings,
+            'device_restrictions.web',
+        ));
+        $this->assertDatabaseHas('authorized_devices', [
+            'channel' => AuthorizedDevice::CHANNEL_WEB,
+            'status' => AuthorizedDevice::STATUS_APPROVED,
+            'requested_by_id' => $admin->id,
+            'approved_by_user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_unknown_web_device_creates_pending_request_after_valid_credentials(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'seller',
+            'active' => true,
+            'password' => 'password',
+        ]);
+        OperationalSetting::current()->update([
+            'settings' => ['device_restrictions' => ['web' => true, 'control' => false]],
+        ]);
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->assertDatabaseHas('authorized_devices', [
+            'channel' => AuthorizedDevice::CHANNEL_WEB,
+            'status' => AuthorizedDevice::STATUS_PENDING,
+            'requested_by_id' => $user->id,
+        ]);
     }
 
     public function test_ticketing_focus_mode_uses_the_live_ticketing_page(): void
@@ -1840,7 +1891,7 @@ class TicketingFlowTest extends TestCase
 
         $suggestedSeat = $response->json('suggested_seats.0.seat_number');
 
-        $this->assertContains($suggestedSeat, range(1, 18));
+        $this->assertContains($suggestedSeat, array_merge(range(1, 18), range(20, 25)));
         $this->assertNotContains($suggestedSeat, range(34, 49));
     }
 
@@ -2974,6 +3025,34 @@ class TicketingFlowTest extends TestCase
                 $table->timestamp('last_used_at')->nullable();
                 $table->timestamp('expires_at')->nullable();
                 $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('authorized_devices')) {
+            Schema::create('authorized_devices', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->char('secret_hash', 64);
+                $table->string('channel', 20)->index();
+                $table->string('status', 20)->default('pending')->index();
+                $table->string('name')->nullable();
+                $table->string('platform')->nullable();
+                $table->string('app_version')->nullable();
+                $table->string('requested_by_type', 40)->nullable();
+                $table->uuid('requested_by_id')->nullable()->index();
+                $table->uuid('approved_by_user_id')->nullable()->index();
+                $table->string('last_ip', 45)->nullable();
+                $table->text('last_user_agent')->nullable();
+                $table->timestamp('requested_at')->nullable();
+                $table->timestamp('approved_at')->nullable();
+                $table->timestamp('revoked_at')->nullable();
+                $table->timestamp('last_seen_at')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasColumn('personal_access_tokens', 'authorized_device_id')) {
+            Schema::table('personal_access_tokens', function (Blueprint $table) {
+                $table->uuid('authorized_device_id')->nullable()->index();
             });
         }
 

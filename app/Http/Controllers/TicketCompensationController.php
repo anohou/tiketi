@@ -13,6 +13,8 @@ class TicketCompensationController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', TicketCompensation::class);
+
         return Inertia::render('Supervisor/Compensations', [
             'compensations' => TicketCompensation::with(['ticket', 'requestedBy', 'replacementTrip'])
                 ->where('status', 'pending_approval')->oldest()->get(),
@@ -21,6 +23,8 @@ class TicketCompensationController extends Controller
 
     public function store(Request $request, Ticket $ticket, TicketCompensationService $service)
     {
+        $this->authorize('view', $ticket);
+
         $data = $request->validate([
             'incident_type' => ['required', Rule::in(['trip_cancelled', 'missed_connection', 'delay', 'service_incident', 'commercial'])],
             'compensation_type' => ['required', Rule::in(['refund', 'credit', 'free_rebooking', 'fare_adjustment', 'exceptional_care'])],
@@ -39,6 +43,8 @@ class TicketCompensationController extends Controller
 
     public function approve(Request $request, TicketCompensation $compensation, TicketCompensationService $service)
     {
+        $this->authorize('approve', $compensation);
+
         return response()->json(['message' => 'Compensation approuvée.', 'compensation' => $service->approve($compensation, $request->user())]);
     }
 }

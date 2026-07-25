@@ -16,7 +16,7 @@ final class BoardTicket
 
         return DB::transaction(function () use ($actor, $trip, $ticket, $occurredAt) {
             $lockedTrip = Trip::query()->whereKey($trip->id)->lockForUpdate()->firstOrFail();
-            $lockedTicket = Ticket::with(['connection', 'compensations'])
+            $lockedTicket = Ticket::with(['connection', 'compensations.boardedBy'])
                 ->whereKey($ticket->id)->lockForUpdate()->firstOrFail();
 
             if (in_array($lockedTrip->status, ['arrived', 'cancelled'], true)) {
@@ -33,13 +33,20 @@ final class BoardTicket
             }
 
             $connection = $lockedTicket->connection?->trip_id === $lockedTrip->id ? $lockedTicket->connection : null;
-            if ($lockedTicket->trip_id !== $lockedTrip->id && ! $connection) {
+            $replacement = $lockedTicket->compensations->first(
+                fn ($item) => $item->status === 'executed'
+                    && $item->compensation_type === 'free_rebooking'
+                    && $item->replacement_trip_id === $lockedTrip->id
+            );
+            if ($lockedTicket->trip_id !== $lockedTrip->id && ! $connection && ! $replacement) {
                 throw new TicketingRuleViolation('wrong_trip', 'Ce ticket n’est pas affecté à ce voyage.', 409);
             }
             if ($connection && ! in_array($connection->status, ['assigned', 'boarded'], true)) {
                 throw new TicketingRuleViolation('connection_not_assigned', 'La correspondance n’est pas affectée à ce voyage.', 409);
             }
-            if (($connection && $connection->boarded_at) || (! $connection && $lockedTicket->boarded_at)) {
+            if (($connection && $connection->boarded_at)
+                || ($replacement && $replacement->boarded_at)
+                || (! $connection && ! $replacement && $lockedTicket->boarded_at)) {
                 throw new TicketingRuleViolation('already_boarded', 'Ce passager a déjà été embarqué sur ce segment.', 409);
             }
 
@@ -54,11 +61,19 @@ final class BoardTicket
 
             if ($connection) {
                 $connection->update(['status' => 'boarded', 'boarded_at' => $occurredAt, 'boarded_by' => $actor->id]);
+            } elseif ($replacement) {
+                $replacement->update(['boarded_at' => $occurredAt, 'boarded_by' => $actor->id]);
             } else {
                 $lockedTicket->update(['boarded_at' => $occurredAt, 'boarded_by' => $actor->id]);
             }
 
-            return $lockedTicket->fresh(['fromStation', 'toStation', 'boardedBy', 'connection.boardedBy']);
+            return $lockedTicket->fresh([
+                'fromStation',
+                'toStation',
+                'boardedBy',
+                'connection.boardedBy',
+                'compensations.boardedBy',
+            ]);
         });
     }
 }

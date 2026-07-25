@@ -197,7 +197,7 @@ class TripSegmentService
                 ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
                     $ticket = $occupancy->ticket;
 
-                    return $ticket && $ticket->status !== 'cancelled'
+                    return $ticket?->status === 'issued'
                         && ($occupancy->to_station_id ?? $ticket->to_station_id) === $xId;
                 })
                 ->pluck('seat_number')
@@ -209,7 +209,7 @@ class TripSegmentService
                 ->filter(function (TripSeatOccupancy $occupancy) use ($xId) {
                     $ticket = $occupancy->ticket;
 
-                    return $ticket && $ticket->status !== 'cancelled'
+                    return $ticket?->status === 'issued'
                         && ($occupancy->from_station_id ?? $ticket->from_station_id) === $xId;
                 })
                 ->pluck('seat_number')
@@ -241,7 +241,7 @@ class TripSegmentService
         $seatCount = $trip->vehicle?->vehicleType?->seat_count ?? $trip->vehicle?->seat_count ?? 0;
 
         $occupiedSeatNumbers = $trip->tripSeatOccupancies
-            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket && $occupancy->ticket->status !== 'cancelled')
+            ->filter(fn (TripSeatOccupancy $occupancy) => $occupancy->ticket?->status === 'issued')
             ->pluck('seat_number')
             ->map(fn ($seatNumber) => (int) $seatNumber)
             ->unique()
@@ -324,7 +324,7 @@ class TripSegmentService
 
         if (! $fromStationId || ! $toStationId) {
             $occupied = Ticket::where('trip_id', $trip->id)
-                ->where('status', '!=', 'cancelled')
+                ->where('status', 'issued')
                 ->distinct('seat_number')
                 ->count('seat_number');
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Accountant\ReportsController;
+use App\Http\Controllers\Admin\AuthorizedDeviceController;
 use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\LoyaltySettingController;
 use App\Http\Controllers\Admin\OkohiConnectController;
@@ -34,7 +35,6 @@ use App\Http\Controllers\SellerDashboardController;
 use App\Http\Controllers\SupervisorDashboardController;
 use App\Http\Controllers\TicketCompensationController;
 use App\Http\Controllers\TicketPrintController;
-use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -46,10 +46,6 @@ Route::get('/', function () {
     ];
 
     if ($isTenant) {
-        $data['users'] = User::where('active', true)
-            ->select(['id', 'name', 'email', 'role'])
-            ->orderBy('name')
-            ->get();
         $data['canResetPassword'] = Route::has('password.request');
         $data['status'] = session('status');
     }
@@ -78,7 +74,7 @@ Route::get('/dashboard', function () {
 
 Route::get('/tids', [TicketingController::class, 'tids'])->name('tids');
 
-Route::middleware(['auth', 'tenant.initialized'])->group(function () {
+Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -94,6 +90,9 @@ Route::middleware(['auth', 'tenant.initialized'])->group(function () {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::get('/settings/enterprise', [SettingsController::class, 'enterprise'])->name('settings.enterprise');
         Route::post('/settings/enterprise', [SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
+        Route::get('/settings/devices', [AuthorizedDeviceController::class, 'index'])->name('settings.devices.index');
+        Route::put('/settings/devices/restrictions', [AuthorizedDeviceController::class, 'updateRestrictions'])->name('settings.devices.restrictions');
+        Route::patch('/settings/devices/{device}', [AuthorizedDeviceController::class, 'update'])->name('settings.devices.update');
 
         // CRUDs
         Route::resource('destinations', DestinationController::class);
@@ -184,6 +183,8 @@ Route::middleware(['auth', 'tenant.initialized'])->group(function () {
 
         // Okohi Loyalty Integration for seller
         Route::get('/okohi/customers/{customerNumber}', [OkohiRewardController::class, 'customer'])->name('okohi.customer');
+        Route::get('/okohi/reward-requests-pending', [OkohiRewardRequestController::class, 'pendingForSeat'])->name('okohi.requests.pending-seat');
+        Route::get('/okohi/reward-requests-pending-trip', [OkohiRewardRequestController::class, 'pendingForTrip'])->name('okohi.requests.pending-trip');
         Route::post('/okohi/reward-requests', [OkohiRewardRequestController::class, 'store'])->name('okohi.requests.store');
         Route::get('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'show'])->name('okohi.requests.show');
         Route::delete('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'destroy'])->name('okohi.requests.destroy');
