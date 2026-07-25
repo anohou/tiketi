@@ -109,9 +109,9 @@ jobs:
           echo "channel=deploy-${DEPLOY_ENV}" >> "$GITHUB_OUTPUT"
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.8.1
+        uses: sigstore/cosign-installer@v4.1.2
         with:
-          cosign-release: v2.4.1
+          cosign-release: v2.6.3
 
       - name: Verify build trust before promotion
         run: |
@@ -119,10 +119,10 @@ jobs:
           image_ref="${{ steps.promotion.outputs.image_ref }}"
           identity="^https://github.com/${{ github.repository }}/.github/workflows/build-and-push\.yml@refs/(heads|tags)/.+$"
           issuer="https://token.actions.githubusercontent.com"
-          cosign verify --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
-          cosign verify-attestation --type slsaprovenance --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
-          if ! cosign verify-attestation --type spdxjson --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null 2>&1; then
-            cosign verify-attestation --type https://spdx.dev/Document --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
+          cosign verify --new-bundle-format=true --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
+          cosign verify-attestation --new-bundle-format=true --type slsaprovenance --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
+          if ! cosign verify-attestation --new-bundle-format=true --type spdxjson --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null 2>&1; then
+            cosign verify-attestation --new-bundle-format=true --type https://spdx.dev/Document --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
           fi
 
       - name: Publish signed promotion attestation
@@ -140,7 +140,13 @@ jobs:
             --arg promoted_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             '{app:$app,environment:$environment,digest:$digest,repository:$repository,actor:$actor,run_url:$run_url,promoted_at:$promoted_at}' \
             > "${predicate}"
-          cosign attest --yes --type "${PROMOTION_TYPE}" --predicate "${predicate}" "${{ steps.promotion.outputs.image_ref }}"
+          cosign attest \
+            --yes \
+            --new-bundle-format=true \
+            --use-signing-config=true \
+            --type "${PROMOTION_TYPE}" \
+            --predicate "${predicate}" \
+            "${{ steps.promotion.outputs.image_ref }}"
 
       - name: Move environment channel after verification
         run: |
