@@ -36,10 +36,14 @@ else
 fi
 
 if command -v php >/dev/null 2>&1 && [ -f artisan ]; then
-  echo "Running smoke tests..."
-  php artisan test --testsuite=Feature --filter='(AuthenticationTest|ExampleTest|ProfileTest)' --no-ansi
+  echo "Running all PHP tests..."
+  APP_ENV=testing \
+  CACHE_STORE=array \
+  SESSION_DRIVER=array \
+  QUEUE_CONNECTION=sync \
+  php artisan test --no-ansi
 else
-  echo "php or artisan not available; skipping smoke tests"
+  echo "php or artisan not available; skipping PHP tests"
 fi
 
 echo ""

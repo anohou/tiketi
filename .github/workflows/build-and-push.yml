@@ -34,10 +34,7 @@ jobs:
     permissions:
       contents: read
     env:
-      APP_ENV: production
       SMOKE_TOKEN_REPLAY_STORE: database
-      CACHE_STORE: file
-      SESSION_DRIVER: file
       QUEUE_CONNECTION: sync
     steps:
       - name: Checkout source
@@ -84,6 +81,11 @@ jobs:
           fi
 
       - name: Run PHP tests
+        env:
+          APP_ENV: testing
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
         run: |
           set -euo pipefail
           if [[ -f artisan && -f phpunit.xml ]]; then
