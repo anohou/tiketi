@@ -13,6 +13,9 @@ on:
           - staging
   schedule:
     - cron: "17 4 * * 1"
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -62,13 +65,64 @@ jobs:
             echo "Pint is not installed; skipping style check."
           fi
 
+      - name: Run environment variable check
+        run: |
+          set -euo pipefail
+          if [[ -x scripts/env-check.sh ]]; then
+            ./scripts/env-check.sh
+          else
+            echo "Environment check script not found; skipping."
+          fi
+
+      - name: Run secret scan
+        run: |
+          set -euo pipefail
+          if [[ -x scripts/secret-scan.sh ]]; then
+            ./scripts/secret-scan.sh
+          else
+            echo "Secret scan script not found; skipping."
+          fi
+
       - name: Run PHP tests
         run: |
           set -euo pipefail
           if [[ -f artisan && -f phpunit.xml ]]; then
-            php artisan test --no-ansi || echo "PHP tests failed; continuing for now."
+            php artisan test --no-ansi
           else
             echo "No Laravel test entrypoint found; skipping tests."
+          fi
+
+      - name: Run static analysis
+        run: |
+          set -euo pipefail
+          if [[ -f composer.json ]]; then
+            if [[ -x vendor/bin/phpstan ]]; then
+              vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+            elif [[ -x vendor/bin/larastan ]]; then
+              vendor/bin/larastan analyse --no-progress --memory-limit=1G
+            else
+              echo "PHPStan/Larastan not installed; skipping static analysis."
+            fi
+          else
+            echo "No composer manifest found; skipping static analysis."
+          fi
+
+      - name: Run secret scan
+        run: |
+          set -euo pipefail
+          if [[ -x scripts/secret-scan.sh ]]; then
+            ./scripts/secret-scan.sh
+          else
+            echo "Secret scan script not found; skipping."
+          fi
+
+      - name: Validate database migrations
+        run: |
+          set -euo pipefail
+          if [[ -x scripts/migration-check.sh ]]; then
+            ./scripts/migration-check.sh
+          else
+            echo "Migration check script not found; skipping."
           fi
 
   build-and-push:
