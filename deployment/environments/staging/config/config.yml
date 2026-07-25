@@ -13,10 +13,10 @@
 app:
   name: Tiketi
   slug: tiketi
-  url: https://tiketi.ci
-  domain: tiketi.ci
-  frontend_url: https://tiketi.ci
-  cors_allowed_origins: https://tiketi.ci,https://*.tiketi.ci
+  url: https://stg.tiketi.ci
+  domain: stg.tiketi.ci
+  frontend_url: https://stg.tiketi.ci
+  cors_allowed_origins: https://stg.tiketi.ci,https://*.stg.tiketi.ci
   image: ghcr.io/anohou/tiketi
   compose_project: tiketi
   framework: "laravel"
@@ -26,7 +26,7 @@ app:
     tenant_command: "php artisan tenants:migrate --force --no-interaction"
     tenant_preflight_command: "php artisan tenants:migrate --pretend --force --no-ansi --no-interaction"
     tenant_use_migrator_credentials: false
-  tenant_wildcard_domain: "*.tiketi.ci"
+  tenant_wildcard_domain: "*.stg.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
 
 # ── Image source policy ──────────────────────────────────────────────────────
@@ -61,21 +61,14 @@ repository:
   git_url: git@github.com:anohou/tiketi.git
   default_ref: main
 
-# ── Pull-deploy deployment-state source ─────────────────────────────────────
-deployment_state:
-  repo: anohou/deployment-state
-  path: prod/tiketi.json
-  ref: main
-  token_file: /srv/apps/anohou/prod/config/deployment-state.token
-
 # ── Deployment runtime policy ────────────────────────────────────────────────
 deploy:
   strategy: recreate
   allow_emergency_build: true
-  audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
-  runtime_root: /srv/apps/anohou/prod/app-deployments
+  audit_log_path: /srv/apps/anohou/staging/logs/tiketi-deploy.log
+  runtime_root: /srv/apps/anohou/staging/app-deployments
   host_platform_root: /srv/platform
-  ci_source_root: /srv/apps/anohou/prod/app-git-sources
+  ci_source_root: /srv/apps/anohou/staging/app-git-sources
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
 zero_downtime:
@@ -96,33 +89,33 @@ zero_downtime:
 # ── Server-side secret file paths ────────────────────────────────────────────
 secrets:
   # Shared server-wide secrets (SMTP credentials, shared tokens, etc.)
-  common_env_path: /srv/apps/anohou/prod/current/env/api.env
+  common_env_path: /srv/apps/anohou/staging/current/env/api.env
   # Shared Postgres infra admin credentials — read by provision-db.sh ONLY
-  db_admin_env_path: /srv/platform/postgres-server/anohou/prod/current/.env
+  db_admin_env_path: /srv/platform/postgres-server/anohou/staging/current/.env
   # Project-specific secrets (APP_KEY, DB role creds, Turnstile keys, agent key, etc.)
-  project_env_path: /srv/apps/anohou/prod/config/tiketi.env
+  project_env_path: /srv/apps/anohou/staging/config/tiketi.env
 
 # ── Database ──────────────────────────────────────────────────────────────────
 database:
   engine: postgres
   # Name of the running shared Postgres container to run provisioning against
-  postgres_container: anohou-prod-postgres-postgres-1
+  postgres_container: anohou-staging-postgres-postgres-1
   # Name of the running shared MySQL container to run provisioning against
-  mysql_container: anohou-prod-mysql-mysql-1
+  mysql_container: anohou-staging-mysql-mysql-1
   # Application database name — provisioned by provision-db.sh
-  db_name: tiketi_prod
+  db_name: tiketi_staging
 
 # ── Backup / Restore ─────────────────────────────────────────────────────────
 backup:
   # Directory where dump-db.sh writes .dump/.sha256/.metadata.json artifacts.
-  output_dir: /srv/apps/anohou/prod/backups/tiketi
+  output_dir: /srv/apps/anohou/staging/backups/tiketi
 
 # ── Docker networking ─────────────────────────────────────────────────────────
 networks:
   # External Traefik network name (must pre-exist on the host).
-  traefik_network: anohou-prod_ingress
+  traefik_network: platform-ingress
   # Isolated DB network (created by the postgres infra kit).
-  db: anohou-prod_db
+  db: anohou-staging_db
 
 # ── Traefik ───────────────────────────────────────────────────────────────────
 traefik:
@@ -146,7 +139,7 @@ gateway:
   mode: standard
   internal_alias: tiketi-nginx
   provider_hooks_enabled: false
-  provider_hooks_host: "tiketi.ci"
+  provider_hooks_host: "stg.tiketi.ci"
   provider_hooks_path: "/provider-hooks/"
   nginx_mounts:
 
@@ -171,7 +164,7 @@ create_admin:
 # ── Runtime knobs ────────────────────────────────────────────────────────────
 runtime:
   mounts:
-{{ runtime_mounts_block }}
+
   queue:
     sleep: 3
     tries: 3

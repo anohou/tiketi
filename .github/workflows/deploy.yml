@@ -1,358 +1,166 @@
-name: Deploy to Server
+name: Promote Verified Image
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Deployment environment
+        description: Promotion environment
         required: true
         default: production
         type: choice
         options:
           - production
           - staging
-      operation:
-        description: Deployment operation
-        required: true
-        default: deploy
-        type: choice
-        options:
-          - deploy
-          - resume-zero-downtime
-          - rollback-zero-downtime
-      build_mode:
-        description: Deployment image mode
-        required: true
-        default: remote
-        type: choice
-        options:
-          - remote
-          - local-emergency
-      git_ref:
-        description: Git ref to deploy
-        required: false
-        default: main
-        type: string
       image_ref:
-        description: Optional explicit image reference, preferably an immutable digest reference
+        description: Optional immutable digest; blank selects the latest successful main build
         required: false
-        default: ""
         type: string
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment }}
+  group: promote-${{ github.event.inputs.environment }}
   cancel-in-progress: false
 
+env:
+  DEPLOY_ENV: ${{ github.event.inputs.environment }}
+  PROMOTION_TYPE: https://anohou.dev/attestations/promotion/v1
+
 jobs:
-  deploy:
-    name: Deploy
+  promote:
+    name: Promote immutable digest
     runs-on: ubuntu-latest
+    env:
+      REQUESTED_IMAGE_REF: ${{ inputs.image_ref }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ github.token }}
     environment: ${{ github.event.inputs.environment }}
     permissions:
+      actions: read
       contents: read
-      packages: read
+      id-token: write
+      packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.git_ref }}
+        uses: actions/checkout@v7
 
-      - name: Resolve deployment metadata
-        id: meta
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve and validate promotion input
+        id: promotion
         run: |
           set -euo pipefail
-          git_sha="$(git rev-parse HEAD)"
-          short_sha="$(git rev-parse --short HEAD)"
           image_name="$(
             awk '
               $1 == "registry:" { section="registry"; next }
               $1 == "app:" { section="app"; next }
               /^[^[:space:]][^:]*:/ { section=""; next }
-              section == "registry" && $1 == "image:" {
-                sub(/^[^:]+:[[:space:]]*/, "")
-                gsub(/^"|"$/, "")
-                print
-                found=1
-                exit
-              }
-              section == "app" && $1 == "image:" {
-                app_image=$0
-                sub(/^[^:]+:[[:space:]]*/, "", app_image)
-                gsub(/^"|"$/, "", app_image)
-              }
-              END {
-                if (!found && app_image != "") print app_image
-              }
-            ' deployment/config/config.yml
+              section == "registry" && $1 == "image:" { sub(/^[^:]+:[[:space:]]*/, ""); gsub(/^"|"$/, ""); print; found=1; exit }
+              section == "app" && $1 == "image:" { app_image=$0; sub(/^[^:]+:[[:space:]]*/, "", app_image); gsub(/^"|"$/, "", app_image) }
+              END { if (!found && app_image != "") print app_image }
+            ' deployment/environments/${{ env.DEPLOY_ENV }}/config/config.yml
           )"
-          if [[ -z "${image_name}" ]]; then
-            echo "Unable to resolve registry.image or app.image from deployment/config/config.yml" >&2
-            exit 1
+          [[ -n "${image_name}" ]] || { echo "Unable to resolve configured image" >&2; exit 1; }
+
+          image_ref="${REQUESTED_IMAGE_REF}"
+          if [[ -z "${image_ref}" ]]; then
+            build_sha="$(
+              gh api \
+                "repos/${{ github.repository }}/actions/workflows/build-and-push.yml/runs?status=success&branch=${DEFAULT_BRANCH}&per_page=1" \
+                --jq '.workflow_runs[0].head_sha // empty'
+            )"
+            [[ "${build_sha}" =~ ^[a-f0-9]{40}$ ]] || {
+              echo "Unable to find a successful build-and-push run on ${DEFAULT_BRANCH}" >&2
+              exit 1
+            }
+            image_ref="${image_name}:${build_sha}"
+            resolved_digest="$(docker buildx imagetools inspect "${image_ref}" --format '{{json .Manifest}}' | jq -r '.digest // empty')"
+            [[ "${resolved_digest}" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "Unable to resolve immutable digest for ${image_ref}" >&2
+              exit 1
+            }
+            image_ref="${image_name}@${resolved_digest}"
+            echo "Selected latest successful main build: ${image_name}:${build_sha}"
           fi
-          ci_source_root="$(
-            awk '
-              $1 == "deploy:" { section="deploy"; next }
-              /^[^[:space:]][^:]*:/ { section=""; next }
-              section == "deploy" && $1 == "ci_source_root:" {
-                sub(/^[^:]+:[[:space:]]*/, "")
-                gsub(/^"|"$/, "")
-                print
-                exit
-              }
-            ' deployment/config/config.yml
-          )"
-          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          echo "sha=${git_sha}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
+          [[ "${image_ref}" =~ ^ghcr\.io/[a-z0-9_.-]+/[a-z0-9_./-]+@sha256:[a-f0-9]{64}$ ]] || {
+            echo "image_ref must be an immutable GHCR sha256 digest reference" >&2
+            exit 1
+          }
+          [[ "${image_ref%@*}" == "${image_name}" ]] || {
+            echo "Promotion image ${image_ref%@*} does not match configured image ${image_name}" >&2
+            exit 1
+          }
+
+          case "${DEPLOY_ENV}" in
+            staging|production) ;;
+            *) echo "Unsupported promotion environment: ${DEPLOY_ENV}" >&2; exit 1 ;;
+          esac
+          digest="${image_ref#*@}"
+          echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"
           echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
-          echo "ci_source_root=${ci_source_root}" >> "$GITHUB_OUTPUT"
-          echo "run_url=${run_url}" >> "$GITHUB_OUTPUT"
-
-      - name: Validate required secrets
-        run: |
-          set -euo pipefail
-          missing=()
-          [[ -z "${{ secrets.DEPLOY_HOST }}" ]] && missing+=("DEPLOY_HOST")
-          [[ -z "${{ secrets.DEPLOY_USER }}" ]] && missing+=("DEPLOY_USER")
-          [[ -z "${{ secrets.DEPLOY_PATH }}" ]] && missing+=("DEPLOY_PATH")
-          [[ -z "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" ]] && missing+=("DEPLOY_SSH_PRIVATE_KEY")
-          [[ -z "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" ]] && missing+=("DEPLOY_SSH_KNOWN_HOSTS")
-          if [[ "${{ github.event.inputs.operation }}" != "rollback-zero-downtime" && "${{ github.event.inputs.build_mode }}" == "remote" ]]; then
-            [[ -z "${{ secrets.GHCR_USERNAME }}" ]] && missing+=("GHCR_USERNAME")
-            [[ -z "${{ secrets.GHCR_READ_TOKEN }}" ]] && missing+=("GHCR_READ_TOKEN")
-          fi
-          if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "Missing required secrets: ${missing[*]}" >&2
-            exit 1
-          fi
-
-      - name: Log in to GitHub Container Registry
-        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.GHCR_USERNAME }}
-          password: ${{ secrets.GHCR_READ_TOKEN }}
-
-      - name: Resolve remote image reference
-        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
-        id: image_ref
-        run: |
-          set -euo pipefail
-          if [[ -n "${{ github.event.inputs.image_ref }}" ]]; then
-            echo "image_ref=${{ github.event.inputs.image_ref }}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          image_name="${{ steps.meta.outputs.image_name }}"
-          full_sha_tag="${image_name}:${{ steps.meta.outputs.sha }}"
-          env_short_tag="${image_name}:${{ github.event.inputs.environment }}-${{ steps.meta.outputs.short_sha }}"
-
-          for candidate in "$full_sha_tag" "$env_short_tag"; do
-            if docker pull "$candidate"; then
-              repo_digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$candidate")"
-              echo "image_ref=${repo_digest}" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          done
-
-          echo "Unable to resolve a remote image for commit ${{ steps.meta.outputs.sha }}." >&2
-          echo "Run the build-and-push workflow first, or provide workflow_dispatch input image_ref." >&2
-          exit 1
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "channel=deploy-${DEPLOY_ENV}" >> "$GITHUB_OUTPUT"
 
       - name: Install Cosign
-        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote' && github.event.inputs.environment == 'production'
         uses: sigstore/cosign-installer@v3.8.1
         with:
           cosign-release: v2.4.1
 
-      - name: Verify signed image trust
-        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote' && github.event.inputs.environment == 'production'
+      - name: Verify build trust before promotion
         run: |
           set -euo pipefail
-          image_ref="${{ steps.image_ref.outputs.image_ref }}"
-          identity_regexp="^https://github.com/${{ github.repository }}/.github/workflows/build-and-push.yml@.*$"
-          oidc_issuer="https://token.actions.githubusercontent.com"
-
-          cosign verify \
-            --certificate-identity-regexp "${identity_regexp}" \
-            --certificate-oidc-issuer "${oidc_issuer}" \
-            "${image_ref}" >/dev/null
-
-          cosign verify-attestation \
-            --type slsaprovenance \
-            --certificate-identity-regexp "${identity_regexp}" \
-            --certificate-oidc-issuer "${oidc_issuer}" \
-            "${image_ref}" >/dev/null
-
-          if ! cosign verify-attestation \
-            --type spdxjson \
-            --certificate-identity-regexp "${identity_regexp}" \
-            --certificate-oidc-issuer "${oidc_issuer}" \
-            "${image_ref}" >/dev/null 2>&1; then
-            cosign verify-attestation \
-              --type https://spdx.dev/Document \
-              --certificate-identity-regexp "${identity_regexp}" \
-              --certificate-oidc-issuer "${oidc_issuer}" \
-              "${image_ref}" >/dev/null
+          image_ref="${{ steps.promotion.outputs.image_ref }}"
+          identity="^https://github.com/${{ github.repository }}/.github/workflows/build-and-push\.yml@refs/(heads|tags)/.+$"
+          issuer="https://token.actions.githubusercontent.com"
+          cosign verify --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
+          cosign verify-attestation --type slsaprovenance --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
+          if ! cosign verify-attestation --type spdxjson --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null 2>&1; then
+            cosign verify-attestation --type https://spdx.dev/Document --certificate-identity-regexp "${identity}" --certificate-oidc-issuer "${issuer}" "${image_ref}" >/dev/null
           fi
 
-      - name: Configure SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-
-      - name: Configure known hosts
+      - name: Publish signed promotion attestation
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
+          predicate="$(mktemp)"
+          trap 'rm -f "${predicate}"' EXIT
+          jq -n \
+            --arg app "Tiketi" \
+            --arg environment "${DEPLOY_ENV}" \
+            --arg digest "${{ steps.promotion.outputs.digest }}" \
+            --arg repository "${{ github.repository }}" \
+            --arg actor "${{ github.actor }}" \
+            --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg promoted_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            '{app:$app,environment:$environment,digest:$digest,repository:$repository,actor:$actor,run_url:$run_url,promoted_at:$promoted_at}' \
+            > "${predicate}"
+          cosign attest --yes --type "${PROMOTION_TYPE}" --predicate "${predicate}" "${{ steps.promotion.outputs.image_ref }}"
 
-      - name: Test SSH connectivity
+      - name: Move environment channel after verification
         run: |
           set -euo pipefail
-          ssh -o BatchMode=yes "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "echo 'ssh ok'"
+          channel_ref="${{ steps.promotion.outputs.image_name }}:${{ steps.promotion.outputs.channel }}"
+          docker buildx imagetools create --tag "${channel_ref}" "${{ steps.promotion.outputs.image_ref }}"
+          resolved="$(docker buildx imagetools inspect "${channel_ref}" --format '{{json .Manifest}}' | jq -r '.digest')"
+          [[ "${resolved}" == "${{ steps.promotion.outputs.digest }}" ]] || {
+            echo "Channel digest verification failed: expected ${{ steps.promotion.outputs.digest }}, got ${resolved}" >&2
+            exit 1
+          }
 
-      - name: Prepare server source checkout and sync to live path
-        if: github.event.inputs.operation == 'deploy'
-        run: |
-          set -euo pipefail
-          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
-          deploy_path="${{ secrets.DEPLOY_PATH }}"
-          app_name="$(basename "${deploy_path}")"
-          ci_sources_root="${{ steps.meta.outputs.ci_source_root }}"
-          if [[ -z "${ci_sources_root}" ]]; then
-            ci_sources_root="$(dirname "$(dirname "${deploy_path}")")/app-git-sources"
-          fi
-          source_path="${ci_sources_root}/${app_name}"
-          target_ref="${{ github.event.inputs.git_ref }}"
-          target_sha="${{ steps.meta.outputs.sha }}"
-
-          ssh "$server" /bin/bash <<EOF
-          set -euo pipefail
-
-          deploy_path='${deploy_path}'
-          ci_sources_root='${ci_sources_root}'
-          source_path='${source_path}'
-          target_ref='${target_ref}'
-          target_sha='${target_sha}'
-          repo_git='git@github.com:${{ github.repository }}.git'
-
-          mkdir -p "\$ci_sources_root"
-          mkdir -p "\$deploy_path"
-
-          if [ -d "\$source_path/.git" ]; then
-            cd "\$source_path"
-            git fetch origin --prune
-          else
-            rm -rf "\$source_path"
-            git clone "\$repo_git" "\$source_path"
-            cd "\$source_path"
-          fi
-
-          git checkout --force "\$target_ref"
-          git reset --hard "\$target_sha"
-
-          rsync -rl --delete --omit-dir-times --no-perms \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='node_modules/' \
-            --exclude='vendor/' \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='!.env.example' \
-            --exclude='storage/framework/cache/' \
-            --exclude='storage/framework/sessions/' \
-            --exclude='storage/framework/views/' \
-            --exclude='storage/logs/' \
-            --exclude='storage/debugbar/' \
-            --exclude='bootstrap/cache/' \
-            --exclude='bootstrap/ssr/' \
-            --exclude='public/hot' \
-            --exclude='public/storage' \
-            --exclude='public/build' \
-            --exclude='.phpunit.result.cache' \
-            --exclude='.idea/' \
-            --exclude='.vscode/' \
-            --exclude='.DS_Store' \
-            --exclude='*.log' \
-            --exclude='*.log.*' \
-            --exclude='**/logs/' \
-            --exclude='__pycache__/' \
-            --exclude='*.pyc' \
-            --exclude='dist/' \
-            --exclude='build/' \
-            --exclude='coverage/' \
-            --exclude='storage/app/private/' \
-            --exclude='storage/app/public/' \
-            --exclude='storage/app/purifier/' \
-            --exclude='deployment/backups/' \
-            --exclude='deployment/.env' \
-            --exclude='deployment/.env.*' \
-            --exclude='deployment/.deploy/' \
-            --exclude='deployment/.deploy-lock/' \
-            --exclude='deployment/.deploy-state/' \
-            --exclude='deployment/.last-built-version' \
-            --exclude='deployment/.last-deployed-version' \
-            --exclude='deployment/.release-manifest.env' \
-            "\$source_path/" "\$deploy_path/"
-          EOF
-
-      - name: Authenticate server to GHCR
-        if: github.event.inputs.operation != 'rollback-zero-downtime' && github.event.inputs.build_mode == 'remote'
-        run: |
-          set -euo pipefail
-          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
-          ssh "$server" "printf '%s' '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io -u '${{ secrets.GHCR_USERNAME }}' --password-stdin"
-
-      - name: Run deployment operation
-        run: |
-          set -euo pipefail
-          server="${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}"
-          deploy_path="${{ secrets.DEPLOY_PATH }}"
-          target_sha="${{ steps.meta.outputs.sha }}"
-          run_url="${{ steps.meta.outputs.run_url }}"
-          operation="${{ github.event.inputs.operation }}"
-
-          if [[ "$operation" == "rollback-zero-downtime" ]]; then
-            ssh "$server" "cd '$deploy_path' && ./deployment/scripts/rollback-zero-downtime.sh"
-            exit 0
-          fi
-
-          if [[ "${{ github.event.inputs.build_mode }}" == "remote" ]]; then
-            image_env="DEPLOY_BUILD_SOURCE=remote DEPLOY_IMAGE_REF='${{ steps.image_ref.outputs.image_ref }}' DEPLOY_ALLOW_LOCAL_BUILD=false"
-          else
-            image_env="DEPLOY_BUILD_SOURCE=local DEPLOY_ALLOW_LOCAL_BUILD=true"
-          fi
-
-          if [[ "$operation" == "resume-zero-downtime" ]]; then
-            deploy_script="./deployment/scripts/resume-zero-downtime-deploy.sh"
-          else
-            deploy_script="./deployment/scripts/zero-downtime-deploy.sh"
-          fi
-
-          ssh "$server" "cd '$deploy_path' && \
-            DEPLOY_REQUESTED_BY='${{ github.actor }}' \
-            DEPLOY_RUN_URL='$run_url' \
-            $image_env \
-            $deploy_script '$target_sha'"
-
-      - name: Write workflow summary
-        if: always()
+      - name: Write promotion summary
         run: |
           {
-            echo "## Deployment Summary"
+            echo "## Promotion Summary"
             echo ""
-            echo "- Project: \`Tiketi\`"
-            echo "- Operation: \`${{ github.event.inputs.operation }}\`"
-            echo "- Environment: \`${{ github.event.inputs.environment }}\`"
-            echo "- Git ref: \`${{ github.event.inputs.git_ref }}\`"
-            echo "- Git SHA: \`${{ steps.meta.outputs.sha }}\`"
-            echo "- Build mode: \`${{ github.event.inputs.build_mode }}\`"
-            if [[ -n "${{ steps.image_ref.outputs.image_ref }}" ]]; then
-              echo "- Verified image: \`${{ steps.image_ref.outputs.image_ref }}\`"
-            fi
+            echo "- Environment: \`${DEPLOY_ENV}\`"
+            echo "- Image: \`${{ steps.promotion.outputs.image_ref }}\`"
+            echo "- Channel: \`${{ steps.promotion.outputs.image_name }}:${{ steps.promotion.outputs.channel }}\`"
+            echo "- Server access: \`none\`"
+            echo "- Promotion attestation: \`${PROMOTION_TYPE}\`"
           } >> "$GITHUB_STEP_SUMMARY"

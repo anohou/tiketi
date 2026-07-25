@@ -1,0 +1,183 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  config.yml — reusable deployment-kit configuration                         ║
+# ║  SAFE TO COMMIT — no secrets, no passwords.                                 ║
+# ║                                                                             ║
+# ║  This is the single source of truth for all deployment knobs.               ║
+# ║  Loaded by deployment/lib/config.sh which is sourced by every script.       ║
+# ║                                                                             ║
+# ║  CI/CD override: any environment variable already set in the calling shell  ║
+# ║  wins over the value defined here (standard 12-factor priority).            ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+# ── Project identity ──────────────────────────────────────────────────────────
+app:
+  name: Tiketi
+  slug: tiketi
+  url: https://tiketi.ci
+  domain: tiketi.ci
+  frontend_url: https://tiketi.ci
+  cors_allowed_origins: https://tiketi.ci,https://*.tiketi.ci
+  image: ghcr.io/anohou/tiketi
+  compose_project: tiketi
+  framework: "laravel"
+  migration:
+    command: "php artisan migrate --force --no-interaction"
+    use_migrator_credentials: true
+    tenant_command: "php artisan tenants:migrate --force --no-interaction"
+    tenant_preflight_command: "php artisan tenants:migrate --pretend --force --no-ansi --no-interaction"
+    tenant_use_migrator_credentials: false
+  tenant_wildcard_domain: "*.tiketi.ci"
+  tenant_db_prefix: "tiketi_tenant_"
+
+# ── Image source policy ──────────────────────────────────────────────────────
+build:
+  profile: with_assets
+  # Default deploy behavior:
+  # - remote: pull image from registry
+  # - local: build image on the server
+  default_source: local
+  runtime_mode: shared
+  runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v1"
+  allow_full_local_runtime: true
+  cache_mode: registry
+  cache_ref: "ghcr.io/anohou/tiketi:buildcache-laravel-php84-node22-v1"
+  allow_cache_bypass: true
+  # Emergency break-glass local builds are allowed when explicitly requested
+  allow_local_build: true
+  require_clean_git_for_local_build: true
+  local_build_require_explicit_flag: true
+  # Explicit asset-build toggle used by the deployment tooling.
+  asset_build_enabled: true
+
+# ── Registry / release policy ────────────────────────────────────────────────
+registry:
+  provider: ghcr
+  image: ghcr.io/anohou/tiketi
+  default_tag: production
+  deploy_by_digest: true
+
+# ── Source repository / server paths ────────────────────────────────────────
+repository:
+  git_url: git@github.com:anohou/tiketi.git
+  default_ref: main
+
+# ── Deployment runtime policy ────────────────────────────────────────────────
+deploy:
+  strategy: recreate
+  allow_emergency_build: true
+  audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
+  runtime_root: /srv/apps/anohou/prod/app-deployments
+  host_platform_root: /srv/platform
+  ci_source_root: /srv/apps/anohou/prod/app-git-sources
+
+# ── Zero-downtime blue/green policy ─────────────────────────────────────────
+zero_downtime:
+  enabled: true
+  keep_previous_color: true
+  deploy_drain_seconds: 30
+  queue_drain_seconds: 60
+  queue_drain_timeout_action: abort
+  healthcheck_attempts: 30
+  healthcheck_interval_seconds: 5
+  healthcheck_timeout_seconds: 3
+  traefik_file_reload_max_seconds: 15
+  allow_unsafe_migrations: false
+  direct_origin_ip: "62.84.186.8"
+  tenant_smoke_hosts: "at.tiketi.ci,alpha.tiketi.ci"
+  cloudflare_cache_purge_paths: ""
+
+# ── Server-side secret file paths ────────────────────────────────────────────
+secrets:
+  # Shared server-wide secrets (SMTP credentials, shared tokens, etc.)
+  common_env_path: /srv/apps/anohou/prod/current/env/api.env
+  # Shared Postgres infra admin credentials — read by provision-db.sh ONLY
+  db_admin_env_path: /srv/platform/postgres-server/anohou/prod/current/.env
+  # Project-specific secrets (APP_KEY, DB role creds, Turnstile keys, agent key, etc.)
+  project_env_path: /srv/apps/anohou/prod/config/tiketi.env
+
+# ── Database ──────────────────────────────────────────────────────────────────
+database:
+  engine: postgres
+  # Name of the running shared Postgres container to run provisioning against
+  postgres_container: anohou-prod-postgres-postgres-1
+  # Name of the running shared MySQL container to run provisioning against
+  mysql_container: anohou-prod-mysql-mysql-1
+  # Application database name — provisioned by provision-db.sh
+  db_name: tiketi_prod
+
+# ── Backup / Restore ─────────────────────────────────────────────────────────
+backup:
+  # Directory where dump-db.sh writes .dump/.sha256/.metadata.json artifacts.
+  output_dir: /srv/apps/anohou/prod/backups/tiketi
+
+# ── Docker networking ─────────────────────────────────────────────────────────
+networks:
+  # External Traefik network name (must pre-exist on the host).
+  traefik_network: anohou-prod_ingress
+  # Isolated DB network (created by the postgres infra kit).
+  db: anohou-prod_db
+
+# ── Traefik ───────────────────────────────────────────────────────────────────
+traefik:
+  cert_resolver: cloudflare
+  dynamic_dir: /srv/platform/platform/current/config/traefik/dynamic
+
+# ── Services (third-party images) ───────────────────────────────────────────
+services:
+  nginx:
+    image: "nginxinc/nginx-unprivileged:1.27-alpine"
+  queue_worker:
+    enabled: true
+  scheduler:
+    enabled: true
+  reverb:
+    enabled: true
+    path: /app
+    port: 6001
+
+gateway:
+  mode: standard
+  internal_alias: tiketi-nginx
+  provider_hooks_enabled: false
+  provider_hooks_host: "tiketi.ci"
+  provider_hooks_path: "/provider-hooks/"
+  nginx_mounts:
+
+
+# ── Operator utilities ───────────────────────────────────────────────────────
+create_admin:
+  mode: artisan_command
+  command: admin:create
+  sync_command: true
+  command_template: 'generic-admin-create'
+  model: 'App\Models\User'
+  default_role: 'super_admin'
+  default_active: true
+  columns:
+    name: 'name'
+    email: 'email'
+    password: 'password'
+    role: 'role'
+    active: 'active'
+    email_verified_at: 'email_verified_at'
+
+# ── Runtime knobs ────────────────────────────────────────────────────────────
+runtime:
+  mounts:
+
+  queue:
+    sleep: 3
+    tries: 3
+    timeout: 300
+    max_jobs: 1000
+    max_time: 3600
+
+# ── Health check ──────────────────────────────────────────────────────────────
+healthcheck:
+  url: http://localhost/up
+  timeout: 60
+  expected_status: 200
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+cleanup:
+  orphan_pattern: "^tiketi-"

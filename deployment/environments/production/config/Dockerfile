@@ -141,8 +141,8 @@ LABEL org.opencontainers.image.description="Reusable Laravel deployment-kit runt
 LABEL build.mode="${BUILD_MODE}"
 
 # ── PHP configuration ─────────────────────────────────────────────────────────
-COPY deployment/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
-COPY deployment/config/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY deployment/environments/production/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
+COPY deployment/environments/production/config/www.conf /usr/local/etc/php-fpm.d/www.conf
 
 # ── Non-root user ─────────────────────────────────────────────────────────────
 RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \
@@ -199,8 +199,8 @@ LABEL org.opencontainers.image.description="Reusable Laravel deployment-kit runt
 LABEL build.mode="${BUILD_MODE}"
 
 # ── PHP configuration ─────────────────────────────────────────────────────────
-COPY deployment/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
-COPY deployment/config/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY deployment/environments/production/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
+COPY deployment/environments/production/config/www.conf /usr/local/etc/php-fpm.d/www.conf
 
 # ── Non-root user ─────────────────────────────────────────────────────────────
 RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \

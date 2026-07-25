@@ -1,0 +1,244 @@
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  Dockerfile — Multi-stage production build                                  ║
+# ║  PHP 8.4-FPM Alpine — hardened, non-root, minimal attack surface           ║
+# ║  PostgreSQL + Filament + Livewire variant                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+ARG LARAVEL_RUNTIME_IMAGE=ghcr.io/anohou/laravel-runtime:8.4-alpine-v1
+
+# ─── Stage 1: Composer dependencies ─────────────────────────────────────────
+FROM composer:2.8 AS composer
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+
+RUN composer install \
+    --ignore-platform-req=ext-gd \
+    --ignore-platform-req=ext-intl \
+    --no-interaction \
+    --no-progress \
+    --no-scripts \
+    --prefer-dist \
+    --optimize-autoloader
+
+# ─── Stage 2: Node/Vite assets ───────────────────────────────────────────────
+FROM node:22-alpine AS assets
+
+ARG ASSET_BUILD_ENABLED=true
+ARG VITE_APP_NAME
+ARG VITE_APP_ENV
+ARG PUBLIC_REVERB_APP_KEY
+ARG VITE_REVERB_HOST
+ARG VITE_REVERB_PORT
+ARG VITE_REVERB_SCHEME
+
+ENV VITE_APP_NAME=${VITE_APP_NAME}
+ENV VITE_APP_ENV=${VITE_APP_ENV}
+ENV VITE_REVERB_HOST=${VITE_REVERB_HOST}
+ENV VITE_REVERB_PORT=${VITE_REVERB_PORT}
+ENV VITE_REVERB_SCHEME=${VITE_REVERB_SCHEME}
+ENV NPM_CONFIG_PRODUCTION=false
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+ENV NPM_CONFIG_FUND=false
+ENV NPM_CONFIG_AUDIT=false
+
+WORKDIR /app
+
+COPY --from=composer /app/vendor/ /app/vendor/
+
+COPY . .
+
+RUN mkdir -p public/build \
+    && if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
+        if [ -f package-lock.json ]; then \
+            npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
+                echo "npm ci failed; package-lock.json is likely out of sync with package.json or missing required dev dependencies for the asset build." >&2; \
+                exit 1; \
+            }; \
+        else \
+            npm install --include=dev --ignore-scripts --no-audit --no-fund || { \
+                echo "npm install failed while preparing frontend assets." >&2; \
+                exit 1; \
+            }; \
+        fi; \
+        VITE_REVERB_APP_KEY="${PUBLIC_REVERB_APP_KEY}" npm run build; \
+    else \
+        echo "Skipping frontend asset build (ASSET_BUILD_ENABLED=${ASSET_BUILD_ENABLED})"; \
+    fi
+
+# ─── Stage 3: Shared runtime base ────────────────────────────────────────────
+FROM ${LARAVEL_RUNTIME_IMAGE} AS runtime-shared-base
+
+# ─── Stage 4: Local runtime base ─────────────────────────────────────────────
+FROM php:8.4-fpm-alpine AS runtime-local-base
+
+ARG IMAGE_TITLE="laravel-app"
+ARG IMAGE_SOURCE=""
+ARG IMAGE_REVISION=""
+ARG BUILD_MODE="unknown"
+
+# ── System dependencies ───────────────────────────────────────────────────────
+RUN apk add --no-cache \
+    # Runtime
+    postgresql-client \
+    mysql-client \
+    libpq \
+    mariadb-connector-c \
+    fcgi \
+    libzip \
+    icu \
+    oniguruma \
+    libpng \
+    libjpeg-turbo \
+    libwebp \
+    freetype \
+    # Build deps (removed in same layer)
+    && apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        postgresql-dev \
+        mariadb-connector-c-dev \
+        libzip-dev \
+        icu-dev \
+        oniguruma-dev \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        libwebp-dev \
+        freetype-dev \
+    # PHP extensions — PostgreSQL + Filament
+    && docker-php-ext-configure gd \
+        --with-freetype \
+        --with-jpeg \
+        --with-webp \
+    && docker-php-ext-install \
+        pdo_mysql \
+        pdo_pgsql \
+        pgsql \
+        zip \
+        mbstring \
+        intl \
+        opcache \
+        pcntl \
+        bcmath \
+        exif \
+        gd \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .build-deps \
+    && rm -rf /var/cache/apk/* /tmp/pear
+
+# ─── Stage 5: Shared-runtime production image ───────────────────────────────
+FROM runtime-shared-base AS production-shared
+
+ARG IMAGE_TITLE="laravel-app"
+ARG IMAGE_SOURCE=""
+ARG IMAGE_REVISION=""
+ARG BUILD_MODE="unknown"
+LABEL org.opencontainers.image.title="${IMAGE_TITLE}"
+LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
+LABEL org.opencontainers.image.revision="${IMAGE_REVISION}"
+LABEL org.opencontainers.image.description="Reusable Laravel deployment-kit runtime image"
+LABEL build.mode="${BUILD_MODE}"
+
+# ── PHP configuration ─────────────────────────────────────────────────────────
+COPY deployment/environments/staging/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
+COPY deployment/environments/staging/config/www.conf /usr/local/etc/php-fpm.d/www.conf
+
+# ── Non-root user ─────────────────────────────────────────────────────────────
+RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \
+    && adduser -u 1000 -S -G appgroup -s /bin/sh appuser 2>/dev/null || true
+
+# ── Application files ─────────────────────────────────────────────────────────
+WORKDIR /var/www/html
+
+COPY --from=composer --chown=appuser:appgroup /app/vendor ./vendor
+COPY --from=assets   --chown=appuser:appgroup /app/public/build ./public/build
+COPY                 --chown=appuser:appgroup . .
+
+# ── Writable directories ───────────────────────────────────────────────────────
+RUN mkdir -p \
+        storage/app/public \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache
+
+# ── Cache warmup ──────────────────────────────────────────────────────────────
+# Use file/sync drivers during build so cache priming never depends on the
+# runtime database connection or generated deployment .env values.
+RUN CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+    php artisan optimize:clear --no-ansi 2>/dev/null || true
+RUN CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+    php artisan route:cache --no-ansi 2>/dev/null || true \
+    && CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+       php artisan view:cache --no-ansi 2>/dev/null || true
+
+# ── Fix permissions (Must run AFTER cache warmup in case root created logs) ───
+RUN chown -R appuser:appgroup storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
+USER appuser
+
+EXPOSE 9000
+
+CMD ["php-fpm", "--nodaemonize"]
+
+# ─── Stage 6: Local-runtime production image ────────────────────────────────
+FROM runtime-local-base AS production-local
+
+ARG IMAGE_TITLE="laravel-app"
+ARG IMAGE_SOURCE=""
+ARG IMAGE_REVISION=""
+ARG BUILD_MODE="unknown"
+LABEL org.opencontainers.image.title="${IMAGE_TITLE}"
+LABEL org.opencontainers.image.source="${IMAGE_SOURCE}"
+LABEL org.opencontainers.image.revision="${IMAGE_REVISION}"
+LABEL org.opencontainers.image.description="Reusable Laravel deployment-kit runtime image"
+LABEL build.mode="${BUILD_MODE}"
+
+# ── PHP configuration ─────────────────────────────────────────────────────────
+COPY deployment/environments/staging/config/php.ini /usr/local/etc/php/conf.d/99-production.ini
+COPY deployment/environments/staging/config/www.conf /usr/local/etc/php-fpm.d/www.conf
+
+# ── Non-root user ─────────────────────────────────────────────────────────────
+RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \
+    && adduser -u 1000 -S -G appgroup -s /bin/sh appuser 2>/dev/null || true
+
+# ── Application files ─────────────────────────────────────────────────────────
+WORKDIR /var/www/html
+
+COPY --from=composer --chown=appuser:appgroup /app/vendor ./vendor
+COPY --from=assets   --chown=appuser:appgroup /app/public/build ./public/build
+COPY                 --chown=appuser:appgroup . .
+
+# ── Writable directories ───────────────────────────────────────────────────────
+RUN mkdir -p \
+        storage/app/public \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/testing \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache
+
+# ── Cache warmup ──────────────────────────────────────────────────────────────
+# Use file/sync drivers during build so cache priming never depends on the
+# runtime database connection or generated deployment .env values.
+RUN CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+    php artisan optimize:clear --no-ansi 2>/dev/null || true
+RUN CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+    php artisan route:cache --no-ansi 2>/dev/null || true \
+    && CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync \
+       php artisan view:cache --no-ansi 2>/dev/null || true
+
+# ── Fix permissions (Must run AFTER cache warmup in case root created logs) ───
+RUN chown -R appuser:appgroup storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
+
+USER appuser
+
+EXPOSE 9000
+
+CMD ["php-fpm", "--nodaemonize"]
