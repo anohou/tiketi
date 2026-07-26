@@ -45,23 +45,22 @@ ENV NPM_CONFIG_AUDIT=false
 
 WORKDIR /app
 
-COPY --from=composer /app/vendor/ /app/vendor/
+# Keep dependency installation independent of application source changes. A
+# backend-only commit should reuse this layer instead of running npm ci again.
+COPY package.json package-lock.json ./
 
+RUN if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
+        npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
+            echo "npm ci failed; package-lock.json is likely out of sync with package.json or missing required dev dependencies for the asset build." >&2; \
+            exit 1; \
+        }; \
+    fi
+
+COPY --from=composer /app/vendor/ /app/vendor/
 COPY . .
 
 RUN mkdir -p public/build \
     && if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
-        if [ -f package-lock.json ]; then \
-            npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
-                echo "npm ci failed; package-lock.json is likely out of sync with package.json or missing required dev dependencies for the asset build." >&2; \
-                exit 1; \
-            }; \
-        else \
-            npm install --include=dev --ignore-scripts --no-audit --no-fund || { \
-                echo "npm install failed while preparing frontend assets." >&2; \
-                exit 1; \
-            }; \
-        fi; \
         VITE_REVERB_APP_KEY="${PUBLIC_REVERB_APP_KEY}" npm run build; \
     else \
         echo "Skipping frontend asset build (ASSET_BUILD_ENABLED=${ASSET_BUILD_ENABLED})"; \
