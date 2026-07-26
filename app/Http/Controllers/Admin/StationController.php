@@ -66,6 +66,19 @@ class StationController extends Controller
             'can_sell_tickets' => 'boolean',
         ]);
 
+        $destination = Destination::withCount('stations')->findOrFail($data['destination_id']);
+        $hasStationCoordinates = ($data['latitude'] ?? null) !== null
+            || ($data['longitude'] ?? null) !== null;
+        $destinationHasCoordinates = $destination->latitude !== null
+            && $destination->longitude !== null;
+
+        if (! $hasStationCoordinates
+            && $destination->stations_count === 0
+            && $destinationHasCoordinates) {
+            $data['latitude'] = $destination->latitude;
+            $data['longitude'] = $destination->longitude;
+        }
+
         $settings = Arr::wrap($data['settings'] ?? []);
         $settings['gps'] = [
             'latitude' => $data['latitude'] ?? null,
@@ -75,10 +88,8 @@ class StationController extends Controller
         $data['settings'] = $settings;
         unset($data['latitude'], $data['longitude'], $data['can_sell_tickets']);
 
-        // Auto-fill city name from destination if empty?
         if (empty($data['city'])) {
-            $dest = Destination::find($data['destination_id']);
-            $data['city'] = $dest->name;
+            $data['city'] = $destination->name;
         }
 
         Station::create($data);
@@ -107,6 +118,22 @@ class StationController extends Controller
             'can_sell_tickets' => 'boolean',
         ]);
 
+        $destination = Destination::findOrFail($data['destination_id']);
+        $hasStationCoordinates = ($data['latitude'] ?? null) !== null
+            || ($data['longitude'] ?? null) !== null;
+        $destinationHasCoordinates = $destination->latitude !== null
+            && $destination->longitude !== null;
+        $willBeDestinationOnlyStation = ! $destination->stations()
+            ->whereKeyNot($station->id)
+            ->exists();
+
+        if (! $hasStationCoordinates
+            && $willBeDestinationOnlyStation
+            && $destinationHasCoordinates) {
+            $data['latitude'] = $destination->latitude;
+            $data['longitude'] = $destination->longitude;
+        }
+
         $settings = Arr::wrap($station->settings ?? []);
         $settings['gps'] = [
             'latitude' => $data['latitude'] ?? null,
@@ -117,8 +144,7 @@ class StationController extends Controller
         unset($data['latitude'], $data['longitude'], $data['can_sell_tickets']);
 
         if (empty($data['city'])) {
-            $dest = Destination::find($data['destination_id']);
-            $data['city'] = $dest->name;
+            $data['city'] = $destination->name;
         }
 
         $station->update($data);

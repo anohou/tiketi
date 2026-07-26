@@ -61,6 +61,18 @@ const form = ref({
   can_sell_tickets: true
 });
 
+const hasValidCoordinates = (item) => {
+  if (!item || item.latitude === null || item.latitude === '' || item.latitude === undefined) {
+    return false;
+  }
+
+  if (item.longitude === null || item.longitude === '' || item.longitude === undefined) {
+    return false;
+  }
+
+  return Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude));
+};
+
 const stationPreviewCoordinates = computed(() => {
   if (!selectedStation.value) {
     return { latitude: '', longitude: '' };
@@ -88,12 +100,12 @@ const mapZoom = computed(() => {
 
 const stationPreviewPoints = computed(() => {
   return (props.stations.data || [])
+    .filter(hasValidCoordinates)
     .map((station) => ({
       latitude: station.latitude,
       longitude: station.longitude,
       label: `${station.name}${station.city ? ` - ${station.city}` : ''}`,
-    }))
-    .filter((point) => Number.isFinite(Number(point.latitude)) && Number.isFinite(Number(point.longitude)));
+    }));
 });
 
 const selectedDestinationStations = computed(() => {
@@ -101,13 +113,13 @@ const selectedDestinationStations = computed(() => {
   const stations = destination?.stations || [];
 
   return stations
+    .filter(hasValidCoordinates)
     .filter((station) => station.id !== form.value.id)
     .map((station) => ({
       latitude: station.latitude,
       longitude: station.longitude,
       label: `${station.name}${station.city ? ` - ${station.city}` : ''}`,
-    }))
-    .filter((point) => Number.isFinite(Number(point.latitude)) && Number.isFinite(Number(point.longitude)));
+    }));
 });
 
 // Tabs configuration - only related tables, not details
@@ -348,14 +360,22 @@ const openCreateModal = () => {
 const openEditModal = () => {
   if (!selectedStation.value) return;
   isEditing.value = true;
+  const destination = props.destinations.find((item) => item.id === selectedStation.value.destination_id);
+  const isDestinationOnlyStation = (destination?.stations || [])
+    .filter((station) => station.id !== selectedStation.value.id)
+    .length === 0;
+  const defaultLatitude = isDestinationOnlyStation ? destination?.latitude : '';
+  const defaultLongitude = isDestinationOnlyStation ? destination?.longitude : '';
+  const stationLatitude = selectedStation.value.latitude;
+  const stationLongitude = selectedStation.value.longitude;
   form.value = {
     code: selectedStation.value.code,
     name: selectedStation.value.name,
     destination_id: selectedStation.value.destination_id, // Load existing
     city: selectedStation.value.city,
     address: selectedStation.value.address || '',
-    latitude: selectedStation.value.latitude ?? '',
-    longitude: selectedStation.value.longitude ?? '',
+    latitude: stationLatitude !== null && stationLatitude !== '' ? stationLatitude : (defaultLatitude ?? ''),
+    longitude: stationLongitude !== null && stationLongitude !== '' ? stationLongitude : (defaultLongitude ?? ''),
     active: selectedStation.value.active,
     can_sell_tickets: selectedStation.value.can_sell_tickets !== false
   };
@@ -542,6 +562,12 @@ const handlePrint = () => {
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2">
                         <h3 :class="['font-semibold truncate', isSelected(station) ? 'text-green-800' : 'text-slate-800 dark:text-slate-200']">{{ station.name }}</h3>
+                        <MapMarkerRadius
+                          v-if="hasValidCoordinates(station)"
+                          class="text-emerald-500 dark:text-emerald-400 shrink-0"
+                          :size="14"
+                          title="Coordonnées GPS disponibles"
+                        />
                         <span v-if="station.code" class="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-850 text-slate-700 dark:text-slate-300 text-[10px] font-bold rounded uppercase tracking-wider shrink-0 border border-slate-200 dark:border-slate-800">{{ station.code }}</span>
                         <span :class="['px-1.5 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider shrink-0 border', station.can_sell_tickets !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200']">
                           {{ station.can_sell_tickets !== false ? 'Vente' : 'Arrêt' }}

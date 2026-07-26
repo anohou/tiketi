@@ -8,6 +8,7 @@ use App\Events\TripCreated;
 use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\AuthorizedDevice;
 use App\Models\CrewMember;
+use App\Models\Destination;
 use App\Models\OkohiRewardRequest;
 use App\Models\OperationalSetting;
 use App\Models\Route;
@@ -145,6 +146,143 @@ class TicketingFlowTest extends TestCase
                 ->where('trips.0.id', $trip->id));
     }
 
+    public function test_ticketing_exposes_every_active_station_assignment(): void
+    {
+        [, $trip, $stations] = $this->ticketingFixture();
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+
+        foreach ([$stations['a'], $stations['b']] as $station) {
+            UserStationAssignment::create([
+                'user_id' => $seller->id,
+                'station_id' => $station->id,
+                'active' => true,
+            ]);
+        }
+
+        $this->actingAs($seller)
+            ->get(route('seller.ticketing', ['trip_id' => $trip->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('assignedStationIds', fn ($ids) => collect($ids)->sort()->values()->all()
+                    === collect([$stations['a']->id, $stations['b']->id])->sort()->values()->all()));
+    }
+
+    public function test_seat_map_exposes_real_ticket_inspection_data(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $sale = $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [1],
+        ])->assertCreated();
+
+        $ticketId = $sale->json('ticket_ids.0');
+        $ticket = Ticket::findOrFail($ticketId);
+        $seatMap = $this->actingAs($admin)
+            ->getJson("/seller/trips/{$trip->id}/seat-map?".http_build_query([
+                'from_station_id' => $stations['a']->id,
+                'to_station_id' => $stations['c']->id,
+            ]))
+            ->assertOk();
+
+        $seat = collect($seatMap->json('seat_map'))->flatten(1)->firstWhere('number', 1);
+
+        $this->assertIsArray($seat);
+        $this->assertSame($ticket->id, $seat['ticket_id']);
+        $this->assertSame($ticket->ticket_number, $seat['ticket_number']);
+        $this->assertSame($admin->name, $seat['seller_name']);
+        $this->assertNotEmpty($seat['created_at']);
+    }
+
+    public function test_crew_member_page_lists_history_and_can_create_an_assignment(): void
+    {
+        [$admin, $trip] = $this->ticketingFixture();
+        $crewMember = CrewMember::create([
+            'name' => 'Awa Conductrice',
+            'phone' => '+2250700000099',
+            'role' => 'driver',
+            'license_number' => 'DRV-TEST-99',
+            'license_expiry_date' => now()->addYear(),
+            'pin' => '123456',
+            'active' => true,
+        ]);
+        $pastAssignment = VehicleCrewAssignment::create([
+            'vehicle_id' => $trip->vehicle_id,
+            'crew_member_id' => $crewMember->id,
+            'role' => 'driver',
+            'assigned_from' => now()->subDays(4),
+            'assigned_to' => now()->subDays(2),
+            'notes' => 'Première rotation',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('fleet.crew-members.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Fleet/Crew/Index')
+                ->has('vehicles', 1)
+                ->has('crewMembers.data', 1)
+                ->where('crewMembers.data.0.id', $crewMember->id)
+                ->where('crewMembers.data.0.vehicle_assignments.0.id', $pastAssignment->id)
+                ->where('crewMembers.data.0.vehicle_assignments.0.vehicle.id', $trip->vehicle_id));
+
+        $this->actingAs($admin)
+            ->post(route('fleet.crew-assignments.store'), [
+                'vehicle_id' => $trip->vehicle_id,
+                'crew_member_id' => $crewMember->id,
+                'role' => 'driver',
+                'assigned_from' => now()->subMinute()->toIso8601String(),
+                'assigned_to' => null,
+                'notes' => 'Rotation actuelle',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('vehicle_crew_assignments', [
+            'crew_member_id' => $crewMember->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'notes' => 'Rotation actuelle',
+        ]);
+    }
+
+    public function test_intermediate_seller_sees_future_trips_regardless_of_sales_mode_or_transitional_status(): void
+    {
+        [, $closedTrip, $stations] = $this->ticketingFixture();
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+
+        $closedTrip->update([
+            'status' => 'planned',
+            'sales_control' => 'closed',
+        ]);
+        $openTrip = Trip::create([
+            'route_id' => $closedTrip->route_id,
+            'vehicle_id' => $closedTrip->vehicle_id,
+            'origin_station_id' => $stations['a']->id,
+            'destination_station_id' => $stations['c']->id,
+            'departure_at' => now()->addHours(2),
+            'status' => 'planned',
+            'booking_type' => 'seat_assignment',
+            'sales_control' => 'open',
+        ]);
+
+        foreach ([route('seller.dashboard'), route('seller.ticketing')] as $url) {
+            $this->actingAs($seller)
+                ->get($url)
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->has('trips', 2)
+                    ->where('trips.0.id', $closedTrip->id)
+                    ->where('trips.1.id', $openTrip->id));
+        }
+    }
+
     public function test_seller_creates_a_trip_from_their_intermediate_station(): void
     {
         [, $existingTrip, $stations] = $this->ticketingFixture();
@@ -188,6 +326,189 @@ class TicketingFlowTest extends TestCase
                 ->component('Seller/Ticketing')
                 ->where('canSelectTripOrigin', true)
                 ->has('originStations', 3));
+    }
+
+    public function test_admin_fare_matrix_can_edit_cells_and_create_opposite_one_way_fares(): void
+    {
+        [$admin, , $stations] = $this->ticketingFixture();
+        $fare = RouteFare::query()
+            ->where('from_station_id', $stations['a']->id)
+            ->where('to_station_id', $stations['b']->id)
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('admin.route-fares.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/RouteFares/Index')
+                ->has('stations', 3)
+                ->has('fares', 4));
+
+        $this->actingAs($admin)
+            ->put(route('admin.route-fares.update', $fare->id), [
+                'from_station_id' => $stations['a']->id,
+                'to_station_id' => $stations['b']->id,
+                'amount' => 1250,
+                'is_bidirectional' => false,
+                'active' => false,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('route_fares', [
+            'id' => $fare->id,
+            'amount' => 1250,
+            'is_bidirectional' => false,
+            'active' => false,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.route-fares.store'), [
+                'from_station_id' => $stations['b']->id,
+                'to_station_id' => $stations['a']->id,
+                'amount' => 1400,
+                'is_bidirectional' => false,
+                'active' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $reverseFare = RouteFare::query()
+            ->where('from_station_id', $stations['b']->id)
+            ->where('to_station_id', $stations['a']->id)
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->put(route('admin.route-fares.update', $reverseFare->id), [
+                'from_station_id' => $stations['b']->id,
+                'to_station_id' => $stations['a']->id,
+                'amount' => 1400,
+                'is_bidirectional' => true,
+                'active' => true,
+            ])
+            ->assertSessionHasErrors('from_station_id');
+    }
+
+    public function test_city_gps_is_copied_to_its_only_station(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+        $destination = Destination::create([
+            'name' => 'Bouaké',
+            'is_active' => true,
+        ]);
+        $station = Station::create([
+            'name' => 'Gare de Bouaké',
+            'code' => 'BKE',
+            'city' => 'Bouaké',
+            'destination_id' => $destination->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.destinations.update', $destination), [
+                'name' => 'Bouaké',
+                'description' => null,
+                'region' => 'Gbêkê',
+                'latitude' => 7.690600,
+                'longitude' => -5.030500,
+                'is_active' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $station->refresh();
+
+        $this->assertSame(7.6906, (float) $station->latitude);
+        $this->assertSame(-5.0305, (float) $station->longitude);
+    }
+
+    public function test_first_station_inherits_its_city_gps_when_created_without_coordinates(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+        $destination = Destination::create([
+            'name' => 'Divo',
+            'is_active' => true,
+            'settings' => [
+                'gps' => [
+                    'latitude' => 5.837400,
+                    'longitude' => -5.357200,
+                ],
+            ],
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.stations.store'), [
+                'name' => 'Gare de Divo',
+                'code' => 'DIV',
+                'destination_id' => $destination->id,
+                'city' => '',
+                'address' => null,
+                'phone' => null,
+                'latitude' => null,
+                'longitude' => null,
+                'active' => true,
+                'can_sell_tickets' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $station = Station::where('destination_id', $destination->id)->firstOrFail();
+
+        $this->assertSame(5.8374, (float) $station->latitude);
+        $this->assertSame(-5.3572, (float) $station->longitude);
+        $this->assertSame('Divo', $station->city);
+    }
+
+    public function test_only_station_inherits_its_city_gps_when_updated_without_coordinates(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+        $destination = Destination::create([
+            'name' => 'Gagnoa',
+            'is_active' => true,
+            'settings' => [
+                'gps' => [
+                    'latitude' => 6.131900,
+                    'longitude' => -5.950600,
+                ],
+            ],
+        ]);
+        $station = Station::create([
+            'name' => 'Gare de Gagnoa',
+            'code' => 'GAG',
+            'city' => 'Gagnoa',
+            'destination_id' => $destination->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('admin.stations.update', $station), [
+                'name' => 'Gare de Gagnoa',
+                'code' => 'GAG',
+                'destination_id' => $destination->id,
+                'city' => 'Gagnoa',
+                'address' => null,
+                'phone' => null,
+                'latitude' => null,
+                'longitude' => null,
+                'active' => true,
+                'can_sell_tickets' => true,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $station->refresh();
+
+        $this->assertSame(6.1319, (float) $station->latitude);
+        $this->assertSame(-5.9506, (float) $station->longitude);
     }
 
     public function test_supervisor_selects_an_origin_only_from_assigned_stations(): void
@@ -1962,6 +2283,22 @@ class TicketingFlowTest extends TestCase
             'trip_id' => $trip->id,
             'from_station_id' => $stations['b']->id,
             'to_station_id' => $stations['c']->id,
+            'seats' => [1, 1],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['seats.1']);
+
+        $this->actingAs($seller)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [1, 2],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'La quantité demandée dépasse le nombre de places libérées et vendables à votre gare.');
+
+        $this->actingAs($seller)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['b']->id,
+            'to_station_id' => $stations['c']->id,
             'seats' => [2],
         ])->assertForbidden()
             ->assertJsonPath('message', 'La vente simultanée est désactivée jusqu’au départ de ce voyage. Vous ne pouvez vendre que les places libérées à votre gare.');
@@ -2718,16 +3055,45 @@ class TicketingFlowTest extends TestCase
             $table->timestamps();
         });
 
+        if (! Schema::hasTable('destinations')) {
+            Schema::create('destinations', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->string('region')->nullable();
+                $table->boolean('is_active')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
         if (! Schema::hasTable('stations')) {
             Schema::create('stations', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('name');
                 $table->string('code')->nullable()->unique();
                 $table->string('city')->nullable();
+                $table->string('address')->nullable();
+                $table->string('phone')->nullable();
+                $table->uuid('destination_id')->nullable();
                 $table->boolean('active')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });
+        }
+
+        if (! Schema::hasColumn('stations', 'destination_id')) {
+            Schema::table('stations', function (Blueprint $table) {
+                $table->uuid('destination_id')->nullable();
+            });
+        }
+
+        foreach (['address', 'phone'] as $column) {
+            if (! Schema::hasColumn('stations', $column)) {
+                Schema::table('stations', function (Blueprint $table) use ($column) {
+                    $table->string($column)->nullable();
+                });
+            }
         }
 
         if (! Schema::hasTable('routes')) {

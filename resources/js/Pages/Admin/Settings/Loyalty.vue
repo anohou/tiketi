@@ -236,7 +236,7 @@ const statusClass = (s) => s === 'confirmed'
                 </div>
 
                 <!-- NOT connected: connection form -->
-                <div v-if="!isConnected" class="bg-white dark:bg-slate-900 rounded-xl border border-orange-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+                <div v-if="!isConnected" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
                   <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide">Connecter Okohi</p>
                   <div>
                     <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Code de connexion (4 chiffres)</label>
@@ -246,7 +246,7 @@ const statusClass = (s) => s === 'confirmed'
                       inputmode="numeric"
                       maxlength="4"
                       placeholder="1234"
-                      class="w-full rounded-lg border-orange-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono tracking-widest text-center text-lg"
+                      class="w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm font-mono tracking-widest text-center text-lg"
                       :class="{ 'border-red-400': errors.code }"
                     />
                     <InputError class="mt-1" :message="errors.code" />

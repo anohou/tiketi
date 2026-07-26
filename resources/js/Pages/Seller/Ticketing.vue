@@ -43,6 +43,7 @@ const props = defineProps({
   routes: Array,
   vehicles: Array,
   hasActiveAssignment: Boolean,
+  assignedStationIds: Array,
   assignedStationId: String,
   assignedStation: String,
   canSelectTripOrigin: { type: Boolean, default: false },
@@ -106,8 +107,14 @@ const {
   bluetoothPrinterConnected,
   bluetoothPrinterName,
   toggleBluetoothPrinter,
+  printQueue,
+  printQueueRunning,
+  retryPrint,
+  printInBrowser,
+  dismissPrintEntry,
   bookingSidePanelOpen,
   currentTrip,
+  operationalStationId,
   isTripPassed,
   seatsToBook,
   canBookTickets,
@@ -121,6 +128,7 @@ const {
   buildTripStationIndices,
   getStationColor,
   currentStationSellableSeatNumbers,
+  maxSellableQuantity,
   currentStationSellableSeatBorderColor,
   selectTrip,
   fetchSeatMap,
@@ -160,6 +168,53 @@ const {
 } = ticketing;
 
 const assignedStationPalette = computed(() => getAssignedStationPalette());
+const showPrintPool = ref(false);
+const printPoolAttentionCount = computed(() => printQueue.value.filter(
+  (entry) => ['pending', 'printing', 'ready', 'failed'].includes(entry.status)
+).length);
+
+const togglePrintPool = () => {
+  showPrintPool.value = !showPrintPool.value;
+};
+
+watch(printPoolAttentionCount, (count) => {
+  if (count === 0) {
+    showPrintPool.value = false;
+  }
+});
+
+const missingFareDestinations = computed(() => {
+  if (!currentTrip.value) return [];
+
+  const stationIndices = buildTripStationIndices(currentTrip.value);
+  const originId = operationalStationId.value || currentTrip.value.origin_station_id;
+  const originIndex = stationIndices[originId];
+  if (originIndex === undefined) return [];
+
+  const stations = new Map();
+  const addStation = (station) => {
+    if (station?.id) stations.set(station.id, station);
+  };
+  const routeObj = currentTrip.value.route || {};
+  addStation(routeObj.origin_station || routeObj.originStation);
+  [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+    .forEach((stop) => addStation(stop.station || stop));
+  addStation(routeObj.destination_station || routeObj.destinationStation);
+  addStation(currentTrip.value.origin_station || currentTrip.value.originStation);
+  addStation(currentTrip.value.destination_station || currentTrip.value.destinationStation);
+
+  const hasFare = (destinationId) => (props.routeFares || []).some((fare) => {
+    const fromId = fare.from_station_id || fare.from_station?.id || fare.fromStation?.id;
+    const toId = fare.to_station_id || fare.to_station?.id || fare.toStation?.id;
+
+    return (fromId === originId && toId === destinationId)
+      || (fare.is_bidirectional && toId === originId && fromId === destinationId);
+  });
+
+  return [...stations.values()]
+    .filter((station) => stationIndices[station.id] > originIndex && !hasFare(station.id))
+    .sort((a, b) => stationIndices[a.id] - stationIndices[b.id]);
+});
 
 const basinDestinations = computed(() => {
   const directFare = selectedFare.value;
@@ -291,14 +346,22 @@ const openTripTransitPool = (tripId) => {
 const updatingTripStatusId = ref(null);
 const updateTripStatus = async (tripId, status) => {
   const trip = trips.value.find((candidate) => candidate.id === tripId);
+  const assignedIds = props.assignedStationIds?.length
+    ? props.assignedStationIds
+    : (props.assignedStationId ? [props.assignedStationId] : []);
+  const statusStationId = assignedIds.some(id => String(id) === String(trip?.active_sales_station_id))
+    ? trip.active_sales_station_id
+    : operationalStationId.value;
+  const statusStationName = props.originStations?.find(station => station.id === statusStationId)?.name
+    || props.assignedStation
+    || 'la gare qui a actuellement la main';
   let confirmMessage = "";
   if (status === 'boarding') {
     confirmMessage = "Voulez-vous vraiment démarrer l'embarquement pour ce voyage ?";
   } else if (status === 'departed') {
-    const stationName = props.assignedStation || 'la gare qui a actuellement la main';
     confirmMessage = trip?.status === 'departed'
-      ? `Confirmer le départ de ${stationName} ? La main sur les ventes passera à la gare suivante.`
-      : `Confirmer le départ de ${stationName} ? Le voyage sera en route vers la gare suivante.`;
+      ? `Confirmer le départ de ${statusStationName} ? La main sur les ventes passera à la gare suivante.`
+      : `Confirmer le départ de ${statusStationName} ? Le voyage sera en route vers la gare suivante.`;
   } else if (status === 'delayed') {
     confirmMessage = "Voulez-vous vraiment marquer ce voyage comme retardé ?";
   } else if (status === 'cancelled') {
@@ -315,7 +378,7 @@ const updateTripStatus = async (tripId, status) => {
   try {
     await axios.patch(route('seller.trips.status', { trip: tripId }), {
       status,
-      station_id: status === 'departed' ? props.assignedStationId : undefined,
+      station_id: status === 'departed' ? statusStationId : undefined,
     });
     toastStore.success('Le statut du voyage a été mis à jour.');
     router.reload({ preserveScroll: true });
@@ -336,7 +399,10 @@ const canEditStatus = (trip) => {
 
   // A seller can change the operational status only for the station that has
   // the current hand-off. Simultaneous ticket sales do not grant that right.
-  if (!props.assignedStationId || trip.active_sales_station_id !== props.assignedStationId) {
+  const assignedIds = props.assignedStationIds?.length
+    ? props.assignedStationIds
+    : (props.assignedStationId ? [props.assignedStationId] : []);
+  if (!assignedIds.some(stationId => String(stationId) === String(trip.active_sales_station_id))) {
     return false;
   }
 
@@ -356,10 +422,18 @@ const getTripStationPhase = (trip) => {
   if (trip.status === 'delayed') return 'delayed';
 
   if (trip.status === 'departed') {
-    if (!props.assignedStationId) return 'en_route';
+    const assignedIds = props.assignedStationIds?.length
+      ? props.assignedStationIds
+      : (props.assignedStationId ? [props.assignedStationId] : []);
+    if (assignedIds.length === 0) return 'en_route';
 
     const stationIndices = buildTripStationIndices(trip);
-    const currentStationIndex = stationIndices[props.assignedStationId];
+    const currentStationId = assignedIds.some(id => String(id) === String(trip.active_sales_station_id))
+      ? trip.active_sales_station_id
+      : assignedIds
+        .filter(id => stationIndices[id] !== undefined)
+        .sort((a, b) => stationIndices[a] - stationIndices[b])[0];
+    const currentStationIndex = stationIndices[currentStationId];
     const activeStationIndex = stationIndices[trip.active_sales_station_id];
 
     if (currentStationIndex === undefined || activeStationIndex === undefined) {
@@ -694,26 +768,23 @@ const getAirportStatus = (trip) => {
   };
 }
 
-const sortedTripsForModal = computed(() => {
+const orderedTrips = computed(() => {
   return [...filteredTrips.value].sort((a, b) => {
-    const getOrderValue = (trip) => {
-      if (trip.status === 'boarding') return 0;
-      if (trip.status === 'delayed') return 1;
-      if (trip.status === 'cancelled') return 4;
-      if (trip.status === 'departed' || trip.status === 'arrived') return 3;
-      return 2; // scheduled
-    };
-    
-    const orderA = getOrderValue(a);
-    const orderB = getOrderValue(b);
-    
-    if (orderA !== orderB) {
-      return orderA - orderB;
+    const aPast = isTripPastForDisplay(a);
+    const bPast = isTripPastForDisplay(b);
+    const aDeparture = new Date(a.departure_at).getTime();
+    const bDeparture = new Date(b.departure_at).getTime();
+
+    if (aPast !== bPast) {
+      return aPast ? 1 : -1;
     }
-    
-    return new Date(a.departure_at) - new Date(b.departure_at);
+
+    // Upcoming trips: nearest first. Past trips: most recently passed first.
+    return aPast ? bDeparture - aDeparture : aDeparture - bDeparture;
   });
 });
+
+const sortedTripsForModal = computed(() => orderedTrips.value);
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', handleTicketingFullscreenChange);
@@ -918,6 +989,24 @@ onBeforeUnmount(() => {
                        </div>
                          <div class="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
                            <div class="flex items-center gap-1.5">
+                             <button
+                               v-if="printPoolAttentionCount > 0"
+                               type="button"
+                               class="relative rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                               :class="showPrintPool ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : ''"
+                               title="Afficher le pool d’impression"
+                               aria-label="Afficher le pool d’impression"
+                               :aria-expanded="showPrintPool"
+                               @click.stop="togglePrintPool"
+                             >
+                               <Printer :size="20" />
+                               <span
+                                 v-if="printPoolAttentionCount > 0"
+                                 class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white"
+                               >
+                                 {{ printPoolAttentionCount > 9 ? '9+' : printPoolAttentionCount }}
+                               </span>
+                             </button>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
                                  <template #trigger>
@@ -1043,10 +1132,24 @@ onBeforeUnmount(() => {
                    </div>
  
                    <!-- Desktop: Show all trips with highlighted selected -->
-                   <div v-if="!isMobile && filteredTrips.length > 0" class="space-y-2">
-                     <div
-                       v-for="(trip, index) in filteredTrips"
+                   <div v-if="!isMobile && orderedTrips.length > 0" class="space-y-2">
+                     <template
+                       v-for="(trip, index) in orderedTrips"
                        :key="trip.id"
+                     >
+                       <div
+                         v-if="isTripPastForDisplay(trip) && (index === 0 || !isTripPastForDisplay(orderedTrips[index - 1]))"
+                         class="flex items-center gap-3 px-2 pb-1 pt-4"
+                       >
+                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                           Voyages passés
+                         </span>
+                         <span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>
+                         <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                           {{ orderedTrips.filter(isTripPastForDisplay).length }}
+                         </span>
+                       </div>
+                     <div
                        @click="toggleTripDetails(trip)"
                        @keydown.enter.prevent="toggleTripDetails(trip)"
                        @keydown.space.prevent="toggleTripDetails(trip)"
@@ -1113,6 +1216,25 @@ onBeforeUnmount(() => {
                          </div>
                          <div class="ml-auto flex shrink-0 items-center gap-1">
                            <div class="flex items-center gap-1.5">
+                             <button
+                               v-if="selectedTripId === trip.id && printPoolAttentionCount > 0"
+                               type="button"
+                               class="relative rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
+                               :class="showPrintPool ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : ''"
+                               title="Afficher le pool d’impression"
+                               aria-label="Afficher le pool d’impression"
+                               :aria-expanded="showPrintPool"
+                               @click.stop="togglePrintPool"
+                               @dragstart.stop.prevent
+                             >
+                               <Printer :size="20" />
+                               <span
+                                 v-if="printPoolAttentionCount > 0"
+                                 class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-600 px-1 text-[9px] font-black text-white"
+                               >
+                                 {{ printPoolAttentionCount > 9 ? '9+' : printPoolAttentionCount }}
+                               </span>
+                             </button>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
                                  <template #trigger>
@@ -1254,6 +1376,7 @@ onBeforeUnmount(() => {
                        </div>
                        </div>
                      </div>
+                     </template>
                    </div>
  
                    <!-- No trip selected / No trips -->
@@ -1380,9 +1503,31 @@ onBeforeUnmount(() => {
                      </div>
                      <div
                        v-if="availableFares.length === 0 && !isTripPassed"
-                       class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950/30 dark:text-slate-400"
+                       class="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-left shadow-sm dark:border-amber-800 dark:bg-amber-950/30"
                      >
-                       Aucune destination tarifée n’est disponible depuis la gare de départ de ce voyage.
+                       <div class="flex items-start gap-3">
+                         <span class="mt-0.5 text-xl" aria-hidden="true">⚠️</span>
+                         <div class="min-w-0">
+                           <p class="text-sm font-black text-amber-900 dark:text-amber-200">
+                             Vente impossible depuis {{ assignedStation || 'cette gare' }}
+                           </p>
+                           <p class="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                             Aucun tarif n’est configuré vers les destinations restantes de ce trajet. Les sièges ne peuvent pas être sélectionnés tant que ces tarifs manquent.
+                           </p>
+                           <div v-if="missingFareDestinations.length" class="mt-3 flex flex-wrap gap-1.5">
+                             <span
+                               v-for="destination in missingFareDestinations"
+                               :key="destination.id"
+                               class="rounded-full border border-amber-300 bg-white px-2.5 py-1 text-[10px] font-black text-amber-800 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-200"
+                             >
+                               {{ assignedStation || 'Cette gare' }} → {{ destination.name }}
+                             </span>
+                           </div>
+                           <p class="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-xs font-bold text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                             Demandez à votre superviseur d’ajouter les tarifs correspondants.
+                           </p>
+                         </div>
+                       </div>
                      </div>
                    </div>
                    <div v-else class="p-8 text-center text-slate-400 dark:text-slate-500">
@@ -1479,6 +1624,7 @@ onBeforeUnmount(() => {
                        :show-suggestions="ticketingStore.showSuggestions && !!selectedFare && suggestedSeats.length > 0"
                        :selected-seat="selectedSeatNumber"
                        :selected-color="selectedSeatColor"
+                       :disabled="availableFares.length === 0"
                        :sellable-seat-numbers="currentStationSellableSeatNumbers"
                        :sellable-seat-border-color="currentStationSellableSeatBorderColor"
                        :allow-occupied-click="['admin', 'supervisor'].includes($page.props.auth.user.role) || isSalesClosedForSeller"
@@ -1509,6 +1655,8 @@ onBeforeUnmount(() => {
       :available-fares="availableFares"
       :connection-options="basinDestinations"
       :seats-to-book="seatsToBook"
+      :max-sellable-quantity="maxSellableQuantity"
+      :seat-first-flow="seatFirstFlow"
       :passenger-form="passengerForm"
       :passenger-form-errors="passengerFormErrors"
       :processing="processing"
@@ -1674,7 +1822,7 @@ onBeforeUnmount(() => {
                   <div>
                     <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Autoriser une destination finale au-delà de l’arrivée de ce voyage.
+                      Permet de vendre un billet vers une autre destination via une gare commune où le passager change de voyage.
                     </p>
                   </div>
                   <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
@@ -1790,7 +1938,20 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="divide-y divide-slate-100 dark:divide-slate-900 bg-white dark:bg-slate-950">
-              <div v-for="trip in sortedTripsForModal" :key="trip.id"
+              <template v-for="(trip, index) in sortedTripsForModal" :key="trip.id">
+                <div
+                  v-if="isTripPastForDisplay(trip) && (index === 0 || !isTripPastForDisplay(sortedTripsForModal[index - 1]))"
+                  class="flex items-center gap-3 border-y border-slate-200 bg-slate-50 px-6 py-2 dark:border-slate-800 dark:bg-slate-900/70"
+                >
+                  <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    Voyages passés
+                  </span>
+                  <span class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>
+                  <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-300">
+                    {{ sortedTripsForModal.filter(isTripPastForDisplay).length }}
+                  </span>
+                </div>
+              <div
                    @click="selectTripFromModal(trip.id)"
                    class="group transition-all duration-200 cursor-pointer border-l-4"
                    :class="[
@@ -1887,11 +2048,12 @@ onBeforeUnmount(() => {
                            <span class="font-bold text-slate-700 dark:text-slate-205">{{ trip.available_seats }}</span>/{{ trip.total_seats }} <span class="text-[9px] text-slate-455 dark:text-slate-605 font-sans font-medium">LIB</span>
                          </span>
                       </div>
-                      <ChevronRight :size="18" class="text-slate-400 dark:text-slate-500" />
-                   </div>
+	                      <ChevronRight :size="18" class="text-slate-400 dark:text-slate-500" />
+		                </div>
+		              </div>
                 </div>
-              </div>
-            </div>
+              </template>
+		            </div>
 
             <!-- Pagination / Load More -->
             <div v-if="pagination?.next_page_url" class="py-6 flex justify-center bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900">
@@ -1924,6 +2086,81 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <aside
+      v-if="showPrintPool"
+      class="fixed bottom-4 right-4 z-[1100] w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
+      aria-live="polite"
+    >
+      <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+        <div class="flex items-center gap-2">
+          <Printer :size="19" class="text-emerald-600" />
+          <span class="text-sm font-black text-slate-900 dark:text-white">Impressions</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span v-if="printQueueRunning" class="text-[11px] font-bold text-amber-600">En cours…</span>
+          <button
+            type="button"
+            class="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Fermer le pool d’impression"
+            @click="showPrintPool = false"
+          >
+            <Close :size="17" />
+          </button>
+        </div>
+      </div>
+      <div v-if="printQueue.length === 0" class="p-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
+        Aucune impression en attente.
+      </div>
+      <div v-else class="max-h-64 space-y-2 overflow-y-auto p-3">
+        <div
+          v-for="entry in printQueue"
+          :key="entry.id"
+          class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/60"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate text-xs font-black text-slate-800 dark:text-slate-100">
+                Ticket {{ entry.ticketNumber || '—' }}
+              </p>
+              <p class="mt-0.5 text-[11px] font-semibold"
+                 :class="entry.status === 'failed' ? 'text-rose-600' : entry.status === 'printed' ? 'text-emerald-600' : 'text-slate-500'">
+                <template v-if="entry.status === 'pending'">En attente Bluetooth</template>
+                <template v-else-if="entry.status === 'printing'">Impression Bluetooth…</template>
+                <template v-else-if="entry.status === 'printed'">Impression lancée</template>
+                <template v-else-if="entry.status === 'ready'">Prêt pour impression navigateur</template>
+                <template v-else>Échec : {{ entry.error || 'imprimante indisponible' }}</template>
+              </p>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800"
+              aria-label="Masquer cette impression"
+              @click="dismissPrintEntry(entry.id)"
+            >
+              <Close :size="16" />
+            </button>
+          </div>
+          <div v-if="['ready', 'failed'].includes(entry.status)" class="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-700 dark:bg-slate-700"
+              @click="printInBrowser(entry.id)"
+            >
+              Imprimer dans le navigateur
+            </button>
+            <button
+              v-if="entry.status === 'failed' && useBluetoothPrinter"
+              type="button"
+              class="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              @click="retryPrint(entry.id)"
+            >
+              <Refresh :size="13" /> Réessayer Bluetooth
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
     <!-- Supervisor Inspection Modal -->
     <TicketInspectionModal
         :show="showInspectionModal"
@@ -1938,7 +2175,7 @@ onBeforeUnmount(() => {
       :visible="showTripDetailsModal"
       :trip-id="selectedDetailsTripId"
       :assigned-station="assignedStation"
-      :assigned-station-id="assignedStationId"
+      :assigned-station-id="operationalStationId || assignedStationId"
       :current-user-role="page.props.auth.user.role"
       :current-user-id="page.props.auth.user.id"
       :initial-tab="tripDetailsModalTab"

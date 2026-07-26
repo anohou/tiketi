@@ -62,8 +62,8 @@ class SellerDashboardController extends Controller
                 ->whereIn('route_id', $routeIds)
                 ->where(function ($query) use ($windowStart, $windowEnd, $activeStart) {
                     $query->where(function ($scheduled) use ($windowStart, $windowEnd) {
-                        $scheduled->where('status', 'scheduled')
-                            ->where('departure_at', '>=', $windowStart)
+                        // Route visibility must not depend on simultaneous sales.
+                        $scheduled->where('departure_at', '>=', $windowStart)
                             ->where('departure_at', '<', $windowEnd);
                     })->orWhere(function ($active) use ($activeStart, $windowEnd) {
                         $active->whereIn('status', ['boarding', 'delayed', 'departed'])

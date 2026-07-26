@@ -180,11 +180,6 @@ const handlePrint = () => {
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Attribuer des véhicules aux fleet managers</p>
         </div>
-        <div class="flex gap-2">
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
-            <Plus class="inline mr-1" :size="18" /> Nouvelle affectation
-          </button>
-        </div>
       </div>
 
       <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">

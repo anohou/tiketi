@@ -287,14 +287,21 @@ const openAddStationModal = () => {
 
 const openEditStationModal = (station) => {
   isEditingStation.value = true;
+  const isDestinationOnlyStation = (selectedDestination.value?.stations || [])
+    .filter((item) => item.id !== station.id)
+    .length === 0;
+  const defaultLatitude = isDestinationOnlyStation ? selectedDestination.value?.latitude : '';
+  const defaultLongitude = isDestinationOnlyStation ? selectedDestination.value?.longitude : '';
+  const stationLatitude = station.latitude;
+  const stationLongitude = station.longitude;
   stationForm.value = {
     id: station.id,
     name: station.name,
     code: station.code,
     city: station.city,
     address: station.address || '',
-    latitude: station.latitude ?? '',
-    longitude: station.longitude ?? '',
+    latitude: stationLatitude !== null && stationLatitude !== '' ? stationLatitude : (defaultLatitude ?? ''),
+    longitude: stationLongitude !== null && stationLongitude !== '' ? stationLongitude : (defaultLongitude ?? ''),
     active: Boolean(station.active),
     destination_id: station.destination_id
   };

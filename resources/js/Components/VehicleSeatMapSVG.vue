@@ -30,6 +30,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  disabled: {
+    type: Boolean,
+    default: false
+  },
   sellableSeatNumbers: {
     type: Array,
     default: () => []
@@ -339,10 +343,10 @@ const getSuggestionRank = (seatNumber) => {
 const isSelected = (seatNumber) => props.selectedSeat === seatNumber;
 
 const isSeatClickable = (seat) => {
-  return !seat.isOccupied
+  return !props.disabled && (!seat.isOccupied
     || seat.isOkohiPending
     || sellableSeatSet.value.has(Number(seat.number))
-    || props.allowOccupiedClick;
+    || props.allowOccupiedClick);
 };
 
 const handleSeatClick = (seat) => {
@@ -559,14 +563,13 @@ const handleSeatClick = (seat) => {
           fill="white"
           fill-opacity="0"
           style="pointer-events: all !important;"
-          class="cursor-pointer hover:bg-black hover:bg-opacity-10"
           :class="[
-            isSeatClickable(seat) ? 'cursor-pointer' : 'cursor-not-allowed',
+            isSeatClickable(seat) ? 'cursor-pointer hover:bg-black hover:bg-opacity-10' : 'cursor-not-allowed',
             isSelected(seat.number) ? 'border-2 border-white' : ''
           ]"
           @click.stop="handleSeatClick(seat)"
         >
-          <title>{{ isReleasedSeat(seat) ? `Place ${seat.number} — libération prévue à votre gare` : (seat.isOccupied ? (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Occupé jusqu'à la gare de départ` : `Occupé - ${seat.destination_name}`) : (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`)) }}</title>
+          <title>{{ disabled ? `Place ${seat.number} — vente impossible : aucun tarif disponible depuis cette gare` : (isReleasedSeat(seat) ? `Place ${seat.number} — libération prévue à votre gare` : (seat.isOccupied ? (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Occupé jusqu'à la gare de départ` : `Occupé - ${seat.destination_name}`) : (isSuggestedSeat(seat) ? `⭐ SUGGÉRÉ #${getSuggestionRank(seat.number)} - Place ${seat.number}` : `Place ${seat.number} - Disponible`))) }}</title>
         </rect>
       </g>
       

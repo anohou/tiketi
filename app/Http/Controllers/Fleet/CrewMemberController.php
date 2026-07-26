@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Fleet;
 
 use App\Http\Controllers\Controller;
 use App\Models\CrewMember;
+use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
@@ -17,13 +18,20 @@ class CrewMemberController extends Controller
      */
     public function index()
     {
-        $crewMembers = CrewMember::with(['currentAssignment.vehicle'])
+        $crewMembers = CrewMember::with([
+            'currentAssignment.vehicle',
+            'vehicleAssignments' => fn ($query) => $query->with('vehicle.vehicleType')->orderByDesc('assigned_from'),
+        ])
             ->withCount(['vehicleAssignments'])
             ->orderBy('name')
             ->paginate(30);
 
         return Inertia::render('Fleet/Crew/Index', [
             'crewMembers' => $crewMembers,
+            'vehicles' => Vehicle::with('vehicleType')
+                ->where('active', true)
+                ->orderBy('identifier')
+                ->get(['id', 'identifier', 'maker', 'vehicle_type_id']),
         ]);
     }
 

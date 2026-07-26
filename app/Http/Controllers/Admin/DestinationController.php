@@ -47,7 +47,12 @@ class DestinationController extends Controller
         $validated['settings'] = $settings;
         unset($validated['latitude'], $validated['longitude']);
 
-        Destination::create($validated);
+        $destination = Destination::create($validated);
+        $this->syncCoordinatesToSingleStation(
+            $destination,
+            $settings['gps']['latitude'],
+            $settings['gps']['longitude'],
+        );
 
         return back()->with('success', 'Ville créée avec succès.');
     }
@@ -72,8 +77,33 @@ class DestinationController extends Controller
         unset($validated['latitude'], $validated['longitude']);
 
         $destination->update($validated);
+        $this->syncCoordinatesToSingleStation(
+            $destination,
+            $settings['gps']['latitude'],
+            $settings['gps']['longitude'],
+        );
 
         return back()->with('success', 'Ville mise à jour avec succès.');
+    }
+
+    private function syncCoordinatesToSingleStation(
+        Destination $destination,
+        mixed $latitude,
+        mixed $longitude,
+    ): void {
+        if ($latitude === null || $longitude === null) {
+            return;
+        }
+
+        $stations = $destination->stations()->limit(2)->get();
+        if ($stations->count() !== 1) {
+            return;
+        }
+
+        $station = $stations->first();
+        $station->latitude = $latitude;
+        $station->longitude = $longitude;
+        $station->save();
     }
 
     public function destroy(Destination $destination)

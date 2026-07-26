@@ -34,6 +34,10 @@ const props = defineProps({
     type: Object,
     default: () => ({ data: [] }),
   },
+  vehicles: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const search = ref('');
@@ -43,6 +47,9 @@ const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
+const showAssignmentModal = ref(false);
+const isEditingAssignment = ref(false);
+const selectedCrewAssignment = ref(null);
 
 const form = ref({
   name: '',
@@ -52,6 +59,15 @@ const form = ref({
   license_number: '',
   license_expiry_date: '',
   active: true,
+  notes: '',
+});
+
+const assignmentForm = ref({
+  vehicle_id: '',
+  crew_member_id: '',
+  role: 'driver',
+  assigned_from: '',
+  assigned_to: '',
   notes: '',
 });
 
@@ -91,6 +107,11 @@ const selectMember = (member) => {
 
 const getRoleLabel = (role) => role === 'driver' ? 'Chauffeur' : 'Assistant';
 const getRoleColor = (role) => role === 'driver' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+const getVehicleLabel = (vehicle) => [
+  vehicle.identifier,
+  vehicle.maker,
+  vehicle.vehicle_type?.name,
+].filter(Boolean).join(' — ');
 
 const openCreateModal = () => {
   isEditing.value = false;
@@ -114,6 +135,78 @@ const openEditModal = () => {
   };
   errors.value = {};
   showModal.value = true;
+};
+
+const localDateTimeValue = (value = new Date()) => {
+  const date = new Date(value);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+};
+
+const openAssignmentModal = (assignment = null) => {
+  if (!selectedMember.value) return;
+  selectedCrewAssignment.value = assignment;
+  isEditingAssignment.value = !!assignment;
+  assignmentForm.value = {
+    vehicle_id: assignment?.vehicle_id || selectedMember.value.current_assignment?.vehicle_id || '',
+    crew_member_id: selectedMember.value.id,
+    role: selectedMember.value.role,
+    assigned_from: assignment?.assigned_from
+      ? localDateTimeValue(assignment.assigned_from)
+      : localDateTimeValue(),
+    assigned_to: assignment?.assigned_to ? localDateTimeValue(assignment.assigned_to) : '',
+    notes: assignment?.notes || '',
+  };
+  errors.value = {};
+  showAssignmentModal.value = true;
+};
+
+const closeAssignmentModal = () => {
+  showAssignmentModal.value = false;
+  isEditingAssignment.value = false;
+  selectedCrewAssignment.value = null;
+  assignmentForm.value = {
+    vehicle_id: '',
+    crew_member_id: '',
+    role: 'driver',
+    assigned_from: '',
+    assigned_to: '',
+    notes: '',
+  };
+  errors.value = {};
+};
+
+const submitAssignment = () => {
+  if (!selectedMember.value) return;
+  processing.value = true;
+  errors.value = {};
+
+  const url = isEditingAssignment.value
+    ? route('fleet.crew-assignments.update', selectedCrewAssignment.value.id)
+    : route('fleet.crew-assignments.store');
+  const method = isEditingAssignment.value ? 'put' : 'post';
+
+  router[method](url, assignmentForm.value, {
+    preserveScroll: true,
+    onSuccess: () => {
+      processing.value = false;
+      closeAssignmentModal();
+    },
+    onError: (newErrors) => {
+      processing.value = false;
+      errors.value = newErrors;
+    },
+    onFinish: () => {
+      processing.value = false;
+    },
+  });
+};
+
+const endAssignment = (assignment) => {
+  if (!assignment || !confirm(`Clôturer l'affectation au véhicule ${assignment.vehicle?.identifier || ''} ?`)) return;
+  router.delete(route('fleet.crew-assignments.destroy', assignment.id), {
+    preserveScroll: true,
+  });
 };
 
 const closeModal = () => {
@@ -187,6 +280,49 @@ const formatDate = (dateStr) => {
   return new Date(dateStr).toLocaleDateString('fr-FR');
 };
 
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const isCurrentAssignment = (assignment) => {
+  if (!assignment?.assigned_from) return false;
+  const now = Date.now();
+  const startsAt = new Date(assignment.assigned_from).getTime();
+  const endsAt = assignment.assigned_to ? new Date(assignment.assigned_to).getTime() : null;
+  return startsAt <= now && (endsAt === null || endsAt > now);
+};
+
+const getAssignmentStatus = (assignment) => {
+  if (isCurrentAssignment(assignment)) {
+    return {
+      label: 'En cours',
+      classes: 'bg-emerald-100 text-emerald-700',
+      iconClasses: 'bg-emerald-100 text-emerald-700',
+    };
+  }
+
+  if (new Date(assignment.assigned_from).getTime() > Date.now()) {
+    return {
+      label: 'Planifiée',
+      classes: 'bg-blue-100 text-blue-700',
+      iconClasses: 'bg-blue-100 text-blue-700',
+    };
+  }
+
+  return {
+    label: 'Clôturée',
+    classes: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+    iconClasses: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300',
+  };
+};
+
 const isLicenseExpired = (member) => {
   if (member.role !== 'driver' || !member.license_expiry_date) return false;
   return new Date(member.license_expiry_date).setHours(0,0,0,0) < new Date().setHours(0,0,0,0);
@@ -206,11 +342,6 @@ const isLicenseExpired = (member) => {
             Gestion de l'Équipage
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Chauffeurs et assistants</p>
-        </div>
-        <div class="flex gap-2">
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
-            <Plus class="inline mr-1" :size="18" /> Nouveau Membre
-          </button>
         </div>
       </div>
 
@@ -392,7 +523,18 @@ const isLicenseExpired = (member) => {
 
               <!-- Current Vehicle Assignment -->
               <div class="mt-6 pt-6 border-t border-gray-100 dark:border-slate-800">
-                <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-3">VÉHICULE ACTUEL</span>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <span class="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider font-bold">VÉHICULE ACTUEL</span>
+                  <button
+                    type="button"
+                    :disabled="selectedMember.active === false"
+                    @click="openAssignmentModal()"
+                    class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus :size="15" />
+                    Nouvelle affectation
+                  </button>
+                </div>
                 <div v-if="selectedMember.current_assignment" class="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-100">
                   <Bus class="text-emerald-600" :size="22" />
                   <div>
@@ -424,6 +566,88 @@ const isLicenseExpired = (member) => {
                 <div class="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-center">
                   <p class="text-2xl font-bold text-emerald-700">{{ selectedMember.current_assignment ? '1' : '0' }}</p>
                   <p class="text-xs text-emerald-600">Affectation en cours</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Assignment history -->
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
+                <div>
+                  <h3 class="font-black text-slate-900 dark:text-slate-100">Historique des affectations</h3>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ selectedMember.vehicle_assignments?.length || 0 }} affectation(s)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  :disabled="selectedMember.active === false"
+                  @click="openAssignmentModal()"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+                >
+                  <Plus :size="15" />
+                  Affecter
+                </button>
+              </div>
+
+              <div v-if="!selectedMember.vehicle_assignments?.length" class="p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                Aucune affectation enregistrée pour ce membre.
+              </div>
+              <div v-else class="divide-y divide-slate-100 dark:divide-slate-800">
+                <div
+                  v-for="assignment in selectedMember.vehicle_assignments"
+                  :key="assignment.id"
+                  class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div class="flex min-w-0 items-start gap-3">
+                    <div
+                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      :class="getAssignmentStatus(assignment).iconClasses"
+                    >
+                      <Bus :size="20" />
+                    </div>
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="font-bold text-slate-900 dark:text-slate-100">
+                          {{ assignment.vehicle?.identifier || 'Véhicule indisponible' }}
+                        </p>
+                        <span
+                          class="rounded-full px-2 py-0.5 text-[10px] font-black uppercase"
+                          :class="getAssignmentStatus(assignment).classes"
+                        >
+                          {{ getAssignmentStatus(assignment).label }}
+                        </span>
+                      </div>
+                      <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Du {{ formatDateTime(assignment.assigned_from) }}
+                        <template v-if="assignment.assigned_to">
+                          au {{ formatDateTime(assignment.assigned_to) }}
+                        </template>
+                        <template v-else>— sans date de fin</template>
+                      </p>
+                      <p v-if="assignment.notes" class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                        {{ assignment.notes }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      @click="openAssignmentModal(assignment)"
+                      class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-600 transition-colors hover:bg-blue-50 dark:border-blue-900 dark:hover:bg-blue-950/30"
+                      title="Modifier l’affectation"
+                    >
+                      <Pencil :size="17" />
+                    </button>
+                    <button
+                      v-if="isCurrentAssignment(assignment)"
+                      type="button"
+                      @click="endAssignment(assignment)"
+                      class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-600 transition-colors hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/30"
+                    >
+                      Clôturer
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -517,6 +741,88 @@ const isLicenseExpired = (member) => {
         <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
         <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
           {{ isEditing ? 'Mettre à jour' : 'Enregistrer' }}
+        </PrimaryButton>
+      </template>
+    </DialogModal>
+
+    <DialogModal :show="showAssignmentModal" @close="closeAssignmentModal" maxWidth="md">
+      <template #title>
+        {{ isEditingAssignment ? "Modifier l'affectation" : 'Nouvelle affectation' }}
+      </template>
+      <template #content>
+        <div class="space-y-4">
+          <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p class="text-xs font-bold uppercase tracking-wide text-emerald-600">Membre</p>
+            <p class="mt-1 font-black text-emerald-900 dark:text-emerald-100">{{ selectedMember?.name }}</p>
+            <p class="text-xs text-emerald-700 dark:text-emerald-300">{{ getRoleLabel(selectedMember?.role) }}</p>
+          </div>
+
+          <div>
+            <InputLabel for="assignment_vehicle_id" value="Véhicule" />
+            <select
+              id="assignment_vehicle_id"
+              v-model="assignmentForm.vehicle_id"
+              class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              required
+            >
+              <option value="">Sélectionner un véhicule</option>
+              <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
+                {{ getVehicleLabel(vehicle) }}
+              </option>
+            </select>
+            <InputError :message="errors.vehicle_id" />
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <InputLabel for="assignment_from" value="Début de l'affectation" />
+              <input
+                id="assignment_from"
+                v-model="assignmentForm.assigned_from"
+                type="datetime-local"
+                class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                required
+              />
+              <InputError :message="errors.assigned_from" />
+            </div>
+            <div>
+              <InputLabel for="assignment_to" value="Fin (optionnelle)" />
+              <input
+                id="assignment_to"
+                v-model="assignmentForm.assigned_to"
+                type="datetime-local"
+                :min="assignmentForm.assigned_from"
+                class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              />
+              <InputError :message="errors.assigned_to" />
+            </div>
+          </div>
+
+          <div>
+            <InputLabel for="assignment_notes" value="Notes (optionnel)" />
+            <textarea
+              id="assignment_notes"
+              v-model="assignmentForm.notes"
+              rows="3"
+              class="w-full rounded-lg border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              placeholder="Informations sur cette affectation..."
+            ></textarea>
+            <InputError :message="errors.notes" />
+          </div>
+
+          <p v-if="selectedMember?.active === false" class="rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+            Ce membre est inactif et ne peut pas recevoir de nouvelle affectation.
+          </p>
+        </div>
+      </template>
+      <template #footer>
+        <SecondaryButton @click="closeAssignmentModal">Annuler</SecondaryButton>
+        <PrimaryButton
+          class="ml-3"
+          @click="submitAssignment"
+          :disabled="processing || selectedMember?.active === false"
+        >
+          {{ isEditingAssignment ? 'Mettre à jour' : 'Affecter au véhicule' }}
         </PrimaryButton>
       </template>
     </DialogModal>

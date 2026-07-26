@@ -270,7 +270,7 @@ const selectTrip = (trip) => {
 };
 
 const handleSeatClick = (seatNumber) => {
-    if (isTicketingPage.value) {
+    if (isTicketingPage.value && !seatSalesDisabled.value) {
         console.log('[Sidebar] Selecting seat:', seatNumber);
         ticketingStore.selectSeat(seatNumber);
         emit('seat-click', seatNumber);
@@ -530,6 +530,33 @@ const currentStationSellableSeatNumbers = computed(() => {
         .filter((seatNumber) => Number.isFinite(seatNumber));
 });
 
+const hasPricedDestinationFromAssignedStation = computed(() => {
+    if (!selectedTrip.value || !assignedStationId.value) return false;
+
+    const routeFares = page.props.routeFares;
+    if (!Array.isArray(routeFares)) return true;
+
+    const stationIndices = buildTripStationIndices(selectedTrip.value);
+    const originIndex = stationIndices[assignedStationId.value];
+    if (originIndex === undefined) return false;
+
+    return routeFares.some((fare) => {
+        const fromId = fare.from_station_id || fare.from_station?.id || fare.fromStation?.id;
+        const toId = fare.to_station_id || fare.to_station?.id || fare.toStation?.id;
+        const directDestinationIndex = stationIndices[toId];
+        const reverseDestinationIndex = stationIndices[fromId];
+
+        return (fromId === assignedStationId.value && directDestinationIndex > originIndex)
+            || (fare.is_bidirectional
+                && toId === assignedStationId.value
+                && reverseDestinationIndex > originIndex);
+    });
+});
+
+const seatSalesDisabled = computed(() => isTicketingPage.value
+    && Array.isArray(page.props.routeFares)
+    && !hasPricedDestinationFromAssignedStation.value);
+
 const currentStationFreedSeatNumbers = computed(() => {
     if (!assignedStationId.value) return [];
 
@@ -754,6 +781,7 @@ const getOccupancyRate = (available, total) => {
                                 :selected-seat="ticketingStore.selectedSeat"
                                 :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
+                                :disabled="seatSalesDisabled"
                                 :sellable-seat-numbers="currentStationSellableSeatNumbers"
                                 :released-seat-numbers="currentStationFreedSeatNumbers"
                                 :sellable-seat-border-color="currentStationSellableSeatBorderColor"
@@ -890,12 +918,13 @@ const getOccupancyRate = (available, total) => {
                                 :suggested-seats="ticketingStore.suggestedSeats"
                                 :selected-seat="ticketingStore.selectedSeat"
                                 :selected-color="selectedSeatColor"
-                                    :show-suggestions="ticketingStore.showSuggestions"
-                                    :sellable-seat-numbers="currentStationSellableSeatNumbers"
-                                    :released-seat-numbers="currentStationFreedSeatNumbers"
-                                    :sellable-seat-border-color="currentStationSellableSeatBorderColor"
-                                    @seat-click="handleSeatClick"
-                                    class="w-full h-full"
+                                :show-suggestions="ticketingStore.showSuggestions"
+                                :disabled="seatSalesDisabled"
+                                :sellable-seat-numbers="currentStationSellableSeatNumbers"
+                                :released-seat-numbers="currentStationFreedSeatNumbers"
+                                :sellable-seat-border-color="currentStationSellableSeatBorderColor"
+                                @seat-click="handleSeatClick"
+                                class="w-full h-full"
                                 />
                             </div>
                         </div>

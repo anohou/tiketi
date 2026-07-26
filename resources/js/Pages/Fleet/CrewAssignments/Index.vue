@@ -235,11 +235,6 @@ const handlePrint = () => {
           </h1>
           <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Historique des affectations chauffeurs/assistants aux véhicules</p>
         </div>
-        <div class="flex gap-2">
-          <button @click="openCreateModal" class="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700">
-            <Plus class="inline mr-1" :size="18" /> Nouvelle Affectation
-          </button>
-        </div>
       </div>
 
       <!-- Three Column Layout -->

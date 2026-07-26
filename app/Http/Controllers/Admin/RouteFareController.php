@@ -13,14 +13,16 @@ class RouteFareController extends Controller
     public function index()
     {
         $fares = RouteFare::with(['fromStation', 'toStation'])
-            ->latest()
+            ->orderBy('from_station_id')
+            ->orderBy('to_station_id')
             ->get();
 
-        $stations = Station::all()->map(function ($station) {
+        $stations = Station::orderBy('name')->get()->map(function ($station) {
             return [
                 'id' => $station->id,
                 'name' => $station->name,
                 'city' => $station->city,
+                'active' => (bool) $station->active,
             ];
         });
 
@@ -37,17 +39,20 @@ class RouteFareController extends Controller
             'to_station_id' => 'required|exists:stations,id|different:from_station_id',
             'amount' => 'required|integer|min:0',
             'is_bidirectional' => 'boolean',
+            'active' => 'sometimes|boolean',
         ]);
 
-        // Check for duplicate (direct or reverse if bidirectional)
+        // A direct duplicate is always forbidden. The reverse direction may
+        // coexist only when both fares are explicitly one-way.
         $exists = RouteFare::where('from_station_id', $request->from_station_id)
             ->where('to_station_id', $request->to_station_id)
             ->exists();
 
-        // Also check reverse direction
-        $reverseExists = RouteFare::where('from_station_id', $request->to_station_id)
+        $reverseFare = RouteFare::where('from_station_id', $request->to_station_id)
             ->where('to_station_id', $request->from_station_id)
-            ->exists();
+            ->first();
+        $reverseExists = $reverseFare
+            && ((bool) ($validated['is_bidirectional'] ?? false) || $reverseFare->is_bidirectional);
 
         if ($exists || $reverseExists) {
             return back()->withErrors(['from_station_id' => 'Ce tarif existe déjà pour ce trajet (ou son inverse).']);
@@ -67,19 +72,21 @@ class RouteFareController extends Controller
             'to_station_id' => 'required|exists:stations,id|different:from_station_id',
             'amount' => 'required|integer|min:0',
             'is_bidirectional' => 'boolean',
+            'active' => 'sometimes|boolean',
         ]);
 
-        // Check for duplicate excluding current (direct)
+        // Check for duplicate excluding current (direct).
         $exists = RouteFare::where('from_station_id', $request->from_station_id)
             ->where('to_station_id', $request->to_station_id)
             ->where('id', '!=', $routeFare->id)
             ->exists();
 
-        // Also check reverse direction excluding current
-        $reverseExists = RouteFare::where('from_station_id', $request->to_station_id)
+        $reverseFare = RouteFare::where('from_station_id', $request->to_station_id)
             ->where('to_station_id', $request->from_station_id)
             ->where('id', '!=', $routeFare->id)
-            ->exists();
+            ->first();
+        $reverseExists = $reverseFare
+            && ((bool) ($validated['is_bidirectional'] ?? false) || $reverseFare->is_bidirectional);
 
         if ($exists || $reverseExists) {
             return back()->withErrors(['from_station_id' => 'Ce tarif existe déjà pour ce trajet (ou son inverse).']);

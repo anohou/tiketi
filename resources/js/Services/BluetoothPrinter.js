@@ -1,97 +1,159 @@
-/**
- * Bluetooth Thermal Printer Service
- * Handles connection and printing to ESC/POS compatible Bluetooth thermal printers
- */
-
 class BluetoothPrinter {
     constructor() {
         this.device = null;
         this.characteristic = null;
         this.connected = false;
 
-        // ESC/POS Commands
+        this._writeLock = Promise.resolve();
+        this._disconnectHandler = null;
+
         this.ESC = '\x1B';
         this.GS = '\x1D';
-        this.INIT = this.ESC + '@'; // Initialize printer
+        this.INIT = this.ESC + '@';
         this.ALIGN_LEFT = this.ESC + 'a' + '\x00';
         this.ALIGN_CENTER = this.ESC + 'a' + '\x01';
         this.ALIGN_RIGHT = this.ESC + 'a' + '\x02';
         this.BOLD_ON = this.ESC + 'E' + '\x01';
         this.BOLD_OFF = this.ESC + 'E' + '\x00';
         this.SIZE_NORMAL = this.GS + '!' + '\x00';
-        this.SIZE_DOUBLE = this.GS + '!' + '\x11'; // Double width and height
+        this.SIZE_DOUBLE = this.GS + '!' + '\x11';
         this.SIZE_LARGE = this.GS + '!' + '\x22';
-        this.SIZE_TRIPLE = this.GS + '!' + '\x33'; // Triple size
-        this.CUT_PAPER = this.GS + 'V' + '\x41' + '\x00'; // Cut paper
+        this.SIZE_TRIPLE = this.GS + '!' + '\x33';
+        this.CUT_PAPER = this.GS + 'V' + '\x41' + '\x00';
         this.LINE_FEED = '\n';
     }
 
-    /**
-     * Check if Web Bluetooth is supported
-     */
     isSupported() {
         return 'bluetooth' in navigator;
     }
 
-    /**
-     * Connect to a Bluetooth printer
-     */
+    _onDisconnected() {
+        this.connected = false;
+        this.characteristic = null;
+        if (this._onDisconnectCallback) {
+            this._onDisconnectCallback();
+        }
+    }
+
+    _registerDisconnectHandler() {
+        this._unregisterDisconnectHandler();
+        if (!this.device) return;
+        this._disconnectHandler = () => this._onDisconnected();
+        this.device.addEventListener('gattserverdisconnected', this._disconnectHandler);
+    }
+
+    _unregisterDisconnectHandler() {
+        if (this.device && this._disconnectHandler) {
+            this.device.removeEventListener('gattserverdisconnected', this._disconnectHandler);
+        }
+        this._disconnectHandler = null;
+    }
+
+    setDisconnectCallback(cb) {
+        this._onDisconnectCallback = typeof cb === 'function' ? cb : null;
+    }
+
     async connect() {
         if (!this.isSupported()) {
-            throw new Error('Web Bluetooth is not supported in this browser');
+            throw new Error('Web Bluetooth non supporté par ce navigateur');
         }
 
         try {
-            // Request Bluetooth device - accept all services to find the printer
             this.device = await navigator.bluetooth.requestDevice({
                 acceptAllDevices: true,
                 optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb', // Common printer service
-                    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Serial Port service
-                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Another common service
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
                 ]
             });
 
-            // Connect to GATT server
+            this._registerDisconnectHandler();
+
             const server = await this.device.gatt.connect();
 
-            // Try to find a writable characteristic
             const services = await server.getPrimaryServices();
 
             for (const service of services) {
                 try {
                     const characteristics = await service.getCharacteristics();
                     for (const char of characteristics) {
-                        // Look for a writable characteristic
                         if (char.properties.write || char.properties.writeWithoutResponse) {
                             this.characteristic = char;
                             this.connected = true;
-                            console.log('Found writable characteristic:', char.uuid);
-
-                            // Store device ID for auto-reconnect
                             localStorage.setItem('bluetooth_printer_id', this.device.id);
-
                             return true;
                         }
                     }
                 } catch (e) {
-                    // Skip services we can't access
                     continue;
                 }
             }
 
-            throw new Error('No writable characteristic found on this device');
+            throw new Error('Aucune caractéristique d\'écriture trouvée sur cet appareil');
 
         } catch (error) {
-            console.error('Bluetooth connection error:', error);
+            this._unregisterDisconnectHandler();
+            this.device = null;
+            this.characteristic = null;
             throw error;
         }
     }
 
-    /**
-     * Disconnect from printer
-     */
+    async restoreAuthorizedDevice() {
+        if (!this.isSupported() || typeof navigator.bluetooth.getDevices !== 'function') {
+            return false;
+        }
+
+        const devices = await navigator.bluetooth.getDevices();
+        const storedDeviceId = localStorage.getItem('bluetooth_printer_id');
+        const authorizedDevice = devices.find(device => device.id === storedDeviceId)
+            || devices[0]
+            || null;
+
+        if (!authorizedDevice) return false;
+
+        this._unregisterDisconnectHandler();
+        this.device = authorizedDevice;
+        this._registerDisconnectHandler();
+
+        return this.reconnect();
+    }
+
+    async reconnect() {
+        if (!this.device) return false;
+
+        try {
+            this._registerDisconnectHandler();
+            const server = await this.device.gatt.connect();
+
+            const services = await server.getPrimaryServices();
+
+            for (const service of services) {
+                try {
+                    const characteristics = await service.getCharacteristics();
+                    for (const char of characteristics) {
+                        if (char.properties.write || char.properties.writeWithoutResponse) {
+                            this.characteristic = char;
+                            this.connected = true;
+                            return true;
+                        }
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            return false;
+        } catch (error) {
+            this.connected = false;
+            this.characteristic = null;
+            return false;
+        }
+    }
+
     disconnect() {
+        this._unregisterDisconnectHandler();
         if (this.device && this.device.gatt.connected) {
             this.device.gatt.disconnect();
         }
@@ -100,41 +162,34 @@ class BluetoothPrinter {
         this.characteristic = null;
     }
 
-    /**
-     * Send data to printer
-     */
     async send(data) {
-        if (!this.connected || !this.characteristic) {
-            throw new Error('Printer not connected');
-        }
+        if (!this.device) throw new Error('Aucun périphérique connecté');
+        if (!this.device.gatt.connected) throw new Error('Périphérique déconnecté');
+        if (!this.characteristic) throw new Error('Aucune caractéristique d\'écriture');
 
-        console.log('Sending data to printer, length:', data.length);
         const encoder = new TextEncoder();
         const encoded = encoder.encode(data);
-        console.log('Encoded data length:', encoded.length);
-
-        // Split data into chunks (Bluetooth has size limits)
         const chunkSize = 512;
+
         for (let i = 0; i < encoded.length; i += chunkSize) {
             const chunk = encoded.slice(i, i + chunkSize);
-            console.log(`Sending chunk ${Math.floor(i / chunkSize) + 1}, size:`, chunk.length);
+            const writeOperation = this._writeLock
+                .catch(() => undefined)
+                .then(async () => {
+                    if (!this.device?.gatt?.connected || !this.characteristic) {
+                        throw new Error('Périphérique déconnecté pendant l’impression');
+                    }
+                    if (this.characteristic.properties.writeWithoutResponse) {
+                        await this.characteristic.writeValueWithoutResponse(chunk);
+                    } else {
+                        await this.characteristic.writeValue(chunk);
+                    }
+                });
+            this._writeLock = writeOperation;
+            await writeOperation;
 
-            try {
-                if (this.characteristic.properties.writeWithoutResponse) {
-                    await this.characteristic.writeValueWithoutResponse(chunk);
-                } else {
-                    await this.characteristic.writeValue(chunk);
-                }
-                console.log('Chunk sent successfully');
-            } catch (error) {
-                console.error('Error sending chunk:', error);
-                throw error;
-            }
-
-            // Small delay between chunks
             await new Promise(resolve => setTimeout(resolve, 50));
         }
-        console.log('All data sent to printer');
     }
 
     stripAccents(value) {
@@ -189,9 +244,6 @@ class BluetoothPrinter {
         return left + ' '.repeat(spaces) + right + '\n';
     }
 
-    /**
-     * Print a ticket
-     */
     async printTicket(ticketData, settings) {
         let commands = '';
         const width = 32;
@@ -200,10 +252,7 @@ class BluetoothPrinter {
             : ticketData.qr_code;
         const qrData = this.stripAccents(rawQrData).slice(0, 180);
 
-        // Initialize printer
         commands += this.INIT;
-
-        // Compact header / text logo
         commands += this.ALIGN_CENTER;
         commands += this.SIZE_DOUBLE;
         commands += this.BOLD_ON;
@@ -219,7 +268,6 @@ class BluetoothPrinter {
 
         commands += this.line('=', width);
 
-        // Ticket number
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;
         commands += `${this.fit('N TICKET', width)}\n`;
@@ -272,15 +320,14 @@ class BluetoothPrinter {
 
         if (shouldPrintQrCode && qrData) {
             commands += this.ALIGN_CENTER;
-            commands += this.GS + '(k\x03\x00\x31\x43\x04'; // Set size (4)
-            commands += this.GS + '(k\x03\x00\x31\x45\x30'; // Set error correction (L)
+            commands += this.GS + '(k\x03\x00\x31\x43\x04';
+            commands += this.GS + '(k\x03\x00\x31\x45\x30';
 
             const qrLength = qrData.length + 3;
             const pL = qrLength & 0xFF;
             const pH = (qrLength >> 8) & 0xFF;
             commands += this.GS + '(k' + String.fromCharCode(pL, pH) + '\x31\x50\x30' + qrData;
 
-            // Print QR code
             commands += this.GS + '(k\x03\x00\x31\x51\x30';
             commands += this.LINE_FEED;
         }
@@ -310,20 +357,15 @@ class BluetoothPrinter {
         commands += this.LINE_FEED;
         commands += this.LINE_FEED;
 
-        // Cut paper
         commands += this.CUT_PAPER;
 
-        // Send to printer
         await this.send(commands);
     }
 
-    /**
-     * Get printer status
-     */
     getStatus() {
         return {
             supported: this.isSupported(),
-            connected: this.connected,
+            connected: this.connected && !!(this.device?.gatt?.connected),
             deviceName: this.device ? this.device.name : null
         };
     }

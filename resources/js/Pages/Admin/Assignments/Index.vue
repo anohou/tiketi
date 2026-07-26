@@ -224,8 +224,8 @@ const deleteAssignment = (id) => {
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <AccountCheck class="text-green-600" :size="28" />
+            <div class="p-2 bg-emerald-100 rounded-xl">
+              <AccountCheck class="text-emerald-600" :size="28" />
             </div>
             Affectations Utilisateurs
           </h1>
@@ -242,16 +242,16 @@ const deleteAssignment = (id) => {
 
         <!-- Middle Column - Assignments List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10 shrink-0">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-slate-50/80 dark:bg-slate-950/60 shrink-0">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-emerald-500 text-sm dark:bg-slate-950 dark:text-slate-100" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shrink-0" title="Nouvelle Affectation">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Affectation">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons 
@@ -265,18 +265,18 @@ const deleteAssignment = (id) => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400">
                 Aucune affectation trouvée.
               </div>
               <div v-else>
                 <div v-for="assignment in filteredAssignments" :key="assignment.id" 
                   @click="selectAssignment(assignment)"
                   class="p-3 cursor-pointer transition-colors border-b border-gray-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
+                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-600' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-center">
                     <div class="flex-1 min-w-0">
-                      <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-green-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
+                      <h3 :class="['text-sm font-semibold truncate', isSelected(assignment) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
                         {{ assignment.user?.name }}
                       </h3>
                       <p class="text-[10px] text-gray-500 dark:text-slate-450 mt-0.5">
@@ -291,7 +291,7 @@ const deleteAssignment = (id) => {
                     </div>
                     <span :class="[
                       'shrink-0 ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
-                      assignment.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        assignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                     ]">
                       {{ assignment.active ? 'Active' : 'Inactive' }}
                     </span>
@@ -305,10 +305,10 @@ const deleteAssignment = (id) => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <AccountCheck class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400">
+            <AccountCheck class="h-16 w-16 text-emerald-200 dark:text-emerald-800 mb-4" />
             <p class="text-lg">Sélectionnez une affectation pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
+            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez une nouvelle affectation
             </button>
           </div>
@@ -316,7 +316,7 @@ const deleteAssignment = (id) => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">Détails de l'Affectation</h2>
@@ -360,7 +360,7 @@ const deleteAssignment = (id) => {
                   <div>
                     <span :class="[
                        'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
-                      selectedAssignment.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      selectedAssignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                     ]">
                       {{ selectedAssignment.active ? 'Active' : 'Inactive' }}
                     </span>
@@ -396,7 +396,7 @@ const deleteAssignment = (id) => {
             <select
               id="user_id"
               v-model="form.user_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Sélectionner un utilisateur</option>
@@ -416,7 +416,7 @@ const deleteAssignment = (id) => {
             <select
               id="station_id"
               v-model="form.station_id"
-              class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm"
+              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
               <option value="">Sélectionner une gare</option>
@@ -434,14 +434,14 @@ const deleteAssignment = (id) => {
           <div v-if="form.station_id && filteredRoutesForSelectedStation.length > 0">
             <InputLabel value="Trajets autorisés" />
             <p class="text-xs text-gray-550 dark:text-slate-450 mb-2">Sélectionnez les trajets spécifiques autorisés pour cette gare. Laissez vide pour autoriser tous les trajets.</p>
-            <div class="max-h-48 overflow-y-auto border border-orange-200 rounded-lg p-3 space-y-2 dark:border-slate-800 dark:bg-slate-950">
+            <div class="max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-3 space-y-2 dark:border-slate-800 dark:bg-slate-950">
               <div v-for="route in filteredRoutesForSelectedStation" :key="route.id" class="flex items-start">
                 <input
                   :id="'route_' + route.id"
                   type="checkbox"
                   :value="route.id"
                   v-model="form.route_ids"
-                  class="rounded border-orange-200 text-green-600 shadow-sm focus:ring-green-500 mt-0.5"
+                  class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring-emerald-500 mt-0.5"
                 />
                 <label :for="'route_' + route.id" class="ml-2 text-sm text-gray-700 dark:text-slate-300 cursor-pointer">
                   {{ route.name }}
@@ -461,7 +461,7 @@ const deleteAssignment = (id) => {
               id="active"
               v-model="form.active"
               type="checkbox"
-              class="rounded border-orange-200 text-green-600 shadow-sm focus:ring-green-500"
+              class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring-emerald-500"
             />
             <InputLabel for="active" value="Actif" class="ml-2" />
           </div>

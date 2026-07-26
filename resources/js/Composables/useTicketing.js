@@ -113,6 +113,124 @@ export function useTicketing(props, options = {}) {
   updateClock();
 
   // =============================================
+  // Print Queue
+  // =============================================
+  const printQueue = ref([]);
+  const printQueueRunning = ref(false);
+  let printQueueSequence = 0;
+
+  const updatePrintEntry = (entry, changes) => {
+    Object.assign(entry, changes);
+    printQueue.value = [...printQueue.value];
+  };
+
+  const schedulePrintedEntryCleanup = (entryId) => {
+    setTimeout(() => {
+      printQueue.value = printQueue.value.filter(entry => entry.id !== entryId);
+    }, 15000);
+  };
+
+  const hydratePrintEntryTicketNumber = async (entry) => {
+    if (!entry || entry.ticketNumber) return;
+
+    try {
+      const response = await axios.get(route('seller.tickets.show-data', { ticket: entry.ticketId }));
+      if (response.data?.ticket_number) {
+        updatePrintEntry(entry, { ticketNumber: response.data.ticket_number });
+      }
+    } catch {
+      // Printing remains available even if the display label cannot be hydrated.
+    }
+  };
+
+  const enqueuePrint = (ticket) => {
+    const ticketId = typeof ticket === 'object' ? ticket.id : ticket;
+    const ticketNumber = typeof ticket === 'object' ? ticket.ticket_number : null;
+    const existing = printQueue.value.find(entry => String(entry.ticketId) === String(ticketId));
+    if (existing) {
+      if (!existing.ticketNumber && ticketNumber) {
+        updatePrintEntry(existing, { ticketNumber });
+      }
+      return existing;
+    }
+
+    const entry = {
+      id: `print-${Date.now()}-${++printQueueSequence}`,
+      ticketId,
+      ticketNumber,
+      status: useBluetoothPrinter.value ? 'pending' : 'ready',
+      error: null,
+    };
+    printQueue.value = [...printQueue.value, entry];
+    if (!entry.ticketNumber) hydratePrintEntryTicketNumber(entry);
+    if (entry.status === 'pending') processPrintQueue();
+    return entry;
+  };
+
+  const processPrintQueue = async () => {
+    if (printQueueRunning.value) return;
+    printQueueRunning.value = true;
+
+    try {
+      while (printQueue.value.some(e => e.status === 'pending')) {
+        const entry = printQueue.value.find(e => e.status === 'pending');
+        if (!entry) break;
+
+        updatePrintEntry(entry, { status: 'printing', error: null });
+
+        try {
+          const connected = await ensureBluetoothPrinterConnected({ allowPrompt: false });
+          if (!connected) {
+            throw new Error('Imprimante Bluetooth indisponible');
+          }
+          await printWithBluetooth(entry.ticketId);
+          updatePrintEntry(entry, { status: 'printed' });
+          toastStore.success('Ticket imprimé avec succès.');
+          schedulePrintedEntryCleanup(entry.id);
+        } catch (error) {
+          updatePrintEntry(entry, {
+            status: 'failed',
+            error: error?.message || 'Échec de l’impression Bluetooth',
+          });
+        }
+      }
+    } finally {
+      printQueueRunning.value = false;
+    }
+  };
+
+  const retryPrint = (entryId) => {
+    const entry = printQueue.value.find(candidate => candidate.id === entryId);
+    if (!entry || ['pending', 'printing'].includes(entry.status)) return;
+    updatePrintEntry(entry, {
+      status: useBluetoothPrinter.value ? 'pending' : 'ready',
+      error: null,
+    });
+    if (entry.status === 'pending') processPrintQueue();
+  };
+
+  const printInBrowser = (entryId) => {
+    const entry = printQueue.value.find(candidate => candidate.id === entryId);
+    if (!entry) return;
+    const opened = fallbackToBrowserPrint(entry.ticketId);
+    if (!opened) {
+      updatePrintEntry(entry, {
+        status: 'failed',
+        error: 'Le navigateur a bloqué la fenêtre d’impression',
+      });
+      return;
+    }
+    updatePrintEntry(entry, { status: 'printed', error: null });
+    schedulePrintedEntryCleanup(entry.id);
+  };
+
+  const dismissPrintEntry = (entryId) => {
+    printQueue.value = printQueue.value.filter(entry => entry.id !== entryId);
+  };
+
+  const printTickets = (tickets) => tickets.map(ticket => enqueuePrint(ticket));
+
+  // =============================================
   // Bluetooth Printer
   // =============================================
   const bluetoothPrinter = new BluetoothPrinter();
@@ -120,32 +238,52 @@ export function useTicketing(props, options = {}) {
   const bluetoothPrinterConnected = ref(false);
   const bluetoothPrinterName = ref(null);
 
+  const syncBluetoothStatus = () => {
+    const status = bluetoothPrinter.getStatus();
+    bluetoothPrinterConnected.value = status.connected;
+    bluetoothPrinterName.value = status.deviceName;
+  };
+
   const connectBluetoothPrinter = async () => {
     try {
+      bluetoothPrinter.setDisconnectCallback(() => {
+        bluetoothPrinterConnected.value = false;
+        bluetoothPrinterName.value = null;
+      });
       await bluetoothPrinter.connect();
-      bluetoothPrinterConnected.value = true;
-      const status = bluetoothPrinter.getStatus();
-      bluetoothPrinterName.value = status.deviceName;
-      toastStore.success(`Imprimante connectée: ${status.deviceName}`);
+      syncBluetoothStatus();
+      toastStore.success(`Imprimante connectée: ${bluetoothPrinterName.value}`);
     } catch (error) {
-      console.error('Failed to connect Bluetooth printer:', error);
       toastStore.error('Échec de la connexion à l\'imprimante Bluetooth. Veuillez réessayer.');
     }
   };
 
   const disconnectBluetoothPrinter = () => {
+    bluetoothPrinter.setDisconnectCallback(null);
     bluetoothPrinter.disconnect();
     bluetoothPrinterConnected.value = false;
     bluetoothPrinterName.value = null;
   };
 
-  const ensureBluetoothPrinterConnected = async () => {
+  const ensureBluetoothPrinterConnected = async ({ allowPrompt = false } = {}) => {
+    syncBluetoothStatus();
     if (bluetoothPrinterConnected.value) return true;
     if (!bluetoothPrinter.isSupported()) return false;
+    if (bluetoothPrinter.device) {
+      const ok = await bluetoothPrinter.reconnect();
+      if (ok) {
+        syncBluetoothStatus();
+        return true;
+      }
+    }
+    const restored = await bluetoothPrinter.restoreAuthorizedDevice();
+    if (restored) {
+      syncBluetoothStatus();
+      return true;
+    }
+    if (!allowPrompt) return false;
     await bluetoothPrinter.connect();
-    bluetoothPrinterConnected.value = true;
-    const status = bluetoothPrinter.getStatus();
-    bluetoothPrinterName.value = status.deviceName;
+    syncBluetoothStatus();
     return true;
   };
 
@@ -195,24 +333,9 @@ export function useTicketing(props, options = {}) {
     const printWindow = window.open(printUrl, '_blank', 'width=400,height=600');
     if (!printWindow) {
       toastStore.warning('Veuillez autoriser les popups pour imprimer le ticket.');
+      return false;
     }
-  };
-
-  const printTickets = async (ticketIds) => {
-    if (useBluetoothPrinter.value) {
-      try {
-        const connected = await ensureBluetoothPrinterConnected();
-        if (connected) {
-          for (const id of ticketIds) {
-            await printWithBluetooth(id);
-          }
-          return;
-        }
-      } catch (error) {
-        console.error('Bluetooth print failed, falling back to browser print:', error);
-      }
-    }
-    ticketIds.forEach(id => fallbackToBrowserPrint(id));
+    return true;
   };
 
   // =============================================
@@ -447,6 +570,13 @@ export function useTicketing(props, options = {}) {
 
   const currentTrip = computed(() => trips.value.find(trip => trip.id === selectedTripId.value));
 
+  const assignedStationIds = computed(() => {
+    const ids = props.assignedStationIds?.length
+      ? props.assignedStationIds
+      : (props.assignedStationId ? [props.assignedStationId] : []);
+    return [...new Set(ids.filter(Boolean).map(id => String(id)))];
+  });
+
   const isTripPassed = computed(() => {
     if (!currentTrip.value) return false;
 
@@ -465,22 +595,46 @@ export function useTicketing(props, options = {}) {
 
   const isTripDeparted = computed(() => currentTrip.value?.status === 'departed');
 
+  const hasAssignedStation = (stationId) => {
+    if (!stationId) return false;
+    return assignedStationIds.value.includes(String(stationId));
+  };
+
+  const operationalStationId = computed(() => {
+    const activeStationId = currentTrip.value?.active_sales_station_id;
+    if (isTripDeparted.value && hasAssignedStation(activeStationId)) {
+      return activeStationId;
+    }
+
+    const fareStationId = selectedFare.value?.from_station_id;
+    if (hasAssignedStation(fareStationId)) {
+      return fareStationId;
+    }
+
+    const originStationId = currentTrip.value?.origin_station_id
+      || currentTrip.value?.route?.origin_station_id;
+    if (hasAssignedStation(originStationId)) {
+      return originStationId;
+    }
+
+    return assignedStationIds.value[0] || null;
+  });
+
   const isWaitingForSalesTurn = computed(() => {
-    if (!isTripDeparted.value || !props.assignedStationId) return false;
-    return currentTrip.value?.active_sales_station_id !== props.assignedStationId;
+    if (!isTripDeparted.value) return false;
+    const activeStation = currentTrip.value?.active_sales_station_id;
+    if (!activeStation) return false;
+    return !hasAssignedStation(activeStation);
   });
 
   const isSalesClosedForSeller = computed(() => {
     if (!currentTrip.value) return false;
-    if (!props.assignedStation) return false;
+    if (assignedStationIds.value.length === 0) return false;
 
     const originStationId = currentTrip.value.origin_station_id
       || currentTrip.value.route?.origin_station_id;
-    const originName = currentTrip.value.origin_station?.name
-      || currentTrip.value.route?.origin_station?.name;
-    const isAtOrigin = props.assignedStationId
-      ? originStationId === props.assignedStationId
-      : originName === props.assignedStation;
+    const isAtOrigin = originStationId
+      && String(operationalStationId.value) === String(originStationId);
 
     if (isTripDeparted.value) {
       return isWaitingForSalesTurn.value;
@@ -532,7 +686,13 @@ export function useTicketing(props, options = {}) {
 
     // A closed trip only allows seats released by passengers getting off at
     // this station. Empty seats must not be mistaken for released seats.
-    if (isSalesClosedForSeller.value) {
+    const originStationId = currentTrip.value?.origin_station_id
+      || currentTrip.value?.route?.origin_station_id;
+    const fareSalesClosed = !isTripDeparted.value
+      && currentTrip.value?.sales_control === 'closed'
+      && String(fare.from_station_id) !== String(originStationId);
+
+    if (fareSalesClosed || isSalesClosedForSeller.value) {
       return getStationFreedSeatNumbers(fare);
     }
 
@@ -594,10 +754,15 @@ export function useTicketing(props, options = {}) {
 
   const isFareDisabled = (fare) => {
     if (!currentTrip.value) return false;
-    if (!props.assignedStation) return false;
+    if (assignedStationIds.value.length === 0) return false;
 
     if (isWaitingForSalesTurn.value) return true;
-    if (!isSalesClosedForSeller.value) return false;
+    const originStationId = currentTrip.value.origin_station_id
+      || currentTrip.value.route?.origin_station_id;
+    const fareSalesClosed = !isTripDeparted.value
+      && currentTrip.value.sales_control === 'closed'
+      && String(fare.from_station_id) !== String(originStationId);
+    if (!fareSalesClosed && !isSalesClosedForSeller.value) return false;
 
     const stationSeats = getStationFreedSeatNumbers(fare);
 
@@ -605,10 +770,21 @@ export function useTicketing(props, options = {}) {
   };
 
   const seatsToBook = computed(() => {
-    if (ticketQuantity.value > 1 && suggestedSeats.value.length >= ticketQuantity.value) {
-      return suggestedSeats.value.slice(0, ticketQuantity.value).map(s => s.seat_number);
+    if (ticketQuantity.value <= 1) {
+      return selectedSeatNumber.value ? [selectedSeatNumber.value] : [];
     }
-    return selectedSeatNumber.value ? [selectedSeatNumber.value] : [];
+    if (selectedSeatNumber.value !== null) {
+      const manualSeat = Number(selectedSeatNumber.value);
+      const rest = [...new Set(suggestedSeats.value
+        .map(s => Number(s.seat_number))
+        .filter(seatNumber => Number.isFinite(seatNumber) && seatNumber !== manualSeat))]
+        .slice(0, ticketQuantity.value - 1);
+      return [manualSeat, ...rest];
+    }
+    return [...new Set(suggestedSeats.value
+      .map(s => Number(s.seat_number))
+      .filter(Number.isFinite))]
+      .slice(0, ticketQuantity.value);
   });
 
   const totalAmount = computed(() => {
@@ -930,6 +1106,15 @@ export function useTicketing(props, options = {}) {
       if (!fareFromId || !fareToId) return false;
       if (!allowedStationIds.has(fareFromId) || !allowedStationIds.has(fareToId)) return false;
 
+      if (assignedStationIds.value.length > 0 && !hasAssignedStation(fareFromId)) {
+        return false;
+      }
+
+      if (isTripDeparted.value && currentTrip.value.active_sales_station_id
+        && String(fareFromId) !== String(currentTrip.value.active_sales_station_id)) {
+        return false;
+      }
+
       if (!props.assignedStation) {
         const tripOriginId = currentTrip.value.origin_station_id || routeObj.origin_station_id;
         if (tripOriginId && fareFromId !== tripOriginId) return false;
@@ -1032,40 +1217,80 @@ export function useTicketing(props, options = {}) {
   };
 
   const currentStationSellableSeatNumbers = computed(() => {
-    const stationId = props.assignedStationId;
-    if (isWaitingForSalesTurn.value) return [];
+    const stationIds = selectedFare.value?.from_station_id
+      ? [selectedFare.value.from_station_id]
+      : (operationalStationId.value ? [operationalStationId.value] : assignedStationIds.value);
+    if (stationIds.length === 0 || isWaitingForSalesTurn.value) return [];
     const seatsByStation = isSalesClosedForSeller.value
       ? (seatMap.value?.freed_seats_by_station || {})
       : (seatMap.value?.sellable_seats_by_station || {});
-    const seatNumbers = seatsByStation[stationId] || [];
+    const aggregated = new Set();
+    stationIds.forEach((sid) => {
+      const seats = seatsByStation[sid] || [];
+      seats.forEach((sn) => aggregated.add(Number(sn)));
+    });
 
-    return seatNumbers
-      .map((seatNumber) => Number(seatNumber))
-      .filter((seatNumber) => Number.isFinite(seatNumber));
+    return [...aggregated].filter((sn) => Number.isFinite(sn));
+  });
+
+  const maxSellableQuantity = computed(() => {
+    if (!selectedFare.value) return 0;
+
+    const allowedSeats = new Set(getStationSellableSeatNumbers(selectedFare.value));
+    if (!seatMap.value?.seat_map) return allowedSeats.size;
+
+    const mapData = seatMap.value.seat_map;
+    const rows = Array.isArray(mapData)
+      ? mapData
+      : [...(mapData.lower_deck || []), ...(mapData.upper_deck || [])];
+    let count = 0;
+
+    rows.forEach((row) => {
+      row.forEach((seat) => {
+        if (seat?.type === 'seat'
+          && allowedSeats.has(Number(seat.number))
+          && !seat.isOccupied
+          && !seat.isOkohiPending) {
+          count += 1;
+        }
+      });
+    });
+
+    return count;
   });
 
   const currentStationFreedSeatNumbers = computed(() => {
-    const stationId = props.assignedStationId;
-    if (!stationId) return [];
+    const stationIds = selectedFare.value?.from_station_id
+      ? [selectedFare.value.from_station_id]
+      : (operationalStationId.value ? [operationalStationId.value] : assignedStationIds.value);
+    if (stationIds.length === 0) return [];
 
     if (isTripDeparted.value) {
       const stationIndices = buildTripStationIndices(currentTrip.value);
-      const stationIndex = stationIndices[stationId];
       const activeStationIndex = stationIndices[currentTrip.value?.active_sales_station_id];
 
-      // The halo announces seats that will be released at an upcoming station.
-      // It disappears as soon as the sales handoff reaches that station and
-      // must not reappear at stations already passed.
-      if (stationIndex === undefined
-        || activeStationIndex === undefined
-        || stationIndex <= activeStationIndex) {
-        return [];
-      }
+      const validStationIds = stationIds.filter((sid) => {
+        const stationIndex = stationIndices[sid];
+        if (stationIndex === undefined || activeStationIndex === undefined) return false;
+        return stationIndex > activeStationIndex;
+      });
+
+      if (validStationIds.length === 0) return [];
+
+      const aggregated = new Set();
+      validStationIds.forEach((sid) => {
+        const seats = seatMap.value?.freed_seats_by_station?.[sid] || [];
+        seats.forEach((sn) => aggregated.add(Number(sn)));
+      });
+      return [...aggregated].filter((sn) => Number.isFinite(sn));
     }
 
-    return (seatMap.value?.freed_seats_by_station?.[stationId] || [])
-      .map((seatNumber) => Number(seatNumber))
-      .filter((seatNumber) => Number.isFinite(seatNumber));
+    const aggregated = new Set();
+    stationIds.forEach((sid) => {
+      const seats = seatMap.value?.freed_seats_by_station?.[sid] || [];
+      seats.forEach((sn) => aggregated.add(Number(sn)));
+    });
+    return [...aggregated].filter((sn) => Number.isFinite(sn));
   });
 
   const currentStationSellableSeatBorderColor = computed(() => getAssignedStationPalette()?.bg || null);
@@ -1315,7 +1540,7 @@ export function useTicketing(props, options = {}) {
   };
 
   const handleSeatClick = (seatNumber) => {
-    if (!seatMap.value || isTripPassed.value) return;
+    if (!seatMap.value || isTripPassed.value || availableFares.value.length === 0) return;
 
     let seatObj = null;
     const mapData = seatMap.value.seat_map;
@@ -1345,10 +1570,10 @@ export function useTicketing(props, options = {}) {
       if (['admin', 'supervisor'].includes(page.props.auth.user.role)) {
         selectedTicketForInspection.value = {
           id: 'req-' + seatObj.ticket_id,
-          ticket_number: seatObj.ticket_number || 'UNKNOWN',
-          seller_name: 'Guichetier (Auto)',
+          ticket_number: seatObj.ticket_number || null,
+          seller_name: seatObj.seller_name || null,
           reason: 'Inspection Directe',
-          time_ago: 'À l\'instant',
+          created_at: seatObj.created_at || null,
           seat_number: seatNumber,
           trip_id: selectedTripId.value,
           original_ticket_id: seatObj.ticket_id,
@@ -1379,9 +1604,20 @@ export function useTicketing(props, options = {}) {
     initiateBookingFlow(optimalSeat.seat_number);
   };
 
-  let skipQuantityWatch = false;
+  let restoringBookingContext = false;
 
   const confirmBooking = async () => {
+    // The seat-first flow opens the modal before a destination is selected.
+    if (!selectedFare.value || selectedSeatNumber.value === null) return;
+    if (seatsToBook.value.length !== ticketQuantity.value) {
+      toastStore.error('La sélection de sièges est incomplète.');
+      return;
+    }
+    if (seatFirstFlow.value && ticketQuantity.value > maxSellableQuantity.value) {
+      toastStore.error(`Seulement ${maxSellableQuantity.value} place(s) sont vendables depuis cette gare.`);
+      return;
+    }
+
     // Validate
     passengerFormErrors.value = {};
     if (showPassengerFields.value && passengerForm.value.name && passengerForm.value.name.trim().length < 2) {
@@ -1422,6 +1658,25 @@ export function useTicketing(props, options = {}) {
       ticketData.passenger_phone = passengerForm.value.phone.replace(/\s/g, '');
     }
 
+    // Snapshot context before optimistic mutations (for restoration on failure)
+    const snapshot = {
+      fare: selectedFare.value,
+      selectedSeatNumber: selectedSeatNumber.value,
+      seats: [...allSeats],
+      quantity: ticketQuantity.value,
+      suggestions: suggestedSeats.value.map(suggestion => ({ ...suggestion })),
+      finalDestinationStationId: finalDestinationStationId.value,
+      connectionRouteId: connectionRouteId.value,
+      passengerForm: { ...passengerForm.value },
+      passengerFormErrors: { ...passengerFormErrors.value },
+      showPassengerFields: showPassengerFields.value,
+      seatFirstFlow: seatFirstFlow.value,
+      tripAvailable: (() => {
+        const t = trips.value.find(t => t.id === selectedTripId.value);
+        return t ? t.available_seats : null;
+      })(),
+    };
+
     // Optimistic: close modal + mark seats occupied
     const fareColor = selectedFare.value?.color;
     showPassengerModal.value = false;
@@ -1430,7 +1685,6 @@ export function useTicketing(props, options = {}) {
     selectedSeatNumber.value = null;
     suggestedSeats.value = [];
     ticketingStore.setSuggestions([]);
-    skipQuantityWatch = true;
     ticketQuantity.value = 1;
 
     // Optimistic: update trip card seat counts
@@ -1447,33 +1701,65 @@ export function useTicketing(props, options = {}) {
     finalDestinationStationId.value = null;
     connectionRouteId.value = null;
 
+    let saleSucceeded = false;
+    let ticketIds = [];
+    let ticketsToPrint = [];
+
     try {
       const response = await axios.post(route('seller.tickets.store'), ticketData);
       const data = response.data;
-      const ticketIds = data.ticket_ids || [];
-      if (ticketIds.length > 0) {
-        await printTickets(ticketIds);
-      }
-      // Refresh seat map from server
-      fetchSeatMap({ silent: true });
-      ticketingStore.notifySeatMapChanged();
+      ticketIds = data.ticket_ids || [];
+      ticketsToPrint = Array.isArray(data.tickets) && data.tickets.length > 0
+        ? data.tickets.map(ticket => ({
+            id: ticket.id,
+            ticket_number: ticket.ticket_number,
+          }))
+        : ticketIds;
+      saleSucceeded = true;
     } catch (error) {
+      // Restore context on sale failure
       allSeats.forEach(seat => revertSeatAvailable(seat));
       ticketingStore.notifySeatReverted(allSeats);
+      restoringBookingContext = true;
+      selectedFare.value = snapshot.fare;
+      selectedSeatNumber.value = snapshot.selectedSeatNumber;
+      ticketQuantity.value = snapshot.quantity;
+      suggestedSeats.value = snapshot.suggestions;
+      ticketingStore.setSuggestions(snapshot.suggestions);
+      finalDestinationStationId.value = snapshot.finalDestinationStationId;
+      connectionRouteId.value = snapshot.connectionRouteId;
+      passengerForm.value = snapshot.passengerForm;
+      passengerFormErrors.value = snapshot.passengerFormErrors;
+      showPassengerFields.value = snapshot.showPassengerFields;
+      seatFirstFlow.value = snapshot.seatFirstFlow;
+      showDestinationModal.value = false;
+      showPassengerModal.value = true;
+      queueMicrotask(() => {
+        restoringBookingContext = false;
+      });
       const revertIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
       if (revertIdx !== -1) {
         trips.value[revertIdx] = {
           ...trips.value[revertIdx],
-          available_seats: (trips.value[revertIdx].available_seats || 0) + allSeats.length,
+          available_seats: snapshot.tripAvailable ?? (trips.value[revertIdx].available_seats || 0) + allSeats.length,
         };
       }
       const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
       toastStore.error(message);
-    } finally {
-      seatFirstFlow.value = false;
-      ticketingStore.setShowSuggestions(true);
-      processing.value = false;
     }
+
+    if (saleSucceeded) {
+      if (ticketsToPrint.length > 0) {
+        printTickets(ticketsToPrint);
+      }
+      toastStore.success('Vente enregistrée. L’impression est suivie séparément.');
+      fetchSeatMap({ silent: true });
+      ticketingStore.notifySeatMapChanged();
+    }
+
+    seatFirstFlow.value = false;
+    ticketingStore.setShowSuggestions(true);
+    processing.value = false;
   };
 
   const cancelBooking = () => {
@@ -1765,6 +2051,7 @@ export function useTicketing(props, options = {}) {
 
   // Fare change → fetch suggestions + segment-specific seat map
   watch(selectedFare, (newVal) => {
+    if (restoringBookingContext) return;
     if (newVal) {
       finalDestinationStationId.value = newVal.is_connection ? newVal.connection_destination_id : null;
       connectionRouteId.value = newVal.is_connection ? newVal.connection_route_id : null;
@@ -1795,16 +2082,23 @@ export function useTicketing(props, options = {}) {
     }
   });
 
-  // Quantity change → re-fetch suggestions
+  // Internal booking resets clear the fare in the same tick, so they do not
+  // trigger a suggestion fetch. Every subsequent user change remains observable.
   watch(ticketQuantity, () => {
-    if (skipQuantityWatch) { skipQuantityWatch = false; return; }
+    if (restoringBookingContext) return;
     if (selectedFare.value) fetchSeatSuggestions();
+  });
+
+  watch(maxSellableQuantity, (maximum) => {
+    if (maximum > 0 && ticketQuantity.value > maximum) {
+      ticketQuantity.value = maximum;
+    }
   });
 
   // Listen for seat selection from Sidebar
   watch(() => ticketingStore.clickTimestamp, () => {
     const newSeat = ticketingStore.selectedSeat;
-    if (newSeat) initiateBookingFlow(newSeat);
+    if (newSeat && availableFares.value.length > 0) initiateBookingFlow(newSeat);
   });
 
   // =============================================
@@ -1816,16 +2110,12 @@ export function useTicketing(props, options = {}) {
     // Auto-reconnect Bluetooth
     if (useBluetoothPrinter.value && bluetoothPrinter.isSupported()) {
       try {
-        const devices = await navigator.bluetooth.getDevices();
-        if (devices?.length > 0) {
-          bluetoothPrinter.device = devices[0];
-          const server = await bluetoothPrinter.device.gatt.connect();
-          const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
-          bluetoothPrinter.characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
-          bluetoothPrinter.connected = true;
-          bluetoothPrinterConnected.value = true;
-          bluetoothPrinterName.value = bluetoothPrinter.device.name;
-        }
+        bluetoothPrinter.setDisconnectCallback(() => {
+          bluetoothPrinterConnected.value = false;
+          bluetoothPrinterName.value = null;
+        });
+        const restored = await bluetoothPrinter.restoreAuthorizedDevice();
+        if (restored) syncBluetoothStatus();
       } catch (error) {
         // Silently fail - user can manually reconnect
       }
@@ -1903,6 +2193,8 @@ export function useTicketing(props, options = {}) {
     // Computed
     bookingSidePanelOpen,
     currentTrip,
+    assignedStationIds,
+    operationalStationId,
     isTripPassed,
     seatsToBook,
     totalAmount,
@@ -1920,6 +2212,7 @@ export function useTicketing(props, options = {}) {
     getStationColor,
     getAssignedStationPalette,
     currentStationSellableSeatNumbers,
+    maxSellableQuantity,
     currentStationFreedSeatNumbers,
     currentStationSellableSeatBorderColor,
 
@@ -1942,6 +2235,11 @@ export function useTicketing(props, options = {}) {
     openEditTrip,
     applyReplicableTemplate,
     printTickets,
+    printQueue,
+    printQueueRunning,
+    retryPrint,
+    printInBrowser,
+    dismissPrintEntry,
     fallbackToBrowserPrint,
     printWithBluetooth,
     moveTripUp,

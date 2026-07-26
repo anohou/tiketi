@@ -1022,7 +1022,7 @@ const handlePrint = () => {
             <input v-model="form.allows_open_connections" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
             <span>
               <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</span>
-              <span class="block text-xs text-slate-500 dark:text-slate-400">Les billets peuvent indiquer une destination finale au-delà de l’arrivée de ce voyage.</span>
+              <span class="block text-xs text-slate-500 dark:text-slate-400">Permet de vendre un billet vers une autre destination via une gare commune où le passager change de voyage.</span>
             </span>
           </label>
 

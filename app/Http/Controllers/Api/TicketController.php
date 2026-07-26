@@ -43,7 +43,7 @@ class TicketController extends Controller
             'from_station_id' => 'required|uuid|exists:stations,id',
             'to_station_id' => 'required|uuid|exists:stations,id',
             'seats' => 'required|array|min:1',
-            'seats.*' => 'integer|min:1',
+            'seats.*' => 'integer|min:1|distinct',
             'passenger_name' => 'nullable|string|max:255',
             'passenger_phone' => 'nullable|string|max:20',
             'amount' => 'nullable|integer|min:0',
@@ -196,6 +196,14 @@ class TicketController extends Controller
             if (! $isAtOriginStation && $trip->isSalesClosed() && $trip->status !== 'departed') {
                 $seatsFreedAtThisStation = $segments->freedSeatsForStation($trip, $fromStationId);
 
+                if (count($validated['seats']) > count($seatsFreedAtThisStation)) {
+                    return $this->errorResponse(
+                        $request,
+                        'La quantité demandée dépasse le nombre de places libérées et vendables à votre gare.',
+                        422,
+                    );
+                }
+
                 $seatsNotFreed = array_diff($validated['seats'], $seatsFreedAtThisStation);
 
                 if (! empty($seatsNotFreed)) {
@@ -206,6 +214,15 @@ class TicketController extends Controller
 
         // Segment overlap check
         $occupiedSeats = $segments->overlappingSeatNumbers($trip->tripSeatOccupancies, $stationIndices, $reqStartIndex, $reqEndIndex);
+        $availableSeatCount = max(0, $trip->total_seats - count($occupiedSeats));
+
+        if (count($validated['seats']) > $availableSeatCount) {
+            return $this->errorResponse(
+                $request,
+                'La quantité demandée dépasse le nombre de places vendables pour ce trajet.',
+                422,
+            );
+        }
 
         $conflictingSeats = array_intersect($validated['seats'], $occupiedSeats);
         if (! empty($conflictingSeats)) {

@@ -1,11 +1,8 @@
 <script setup>
-import { ref } from 'vue';
+import { computed } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import DangerButton from '@/Components/DangerButton.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
-import TicketAccount from 'vue-material-design-icons/TicketAccount.vue';
 import SeatReclineNormal from 'vue-material-design-icons/SeatReclineNormal.vue';
 
 const props = defineProps({
@@ -15,75 +12,79 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'approve', 'decline']);
 
-const close = () => {
-    emit('close');
-};
+const isInspection = computed(() => props.validation?.id?.startsWith('req-'));
 
-const approve = () => {
-    emit('approve', props.validation);
-    close();
-};
+const timeAgo = computed(() => {
+    const raw = props.validation?.created_at;
+    if (!raw) return props.validation?.time_ago || null;
+    const diff = Date.now() - new Date(raw).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return "À l'instant";
+    if (minutes < 60) return `Il y a ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `Il y a ${hours}h ${minutes % 60}m`;
+    return new Date(raw).toLocaleDateString('fr-FR');
+});
 
-const decline = () => {
-    emit('decline', props.validation);
-    close();
-};
+const close = () => emit('close');
+const approve = () => { emit('approve', props.validation); close(); };
+const decline = () => { emit('decline', props.validation); close(); };
 </script>
 
 <template>
     <Modal :show="show" @close="close">
         <div class="p-6">
-            <!-- Header -->
-        <div class="flex items-center gap-4 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-            <div class="bg-rose-100 text-rose-600 p-3 rounded-xl">
-                <AlertCircle :size="32" />
+            <div class="flex items-center gap-4 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <div class="bg-rose-100 text-rose-600 p-3 rounded-xl">
+                    <SeatReclineNormal :size="32" />
+                </div>
+                <div>
+                    <h2 class="text-lg font-black text-slate-900 leading-tight">
+                        {{ isInspection ? 'Inspection du billet' : 'Demande d\'annulation' }}
+                    </h2>
+                    <p class="text-sm text-rose-600 font-bold mt-0.5">
+                        Siège #{{ validation?.seat_number ?? '—' }}
+                        <span v-if="validation?.ticket_number"> · {{ validation.ticket_number }}</span>
+                    </p>
+                </div>
             </div>
-            <div>
-                <h2 class="text-lg font-black text-slate-900 leading-tight">Demande d'annulation</h2>
-                <p class="text-sm text-rose-600 font-bold mt-0.5">Ticket #{{ validation?.ticket_number }}</p>
-            </div>
-        </div>
 
             <div class="grid gap-6">
-                <!-- Reason & Seller -->
-                <div class="flex items-start justify-between">
-                    <div>
-                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Motif</div>
-                        <div class="font-bold text-slate-900">{{ validation?.reason }}</div>
-                    </div>
-                    <div class="text-right">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
                         <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Vendeur</div>
-                        <div class="font-bold text-slate-900">{{ validation?.seller_name }}</div>
-                        <div class="text-xs text-slate-500">{{ validation?.time_ago }}</div>
+                        <div class="font-bold text-slate-900">{{ validation?.seller_name || 'Inconnu' }}</div>
+                        <div v-if="timeAgo" class="text-xs text-slate-500 mt-0.5">{{ timeAgo }}</div>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Motif</div>
+                        <div class="font-bold text-slate-900">{{ validation?.reason || 'Consultation' }}</div>
                     </div>
                 </div>
 
-                <!-- Seat Context (Mock Visual) -->
-                <div class="border rounded-2xl p-4 bg-slate-50 text-center border-slate-200">
-                    <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Contexte siège</div>
-                    
-                    <!-- Simplified Visualizer -->
-                    <div class="inline-flex gap-2 items-center justify-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                        <div class="w-10 h-10 bg-slate-200 rounded text-slate-400 flex items-center justify-center font-bold">1</div>
-                        <div class="w-10 h-10 bg-rose-100 border-2 border-rose-500 rounded text-rose-600 flex items-center justify-center font-bold relative">
-                            2
-                            <div class="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full p-0.5">
-                                <TicketAccount :size="12" />
-                            </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Contexte siège</div>
+                    <div class="inline-flex items-center justify-center gap-1.5 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="flex items-center gap-1.5 text-sm font-bold text-rose-600 bg-rose-50 px-3 py-2 rounded-lg border border-rose-200">
+                            <SeatReclineNormal :size="18" />
+                            Siège {{ validation?.seat_number || '?' }}
                         </div>
-                        <div class="w-10 h-10 bg-slate-200 rounded text-slate-400 flex items-center justify-center font-bold">3</div>
                     </div>
-                    <p class="text-xs text-slate-500 mt-2 font-medium">Ce siège a été vendu il y a 2h 15m</p>
                 </div>
 
-                <!-- Actions -->
-                <div class="grid grid-cols-2 gap-3 mt-2">
+                <div v-if="!isInspection" class="grid grid-cols-2 gap-3 mt-2">
                     <SecondaryButton class="justify-center py-4" @click="decline">
                         Refuser
                     </SecondaryButton>
                     <DangerButton class="justify-center py-4" @click="approve">
                         Accepter l'Annulation
                     </DangerButton>
+                </div>
+
+                <div v-else class="flex justify-center mt-2">
+                    <SecondaryButton class="justify-center py-3 px-8" @click="close">
+                        Fermer
+                    </SecondaryButton>
                 </div>
             </div>
         </div>

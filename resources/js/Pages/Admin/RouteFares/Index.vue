@@ -1,473 +1,530 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
+import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
-import TextInput from '@/Components/TextInput.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import DialogModal from '@/Components/DialogModal.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
-
-import MainNavLayout from '@/Layouts/MainNavLayout.vue';
-import Magnify from 'vue-material-design-icons/Magnify.vue';
-import Trash2 from 'vue-material-design-icons/Delete.vue';
-import Pencil from 'vue-material-design-icons/Pencil.vue';
-import Plus from 'vue-material-design-icons/Plus.vue';
 import CashMultiple from 'vue-material-design-icons/CashMultiple.vue';
-import Settings from 'vue-material-design-icons/Cog.vue';
-import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
-
-const { exportToExcel, printList } = useExportPrint();
+import Check from 'vue-material-design-icons/Check.vue';
+import ArrowCollapse from 'vue-material-design-icons/ArrowCollapse.vue';
+import ArrowExpand from 'vue-material-design-icons/ArrowExpand.vue';
+import Fullscreen from 'vue-material-design-icons/Fullscreen.vue';
+import FullscreenExit from 'vue-material-design-icons/FullscreenExit.vue';
+import Refresh from 'vue-material-design-icons/Refresh.vue';
+import Trash2 from 'vue-material-design-icons/Delete.vue';
 
 const props = defineProps({
-  fares: {
-    type: Array,
-    default: () => []
-  },
-  stations: {
-    type: Array,
-    default: () => []
+  fares: { type: Array, default: () => [] },
+  stations: { type: Array, default: () => [] },
+});
+
+const { exportToExcel, printList } = useExportPrint();
+const stationFilter = ref('');
+const newFareBidirectional = ref(true);
+const cellDrafts = ref({});
+const savingCells = ref({});
+const savedCells = ref({});
+const cellErrors = ref({});
+const savedTimers = new Map();
+const workspaceExpanded = ref(false);
+const isBrowserFullscreen = ref(false);
+
+const getFullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+
+const syncFullscreenState = () => {
+  isBrowserFullscreen.value = Boolean(getFullscreenElement());
+};
+
+const toggleBrowserFullscreen = async () => {
+  try {
+    const fullscreenElement = getFullscreenElement();
+    if (fullscreenElement) {
+      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+      await exitFullscreen?.call(document);
+      return;
+    }
+
+    workspaceExpanded.value = true;
+    const root = document.documentElement;
+    const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
+    await requestFullscreen?.call(root);
+  } catch (error) {
+    console.error('Impossible de modifier le mode plein écran.', error);
   }
+};
+
+onMounted(() => {
+  syncFullscreenState();
+  document.addEventListener('fullscreenchange', syncFullscreenState);
+  document.addEventListener('webkitfullscreenchange', syncFullscreenState);
 });
 
-// State
-const search = ref('');
-const selectedFare = ref(null);
-const processing = ref(false);
-const errors = ref({});
-const showModal = ref(false);
-const isEditing = ref(false);
-
-const form = ref({
-  from_station_id: '',
-  to_station_id: '',
-  amount: '',
-  is_bidirectional: true,
-  active: true
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullscreenState);
+  document.removeEventListener('webkitfullscreenchange', syncFullscreenState);
 });
 
-// Computed
+const sortedStations = computed(() => [...props.stations].sort((a, b) =>
+  a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' })
+));
+
+const matrixOrigins = computed(() => {
+  if (!stationFilter.value) return sortedStations.value;
+  return sortedStations.value.filter((station) => station.id === stationFilter.value);
+});
+
+const matrixDestinations = computed(() => sortedStations.value);
+const directFareMap = computed(() => new Map(
+  props.fares.map((fare) => [`${fare.from_station_id}:${fare.to_station_id}`, fare])
+));
+
+const cellKey = (fromId, toId) => `${fromId}:${toId}`;
+
+const getCellFare = (fromId, toId) => {
+  const direct = directFareMap.value.get(cellKey(fromId, toId));
+  if (direct) return { fare: direct, mirrored: false };
+
+  const reverse = directFareMap.value.get(cellKey(toId, fromId));
+  if (reverse?.is_bidirectional) return { fare: reverse, mirrored: true };
+
+  return null;
+};
+
+const syncDrafts = () => {
+  const next = {};
+  sortedStations.value.forEach((origin) => {
+    sortedStations.value.forEach((destination) => {
+      if (origin.id === destination.id) return;
+      const key = cellKey(origin.id, destination.id);
+      const cell = getCellFare(origin.id, destination.id);
+      if (cell) next[key] = String(cell.fare.amount);
+      else next[key] = '';
+    });
+  });
+  cellDrafts.value = next;
+};
+
+watch([() => props.fares, sortedStations], syncDrafts, { immediate: true, deep: true });
+
+const setSaving = (key, value) => {
+  savingCells.value = { ...savingCells.value, [key]: value };
+};
+
+const setError = (key, message = '') => {
+  cellErrors.value = { ...cellErrors.value, [key]: message };
+};
+
+const markSaved = (key) => {
+  savedCells.value = { ...savedCells.value, [key]: true };
+  if (savedTimers.has(key)) window.clearTimeout(savedTimers.get(key));
+  savedTimers.set(key, window.setTimeout(() => {
+    const next = { ...savedCells.value };
+    delete next[key];
+    savedCells.value = next;
+    savedTimers.delete(key);
+  }, 1600));
+};
+
+const farePayload = (fare, overrides = {}) => ({
+  from_station_id: fare.from_station_id,
+  to_station_id: fare.to_station_id,
+  amount: Number(fare.amount),
+  is_bidirectional: Boolean(fare.is_bidirectional),
+  active: fare.active !== false,
+  ...overrides,
+});
+
+const requestOptions = (key, onSuccess) => ({
+  preserveScroll: true,
+  preserveState: true,
+  only: ['fares'],
+  onSuccess: () => {
+    setError(key);
+    markSaved(key);
+    onSuccess?.();
+  },
+  onError: (errors) => {
+    setError(key, errors.amount || errors.from_station_id || errors.to_station_id || 'Enregistrement impossible.');
+  },
+  onFinish: () => setSaving(key, false),
+});
+
+const saveCell = (origin, destination) => {
+  const key = cellKey(origin.id, destination.id);
+  if (savingCells.value[key]) return;
+
+  const raw = String(cellDrafts.value[key] ?? '').trim();
+  const cell = getCellFare(origin.id, destination.id);
+
+  if (raw === '') {
+    if (cell) cellDrafts.value[key] = String(cell.fare.amount);
+    setError(key);
+    return;
+  }
+
+  const amount = Number(raw);
+  if (!Number.isInteger(amount) || amount < 0) {
+    setError(key, 'Saisissez un montant entier positif.');
+    return;
+  }
+  if (cell && amount === Number(cell.fare.amount)) return;
+
+  setSaving(key, true);
+  setError(key);
+
+  if (cell) {
+    router.put(
+      route('admin.route-fares.update', cell.fare.id),
+      farePayload(cell.fare, { amount }),
+      requestOptions(key)
+    );
+    return;
+  }
+
+  router.post(
+    route('admin.route-fares.store'),
+    {
+      from_station_id: origin.id,
+      to_station_id: destination.id,
+      amount,
+      is_bidirectional: newFareBidirectional.value,
+      active: true,
+    },
+    requestOptions(key)
+  );
+};
+
+const toggleDirection = (origin, destination) => {
+  const key = cellKey(origin.id, destination.id);
+  const cell = getCellFare(origin.id, destination.id);
+  if (!cell || savingCells.value[key]) return;
+
+  setSaving(key, true);
+  router.put(
+    route('admin.route-fares.update', cell.fare.id),
+    farePayload(cell.fare, { is_bidirectional: !cell.fare.is_bidirectional }),
+    requestOptions(key)
+  );
+};
+
+const toggleActive = (origin, destination) => {
+  const key = cellKey(origin.id, destination.id);
+  const cell = getCellFare(origin.id, destination.id);
+  if (!cell || savingCells.value[key]) return;
+
+  setSaving(key, true);
+  router.put(
+    route('admin.route-fares.update', cell.fare.id),
+    farePayload(cell.fare, { active: cell.fare.active === false }),
+    requestOptions(key)
+  );
+};
+
+const deleteCell = (origin, destination) => {
+  const key = cellKey(origin.id, destination.id);
+  const cell = getCellFare(origin.id, destination.id);
+  if (!cell || savingCells.value[key]) return;
+  if (!window.confirm(`Supprimer le tarif ${cell.fare.from_station?.name} → ${cell.fare.to_station?.name} ?`)) return;
+
+  setSaving(key, true);
+  router.delete(route('admin.route-fares.destroy', cell.fare.id), {
+    ...requestOptions(key, () => {
+      cellDrafts.value[key] = '';
+      if (cell.fare.is_bidirectional) {
+        cellDrafts.value[cellKey(destination.id, origin.id)] = '';
+      }
+    }),
+  });
+};
+
 const filteredFares = computed(() => {
-  if (!search.value) return props.fares;
-
-  const searchTerm = search.value.toLowerCase();
-  return props.fares.filter(fare =>
-    fare.from_station?.name.toLowerCase().includes(searchTerm) ||
-    fare.to_station?.name.toLowerCase().includes(searchTerm) ||
-    fare.from_station?.city?.toLowerCase().includes(searchTerm) ||
-    fare.to_station?.city?.toLowerCase().includes(searchTerm)
+  if (!stationFilter.value) return props.fares;
+  return props.fares.filter((fare) =>
+    fare.from_station_id === stationFilter.value || fare.to_station_id === stationFilter.value
   );
 });
 
-// Filter out selected departure from arrival options
-const availableToStations = computed(() => {
-  if (!form.value.from_station_id) return props.stations;
-  return props.stations.filter(station => station.id !== form.value.from_station_id);
+const configuredPairCount = computed(() => matrixOrigins.value.reduce((total, origin) => (
+  total + matrixDestinations.value.reduce((originTotal, destination) => {
+    if (origin.id === destination.id) return originTotal;
+    return originTotal + (getCellFare(origin.id, destination.id) ? 1 : 0);
+  }, 0)
+), 0));
+const possiblePairCount = computed(() => {
+  const count = sortedStations.value.length;
+  return stationFilter.value ? Math.max(0, count - 1) : count * (count - 1);
 });
 
-// Filter out selected arrival from departure options
-const availableFromStations = computed(() => {
-  if (!form.value.to_station_id) return props.stations;
-  return props.stations.filter(station => station.id !== form.value.to_station_id);
-});
-
-// Watchers
-watch(() => props.fares, (newFares) => {
-  if (selectedFare.value) {
-    const updatedFare = newFares.find(f => f.id === selectedFare.value.id);
-    if (updatedFare) {
-      selectedFare.value = updatedFare;
-    }
-  }
-}, { deep: true });
-
-// Methods
-const isSelected = (fare) => {
-  if (!selectedFare.value) return false;
-  return selectedFare.value.id === fare.id;
-};
-
-const selectFare = (fare) => {
-  selectedFare.value = fare;
-};
-
-const openCreateModal = () => {
-  isEditing.value = false;
-  form.value = {
-    amount: '',
-    is_bidirectional: true,
-    active: true
-  };
-  errors.value = {};
-  processing.value = false;
-  showModal.value = true;
-};
-
-const openEditModal = () => {
-  if (!selectedFare.value) return;
-  isEditing.value = true;
-  form.value = {
-    from_station_id: selectedFare.value.from_station_id,
-    to_station_id: selectedFare.value.to_station_id,
-    amount: selectedFare.value.amount,
-    is_bidirectional: selectedFare.value.is_bidirectional ?? true,
-    active: selectedFare.value.active !== undefined ? Boolean(selectedFare.value.active) : true
-  };
-  errors.value = {};
-  processing.value = false;
-  showModal.value = true;
-};
-
-const duplicateFare = () => {
-  if (!selectedFare.value) return;
-  isEditing.value = false;
-  form.value = {
-    from_station_id: selectedFare.value.from_station_id,
-    to_station_id: selectedFare.value.to_station_id,
-    amount: selectedFare.value.amount,
-    is_bidirectional: selectedFare.value.is_bidirectional ?? true,
-    active: true
-  };
-  errors.value = {};
-  processing.value = false;
-  showModal.value = true;
-};
-
-const closeModal = () => {
-  showModal.value = false;
-  form.value = {
-    amount: '',
-    is_bidirectional: true,
-    active: true
-  };
-  errors.value = {};
-  processing.value = false;
-};
-
-const submit = () => {
-  processing.value = true;
-  errors.value = {};
-
-  if (isEditing.value) {
-    router.put(route('admin.route-fares.update', selectedFare.value.id), form.value, {
-      onSuccess: () => {
-        closeModal();
-      },
-      onError: (newErrors) => {
-        errors.value = newErrors;
-      },
-      onFinish: () => {
-        processing.value = false;
-      }
-    });
-  } else {
-    router.post(route('admin.route-fares.store'), form.value, {
-      onSuccess: () => {
-        closeModal();
-      },
-      onError: (newErrors) => {
-        errors.value = newErrors;
-      },
-      onFinish: () => {
-        processing.value = false;
-      }
-    });
-  }
-};
-
-const deleteFare = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce tarif ?')) {
-    router.delete(route('admin.route-fares.destroy', id), {
-      onSuccess: () => {
-        if (selectedFare.value?.id === id) {
-          selectedFare.value = null;
-        }
-      },
-      onError: (errorResponse) => {
-        alert('Impossible de supprimer ce tarif.');
-      }
-    });
-  }
-};
-
-const getStationLabel = (station) => {
-  if (station.city) {
-    return `${station.name} (${station.city})`;
-  }
-  return station.name;
-};
-
-// Export/Print configuration
 const fareColumns = {
   'from_station.name': 'Départ',
   'to_station.name': 'Arrivée',
-  'amount': 'Montant',
-  'is_bidirectional': 'Aller-Retour',
-  'active': 'Statut'
+  amount: 'Montant',
+  is_bidirectional: 'Aller-retour',
+  active: 'Statut',
 };
 
-const handleExport = () => {
-  const data = filteredFares.value.map(f => ({
-    ...f,
-    active: f.active ? 'Actif' : 'Inactif'
-  }));
-  exportToExcel(data, fareColumns, 'tarifs');
-};
+const exportData = computed(() => filteredFares.value.map((fare) => ({
+  ...fare,
+  is_bidirectional: fare.is_bidirectional ? 'Oui' : 'Non',
+  active: fare.active === false ? 'Inactif' : 'Actif',
+})));
 
-const handlePrint = () => {
-  const data = filteredFares.value.map(f => ({
-    ...f,
-    active: f.active ? 'Actif' : 'Inactif'
-  }));
-  printList(data, fareColumns, 'Liste des Tarifs');
-};
+const handleExport = () => exportToExcel(exportData.value, fareColumns, 'matrice-tarifs');
+const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des tarifs');
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
-    <div class="flex flex-col h-full w-full overflow-hidden">
-      <!-- Header with padding -->
-      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+  <MainNavLayout
+    :fullHeight="true"
+    :focusMode="workspaceExpanded"
+    :hideTripSidebar="true"
+  >
+    <div class="flex h-full w-full flex-col overflow-hidden">
+      <div class="flex shrink-0 flex-col gap-4 px-6 pb-4 pt-6 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-emerald-100 rounded-xl">
-              <CashMultiple class="text-emerald-600" :size="28" />
-            </div>
-            Gestion des Tarifs
+          <h1 class="flex items-center gap-3 text-3xl font-black text-slate-900 dark:text-slate-100">
+            <span class="rounded-xl bg-emerald-100 p-2 dark:bg-emerald-950/50">
+              <CashMultiple class="text-emerald-600 dark:text-emerald-400" :size="28" />
+            </span>
+            Matrice des tarifs
           </h1>
-          <p class="text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Cliquez dans une cellule pour créer ou modifier un tarif.
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+            :title="workspaceExpanded ? 'Afficher les menus' : 'Agrandir la matrice'"
+            @click="workspaceExpanded = !workspaceExpanded"
+          >
+            <ArrowCollapse v-if="workspaceExpanded" :size="19" />
+            <ArrowExpand v-else :size="19" />
+          </button>
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:text-emerald-400"
+            :title="isBrowserFullscreen ? 'Quitter le plein écran' : 'Plein écran navigateur'"
+            @click="toggleBrowserFullscreen"
+          >
+            <FullscreenExit v-if="isBrowserFullscreen" :size="20" />
+            <Fullscreen v-else :size="20" />
+          </button>
+          <div class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-right shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="text-lg font-black text-emerald-700 dark:text-emerald-400">{{ configuredPairCount }}</div>
+            <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+              relations configurées<span v-if="possiblePairCount"> / {{ possiblePairCount }} relations</span>
+            </div>
+          </div>
+          <ExportPrintButtons
+            :disabled="filteredFares.length === 0"
+            @export="handleExport"
+            @print="handlePrint"
+          />
         </div>
       </div>
 
-      <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
-        <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
+      <div
+        class="grid min-h-0 flex-1 grid-cols-12 gap-4 pb-6"
+        :class="workspaceExpanded ? 'px-4' : 'px-6'"
+      >
+        <aside v-if="!workspaceExpanded" class="col-span-12 h-full overflow-y-auto pr-2 md:col-span-2">
           <SettingsMenu />
-        </div>
+        </aside>
 
-        <!-- Middle Column - List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
-            <!-- List Header -->
-            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <div class="relative flex-1">
-                  <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
-                </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Tarif">
-                  <Plus class="h-5 w-5" />
-                </button>
-                <ExportPrintButtons 
-                  :disabled="filteredFares.length === 0"
-                  @export="handleExport" 
-                  @print="handlePrint" 
-                />
-              </div>
-
-            </div>
-
-            <!-- List Content -->
-            <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredFares.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-                Aucun tarif trouvé.
-              </div>
-              <div v-else>
-                <div v-for="fare in filteredFares" :key="fare.id" 
-                  @click="selectFare(fare)"
-                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(fare) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
+        <main
+          class="col-span-12 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          :class="workspaceExpanded ? 'md:col-span-12' : 'md:col-span-10'"
+        >
+          <div class="flex shrink-0 flex-col gap-3 border-b border-slate-200 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/60 lg:flex-row lg:items-end lg:justify-between">
+            <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Filtrer par gare de départ</span>
+                <select
+                  v-model="stationFilter"
+                  class="w-full rounded-xl border-slate-200 bg-white text-sm font-bold text-slate-800 focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                 >
-                  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                    <div class="flex-1 min-w-0">
-                      <h3 :class="['text-sm font-semibold truncate', isSelected(fare) ? 'text-emerald-800' : 'text-slate-800 dark:text-slate-200 dark:text-slate-200']">
-                        {{ fare.from_station?.name }} 
-                        <span v-if="fare.is_bidirectional" class="text-emerald-500 mx-1">↔</span>
-                        <span v-else class="text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mx-1">→</span>
-                        {{ fare.to_station?.name }}
-                      </h3>
-                      <p class="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1 truncate">
-                        {{ fare.from_station?.city || '' }} → {{ fare.to_station?.city || '' }}
-                      </p>
-                    </div>
-                    <div class="text-right shrink-0 whitespace-nowrap">
-                      <span class="text-base font-bold text-emerald-700">{{ fare.amount?.toLocaleString() }}</span>
-                      <span class="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-0.5">FCFA</span>
-                    </div>
-                  </div>
+                  <option value="">Toutes les gares</option>
+                  <option v-for="station in sortedStations" :key="station.id" :value="station.id">
+                    {{ station.name }}{{ station.city ? ` · ${station.city}` : '' }}
+                  </option>
+                </select>
+              </label>
+
+              <div>
+                <span class="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Direction à la création</span>
+                <div class="flex rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
+                  <button
+                    type="button"
+                    class="flex-1 rounded-lg px-3 py-2 text-xs font-black transition"
+                    :class="newFareBidirectional ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-200 dark:ring-emerald-800' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                    :aria-pressed="newFareBidirectional"
+                    @click="newFareBidirectional = true"
+                  >
+                    ↔ Bidirectionnel
+                  </button>
+                  <button
+                    type="button"
+                    class="flex-1 rounded-lg px-3 py-2 text-xs font-black transition"
+                    :class="!newFareBidirectional ? 'bg-amber-400 text-slate-950 shadow-sm ring-2 ring-amber-200 dark:bg-amber-500 dark:ring-amber-800' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                    :aria-pressed="!newFareBidirectional"
+                    @click="newFareBidirectional = false"
+                  >
+                    → Sens unique
+                  </button>
                 </div>
+                <p class="mt-1 text-[9px] font-bold" :class="newFareBidirectional ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'">
+                  Prochaine cellule : {{ newFareBidirectional ? 'tarif valable dans les deux sens' : 'tarif valable dans un seul sens' }}
+                </p>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Right Column - Workspace -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
-          <!-- Empty State -->
-          <div v-if="!selectedFare" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <CashMultiple class="h-16 w-16 text-slate-200 mb-4" />
-            <p class="text-lg">Sélectionnez un tarif pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
-              ou créez un nouveau tarif
-            </button>
-          </div>
-
-          <!-- View Details -->
-          <div v-else class="space-y-4">
-            <!-- Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-              <!-- Header Row -->
-              <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200 dark:text-slate-200">Détails du Tarif</h2>
-                <div class="flex items-center gap-2">
-                  <span :class="[
-                    'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
-                    selectedFare.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                  ]">
-                    {{ selectedFare.active ? 'Actif' : 'Inactif' }}
-                  </span>
-                  <button @click="duplicateFare" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
-                    <ContentCopy class="h-5 w-5" />
-                  </button>
-                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
-                    <Pencil class="h-5 w-5" />
-                  </button>
-                  <button @click="deleteFare(selectedFare.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
-                    <Trash2 class="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- Details Row -->
-              <div class="grid grid-cols-12 gap-6 mb-6">
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">DÉPART</span>
-                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                    {{ selectedFare.from_station?.name }}
-                  </div>
-                  <div class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
-                    {{ selectedFare.from_station?.city }}
-                  </div>
-                </div>
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">ARRIVÉE</span>
-                  <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
-                    {{ selectedFare.to_station?.name }}
-                  </div>
-                  <div class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">
-                    {{ selectedFare.to_station?.city }}
-                  </div>
-                </div>
-                <div class="col-span-12 pt-4 border-t border-slate-100 dark:border-slate-800/50 dark:border-slate-800/50">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">MONTANT</span>
-                  <div class="text-3xl font-bold text-emerald-700">
-                    {{ selectedFare.amount?.toLocaleString() }} <span class="text-base font-normal text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">FCFA</span>
-                  </div>
-                </div>
-                <div class="col-span-12 pt-4 border-t border-slate-100 dark:border-slate-800/50 dark:border-slate-800/50">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">DIRECTION</span>
-                  <div>
-                    <span v-if="selectedFare.is_bidirectional" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800">
-                      ↔ Bidirectionnel (aller-retour)
-                    </span>
-                    <span v-else class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300">
-                      → Sens unique
-                    </span>
-                  </div>
-                </div>
-              </div>
+            <div class="flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-full bg-emerald-500"></i> Actif</span>
+              <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-full bg-slate-300 dark:bg-slate-600"></i> À définir</span>
+              <span>Entrée ou Tab pour enregistrer</span>
             </div>
           </div>
-        </div>
+
+          <div v-if="sortedStations.length < 2" class="flex flex-1 items-center justify-center p-8 text-center text-slate-500">
+            Ajoutez au moins deux gares pour construire la matrice tarifaire.
+          </div>
+
+          <div v-else class="matrix-scroll flex-1 overflow-auto">
+            <table class="min-w-max border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr>
+                  <th class="sticky left-0 top-0 z-30 min-w-40 border-b border-r border-slate-400 bg-slate-100 p-2 text-left dark:border-slate-600 dark:bg-slate-800">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Départ ↓ / Destination →</span>
+                  </th>
+                  <th
+                    v-for="destination in matrixDestinations"
+                    :key="destination.id"
+                    class="sticky top-0 z-20 min-w-36 border-b border-r border-slate-400 bg-slate-100 p-2 text-left dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <div class="max-w-32 truncate text-xs font-black text-slate-800 dark:text-slate-100" :title="destination.name">{{ destination.name }}</div>
+                    <div class="max-w-32 truncate text-[9px] font-medium text-slate-400">{{ destination.city || '—' }}</div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="origin in matrixOrigins" :key="origin.id">
+                  <th class="sticky left-0 z-10 border-b border-r border-slate-300 bg-white p-2 text-left dark:border-slate-700 dark:bg-slate-900">
+                    <div class="max-w-36 truncate text-xs font-black text-slate-800 dark:text-slate-100" :title="origin.name">{{ origin.name }}</div>
+                    <div class="max-w-36 truncate text-[9px] font-medium text-slate-400">{{ origin.city || '—' }}</div>
+                  </th>
+
+                  <td
+                    v-for="destination in matrixDestinations"
+                    :key="destination.id"
+                    class="h-20 min-w-36 border-b border-r border-slate-300 p-1 align-top dark:border-slate-700"
+                    :class="origin.id === destination.id ? 'bg-slate-100/80 dark:bg-slate-950/70' : 'bg-white dark:bg-slate-900'"
+                  >
+                    <div v-if="origin.id === destination.id" class="flex h-full items-center justify-center text-2xl font-light text-slate-300 dark:text-slate-700">—</div>
+
+                    <div v-else class="flex h-full flex-col">
+                      <div class="relative">
+                        <input
+                          v-model="cellDrafts[cellKey(origin.id, destination.id)]"
+                          type="number"
+                          min="0"
+                          step="100"
+                          placeholder="Ajouter"
+                          class="w-full rounded-md border px-2 py-1 pr-9 text-right text-xs font-black focus:ring-2"
+                          :class="[
+                            getCellFare(origin.id, destination.id)
+                              ? 'border-emerald-200 bg-emerald-50/60 text-emerald-800 focus:border-emerald-500 focus:ring-emerald-200 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-300'
+                              : 'border-dashed border-slate-300 bg-slate-50 text-slate-700 focus:border-emerald-500 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200',
+                            getCellFare(origin.id, destination.id)?.fare.active === false ? 'opacity-55' : ''
+                          ]"
+                          @focus="$event.target.select()"
+                          @blur="saveCell(origin, destination)"
+                          @keydown.enter.prevent="$event.target.blur()"
+                        />
+                        <span class="pointer-events-none absolute right-2 top-1.5 text-[8px] font-black text-slate-400">FCFA</span>
+                      </div>
+
+                      <div class="mt-0.5 min-h-3">
+                        <p v-if="cellErrors[cellKey(origin.id, destination.id)]" class="line-clamp-1 text-[8px] font-bold leading-tight text-rose-600">
+                          {{ cellErrors[cellKey(origin.id, destination.id)] }}
+                        </p>
+                        <p v-else-if="getCellFare(origin.id, destination.id)?.mirrored" class="text-[8px] font-bold text-emerald-600 dark:text-emerald-400">
+                          Repris du sens inverse
+                        </p>
+                        <p v-else-if="!getCellFare(origin.id, destination.id)" class="text-[8px] font-medium text-slate-400">
+                          Cellule vide
+                        </p>
+                      </div>
+
+                      <div class="mt-auto flex items-center justify-between">
+                        <div v-if="getCellFare(origin.id, destination.id)" class="flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            class="rounded px-0.5 py-0.5 text-[8px] font-black transition hover:bg-slate-100 dark:hover:bg-slate-800"
+                            :class="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500'"
+                            :title="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'Passer en sens unique' : 'Rendre bidirectionnel'"
+                            @click="toggleDirection(origin, destination)"
+                          >
+                            {{ getCellFare(origin.id, destination.id).fare.is_bidirectional ? '↔ Deux sens' : '→ Un sens' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="h-4 w-4 rounded-full border-2 transition"
+                            :class="getCellFare(origin.id, destination.id).fare.active === false ? 'border-slate-300 bg-slate-200 dark:border-slate-600 dark:bg-slate-700' : 'border-emerald-200 bg-emerald-500 dark:border-emerald-800'"
+                            :title="getCellFare(origin.id, destination.id).fare.active === false ? 'Activer le tarif' : 'Désactiver le tarif'"
+                            @click="toggleActive(origin, destination)"
+                          ></button>
+                          <button
+                            type="button"
+                            class="rounded-md p-0.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                            title="Supprimer"
+                            @click="deleteCell(origin, destination)"
+                          >
+                            <Trash2 :size="13" />
+                          </button>
+                        </div>
+                        <span v-else class="text-[8px] font-bold" :class="newFareBidirectional ? 'text-emerald-500' : 'text-slate-400'">
+                          {{ newFareBidirectional ? '↔ à la création' : '→ à la création' }}
+                        </span>
+
+                        <Refresh v-if="savingCells[cellKey(origin.id, destination.id)]" :size="14" class="animate-spin text-emerald-600" />
+                        <Check v-else-if="savedCells[cellKey(origin.id, destination.id)]" :size="14" class="text-emerald-600" />
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="h-5" aria-hidden="true"></div>
+          </div>
+        </main>
       </div>
     </div>
-
-    <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
-      <template #title>
-        {{ isEditing ? 'Modifier le Tarif' : 'Nouveau Tarif' }}
-      </template>
-      <template #content>
-        <div class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <InputLabel for="from_station_id" value="Départ" />
-              <select v-model="form.from_station_id" id="from_station_id"
-                class="w-full border-slate-200 dark:border-slate-800 rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm py-2 dark:bg-slate-950 dark:text-slate-100"
-                :class="{ 'border-red-500': errors.from_station_id }">
-                <option value="">Sélectionner une gare</option>
-                <option v-for="station in availableFromStations" :key="station.id" :value="station.id">
-                  {{ getStationLabel(station) }}
-                </option>
-              </select>
-              <InputError :message="errors.from_station_id" />
-            </div>
-
-            <div>
-              <InputLabel for="to_station_id" value="Arrivée" />
-              <select v-model="form.to_station_id" id="to_station_id"
-                class="w-full border-slate-200 dark:border-slate-800 rounded-lg shadow-sm focus:border-emerald-500 focus:ring-emerald-500 text-sm py-2 dark:bg-slate-950 dark:text-slate-100"
-                :class="{ 'border-red-500': errors.to_station_id }">
-                <option value="">Sélectionner une gare</option>
-                <option v-for="station in availableToStations" :key="station.id" :value="station.id">
-                  {{ getStationLabel(station) }}
-                </option>
-              </select>
-              <InputError :message="errors.to_station_id" />
-            </div>
-          </div>
-
-          <div>
-            <InputLabel for="amount" value="Montant (FCFA)" />
-            <TextInput v-model="form.amount" id="amount" type="number" placeholder="Ex: 5000" class="w-full"
-              :class="{ 'border-red-500': errors.amount }" />
-            <InputError :message="errors.amount" />
-          </div>
-
-          <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-100 dark:border-slate-800/60">
-            <div>
-              <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">Tarif bidirectionnel</span>
-              <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">Le même tarif s'applique dans les deux sens</p>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" v-model="form.is_bidirectional" class="sr-only peer" />
-              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-            </label>
-          </div>
-
-          <div class="flex items-center">
-            <input type="checkbox" v-model="form.active" id="fare_active" class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring-emerald-500">
-            <label for="fare_active" class="ml-2 text-sm text-slate-600 dark:text-slate-350 dark:text-slate-350">Tarif Actif</label>
-          </div>
-        </div>
-      </template>
-      <template #footer>
-        <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
-        <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
-          {{ isEditing ? 'Mettre à jour' : 'Enregistrer' }}
-        </PrimaryButton>
-      </template>
-    </DialogModal>
   </MainNavLayout>
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+.matrix-scroll {
+  scrollbar-gutter: stable;
+  scrollbar-color: #94a3b8 transparent;
+  scrollbar-width: thin;
 }
-.custom-scrollbar::-webkit-scrollbar-track {
+
+.matrix-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.matrix-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+
+.matrix-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
   background: #94a3b8;
+  background-clip: padding-box;
 }
 </style>

@@ -46,6 +46,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  navigable: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -234,12 +238,12 @@ const initMap = async () => {
 
   map = L.map(mapEl.value, {
     zoomControl: true,
-    dragging: props.interactive,
-    scrollWheelZoom: props.interactive,
-    doubleClickZoom: props.interactive,
-    touchZoom: props.interactive,
-    boxZoom: props.interactive,
-    keyboard: props.interactive,
+    dragging: props.navigable,
+    scrollWheelZoom: props.navigable,
+    doubleClickZoom: props.navigable,
+    touchZoom: props.navigable,
+    boxZoom: props.navigable,
+    keyboard: props.navigable,
     minZoom: 5,
     maxZoom: 18,
   }).setView([defaultCenter.value.latitude, defaultCenter.value.longitude], props.zoom);
@@ -350,8 +354,11 @@ onBeforeUnmount(() => {
         :style="{ height }"
       />
     </div>
-    <p class="text-xs text-gray-500 dark:text-slate-400">
+    <p v-if="interactive" class="text-xs text-gray-500 dark:text-slate-400">
       Clique sur la carte pour définir les coordonnées, ou déplace le marqueur.
+    </p>
+    <p v-else-if="navigable" class="text-xs text-gray-500 dark:text-slate-400">
+      Faites glisser la carte pour naviguer et utilisez la molette pour zoomer.
     </p>
   </div>
 </template>

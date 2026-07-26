@@ -218,8 +218,8 @@ const submit = () => {
 
         <!-- Middle Column - Preview -->
         <div class="col-span-12 md:col-span-5 h-full overflow-y-auto custom-scrollbar">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-orange-200 bg-gradient-to-r from-green-50 to-orange-50/30 p-3 dark:border-slate-800 dark:from-slate-900 dark:to-slate-900 shrink-0">
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60 shrink-0">
               <h2 class="text-lg font-semibold text-green-700 dark:text-emerald-400">Aperçu du Ticket</h2>
               <div class="flex rounded-lg border border-slate-200 bg-white/80 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950/70" aria-label="Format du ticket">
                 <button
@@ -247,7 +247,7 @@ const submit = () => {
                 <!-- Ticket Preview -->
                 <div
                   v-if="activePreviewFormat.key === '80mm'"
-                  class="ticket-preview border-2 border-dashed border-orange-300 rounded-lg p-4 bg-white font-sans text-xs mx-auto text-black"
+                  class="ticket-preview border-2 border-dashed border-slate-300 rounded-lg p-4 bg-white font-sans text-xs mx-auto text-black"
                   :class="`ticket-preview--${activePreviewFormat.key}`"
                   :style="{ width: activePreviewFormat.width, maxWidth: '100%' }"
                 >
@@ -323,7 +323,7 @@ const submit = () => {
 
                 <div
                   v-else
-                  class="bluetooth-ticket-preview border-2 border-dashed border-orange-300 rounded-lg bg-white font-mono mx-auto text-black"
+                  class="bluetooth-ticket-preview border-2 border-dashed border-slate-300 rounded-lg bg-white font-mono mx-auto text-black"
                   :style="{ width: activePreviewFormat.width, maxWidth: '100%' }"
                 >
                   <div class="bluetooth-company">{{ fitEscPos(form.company_name || 'TEST TRANSPORT', 16) }}</div>
@@ -372,7 +372,7 @@ const submit = () => {
 
         <!-- Right Column - Form -->
         <div class="col-span-12 md:col-span-5 h-full overflow-y-auto custom-scrollbar">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-4 h-full flex flex-col">
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 h-full flex flex-col">
             <h2 class="text-lg font-semibold text-green-700 dark:text-emerald-400 mb-4 shrink-0">
               Configuration
             </h2>
@@ -472,7 +472,7 @@ const submit = () => {
                     v-model="form.baggage_policy_message"
                     id="baggage_policy_message"
                     rows="3"
-                    class="w-full rounded-md border-orange-200 bg-white text-slate-900 shadow-sm focus:border-green-500 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
+                    class="w-full rounded-md border-slate-300 bg-white text-slate-900 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
                     :class="{ 'border-red-500': errors.baggage_policy_message }"
                     placeholder="La perte des bagages transportés..."
                   />
@@ -485,7 +485,7 @@ const submit = () => {
                     v-model="form.baggage_policy_message_2"
                     id="baggage_policy_message_2"
                     rows="3"
-                    class="w-full rounded-md border-orange-200 bg-white text-slate-900 shadow-sm focus:border-green-500 focus:ring-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
+                    class="w-full rounded-md border-slate-300 bg-white text-slate-900 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder-slate-600"
                     :class="{ 'border-red-500': errors.baggage_policy_message_2 }"
                     placeholder="Les objets de valeur doivent faire l'objet..."
                   />
@@ -499,7 +499,7 @@ const submit = () => {
                       type="checkbox" 
                       v-model="form.print_qr_code" 
                       id="print_qr_code" 
-                      class="rounded border-orange-300 text-green-600 shadow-sm focus:ring focus:ring-green-200"
+                      class="rounded border-slate-300 text-emerald-600 shadow-sm focus:ring focus:ring-emerald-200"
                     />
                     <InputLabel for="print_qr_code" value="Activer le QR Code" class="ml-2 font-bold" />
                   </div>
@@ -524,7 +524,7 @@ const submit = () => {
             </form>
 
             <!-- Submit Button (Fixed at bottom) -->
-            <div class="pt-4 border-t border-orange-200 dark:border-slate-800 shrink-0">
+            <div class="pt-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
               <button
                 @click="submit"
                 class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2 dark:bg-emerald-600 dark:shadow-none dark:hover:bg-emerald-500"

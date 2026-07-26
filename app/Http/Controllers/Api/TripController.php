@@ -152,7 +152,15 @@ class TripController extends Controller
         $reqFromId = $validated['from_station_id'] ?? null;
         $reqToId = $validated['to_station_id'] ?? null;
 
-        $trip->load(['vehicle.vehicleType', 'tripSeatOccupancies.toStation', 'tripSeatOccupancies.fromStation', 'tripSeatOccupancies.ticket.toStation', 'tripSeatOccupancies.ticket.fromStation', 'route.routeStopOrders']);
+        $trip->load([
+            'vehicle.vehicleType',
+            'tripSeatOccupancies.toStation',
+            'tripSeatOccupancies.fromStation',
+            'tripSeatOccupancies.ticket.toStation',
+            'tripSeatOccupancies.ticket.fromStation',
+            'tripSeatOccupancies.ticket.seller:id,name',
+            'route.routeStopOrders',
+        ]);
 
         $vehicleType = $trip->vehicle->vehicleType;
         $seatCount = $vehicleType->seat_count;
@@ -173,6 +181,14 @@ class TripController extends Controller
         if ($reqToId && isset($stationIndices[$reqToId])) {
             $reqEndIndex = $stationIndices[$reqToId];
         }
+
+        $canInspectTickets = in_array(auth()->user()?->role, [
+            'admin',
+            'supervisor',
+            'superadmin',
+            'super_admin',
+            'executive',
+        ], true);
 
         $occupiedSeatsLookup = $trip->tripSeatOccupancies->filter(function ($occupancy) use ($stationIndices, $reqStartIndex, $reqEndIndex) {
             if (! $occupancy->ticket) {
@@ -200,7 +216,7 @@ class TripController extends Controller
             // Overlap condition: Start1 < End2 && Start2 < End1
             return ($ticketFromIdx < $reqEndIndex) && ($reqStartIndex < $ticketToIdx);
 
-        })->keyBy('seat_number')->map(function ($occupancy) use ($stationIndices, $totalStops) {
+        })->keyBy('seat_number')->map(function ($occupancy) use ($stationIndices, $totalStops, $canInspectTickets) {
             $isOkohiHold = ! $occupancy->ticket && $occupancy->okohi_reward_request_id;
             $ticketToStation = $occupancy->toStation ?? $occupancy->ticket?->toStation;
             $ticketFromIdx = $stationIndices[$occupancy->from_station_id ?? $occupancy->ticket?->from_station_id] ?? 0;
@@ -214,6 +230,10 @@ class TripController extends Controller
                 'is_okohi_pending' => $isOkohiHold,
                 'okohi_reward_request_id' => $occupancy->okohi_reward_request_id,
                 'color' => $isOkohiHold ? '#F59E0B' : $this->getStopColor($fromIdx, $toIdx, $totalStops),
+                'ticket_id' => $canInspectTickets ? $occupancy->ticket?->id : null,
+                'ticket_number' => $canInspectTickets ? $occupancy->ticket?->ticket_number : null,
+                'seller_name' => $canInspectTickets ? $occupancy->ticket?->seller?->name : null,
+                'created_at' => $canInspectTickets ? $occupancy->ticket?->created_at?->toIso8601String() : null,
             ];
         });
 
@@ -252,6 +272,10 @@ class TripController extends Controller
                         'okohiRewardRequestId' => $isOccupied ? ($seatData['okohi_reward_request_id'] ?? null) : null,
                         'destination_name' => $isOccupied ? $seatData['destination_name'] : null,
                         'color' => $isOccupied ? $seatData['color'] : '#94A3B8',
+                        'ticket_id' => $isOccupied ? ($seatData['ticket_id'] ?? null) : null,
+                        'ticket_number' => $isOccupied ? ($seatData['ticket_number'] ?? null) : null,
+                        'seller_name' => $isOccupied ? ($seatData['seller_name'] ?? null) : null,
+                        'created_at' => $isOccupied ? ($seatData['created_at'] ?? null) : null,
                     ]);
                     $processedSeatsCount++;
                 } else {

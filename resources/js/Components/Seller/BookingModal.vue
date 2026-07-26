@@ -60,6 +60,14 @@ const props = defineProps({
     type: Number,
     default: 1,
   },
+  maxSellableQuantity: {
+    type: Number,
+    default: 1,
+  },
+  seatFirstFlow: {
+    type: Boolean,
+    default: false,
+  },
   showPassengerFields: {
     type: Boolean,
     default: false,
@@ -95,6 +103,23 @@ const emit = defineEmits([
 
 const okohiRequest = ref(props.initialOkohiRequest);
 const isDestinationMode = computed(() => props.mode === 'destination' && !okohiRequest.value);
+const quantityLimit = computed(() => {
+  const stationLimit = Math.max(0, Math.min(10, Number(props.maxSellableQuantity) || 0));
+
+  // In the destination-first flow, a seat has already been selected by the
+  // suggestion engine. A transient/segment-specific station limit of zero
+  // must not disable the sale of that selected seat.
+  if (!props.seatFirstFlow && props.selectedSeatNumber !== null) {
+    return Math.max(1, stationLimit);
+  }
+
+  return stationLimit;
+});
+const canConfirmBooking = computed(() => !!props.selectedFare
+  && props.selectedSeatNumber !== null
+  && quantityLimit.value > 0
+  && props.ticketQuantity <= quantityLimit.value
+  && (props.ticketQuantity === 1 || props.seatsToBook.length === props.ticketQuantity));
 const modalRef = ref(null);
 const dragHandleRef = ref(null);
 const isDragging = ref(false);
@@ -366,7 +391,11 @@ const claimCountdownLabel = computed(() => {
 
 const ticketQuantityModel = computed({
   get: () => props.ticketQuantity,
-  set: (value) => emit('update:ticketQuantity', Number(value)),
+  set: (value) => {
+    const parsed = Number(value);
+    const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : 1;
+    emit('update:ticketQuantity', Math.max(1, Math.min(quantityLimit.value || 1, normalized)));
+  },
 });
 
 const showPassengerFieldsModel = computed({
@@ -1194,16 +1223,24 @@ onBeforeUnmount(() => {
                       v-model.number="ticketQuantityModel"
                       type="number"
                       min="1"
-                      max="10"
+                      :max="quantityLimit"
                       class="w-12 py-1 text-center border-0 focus:ring-0 text-gray-900 dark:text-slate-100 bg-transparent font-bold"
                     />
                     <button
                       type="button"
-                      @click="ticketQuantityModel = Math.min(10, ticketQuantityModel + 1)"
-                      class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-r-xl border-l border-white/70 dark:border-slate-800/80"
+                      :disabled="ticketQuantityModel >= quantityLimit"
+                      @click="ticketQuantityModel = Math.min(quantityLimit, ticketQuantityModel + 1)"
+                      class="px-2.5 py-1 text-gray-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-r-xl border-l border-white/70 dark:border-slate-800/80 disabled:cursor-not-allowed disabled:opacity-40"
                     >+</button>
                   </div>
                 </div>
+                <p v-if="!useOkohi && seatFirstFlow" class="mt-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  {{ maxSellableQuantity }} place(s) vendable(s) depuis cette gare
+                  <span v-if="maxSellableQuantity > 10"> · maximum 10 par vente</span>
+                </p>
+                <p v-else-if="!useOkohi" class="mt-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                  {{ seatsToBook.length }} place(s) sélectionnée(s)
+                </p>
                 <div v-else class="mt-3 md:mt-4 text-xs font-bold text-slate-600 dark:text-slate-300 bg-emerald-50/70 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-center">
                   Quantité : 1 siège (Privilège individuel Okohi)
                 </div>
@@ -1263,7 +1300,7 @@ onBeforeUnmount(() => {
                   <button
                     v-if="useOkohi"
                     type="button"
-                    :disabled="processingOkohi || !selectedReward"
+                    :disabled="processingOkohi || !selectedReward || !canConfirmBooking"
                     @click="initiateOkohiRequest"
                     class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold shadow-sm transition-colors cursor-pointer"
                   >
@@ -1277,7 +1314,7 @@ onBeforeUnmount(() => {
                     v-else
                     type="button"
                     @click="$emit('confirm')"
-                    :disabled="processing"
+                    :disabled="processing || !canConfirmBooking"
                     class="px-5 py-2 bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-850 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold cursor-pointer"
                   >
                     <div v-if="processing" class="animate-spin mr-2"><Refresh :size="16" /></div>

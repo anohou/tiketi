@@ -25,6 +25,7 @@ class RouteFare extends Model
 
     protected $casts = [
         'is_bidirectional' => 'boolean',
+        'active' => 'boolean',
         'settings' => 'array',
     ];
 

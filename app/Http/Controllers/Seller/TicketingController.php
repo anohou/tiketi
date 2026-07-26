@@ -91,6 +91,7 @@ class TicketingController extends Controller
             'vehicles' => Vehicle::with('vehicleType')->where('active', true)->orderBy('identifier')->get(['id', 'identifier', 'seat_count', 'vehicle_type_id']),
             'destinations' => $destinations,
             'hasActiveAssignment' => $hasActiveAssignment,
+            'assignedStationIds' => $assignedStationIds,
             'assignedStationId' => $assignedStationModel?->id,
             'assignedStation' => $assignedStation,
             'canSelectTripOrigin' => $canSelectTripOrigin,
@@ -155,8 +156,9 @@ class TicketingController extends Controller
             $tripsQuery = (clone $baseQuery)
                 ->where(function ($trips) use ($windowStart, $windowEnd, $activeStart) {
                     $trips->where(function ($scheduled) use ($windowStart, $windowEnd) {
-                        $scheduled->where('status', 'scheduled')
-                            ->where('departure_at', '>=', $windowStart)
+                        // Future trips remain visible at every station on the
+                        // route, independently of the simultaneous-sale mode.
+                        $scheduled->where('departure_at', '>=', $windowStart)
                             ->where('departure_at', '<', $windowEnd);
                     })->orWhere(function ($active) use ($activeStart, $windowEnd) {
                         $active->whereIn('status', ['boarding', 'delayed', 'departed'])
