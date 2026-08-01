@@ -128,6 +128,8 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::post('settings/loyalty/customers/{customerNumber}/grant-reward', [OkohiRewardController::class, 'grant'])->name('settings.loyalty.grant');
         // Rewards catalog management
         Route::get('settings/loyalty/rewards', [OkohiRewardsController::class, 'index'])->name('settings.loyalty.rewards.index');
+        Route::get('settings/loyalty/parameters', [OkohiRewardsController::class, 'parameters'])->name('settings.loyalty.parameters');
+        Route::put('settings/loyalty/parameters', [OkohiRewardsController::class, 'updateParameters'])->name('settings.loyalty.parameters.update');
         Route::post('settings/loyalty/rewards', [OkohiRewardsController::class, 'store'])->name('settings.loyalty.rewards.store');
         Route::put('settings/loyalty/rewards/{id}', [OkohiRewardsController::class, 'update'])->name('settings.loyalty.rewards.update');
         Route::delete('settings/loyalty/rewards/{id}', [OkohiRewardsController::class, 'destroy'])->name('settings.loyalty.rewards.destroy');

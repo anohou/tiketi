@@ -1422,6 +1422,76 @@ class TicketingFlowTest extends TestCase
         $this->assertTrue($settings->fresh()->hasOkohiIntegration());
     }
 
+    public function test_admin_can_fetch_okohi_loyalty_parameters(): void
+    {
+        [$admin] = $this->ticketingFixture();
+        $settings = TicketSetting::getSettings();
+        $settings->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/parameters' => Http::response([
+                'code' => 200,
+                'message' => 'Succès',
+                'data' => [
+                    'loyalty_type' => 'frequency',
+                    'min_transaction_amount' => '5000.00',
+                    'points_awarded' => 0,
+                    'times_awarded' => 1,
+                ],
+                'status' => true,
+            ]),
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson('/admin/settings/loyalty/parameters')
+            ->assertOk()
+            ->assertJsonPath('loyalty_type', 'frequency')
+            ->assertJsonPath('min_transaction_amount', '5000.00')
+            ->assertJsonPath('times_awarded', 1);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://okohi.test/api/v1/partner/parameters'
+            && $request->hasHeader('X-Okohi-Integration-Key', 'secret-key'));
+    }
+
+    public function test_admin_can_update_okohi_loyalty_parameters(): void
+    {
+        [$admin] = $this->ticketingFixture();
+        TicketSetting::getSettings()->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/parameters' => Http::response([
+                'data' => [
+                    'loyalty_type' => 'points',
+                    'min_transaction_amount' => '0.00',
+                    'points_awarded' => 1,
+                    'times_awarded' => null,
+                ],
+            ]),
+        ]);
+
+        $this->actingAs($admin)
+            ->putJson('/admin/settings/loyalty/parameters', [
+                'loyalty_type' => 'points',
+                'min_transaction_amount' => 0,
+                'points_awarded' => 1,
+                'times_awarded' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('points_awarded', 1);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://okohi.test/api/v1/partner/parameters'
+            && $request->method() === 'PUT'
+            && $request->hasHeader('X-Okohi-Integration-Key', 'secret-key'));
+    }
+
     public function test_initiate_okohi_reward_request_creates_temporary_seat_hold(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();

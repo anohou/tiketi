@@ -60,6 +60,36 @@ class OkohiRewardsController extends Controller
     }
 
     /**
+     * GET /admin/settings/loyalty/parameters
+     * Return the connected Okohi company's active loyalty parameters.
+     */
+    public function parameters(): JsonResponse
+    {
+        $this->ensureConnected();
+
+        $response = \Http::timeout(15)
+            ->withHeaders($this->headers())
+            ->get($this->partnerUrl().'/parameters');
+
+        return $this->forwardOkohiResponse($response);
+    }
+
+    /**
+     * PUT /admin/settings/loyalty/parameters
+     * Save the connected Okohi company's loyalty earning rule.
+     */
+    public function updateParameters(Request $request): JsonResponse
+    {
+        $this->ensureConnected();
+
+        $response = \Http::timeout(15)
+            ->withHeaders($this->headers())
+            ->put($this->partnerUrl().'/parameters', $request->all());
+
+        return $this->forwardOkohiResponse($response);
+    }
+
+    /**
      * POST /admin/settings/loyalty/rewards
      * Create a new reward in Okohi.
      */
