@@ -27,18 +27,24 @@ class OkohiConnectController extends Controller
         $appUrl = rtrim(config('app.url'), '/');
         $tenantId = tenant('id');
 
-        $response = Http::timeout(10)->post(
-            $baseUrl.'/api/v1/partner-integrations/verify',
-            [
-                'code' => $data['code'],
-                'verify_url' => $appUrl.'/api/okohi/verify?tenant='.$tenantId.'&ticket_id={ticket_id}',
-                'delete_url' => $appUrl.'/api/okohi/delete',
-                // webhook_url is the canonical field used by current Okohi;
-                // reward_webhook_url keeps compatibility with the first API draft.
-                'webhook_url' => $appUrl.'/api/okohi/webhook?tenant='.$tenantId,
-                'reward_webhook_url' => $appUrl.'/api/okohi/webhook?tenant='.$tenantId,
-            ]
-        );
+        try {
+            $response = Http::timeout(10)->post(
+                $baseUrl.'/api/v1/partner-integrations/verify',
+                [
+                    'code' => $data['code'],
+                    'verify_url' => $appUrl.'/api/okohi/verify?tenant='.$tenantId.'&ticket_id={ticket_id}',
+                    'delete_url' => $appUrl.'/api/okohi/delete',
+                    // webhook_url is the canonical field used by current Okohi;
+                    // reward_webhook_url keeps compatibility with the first API draft.
+                    'webhook_url' => $appUrl.'/api/okohi/webhook?tenant='.$tenantId,
+                    'reward_webhook_url' => $appUrl.'/api/okohi/webhook?tenant='.$tenantId,
+                ]
+            );
+        } catch (\Throwable $e) {
+            throw ValidationException::withMessages([
+                'code' => "Impossible de contacter le serveur Okohi ($baseUrl). Vérifiez que le serveur est démarré.",
+            ]);
+        }
 
         if (! $response->ok() || ! $response->json('success')) {
             $message = $response->status() === 404
@@ -78,9 +84,13 @@ class OkohiConnectController extends Controller
 
         // Notifier Okohi si on a la clé et l'URL de base
         if ($key && $baseUrl) {
-            Http::timeout(10)
-                ->withHeaders(['X-Okohi-Integration-Key' => $key])
-                ->delete($baseUrl.'/api/v1/partner-integrations/revoke');
+            try {
+                Http::timeout(5)
+                    ->withHeaders(['X-Okohi-Integration-Key' => $key])
+                    ->delete($baseUrl.'/api/v1/partner-integrations/revoke');
+            } catch (\Throwable $e) {
+                // Ignorer si le serveur Okohi est éteint lors de la déconnexion
+            }
         }
 
         return back()->with('success', 'Intégration Okohi désactivée.');

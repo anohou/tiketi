@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\LoyaltySettingController;
 use App\Http\Controllers\Admin\OkohiConnectController;
 use App\Http\Controllers\Admin\OkohiRewardController;
+use App\Http\Controllers\Admin\OkohiRewardsController;
 use App\Http\Controllers\Admin\OkohiTransactionsController;
 use App\Http\Controllers\Admin\RouteController;
 use App\Http\Controllers\Admin\RouteFareController;
@@ -125,6 +126,11 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('settings/loyalty/transactions', [OkohiTransactionsController::class, 'index'])->name('settings.loyalty.transactions');
         Route::get('settings/loyalty/customers/{customerNumber}', [OkohiRewardController::class, 'customer'])->name('settings.loyalty.customer');
         Route::post('settings/loyalty/customers/{customerNumber}/grant-reward', [OkohiRewardController::class, 'grant'])->name('settings.loyalty.grant');
+        // Rewards catalog management
+        Route::get('settings/loyalty/rewards', [OkohiRewardsController::class, 'index'])->name('settings.loyalty.rewards.index');
+        Route::post('settings/loyalty/rewards', [OkohiRewardsController::class, 'store'])->name('settings.loyalty.rewards.store');
+        Route::put('settings/loyalty/rewards/{id}', [OkohiRewardsController::class, 'update'])->name('settings.loyalty.rewards.update');
+        Route::delete('settings/loyalty/rewards/{id}', [OkohiRewardsController::class, 'destroy'])->name('settings.loyalty.rewards.destroy');
     });
 
     // =========================================
