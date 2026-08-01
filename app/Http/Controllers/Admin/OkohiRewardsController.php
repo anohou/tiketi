@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\TicketSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 class OkohiRewardsController extends Controller
 {
@@ -55,7 +54,7 @@ class OkohiRewardsController extends Controller
 
         $response = \Http::timeout(15)
             ->withHeaders($this->headers())
-            ->get($this->partnerUrl() . '/rewards');
+            ->get($this->partnerUrl().'/rewards');
 
         return $this->forwardOkohiResponse($response);
     }
@@ -70,7 +69,7 @@ class OkohiRewardsController extends Controller
 
         $response = \Http::timeout(15)
             ->withHeaders($this->headers())
-            ->post($this->partnerUrl() . '/rewards', $request->all());
+            ->post($this->partnerUrl().'/rewards', $request->all());
 
         return $this->forwardOkohiResponse($response);
     }
@@ -85,7 +84,7 @@ class OkohiRewardsController extends Controller
 
         $response = \Http::timeout(15)
             ->withHeaders($this->headers())
-            ->get($this->partnerUrl() . '/rewards/' . $id);
+            ->get($this->partnerUrl().'/rewards/'.$id);
 
         return $this->forwardOkohiResponse($response);
     }
@@ -100,7 +99,7 @@ class OkohiRewardsController extends Controller
 
         $response = \Http::timeout(15)
             ->withHeaders($this->headers())
-            ->put($this->partnerUrl() . '/rewards/' . $id, $request->all());
+            ->put($this->partnerUrl().'/rewards/'.$id, $request->all());
 
         return $this->forwardOkohiResponse($response);
     }
@@ -115,7 +114,7 @@ class OkohiRewardsController extends Controller
 
         $response = \Http::timeout(15)
             ->withHeaders($this->headers())
-            ->delete($this->partnerUrl() . '/rewards/' . $id);
+            ->delete($this->partnerUrl().'/rewards/'.$id);
 
         return $this->forwardOkohiResponse($response);
     }
