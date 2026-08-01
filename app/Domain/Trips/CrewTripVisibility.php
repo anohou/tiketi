@@ -3,6 +3,7 @@
 namespace App\Domain\Trips;
 
 use App\Models\CrewMember;
+use App\Models\OperationalSetting;
 use App\Models\Trip;
 use App\Models\VehicleCrewAssignment;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,12 +17,13 @@ final class CrewTripVisibility
     public function operationalWindow(?Carbon $instant = null): array
     {
         $instant ??= now();
-        $startHour = (int) config('transport.operations.day_start_hour', 3);
+        $settings = OperationalSetting::current();
+        $startHour = $settings->operationalDayStartHour();
         $start = $instant->copy()->startOfDay()->addHours($startHour);
         if ($instant->lt($start)) {
             $start->subDay();
         }
-        $end = $start->copy()->addHours((int) config('transport.operations.scheduled_lookahead_hours', 30));
+        $end = $start->copy()->addHours($settings->scheduledTripLookaheadHours());
 
         return [$start, $end];
     }

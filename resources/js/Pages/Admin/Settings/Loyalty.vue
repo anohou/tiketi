@@ -253,9 +253,14 @@ const loyaltyCostLabel = computed(() => isFrequencyLoyalty.value ? 'Visites à u
 const earningRule = computed(() => {
   if (!loyaltyParameters.value) return '';
 
-  const minimum = Number(loyaltyParameters.value.min_transaction_amount).toLocaleString('fr-FR');
+  const minimumAmount = Number(loyaltyParameters.value.min_transaction_amount || 0);
+  const minimum = minimumAmount.toLocaleString('fr-FR');
   if (isFrequencyLoyalty.value) {
     const visits = Number(loyaltyParameters.value.times_awarded ?? 0);
+    if (minimumAmount === 0) {
+      return `${visits} visite${visits > 1 ? 's' : ''} créditée${visits > 1 ? 's' : ''} pour tout achat.`;
+    }
+
     return `${visits} visite${visits > 1 ? 's' : ''} créditée${visits > 1 ? 's' : ''} par achat d’au moins ${minimum} F CFA.`;
   }
 
@@ -541,7 +546,7 @@ const deleteReward = async () => {
                           <input v-model="parameterForm.min_transaction_amount" type="number" :min="isFrequencyLoyalty ? 0 : 1" class="w-full rounded-lg border-gray-200 pr-16 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                           <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">F CFA</span>
                         </div>
-                        <p class="mt-1 text-[10px] leading-snug text-gray-400 dark:text-slate-500">{{ isFrequencyLoyalty ? '0 signifie que tous les voyages sont admissibles.' : 'Le montant du billet est divisé en tranches pour calculer les points.' }}</p>
+                        <p class="mt-1 text-[10px] leading-snug text-gray-400 dark:text-slate-500">{{ isFrequencyLoyalty ? 'Saisissez 0 pour appliquer la règle à tout achat.' : 'Le montant du billet est divisé en tranches pour calculer les points.' }}</p>
                         <InputError class="mt-1" :message="parameterFieldError('min_transaction_amount')" />
                       </div>
 

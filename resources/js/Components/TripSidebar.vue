@@ -433,6 +433,14 @@ const selectedTrip = computed(() => {
 
 const assignedStation = computed(() => page.props.assignedStations?.[0] || null);
 const assignedStationId = computed(() => assignedStation.value?.id || null);
+// Administrators can sell without a station assignment ("Toutes les gares").
+// In that case, the ticketing page exposes fares from the trip origin, so the
+// sidebar must use that same origin instead of treating the missing assignment
+// as a missing fare configuration.
+const salesStationId = computed(() => assignedStationId.value
+    || selectedTrip.value?.origin_station_id
+    || selectedTrip.value?.route?.origin_station_id
+    || null);
 const isTripHighlighted = (tripId) => !!ticketingStore.tripHighlights?.[String(tripId)];
 
 const buildTripStationIndices = (trip) => {
@@ -504,40 +512,40 @@ const getRouteStationColor = (stationIndex) => {
 };
 
 const currentStationPalette = computed(() => {
-    if (!selectedTrip.value || !assignedStationId.value) return null;
+    if (!selectedTrip.value || !salesStationId.value) return null;
 
     const stationIndexMap = buildTripStationIndices(selectedTrip.value);
-    const stationIndex = stationIndexMap[assignedStationId.value];
+    const stationIndex = stationIndexMap[salesStationId.value];
     if (stationIndex === undefined) return null;
 
     return getRouteStationColor(stationIndex);
 });
 
 const currentStationSellableSeatNumbers = computed(() => {
-    if (!assignedStationId.value) return [];
+    if (!salesStationId.value) return [];
     const originStationId = selectedTrip.value?.origin_station_id
         || selectedTrip.value?.route?.origin_station_id;
     const isClosedAtIntermediateStation = selectedTrip.value?.status === 'departed'
-        ? selectedTrip.value?.active_sales_station_id !== assignedStationId.value
+        ? selectedTrip.value?.active_sales_station_id !== salesStationId.value
         : selectedTrip.value?.sales_control === 'closed'
-            && originStationId !== assignedStationId.value;
+            && originStationId !== salesStationId.value;
     const seatsByStation = isClosedAtIntermediateStation
         ? (seatMap.value?.freed_seats_by_station || {})
         : (seatMap.value?.sellable_seats_by_station || {});
 
-    return (seatsByStation[assignedStationId.value] || [])
+    return (seatsByStation[salesStationId.value] || [])
         .map((seatNumber) => Number(seatNumber))
         .filter((seatNumber) => Number.isFinite(seatNumber));
 });
 
 const hasPricedDestinationFromAssignedStation = computed(() => {
-    if (!selectedTrip.value || !assignedStationId.value) return false;
+    if (!selectedTrip.value || !salesStationId.value) return false;
 
     const routeFares = page.props.routeFares;
     if (!Array.isArray(routeFares)) return true;
 
     const stationIndices = buildTripStationIndices(selectedTrip.value);
-    const originIndex = stationIndices[assignedStationId.value];
+    const originIndex = stationIndices[salesStationId.value];
     if (originIndex === undefined) return false;
 
     return routeFares.some((fare) => {
@@ -546,9 +554,9 @@ const hasPricedDestinationFromAssignedStation = computed(() => {
         const directDestinationIndex = stationIndices[toId];
         const reverseDestinationIndex = stationIndices[fromId];
 
-        return (fromId === assignedStationId.value && directDestinationIndex > originIndex)
+        return (fromId === salesStationId.value && directDestinationIndex > originIndex)
             || (fare.is_bidirectional
-                && toId === assignedStationId.value
+                && toId === salesStationId.value
                 && reverseDestinationIndex > originIndex);
     });
 });
@@ -558,11 +566,11 @@ const seatSalesDisabled = computed(() => isTicketingPage.value
     && !hasPricedDestinationFromAssignedStation.value);
 
 const currentStationFreedSeatNumbers = computed(() => {
-    if (!assignedStationId.value) return [];
+    if (!salesStationId.value) return [];
 
     if (selectedTrip.value?.status === 'departed') {
         const stationIndices = buildTripStationIndices(selectedTrip.value);
-        const stationIndex = stationIndices[assignedStationId.value];
+        const stationIndex = stationIndices[salesStationId.value];
         const activeStationIndex = stationIndices[selectedTrip.value?.active_sales_station_id];
 
         // Only upcoming stations preview their future released seats. Once the
@@ -574,7 +582,7 @@ const currentStationFreedSeatNumbers = computed(() => {
         }
     }
 
-    return (seatMap.value?.freed_seats_by_station?.[assignedStationId.value] || [])
+    return (seatMap.value?.freed_seats_by_station?.[salesStationId.value] || [])
         .map((seatNumber) => Number(seatNumber))
         .filter((seatNumber) => Number.isFinite(seatNumber));
 });

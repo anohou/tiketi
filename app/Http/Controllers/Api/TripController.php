@@ -336,17 +336,19 @@ class TripController extends Controller
         $hue = $hues[$fromIdx % count($hues)];
 
         $remainingStops = $totalStops - 1 - $fromIdx;
-        if ($remainingStops <= 0) {
-            $ratio = 1.0;
-        } else {
-            $ratio = ($toIdx - $fromIdx) / $remainingStops;
+        $ratio = 0.0;
+        if ($remainingStops > 1) {
+            // Keep this calculation aligned with getStationColor() in the
+            // ticketing frontend: the nearest destination starts at 0 and
+            // the furthest destination ends at 1.
+            $ratio = ($toIdx - $fromIdx - 1) / ($remainingStops - 1);
             $ratio = max(0.0, min(1.0, $ratio));
         }
 
-        // Lightness varies from 88% (very close) to 43% (furthest terminus)
-        $lightness = 88 - ($ratio * 45);
+        // Same saturation and lightness range as the destination cards.
+        $lightness = 75 - ($ratio * 40);
 
-        return "hsl({$hue}, 90%, ".round($lightness, 2).'%)';
+        return "hsl({$hue}, 80%, ".round($lightness, 1).'%)';
     }
 
     public function details(Trip $trip)

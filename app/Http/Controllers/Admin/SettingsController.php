@@ -48,6 +48,8 @@ class SettingsController extends Controller
             'logo' => 'nullable|file|mimetypes:image/png,image/jpeg,image/webp,image/svg+xml|max:5120',
             'automatic_connection_allocation' => 'required|boolean',
             'connection_transfer_buffer_minutes' => 'required|integer|min:0|max:240',
+            'operational_day_start_hour' => 'required|integer|min:0|max:23',
+            'scheduled_trip_lookahead_hours' => 'required|integer|min:1|max:168',
             'seller_compensation_enabled' => 'required|boolean',
             'seller_compensation_max_amount' => 'required|integer|min:0',
         ]);
@@ -86,6 +88,8 @@ class SettingsController extends Controller
             'settings' => array_merge($operationalSettings->settings ?? [], [
                 'seller_compensation_enabled' => $request->boolean('seller_compensation_enabled'),
                 'seller_compensation_max_amount' => (int) $request->input('seller_compensation_max_amount', 0),
+                'operational_day_start_hour' => (int) $request->input('operational_day_start_hour'),
+                'scheduled_trip_lookahead_hours' => (int) $request->input('scheduled_trip_lookahead_hours'),
             ]),
         ]);
 

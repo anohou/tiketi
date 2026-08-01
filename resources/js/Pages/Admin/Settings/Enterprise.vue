@@ -28,6 +28,8 @@ const form = useForm({
   logo: null,
   automatic_connection_allocation: props.operationalSettings?.automatic_connection_allocation || false,
   connection_transfer_buffer_minutes: props.operationalSettings?.connection_transfer_buffer_minutes ?? 15,
+  operational_day_start_hour: props.operationalSettings?.settings?.operational_day_start_hour ?? 3,
+  scheduled_trip_lookahead_hours: props.operationalSettings?.settings?.scheduled_trip_lookahead_hours ?? 72,
   seller_compensation_enabled: props.operationalSettings?.settings?.seller_compensation_enabled || false,
   seller_compensation_max_amount: props.operationalSettings?.settings?.seller_compensation_max_amount ?? 0,
 });
@@ -277,6 +279,31 @@ const submit = () => {
                   <TextInput id="connection_buffer" v-model.number="form.connection_transfer_buffer_minutes" type="number" min="0" max="240" class="mt-1 block w-full" />
                   <InputError class="mt-2" :message="form.errors.connection_transfer_buffer_minutes" />
                 </div>
+              </div>
+              <div class="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                <div>
+                  <span class="block text-sm font-bold text-blue-900 dark:text-blue-200">Fenêtre d’affichage des voyages</span>
+                  <span class="block text-xs text-blue-700 dark:text-blue-400">Détermine les voyages programmés visibles à l’avance dans la Billetterie pour cette compagnie.</span>
+                </div>
+                <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <InputLabel for="operational_day_start_hour" value="Début de la journée opérationnelle" />
+                    <div class="relative mt-1">
+                      <TextInput id="operational_day_start_hour" v-model.number="form.operational_day_start_hour" type="number" min="0" max="23" class="block w-full pr-16" />
+                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">heure</span>
+                    </div>
+                    <InputError class="mt-2" :message="form.errors.operational_day_start_hour" />
+                  </div>
+                  <div>
+                    <InputLabel for="scheduled_trip_lookahead_hours" value="Voyages visibles à l’avance" />
+                    <div class="relative mt-1">
+                      <TextInput id="scheduled_trip_lookahead_hours" v-model.number="form.scheduled_trip_lookahead_hours" type="number" min="1" max="168" class="block w-full pr-16" />
+                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">heures</span>
+                    </div>
+                    <InputError class="mt-2" :message="form.errors.scheduled_trip_lookahead_hours" />
+                  </div>
+                </div>
+                <p class="mt-3 text-xs font-medium text-blue-800 dark:text-blue-300">Exemple : avec un début à {{ form.operational_day_start_hour }} h et une fenêtre de {{ form.scheduled_trip_lookahead_hours }} h, la liste couvre {{ form.scheduled_trip_lookahead_hours }} heures à partir du début de chaque journée opérationnelle.</p>
               </div>
               <div class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
                 <label class="flex items-start gap-3 cursor-pointer">

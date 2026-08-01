@@ -6,9 +6,7 @@ return [
         'past_window_hours' => env('BOARDING_PAST_WINDOW_HOURS', 24),
     ],
     'operations' => [
-        'day_start_hour' => env('OPERATIONAL_DAY_START_HOUR', 3),
         'active_trip_lookback_hours' => env('ACTIVE_TRIP_LOOKBACK_HOURS', 48),
-        'scheduled_lookahead_hours' => env('SCHEDULED_TRIP_LOOKAHEAD_HOURS', 30),
     ],
     'crew_auth' => [
         'default_country_code' => env('CREW_DEFAULT_COUNTRY_CODE', '225'),

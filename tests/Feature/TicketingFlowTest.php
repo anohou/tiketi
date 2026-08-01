@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Trips\CrewTripVisibility;
 use App\Events\SeatMapUpdated;
 use App\Events\TidsUpdated;
 use App\Events\TripCreated;
@@ -34,6 +35,7 @@ use App\Services\TripTimingService;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -167,6 +169,26 @@ class TicketingFlowTest extends TestCase
                     === collect([$stations['a']->id, $stations['b']->id])->sort()->values()->all()));
     }
 
+    public function test_operational_trip_window_uses_company_settings(): void
+    {
+        $settings = OperationalSetting::current();
+        $this->assertSame(3, $settings->operationalDayStartHour());
+        $this->assertSame(72, $settings->scheduledTripLookaheadHours());
+
+        $settings->update([
+            'settings' => array_merge($settings->settings ?? [], [
+                'operational_day_start_hour' => 4,
+                'scheduled_trip_lookahead_hours' => 48,
+            ]),
+        ]);
+
+        [$start, $end] = app(CrewTripVisibility::class)
+            ->operationalWindow(Carbon::parse('2026-08-01 14:00:00'));
+
+        $this->assertSame('2026-08-01 04:00:00', $start->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-08-03 04:00:00', $end->format('Y-m-d H:i:s'));
+    }
+
     public function test_seat_map_exposes_real_ticket_inspection_data(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
@@ -194,6 +216,7 @@ class TicketingFlowTest extends TestCase
         $this->assertSame($ticket->ticket_number, $seat['ticket_number']);
         $this->assertSame($admin->name, $seat['seller_name']);
         $this->assertNotEmpty($seat['created_at']);
+        $this->assertSame('hsl(220, 80%, 35%)', $seat['color']);
     }
 
     public function test_crew_member_page_lists_history_and_can_create_an_assignment(): void
