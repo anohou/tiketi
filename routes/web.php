@@ -26,9 +26,11 @@ use App\Http\Controllers\Fleet\FleetAssignmentController;
 use App\Http\Controllers\Fleet\FleetDashboardController;
 use App\Http\Controllers\Fleet\FleetVehicleController;
 use App\Http\Controllers\Fleet\FleetVehicleTypeController;
+use App\Http\Controllers\Fleet\StationVehicleAssignmentController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\OkohiRewardRequestController;
+use App\Http\Controllers\Seller\SettingsController as SellerSettingsController;
 use App\Http\Controllers\Seller\TicketController;
 use App\Http\Controllers\Seller\TicketingController;
 use App\Http\Controllers\Seller\TransferPoolController;
@@ -87,8 +89,7 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
     Route::prefix('admin')->middleware('role:admin')->name('admin.')->group(function () {
         Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        // Settings Landing Page
-        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        // Settings sub-pages (admin only). The landing page is the shared /settings route.
         Route::get('/settings/enterprise', [SettingsController::class, 'enterprise'])->name('settings.enterprise');
         Route::post('/settings/enterprise', [SettingsController::class, 'updateEnterprise'])->name('settings.enterprise.update');
         Route::get('/settings/devices', [AuthorizedDeviceController::class, 'index'])->name('settings.devices.index');
@@ -146,8 +147,7 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('/ticketing', [TicketingController::class, 'index'])->name('ticketing');
         Route::get('/compensations', [TicketCompensationController::class, 'index'])->name('compensations.index');
 
-        // Settings / Paramétrage
-        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+        // Settings / Paramétrage (landing page moved to shared /settings)
         Route::get('/stations', [StationController::class, 'index'])->name('stations.index');
         Route::resource('users', UserController::class);
         Route::put('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
@@ -174,6 +174,7 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::post('/tickets/{ticket}/compensations', [TicketCompensationController::class, 'store'])->name('tickets.compensations.store');
         Route::patch('/compensations/{compensation}/approve', [TicketCompensationController::class, 'approve'])->name('compensations.approve');
         Route::get('/trips/{trip}/seat-map', [App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
+        Route::get('/trips/{trip}/available-vehicles', [TicketingController::class, 'availableVehicles'])->name('trips.available-vehicles');
         Route::get('/trips/{trip}/suggest-seats', [App\Http\Controllers\Api\TripController::class, 'suggestSeats'])->name('trips.suggest-seats');
         Route::get('/trips/{trip}/details', [App\Http\Controllers\Api\TripController::class, 'details'])->name('trips.details');
         Route::get('/trips/{trip}/latest-position', [App\Http\Controllers\Api\TripController::class, 'latestPosition'])->name('trips.latest-position');
@@ -182,6 +183,7 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         // Trip creation (for sellers)
         Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
         Route::put('/trips/{trip}', [TicketingController::class, 'updateTrip'])->name('trips.update');
+        Route::patch('/trips/{trip}/vehicle', [TicketingController::class, 'assignVehicle'])->name('trips.assign-vehicle');
         Route::get('/transfer-pool', [TransferPoolController::class, 'index'])->name('transfer-pool.index');
         Route::patch('/transfer-pool/{connection}/ready', [TransferPoolController::class, 'markReady'])->name('transfer-pool.ready');
         Route::post('/trips/{trip}/assign-connection', [TransferPoolController::class, 'assign'])->name('transfer-pool.assign');
@@ -197,6 +199,24 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'show'])->name('okohi.requests.show');
         Route::delete('/okohi/reward-requests/{request}', [OkohiRewardRequestController::class, 'destroy'])->name('okohi.requests.destroy');
         Route::post('/okohi/reward-requests/{request}/confirm-cash', [OkohiRewardRequestController::class, 'confirmCash'])->name('okohi.requests.confirm-cash');
+
+        // Seller settings - read-only consultation of the seller's scope
+        Route::prefix('settings')->middleware('role:seller')->name('settings.')->group(function () {
+            Route::get('/', [SellerSettingsController::class, 'index'])->name('index');
+            Route::get('/entreprise', [SellerSettingsController::class, 'company'])->name('company');
+            Route::get('/fidelisation', [SellerSettingsController::class, 'loyalty'])->name('loyalty');
+            // Read-only Okohi data endpoints for the seller (consultation only).
+            // The company-wide transaction history is intentionally NOT exposed to sellers.
+            Route::get('/fidelisation/parameters', [OkohiRewardsController::class, 'parameters'])->name('loyalty.parameters');
+            Route::get('/fidelisation/rewards', [OkohiRewardsController::class, 'index'])->name('loyalty.rewards.index');
+            Route::get('/gares-destinations', [SellerSettingsController::class, 'stations'])->name('stations');
+            Route::get('/trajets', [SellerSettingsController::class, 'routes'])->name('routes');
+            Route::get('/vehicules', [SellerSettingsController::class, 'vehicles'])->name('vehicles');
+            Route::get('/equipe', [SellerSettingsController::class, 'team'])->name('team');
+            Route::get('/affectations', [SellerSettingsController::class, 'assignments'])->name('assignments');
+            Route::get('/voyages', [SellerSettingsController::class, 'trips'])->name('trips');
+            Route::get('/profil', [SellerSettingsController::class, 'profile'])->name('profile');
+        });
     });
 
     // =========================================
@@ -225,6 +245,8 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
 
         Route::resource('vehicle-types', FleetVehicleTypeController::class);
         Route::resource('assignments', FleetAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('station-vehicle-assignments', StationVehicleAssignmentController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
 
         // Crew management
         Route::resource('crew-members', CrewMemberController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -234,9 +256,12 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
     // =========================================
     // SHARED ROUTES - Available to all authenticated users
     // =========================================
-    Route::middleware('role:admin,supervisor,seller,accountant,executive')->group(function () {
+    Route::middleware('role:admin,supervisor,seller,accountant,executive,fleet_manager')->group(function () {
         Route::get('/trips', [App\Http\Controllers\Api\TripController::class, 'index'])->name('trips.index');
         Route::get('/tickets', [App\Http\Controllers\Api\TicketController::class, 'index'])->name('tickets.index');
+
+        // Settings landing page - read-only consultation for non-admin roles
+        Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     });
 
     // Printing routes

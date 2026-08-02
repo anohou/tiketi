@@ -13,6 +13,7 @@ import Fullscreen from 'vue-material-design-icons/Fullscreen.vue';
 import FullscreenExit from 'vue-material-design-icons/FullscreenExit.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const props = defineProps({
   fares: { type: Array, default: () => [] },
@@ -264,12 +265,12 @@ const toggleActive = (origin, destination) => {
   );
 };
 
-const deleteCell = (origin, destination) => {
+const deleteCell = async (origin, destination) => {
   const key = cellKey(origin.id, destination.id);
   const reverseKey = cellKey(destination.id, origin.id);
   const cell = getCellFare(origin.id, destination.id);
   if (!cell || savingCells.value[key]) return;
-  if (!window.confirm(`Supprimer le tarif ${cell.fare.from_station?.name} → ${cell.fare.to_station?.name} ?`)) return;
+  if (!await confirmationStore.confirm({ title: 'Supprimer ce tarif', message: `Supprimer le tarif ${cell.fare.from_station?.name} → ${cell.fare.to_station?.name} ?`, confirmLabel: 'Supprimer', tone: 'danger' })) return;
 
   const targetReverseKey = cell.fare.is_bidirectional ? reverseKey : null;
 

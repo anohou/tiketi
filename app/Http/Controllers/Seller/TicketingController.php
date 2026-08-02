@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
+use App\Models\StationVehicleAssignment;
 use App\Models\TicketConnection;
 use App\Models\TicketSetting;
 use App\Models\Trip;
@@ -22,6 +23,7 @@ use App\Services\TripTimingService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class TicketingController extends Controller
@@ -651,6 +653,125 @@ class TicketingController extends Controller
         }
 
         return redirect()->back()->with('status', 'Voyage modifié avec succès.');
+    }
+
+    public function assignVehicle(Request $request, Trip $trip)
+    {
+        $user = $request->user();
+        $routeStationIds = array_keys(app(TripSegmentService::class)->stationIndices($trip));
+
+        if (in_array($user?->role, ['seller', 'supervisor'], true)) {
+            abort_unless(
+                array_intersect($user->getActiveStationIds(), $routeStationIds) !== [],
+                403,
+                'Ce voyage ne dessert aucune de vos gares affectées.',
+            );
+        }
+
+        abort_unless(
+            $user->accessibleRoutesQuery()->whereKey($trip->route_id)->exists(),
+            403,
+            'Vous n’avez pas accès à ce trajet.',
+        );
+
+        abort_if(
+            ! in_array($trip->status, ['scheduled', 'boarding', 'delayed'], true),
+            422,
+            'Un véhicule ne peut plus être assigné à ce voyage.',
+        );
+
+        $validated = $request->validate([
+            'vehicle_id' => [
+                'required',
+                'uuid',
+                Rule::exists('vehicles', 'id')->where('active', true),
+            ],
+        ]);
+
+        $poolStationId = $trip->origin_station_id ?: $trip->route?->origin_station_id;
+        abort_unless($poolStationId, 422, 'La gare de départ de ce voyage est introuvable.');
+
+        if (! $user->isAdmin()) {
+            $belongsToStationPool = StationVehicleAssignment::query()
+                ->where('station_id', $poolStationId)
+                ->where('vehicle_id', $validated['vehicle_id'])
+                ->activeOn($trip->departure_at)
+                ->exists();
+
+            abort_unless(
+                $belongsToStationPool,
+                422,
+                'Ce véhicule ne fait pas partie du pool disponible pour cette gare à la date du voyage.',
+            );
+        }
+
+        $assigned = Trip::query()
+            ->whereKey($trip->id)
+            ->whereNull('vehicle_id')
+            ->update(['vehicle_id' => $validated['vehicle_id']]);
+
+        abort_if(
+            $assigned === 0,
+            409,
+            'Un véhicule est déjà assigné à ce voyage.',
+        );
+
+        $trip->refresh()->load('vehicle.vehicleType');
+
+        try {
+            SeatMapUpdated::dispatch(
+                $trip->fresh(['route.routeStopOrders.station', 'originStation', 'destinationStation', 'vehicle.vehicleType']),
+                [],
+                'trip.vehicle_assigned',
+                $trip->origin_station_id,
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Échec de diffusion de l’assignation du véhicule.', [
+                'trip_id' => $trip->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Véhicule assigné avec succès.',
+            'trip' => $trip,
+        ]);
+    }
+
+    public function availableVehicles(Request $request, Trip $trip)
+    {
+        $user = $request->user();
+        $trip->loadMissing(['route', 'originStation']);
+        $poolStationId = $trip->origin_station_id ?: $trip->route?->origin_station_id;
+        abort_unless($poolStationId, 422, 'La gare de départ de ce voyage est introuvable.');
+
+        if (in_array($user?->role, ['seller', 'supervisor'], true)) {
+            abort_unless(
+                in_array($poolStationId, $user->getActiveStationIds(), true),
+                403,
+                'Vous ne pouvez utiliser que le pool de votre gare.',
+            );
+        }
+
+        abort_unless(
+            $user->accessibleRoutesQuery()->whereKey($trip->route_id)->exists(),
+            403,
+            'Vous n’avez pas accès à ce trajet.',
+        );
+
+        $vehicles = Vehicle::with('vehicleType')
+            ->where('active', true)
+            ->whereHas('stationAssignments', fn ($assignments) => $assignments
+                ->where('station_id', $poolStationId)
+                ->activeOn($trip->departure_at))
+            ->orderBy('identifier')
+            ->get(['id', 'identifier', 'maker', 'seat_count', 'vehicle_type_id']);
+
+        return response()->json([
+            'station' => Station::find($poolStationId, ['id', 'name', 'city', 'code']),
+            'date' => $trip->departure_at?->toDateString(),
+            'vehicles' => $vehicles,
+        ]);
     }
 
     public function tids(Request $request)

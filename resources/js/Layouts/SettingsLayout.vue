@@ -53,7 +53,7 @@ const menuItems = computed(() => [
 <template>
   <div class="min-h-screen bg-green-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
     <!-- Top Navigation Bar -->
-    <div class="border-b border-orange-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div class="border-b border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <!-- Logo -->
@@ -63,7 +63,7 @@ const menuItems = computed(() => [
                 <Earth class="text-green-700" :size="32"/>
                 <div class="ml-2">
                   <span class="font-bold text-xl text-green-700">SysGe</span>
-                  <span class="font-bold text-xl text-orange-500">Trans</span>
+                  <span class="font-bold text-xl text-emerald-600">Trans</span>
                 </div>
               </div>
             </Link>
@@ -82,7 +82,7 @@ const menuItems = computed(() => [
                 <li>
                   <div class="flex items-center">
                     <ChevronRight class="text-green-400" :size="16"/>
-                    <span class="ml-1 text-sm font-medium text-orange-600 md:ml-2">Configurations</span>
+                    <span class="ml-1 text-sm font-medium text-emerald-600 md:ml-2">Configurations</span>
                   </div>
                 </li>
               </ol>
@@ -95,7 +95,7 @@ const menuItems = computed(() => [
             <Dropdown align="right" width="48">
               <template #trigger>
                 <span class="inline-flex rounded-md">
-                  <button type="button" class="inline-flex items-center px-3 py-2 border border-orange-200 text-sm leading-4 font-medium rounded-md text-green-700 bg-white hover:text-green-800 hover:bg-green-50 focus:outline-none focus:bg-green-50 transition ease-in-out duration-150 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:bg-slate-800">
+                  <button type="button" class="inline-flex items-center px-3 py-2 border border-slate-200 text-sm leading-4 font-medium rounded-md text-emerald-700 bg-white hover:text-emerald-800 hover:bg-emerald-50 focus:outline-none focus:bg-emerald-50 transition ease-in-out duration-150 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:bg-slate-800">
                     {{ $page.props.auth.user.name }}
                     <svg class="ml-2 -mr-0.5 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -121,7 +121,7 @@ const menuItems = computed(() => [
     <!-- Main Content Area -->
     <div class="flex">
       <!-- Left Sidebar - Configuration Menu -->
-      <div class="w-64 bg-white border-r border-orange-200 min-h-screen dark:border-slate-800 dark:bg-slate-900">
+      <div class="w-64 bg-white border-r border-slate-200 min-h-screen dark:border-slate-800 dark:bg-slate-900">
         <div class="p-4">
           <h2 class="text-lg font-semibold text-green-700 mb-4 flex items-center dark:text-emerald-300">
             <Settings class="mr-2" :size="24"/>
@@ -136,7 +136,7 @@ const menuItems = computed(() => [
               :class="[
                 'flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
                 route().current(item.route)
-                  ? 'bg-orange-50 text-orange-700 border-r-2 border-orange-500'
+                  ? 'bg-emerald-50 text-emerald-700 border-r-2 border-emerald-500'
                   : 'text-green-700 hover:bg-green-50 hover:text-green-800'
               ]"
             >
@@ -155,7 +155,7 @@ const menuItems = computed(() => [
       </div>
 
       <!-- Right - Form/Details Panel (if needed) -->
-      <div v-if="$slots.sidebar" class="w-96 bg-white border-l border-orange-200 dark:border-slate-800 dark:bg-slate-900">
+      <div v-if="$slots.sidebar" class="w-96 bg-white border-l border-slate-200 dark:border-slate-800 dark:bg-slate-900">
         <div class="p-6">
           <slot name="sidebar" />
         </div>

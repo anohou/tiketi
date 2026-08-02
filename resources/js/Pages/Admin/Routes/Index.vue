@@ -26,6 +26,8 @@ import ExportPrintButtons from '@/Components/ExportPrintButtons.vue'
 import { useExportPrint } from '@/Composables/useExportPrint'
 import Router from 'vue-material-design-icons/Router.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
+import { confirmationStore } from '@/Stores/confirmationStore.js'
+import { FULL_PERMISSIONS } from '@/Support/permissions.js'
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -46,6 +48,14 @@ const props = defineProps({
   fares: {
     type: Array,
     default: () => []
+  },
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS })
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -285,8 +295,8 @@ const submitRoute = () => {
   });
 };
 
-const deleteRoute = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer cette route ?')) {
+const deleteRoute = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce trajet', message: 'Cette action supprimera définitivement ce trajet.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('admin.routes.destroy', id), {
       onSuccess: () => {
         if (selectedRoute.value?.id === id) {
@@ -333,8 +343,8 @@ const addStop = () => {
   });
 };
 
-const removeStop = (stopOrder) => {
-  if (!confirm('Retirer cette destination ?')) return;
+const removeStop = async (stopOrder) => {
+  if (!await confirmationStore.confirm({ title: 'Retirer cette destination', message: 'La destination sera retirée de ce trajet.', confirmLabel: 'Retirer', tone: 'danger' })) return;
   router.delete(route('admin.routes.stops.destroy', [selectedRoute.value.id, stopOrder.id]), {
     preserveScroll: true
   });
@@ -419,8 +429,8 @@ const addFare = () => {
   });
 };
 
-const removeFare = (fareId) => {
-  if (!confirm('Supprimer ce tarif ?')) return;
+const removeFare = async (fareId) => {
+  if (!await confirmationStore.confirm({ title: 'Supprimer ce tarif', message: 'Ce tarif sera définitivement supprimé.', confirmLabel: 'Supprimer', tone: 'danger' })) return;
   router.delete(route('admin.route-fares.destroy', fareId), {
     preserveScroll: true
   });
@@ -464,7 +474,7 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden">
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
@@ -495,12 +505,13 @@ const handlePrint = () => {
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateRouteModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Route">
+                <button v-if="permissions.canCreate" @click="openCreateRouteModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Route">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons 
+                  v-if="permissions.canExport"
                   :disabled="filteredRoutes.length === 0"
                   @export="handleExport"
                   @print="handlePrint"
@@ -511,7 +522,7 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredRoutes.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredRoutes.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400">
                 Aucune route trouvée.
               </div>
               <div v-else>
@@ -534,7 +545,7 @@ const handlePrint = () => {
                         ]">
                           {{ routeItem.active ? 'Actif' : 'Inactif' }}
                         </span>
-                        <span class="text-[10px] text-orange-400">
+                        <span class="text-[10px] text-emerald-600">
                           {{ routeItem.trips_count || 0 }} voyages
                         </span>
                     </div>
@@ -548,10 +559,10 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedRoute" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+          <div v-if="!selectedRoute" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
             <OfficeBuilding class="h-16 w-16 text-slate-200 mb-4" />
             <p class="text-lg">Sélectionnez une route pour voir les détails</p>
-            <button @click="openCreateRouteModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
+            <button v-if="permissions.canCreate" @click="openCreateRouteModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
               ou créez une nouvelle route
             </button>
           </div>
@@ -573,13 +584,13 @@ const handlePrint = () => {
                   ]">
                     {{ selectedRoute.active ? 'Actif' : 'Inactif' }}
                   </span>
-                  <button @click="duplicateRoute" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
+                  <button v-if="permissions.canCreate" @click="duplicateRoute" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
                     <ContentCopy class="h-5 w-5" />
                   </button>
-                  <button @click="openEditRouteModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
+                  <button v-if="permissions.canUpdate" @click="openEditRouteModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteRoute(selectedRoute.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
+                  <button v-if="permissions.canDelete" @click="deleteRoute(selectedRoute.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -613,10 +624,10 @@ const handlePrint = () => {
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click.stop="openAddStopModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter une destination">
+                    <button v-if="permissions.canManageStops" @click.stop="openAddStopModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter une destination">
                         <Plus class="h-4 w-4" />
                     </button>
-                    <component :is="showStops ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
+                    <component :is="showStops ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
                 </div>
               </div>
               
@@ -633,10 +644,10 @@ const handlePrint = () => {
                       </span>
                       <div>
                         <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ order.station?.name }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
                       </div>
                     </div>
-                    <div class="flex items-center gap-1">
+                    <div class="flex items-center gap-1" v-if="permissions.canManageStops">
                       <!-- Move Up Button -->
                       <button 
                         v-if="idx > 0"
@@ -675,10 +686,10 @@ const handlePrint = () => {
                   </h3>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button @click.stop="openAddFareModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter un tarif">
+                    <button v-if="permissions.canManageFares" @click.stop="openAddFareModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter un tarif">
                         <Plus class="h-4 w-4" />
                     </button>
-                    <component :is="showFares ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
+                    <component :is="showFares ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
                 </div>
               </div>
               
@@ -697,7 +708,7 @@ const handlePrint = () => {
                     </div>
                     <div class="flex items-center gap-3 shrink-0">
                       <span class="font-bold text-emerald-700 whitespace-nowrap">{{ fare.amount?.toLocaleString() }} FCFA</span>
-                      <button @click="removeFare(fare.id)" class="text-rose-400 hover:text-rose-600">
+                      <button v-if="permissions.canManageFares" @click="removeFare(fare.id)" class="text-rose-400 hover:text-rose-600">
                         <Trash2 class="h-4 w-4" />
                       </button>
                     </div>
@@ -715,7 +726,7 @@ const handlePrint = () => {
                     Voyages ({{ selectedRoute.trips_count || (selectedRoute.trips || []).length }})
                   </h3>
                 </div>
-                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
+                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
               </div>
               
               <div v-if="showTrips" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
@@ -729,7 +740,7 @@ const handlePrint = () => {
                       <Bus class="h-5 w-5 text-emerald-500" />
                       <div>
                         <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.vehicle?.identifier || 'Véhicule' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
                           {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                         </p>
                       </div>
@@ -892,7 +903,7 @@ const handlePrint = () => {
             <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               Arrivée: {{ selectedRoute.target_destination?.name }}
             </span>
-            <span class="px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+            <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
               {{ routeDiagramStops.length }} arrêt(s)
             </span>
           </div>

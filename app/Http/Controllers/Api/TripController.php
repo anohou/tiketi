@@ -162,6 +162,13 @@ class TripController extends Controller
             'route.routeStopOrders',
         ]);
 
+        if (! $trip->vehicle?->vehicleType) {
+            return response()->json([
+                'message' => 'Aucun véhicule n’est assigné à ce voyage.',
+                'vehicle_required' => true,
+            ], 409);
+        }
+
         $vehicleType = $trip->vehicle->vehicleType;
         $seatCount = $vehicleType->seat_count;
         $config = $vehicleType->seat_configuration ?? '2+2';

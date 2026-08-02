@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import { toastStore } from '@/Stores/toastStore.js';
 
 import Database from 'vue-material-design-icons/Database.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
@@ -254,7 +255,7 @@ const addDomain = () => {
 const confirmRemoveDomain = (domainId) => {
   if (!selectedTenant.value) return;
   if (selectedTenant.value.domains?.length <= 1) {
-    alert('Un tenant doit avoir au moins un domaine.');
+    toastStore.warning('Un tenant doit avoir au moins un domaine.');
     return;
   }
   domainIdToRemove.value = domainId;
@@ -333,14 +334,14 @@ const closePasswordModal = () => {
         <div class="col-span-12 md:col-span-5 flex flex-col h-full">
           <div class="bg-white rounded-lg border border-purple-200 shadow-sm flex flex-col h-full">
             <!-- List Header -->
-            <div class="border-b border-purple-200 p-3 bg-gradient-to-r from-purple-50 to-orange-50/30">
+            <div class="border-b border-slate-200 p-3 bg-gradient-to-r from-emerald-50 to-slate-50">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text"
                          v-model="search"
                          placeholder="Rechercher..."
                          class="w-full px-4 py-2 pl-10 pr-4 border border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 text-sm" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-purple-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal"
                         class="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -703,7 +704,7 @@ const closePasswordModal = () => {
     </ConfirmationModal>
 
     <!-- Confirmation Modal for Delete Tenant -->
-    <ConfirmationModal :show="showDeleteTenantModal" @close="showDeleteTenantModal = false">
+    <ConfirmationModal :show="showDeleteTenantModal" variant="danger" @close="showDeleteTenantModal = false">
       <template #title>
         Supprimer le tenant
       </template>
@@ -721,7 +722,7 @@ const closePasswordModal = () => {
     </ConfirmationModal>
 
     <!-- Confirmation Modal for Remove Domain -->
-    <ConfirmationModal :show="showRemoveDomainModal" @close="showRemoveDomainModal = false">
+    <ConfirmationModal :show="showRemoveDomainModal" variant="danger" @close="showRemoveDomainModal = false">
       <template #title>
         Supprimer le domaine
       </template>

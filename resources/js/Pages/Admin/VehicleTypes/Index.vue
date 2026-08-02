@@ -21,6 +21,7 @@ import Car from 'vue-material-design-icons/Car.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import SeatMapPreview from '@/Components/SeatMapPreview.vue';
 import VehicleTypeFormFields from '@/Components/VehicleTypeFormFields.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -103,8 +104,8 @@ const closeModal = () => {
   errors.value = {};
 };
 
-const deleteVehicleType = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce type de véhicule ?')) {
+const deleteVehicleType = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce type de véhicule', message: 'Cette action supprimera définitivement ce type de véhicule.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('admin.vehicle-types.destroy', id), {
       onSuccess: () => {
         if (selectedVehicleType.value?.id === id) {
@@ -176,7 +177,7 @@ const handlePrint = () => {
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Type">
                   <Plus class="h-5 w-5" />
@@ -192,7 +193,7 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredVehicleTypes.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400">
                 Aucun type de véhicule trouvé.
               </div>
               <div v-else>
@@ -216,7 +217,7 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedVehicleType" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+          <div v-if="!selectedVehicleType" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
             <MapMarkerRadius class="h-16 w-16 text-slate-200 mb-4" />
             <p class="text-lg">Sélectionnez un type pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">

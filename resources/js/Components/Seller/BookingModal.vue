@@ -11,7 +11,6 @@ import Printer from 'vue-material-design-icons/Printer.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Gift from 'vue-material-design-icons/Gift.vue';
 import CheckCircle from 'vue-material-design-icons/CheckCircle.vue';
-import CloseCircleIcon from 'vue-material-design-icons/CloseCircle.vue';
 import ClockIcon from 'vue-material-design-icons/ClockOutline.vue';
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
 
@@ -877,7 +876,7 @@ onBeforeUnmount(() => {
         <!-- ── Okohi claim: rejected / expired ── -->
           <div v-else-if="isOkohiRejected" class="p-5 text-center space-y-3">
           <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center mx-auto">
-            <CloseCircleIcon class="text-red-400" :size="32" />
+            <AlertCircle class="text-red-400" :size="32" />
           </div>
           <p class="text-base font-black text-gray-900 dark:text-slate-100">
             {{ claimStatus === 'expired' ? 'Demande expirée' : 'Récompense refusée' }}

@@ -16,6 +16,7 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const props = defineProps({
   stops: {
@@ -125,8 +126,8 @@ const submit = () => {
   });
 };
 
-const deleteStop = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer cette destination ?')) {
+const deleteStop = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer cette destination', message: 'Cette destination sera définitivement supprimée.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('admin.stops.destroy', id), {
       onSuccess: () => {
         if (selectedStop.value?.id === id) {
@@ -163,14 +164,14 @@ const deleteStop = (id) => {
 
         <!-- Middle Column - Stops List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm flex flex-col h-full">
+          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full">
             <!-- List Header -->
-            <div class="border-b border-orange-200 dark:border-slate-800 p-3 bg-gradient-to-r from-green-50 to-orange-50/30 dark:from-slate-950 dark:to-emerald-950/10">
+            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-emerald-50 to-slate-50 dark:from-slate-950 dark:to-emerald-950/10">
               <div class="flex items-center justify-between gap-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-orange-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-orange-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-500 focus:ring-emerald-500 text-sm dark:bg-slate-950 dark:text-slate-100" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" title="Nouvelle Destination">
                   <Plus class="h-5 w-5" />
@@ -180,14 +181,14 @@ const deleteStop = (id) => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1">
-              <div v-if="filteredStops.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredStops.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400">
                 Aucune destination trouvée.
               </div>
               <div v-else>
                 <div v-for="stop in filteredStops" :key="stop.id" 
                   @click="selectStop(stop)"
                   class="p-3 cursor-pointer transition-colors"
-                  :class="[isSelected(stop) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-green-600' : 'bg-white dark:bg-slate-900 border-l-orange-200 dark:border-l-slate-800']"
+                  :class="[isSelected(stop) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-600' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
                 >
                   <div class="flex justify-between items-start">
                     <div>
@@ -204,8 +205,8 @@ const deleteStop = (id) => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedStop" class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
-            <OfficeBuilding class="h-16 w-16 text-orange-200 mb-4" />
+          <div v-if="!selectedStop" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400">
+            <OfficeBuilding class="h-16 w-16 text-emerald-200 mb-4" />
             <p class="text-lg">Sélectionnez une destination pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-green-600 hover:text-green-700 font-medium">
               ou créez une nouvelle destination
@@ -215,7 +216,7 @@ const deleteStop = (id) => {
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-orange-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-6">
                 <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedStop.name }}</h2>
@@ -264,7 +265,7 @@ const deleteStop = (id) => {
               <option v-for="s in stations" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
             <InputError :message="errors.station_id" />
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">Lier cet arrêt à une station principale permet de le grouper géographiquement.</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Lier cet arrêt à une station principale permet de le grouper géographiquement.</p>
           </div>
         </div>
       </template>

@@ -29,8 +29,10 @@ class ReplicateTrips extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
+        $failed = false;
+
         if (class_exists(Tenant::class) && Schema::hasTable('tenants') && Tenant::count() > 0) {
             $tenants = Tenant::all();
 
@@ -41,18 +43,32 @@ class ReplicateTrips extends Command
 
                 try {
                     $this->replicateTenantTrips();
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
+                    $failed = true;
                     $this->error("Failed to replicate trips for tenant {$tenant->id}: ".$e->getMessage());
+                } finally {
+                    tenancy()->end();
                 }
-
-                tenancy()->end();
             }
         } else {
             $this->info('Running replication in single-tenant/local context.');
-            $this->replicateTenantTrips();
+            try {
+                $this->replicateTenantTrips();
+            } catch (\Throwable $e) {
+                $failed = true;
+                $this->error('Failed to replicate trips: '.$e->getMessage());
+            }
+        }
+
+        if ($failed) {
+            $this->error('Trips replication completed with errors.');
+
+            return self::FAILURE;
         }
 
         $this->info('Trips replication completed successfully.');
+
+        return self::SUCCESS;
     }
 
     /**

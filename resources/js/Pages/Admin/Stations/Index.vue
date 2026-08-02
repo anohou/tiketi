@@ -24,6 +24,7 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
 import Account from 'vue-material-design-icons/Account.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
+import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -35,6 +36,14 @@ const props = defineProps({
   destinations: {
     type: Array, // Passed from controller
     default: () => []
+  },
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS })
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -499,7 +508,7 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden">
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
@@ -530,12 +539,13 @@ const handlePrint = () => {
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button v-if="$page.props.auth.user.role !== 'supervisor'" @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Station">
+                <button v-if="permissions.canCreate" @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Station">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons 
+                  v-if="permissions.canExport"
                   :disabled="filteredStations.length === 0"
                   @export="handleExport"
                   @print="handlePrint"
@@ -548,7 +558,7 @@ const handlePrint = () => {
               <div v-if="filteredStations.length === 0" class="p-4">
                 <EmptyState
                   title="Aucune gare trouvée"
-                  message="Vous pouvez en créer une en cliquant sur le bouton '+'"
+                  :message="permissions.canCreate ? 'Vous pouvez en créer une en cliquant sur le bouton +' : 'Aucune gare ne correspond à votre recherche'"
                   :icon="OfficeBuilding"
                 />
               </div>
@@ -581,7 +591,7 @@ const handlePrint = () => {
                       </p>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-xs text-orange-400">{{ station.user_assignments_count || 0 }} vendeurs</span>
+                      <span class="text-xs text-emerald-600">{{ station.user_assignments_count || 0 }} vendeurs</span>
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[10px] font-medium',
                         station.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
@@ -626,14 +636,14 @@ const handlePrint = () => {
                     ]">
                       {{ selectedStation.active ? 'Active' : 'Inactive' }}
                     </span>
-                    <div v-if="$page.props.auth.user.role !== 'supervisor'" class="flex items-center gap-2">
-                      <button @click="duplicateStation" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
+                    <div v-if="permissions.canCreate || permissions.canUpdate || permissions.canDelete" class="flex items-center gap-2">
+                      <button v-if="permissions.canCreate" @click="duplicateStation" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Dupliquer">
                         <ContentCopy class="h-5 w-5" />
                       </button>
-                      <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
+                      <button v-if="permissions.canUpdate" @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Modifier">
                         <Pencil class="h-5 w-5" />
                       </button>
-                      <button @click="confirmDeleteStation(selectedStation.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
+                      <button v-if="permissions.canDelete" @click="confirmDeleteStation(selectedStation.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
                         <Trash2 class="h-5 w-5" />
                       </button>
                     </div>
@@ -701,7 +711,7 @@ const handlePrint = () => {
               <div class="p-4">
                 <!-- Destinations Tab -->
                 <div v-if="activeTab === 'destinations'">
-                  <div v-if="servedDestinations.length === 0" class="text-center py-6 text-orange-400">
+                  <div v-if="servedDestinations.length === 0" class="text-center py-6 text-slate-400">
                     Aucune destination déduite à partir des trajets pour cette station
                   </div>
                   <div v-else class="space-y-2">
@@ -713,7 +723,7 @@ const handlePrint = () => {
                       <OfficeBuilding class="h-6 w-6 text-emerald-500 mr-3" />
                       <div>
                         <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ dest.name }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ dest.city }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ dest.city }}</p>
                       </div>
                     </div>
                   </div>
@@ -721,7 +731,7 @@ const handlePrint = () => {
 
                 <!-- Sellers Tab -->
                 <div v-else-if="activeTab === 'sellers'">
-                  <div v-if="!selectedStation.user_assignments?.length" class="text-center py-6 text-orange-400">
+                  <div v-if="!selectedStation.user_assignments?.length" class="text-center py-6 text-slate-400">
                     Aucun vendeur affecté à cette station
                   </div>
                   <div v-else class="space-y-2">
@@ -731,10 +741,10 @@ const handlePrint = () => {
                       class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
                     >
                       <div class="flex items-center gap-3">
-                        <Account class="h-8 w-8 text-orange-400" />
+                        <Account class="h-8 w-8 text-emerald-500" />
                         <div>
                           <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.user?.name }}</p>
-                          <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ assignment.user?.email }}</p>
+                          <p class="text-xs text-slate-500 dark:text-slate-400">{{ assignment.user?.email }}</p>
                         </div>
                       </div>
                       <span :class="[
@@ -749,7 +759,7 @@ const handlePrint = () => {
 
                 <!-- Routes Tab -->
                 <div v-else-if="activeTab === 'routes'">
-                  <div v-if="allRoutes.length === 0" class="text-center py-6 text-orange-400">
+                  <div v-if="allRoutes.length === 0" class="text-center py-6 text-slate-400">
                     Aucune route ne passe par cette gare
                   </div>
                   <div v-else class="space-y-2">
@@ -763,7 +773,7 @@ const handlePrint = () => {
                         <Routes class="h-6 w-6 text-emerald-500" />
                         <div>
                           <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ route.name }}</p>
-                          <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                          <p class="text-xs text-slate-500 dark:text-slate-400">
                             {{ route.origin }} → {{ route.destination }}
                           </p>
                         </div>
@@ -792,7 +802,7 @@ const handlePrint = () => {
                 <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-200">
                   Carte des gares
                 </h2>
-                <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                <p class="text-sm text-slate-500 dark:text-slate-400">
                   Les gares déjà enregistrées sur la carte.
                 </p>
               </div>
@@ -859,7 +869,7 @@ const handlePrint = () => {
             <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">
               Gare consultée: {{ selectedStation.name }}
             </span>
-            <span class="px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-900">
+            <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
               {{ routeDiagramStops.length }} arrêt(s)
             </span>
           </div>
@@ -876,7 +886,7 @@ const handlePrint = () => {
     </DialogModal>
 
     <!-- Custom Confirmation Modal -->
-    <ConfirmationModal :show="showDeleteModal" @close="showDeleteModal = false">
+    <ConfirmationModal :show="showDeleteModal" variant="danger" @close="showDeleteModal = false">
         <template #title>Supprimer la gare</template>
         <template #content>Êtes-vous sûr de vouloir supprimer cette gare ? Cette action est irréversible.</template>
         <template #footer>

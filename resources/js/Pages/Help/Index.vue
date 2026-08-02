@@ -122,12 +122,12 @@ watch(visibleTopics, (nextTopics) => {
 <template>
   <MainNavLayout :fullHeight="true">
     <div class="flex h-full min-h-0 flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950 lg:overflow-hidden">
-      <header class="shrink-0 border-b border-orange-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+      <header class="shrink-0 border-b border-slate-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
         <div class="mx-auto max-w-[1500px]">
           <div class="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div class="max-w-3xl">
               <div class="flex flex-wrap items-center gap-2">
-                <span class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-orange-600 dark:text-orange-400">
+                <span class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
                   <BookOpenVariant :size="18" />
                   Guide TIKETI
                 </span>
@@ -146,7 +146,7 @@ watch(visibleTopics, (nextTopics) => {
             <div class="grid w-full gap-3 sm:grid-cols-[minmax(280px,420px)_180px] xl:w-auto">
               <label class="relative block">
                 <span class="sr-only">Rechercher dans le guide</span>
-                <Magnify :size="20" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Magnify :size="20" class="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500 dark:text-emerald-400" />
                 <input
                   v-model="search"
                   type="search"
@@ -212,7 +212,7 @@ watch(visibleTopics, (nextTopics) => {
             <button
               v-if="search || selectedLevel !== 'all'"
               type="button"
-              class="text-xs font-black text-orange-600 hover:text-orange-700 dark:text-orange-400"
+              class="text-xs font-black text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
               @click="search = ''; selectLevel('all')"
             >
               Réinitialiser
@@ -234,7 +234,7 @@ watch(visibleTopics, (nextTopics) => {
                     'group w-full rounded-xl px-3 py-3 text-left transition-all',
                     selectedTopic?.id === topic.id
                       ? 'bg-green-50 text-green-900 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-200 dark:ring-green-800'
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-800 dark:text-slate-300 dark:hover:bg-slate-800'
+                      : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-800 dark:text-slate-300 dark:hover:bg-slate-800'
                   ]"
                 >
                   <div class="flex items-start gap-2">
@@ -255,7 +255,7 @@ watch(visibleTopics, (nextTopics) => {
             </section>
           </div>
 
-          <div v-else class="rounded-xl border border-dashed border-orange-200 p-5 text-center dark:border-slate-700">
+          <div v-else class="rounded-xl border border-dashed border-slate-200 p-5 text-center dark:border-slate-700">
             <div class="font-black text-slate-900 dark:text-white">Aucun résultat</div>
             <p class="mt-2 text-sm text-slate-500">Essayez un autre mot ou affichez tous les niveaux.</p>
           </div>
@@ -267,7 +267,7 @@ watch(visibleTopics, (nextTopics) => {
               <div class="grid gap-7 xl:grid-cols-[1fr_340px] xl:items-start">
                 <div>
                   <div class="flex flex-wrap items-center gap-2">
-                    <span class="rounded-full bg-orange-50 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                    <span class="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                       {{ selectedTopic.category || 'Général' }}
                     </span>
                     <span class="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -300,7 +300,7 @@ watch(visibleTopics, (nextTopics) => {
                 class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6"
               >
                 <div class="flex gap-3">
-                  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-xs font-black text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-xs font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                     {{ sectionIndex + 1 }}
                   </span>
                   <div class="min-w-0 flex-1">
@@ -360,9 +360,9 @@ watch(visibleTopics, (nextTopics) => {
                 v-if="previousTopic"
                 type="button"
                 @click="selectTopic(previousTopic.id)"
-                class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-orange-300 hover:bg-orange-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
               >
-                <ChevronLeft :size="24" class="shrink-0 text-orange-600" />
+                <ChevronLeft :size="24" class="shrink-0 text-emerald-600" />
                 <span><span class="block text-xs font-bold text-slate-400">Guide précédent</span><span class="mt-1 block text-sm font-black text-slate-800 dark:text-white">{{ previousTopic.title }}</span></span>
               </button>
               <button

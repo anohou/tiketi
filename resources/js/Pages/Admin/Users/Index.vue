@@ -26,6 +26,7 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Check from 'vue-material-design-icons/Check.vue';
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
+import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 const { exportToExcel, printList } = useExportPrint();
 const page = usePage();
@@ -42,6 +43,22 @@ const props = defineProps({
   stations: {
     type: Array,
     default: () => []
+  },
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS })
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false
+  },
+  title: {
+    type: String,
+    default: 'Gestion des Utilisateurs'
+  },
+  subtitle: {
+    type: String,
+    default: 'Paramètres du système'
   }
 });
 
@@ -505,18 +522,18 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden">
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-green-100 rounded-xl">
-              <AccountMultiple class="text-green-600" :size="28" />
+            <div class="p-2 bg-emerald-100 dark:bg-emerald-950/50 rounded-2xl shadow-sm">
+              <AccountMultiple class="text-emerald-600 dark:text-emerald-400" :size="28" />
             </div>
-            Gestion des Utilisateurs
+            {{ props.title }}
           </h1>
-          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Paramètres du système</p>
+          <p class="mt-1 text-gray-500 dark:text-slate-400">{{ props.subtitle }}</p>
         </div>
       </div>
 
@@ -529,19 +546,20 @@ const handlePrint = () => {
 
         <!-- Middle Column - Users List -->
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
+          <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
             <!-- List Header -->
-            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
+            <div class="border-b border-slate-200/80 dark:border-slate-800 p-3 bg-gradient-to-r from-emerald-50 via-white to-cyan-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900/50 shrink-0">
               <div class="flex items-center justify-between gap-2 mb-2">
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-400 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvel Utilisateur">
+                <button v-if="permissions.canCreate" @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm shrink-0" title="Nouvel Utilisateur">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons 
+                  v-if="permissions.canExport"
                   :disabled="filteredUsers.length === 0"
                   @export="handleExport"
                   @print="handlePrint"
@@ -562,7 +580,7 @@ const handlePrint = () => {
                   @click="roleFilter = 'admin'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'admin' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    roleFilter === 'admin' ? 'bg-emerald-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Admin
@@ -571,7 +589,7 @@ const handlePrint = () => {
                   @click="roleFilter = 'supervisor'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'supervisor' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    roleFilter === 'supervisor' ? 'bg-emerald-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Superviseur
@@ -580,7 +598,7 @@ const handlePrint = () => {
                   @click="roleFilter = 'seller'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'seller' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    roleFilter === 'seller' ? 'bg-emerald-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
                   Vendeur
@@ -589,10 +607,10 @@ const handlePrint = () => {
                   @click="roleFilter = 'fleet_manager'"
                   :class="[
                     'px-2 py-0.5 text-[10px] rounded-full transition-colors shrink-0',
-                    roleFilter === 'fleet_manager' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                    roleFilter === 'fleet_manager' ? 'bg-emerald-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                   ]"
                 >
-                  Fleet Manager
+                  Gestionnaire de flotte
                 </button>
               </div>
 
@@ -600,11 +618,12 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredUsers.length === 0" class="p-4">
+              <div v-if="filteredUsers.length === 0" class="flex min-h-72 items-center justify-center p-4">
                 <EmptyState
                   title="Aucun utilisateur trouvé"
-                  message="Vous pouvez en créer un en cliquant sur le bouton '+'"
+                  message="Modifiez les critères de recherche ou créez un utilisateur avec le bouton '+'."
                   :icon="Account"
+                  plain
                 />
               </div>
               <div v-else>
@@ -638,7 +657,7 @@ const handlePrint = () => {
                         {{ getRoleLabel(user.role) }}
                       </span>
                       <!-- Active Toggle in List -->
-                      <label @click.stop class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
+                      <label v-if="permissions.canUpdate" @click.stop class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
                         <input 
                           type="checkbox" 
                           :checked="user.active !== false"
@@ -658,28 +677,27 @@ const handlePrint = () => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedUser" class="h-full bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center">
+          <div v-if="!selectedUser" class="h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center">
             <EmptyState
               title="Sélectionnez un utilisateur"
-              message="Sélectionnez un utilisateur dans la liste ou créez-en un nouveau."
-              actionText="Créer un utilisateur"
-              @action="openCreateModal"
+              message="Sélectionnez un utilisateur dans la liste pour consulter ses informations."
               :icon="Account"
+              plain
             />
           </div>
 
           <!-- View Details -->
           <div v-else class="space-y-4">
             <!-- Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-5">
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5">
               <!-- Header Row -->
               <div class="flex justify-between items-start mb-4">
                 <h2 class="text-xl font-bold text-gray-800 dark:text-slate-200">{{ selectedUser.name }}</h2>
                 <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Modifier">
+                  <button v-if="permissions.canUpdate" @click="openEditModal" class="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Modifier">
                     <Pencil :size="20" />
                   </button>
-                  <button @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Supprimer">
+                  <button v-if="permissions.canDelete" @click="confirmDeleteUser(selectedUser.id)" class="p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded-lg transition-colors" title="Supprimer">
                     <Trash2 :size="20" />
                   </button>
                 </div>
@@ -722,7 +740,8 @@ const handlePrint = () => {
                     ]">
                       {{ selectedUser.active !== false ? 'Actif' : 'Inactif' }}
                     </span>
-                    <label class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
+                  <div class="flex items-center gap-2">
+                    <label v-if="permissions.canUpdate" class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
                       <input 
                         type="checkbox" 
                         :checked="selectedUser.active !== false"
@@ -739,6 +758,7 @@ const handlePrint = () => {
                   <span class="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1.5">SÉCURITÉ</span>
                   <div>
                     <button 
+                      v-if="permissions.canUpdate"
                       @click="openResetPasswordModal"
                       class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-colors text-xs font-medium w-full justify-center"
                     >
@@ -748,6 +768,7 @@ const handlePrint = () => {
                   </div>
                 </div>
               </div>
+            </div>
             </div>
 
             <!-- Related Tables - Tabbed Section -->
@@ -776,6 +797,7 @@ const handlePrint = () => {
                   <div class="flex justify-between items-center mb-4">
                     <p class="text-sm text-gray-500 dark:text-slate-400">Gares où cet utilisateur peut vendre des billets</p>
                     <button 
+                      v-if="permissions.canUpdate"
                       @click="openAssignmentModal" 
                       class="p-1.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors text-xs font-bold flex items-center gap-1 shrink-0"
                     >
@@ -784,7 +806,7 @@ const handlePrint = () => {
                   </div>
 
                   <!-- Empty State -->
-                  <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-orange-400">
+                  <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-slate-400">
                     <OfficeBuilding class="h-12 w-12 mx-auto mb-2 opacity-50" />
                     <p>Aucune gare affectée</p>
                   </div>
@@ -817,7 +839,7 @@ const handlePrint = () => {
                           <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{{ assignment.station?.city }}</p>
                         </div>
                       </div>
-                      <div class="flex items-center gap-2">
+                      <div v-if="permissions.canUpdate" class="flex items-center gap-2">
                         <!-- Edit Button -->
                         <button 
                           @click="openEditAssignmentModal(assignment)" 
@@ -946,7 +968,7 @@ const handlePrint = () => {
             </div>
             <h3 class="text-lg leading-6 font-medium text-slate-900 dark:text-slate-100">Compte utilisateur créé</h3>
             <div class="mt-2 px-7 py-3">
-              <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <p class="text-sm text-slate-500 dark:text-slate-400">
                 Voici le mot de passe généré pour ce nouvel utilisateur. Copiez-le avant de fermer cette fenêtre.
               </p>
             </div>
@@ -1011,7 +1033,7 @@ const handlePrint = () => {
             <InputError :message="errors.station_id" />
           </div>
           
-          <div v-if="!isEditingAssignment && availableStations.length === 0" class="text-center py-4 text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+          <div v-if="!isEditingAssignment && availableStations.length === 0" class="text-center py-4 text-gray-500 dark:text-slate-400">
             <p>Toutes les gares sont déjà affectées à cet utilisateur.</p>
           </div>
         </div>
@@ -1071,7 +1093,7 @@ const handlePrint = () => {
             <p v-if="newPasswordCopied" class="text-xs text-emerald-600 mt-1 font-medium">Mot de passe copié!</p>
           </div>
           
-          <div class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+          <div class="text-sm text-slate-500 dark:text-slate-400">
             <p class="flex items-start gap-2" v-if="!passwordSaved">
               <span class="text-amber-500 mt-0.5">⚠️</span>
               En enregistrant, le mot de passe actuel de l'utilisateur sera remplacé par ce nouveau mot de passe. Assurez-vous de le communiquer à l'utilisateur.
@@ -1097,7 +1119,7 @@ const handlePrint = () => {
       </template>
     </DialogModal>
     <!-- Custom Confirmation Modals -->
-    <ConfirmationModal :show="showDeleteUserModal" @close="showDeleteUserModal = false">
+    <ConfirmationModal :show="showDeleteUserModal" variant="danger" @close="showDeleteUserModal = false">
         <template #title>Supprimer l'utilisateur</template>
         <template #content>Êtes-vous sûr de vouloir supprimer cet utilisateur de manière définitive ?</template>
         <template #footer>
@@ -1106,7 +1128,7 @@ const handlePrint = () => {
         </template>
     </ConfirmationModal>
 
-    <ConfirmationModal :show="showRemoveAssignmentModal" @close="showRemoveAssignmentModal = false">
+    <ConfirmationModal :show="showRemoveAssignmentModal" variant="danger" @close="showRemoveAssignmentModal = false">
         <template #title>Retirer l'affectation</template>
         <template #content>Êtes-vous sûr de vouloir retirer cette affectation de gare pour cet utilisateur ?</template>
         <template #footer>

@@ -1,7 +1,7 @@
 <template>
     <div>
         <div class="min-h-screen bg-green-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-            <nav class="border-b border-orange-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <nav class="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                 <!-- Primary Navigation Menu -->
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex justify-between h-16">
@@ -13,7 +13,7 @@
                                         <Earth class="text-green-700" :size="32"/>
                                         <div class="ml-2">
                                             <span class="font-bold text-xl text-green-700">i</span> - 
-                                            <span class="font-bold text-xl text-orange-500">Ticket</span>
+                                            <span class="font-bold text-xl text-emerald-600">Ticket</span>
                                         </div>
                                     </div>
                                 </Link>
@@ -38,7 +38,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
-                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200 dark:border-slate-800 dark:bg-slate-900">
+                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('seller.dashboard')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
                                                 Sell Tickets
@@ -62,7 +62,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
-                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-orange-200 dark:border-slate-800 dark:bg-slate-900">
+                                    <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('admin.stations.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
                                                 Stations
@@ -99,7 +99,7 @@
                                         <span class="inline-flex rounded-md">
                                             <button
                                                 type="button"
-                                                class="inline-flex items-center px-3 py-2 border border-orange-200 
+                                                class="inline-flex items-center px-3 py-2 border border-slate-200
                                                        text-sm leading-4 font-medium rounded-md text-green-700 
                                                        bg-white hover:text-green-800 hover:bg-green-50 
                                                        focus:outline-none focus:bg-green-50 
@@ -245,12 +245,12 @@
                     </div>
 
                     <!-- Responsive Settings Options -->
-                    <div class="pt-4 pb-1 border-t border-orange-200 dark:border-slate-800">
+                    <div class="pt-4 pb-1 border-t border-slate-200 dark:border-slate-800">
                         <div class="px-4">
                             <div class="font-medium text-base text-green-800 dark:text-slate-100">
                                 {{ $page.props.auth.user.name }}
                             </div>
-                            <div class="font-medium text-sm text-orange-600 dark:text-slate-400">
+                            <div class="font-medium text-sm text-emerald-600 dark:text-slate-400">
                                 {{ $page.props.auth.user.email }}
                             </div>
                         </div>
@@ -276,7 +276,7 @@
             </nav>
 
             <!-- Page Heading -->
-            <header class="bg-white shadow border-b border-orange-200 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20" v-if="$slots.header">
+            <header class="bg-white shadow border-b border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20" v-if="$slots.header">
                 <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>

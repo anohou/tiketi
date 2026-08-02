@@ -35,16 +35,16 @@
           <div v-if="showNav" id="NavCenter" class="hidden lg:flex items-center justify-center gap-1 xl:gap-4 px-4 h-full">
             <Link v-for="item in navItems" :key="item.route" :href="route(item.route)" :class="[
               'flex flex-col items-center justify-center px-4 rounded-xl transition-all h-[56px] relative group',
-              route().current(item.route)
+              isNavItemActive(item)
                 ? 'bg-emerald-50/80 text-emerald-700 shadow-sm'
                 : 'text-slate-500 hover:bg-emerald-50/40 hover:text-emerald-600'
             ]">
               <component :is="item.icon" class="transition-transform group-hover:scale-110" :size="24"
-                :fillColor="route().current(item.route) ? '#059669' : '#64748b'" />
+                :fillColor="isNavItemActive(item) ? '#059669' : '#64748b'" />
               <span class="text-[10px] font-bold mt-1 uppercase tracking-wider">
                 {{ item.label }}
               </span>
-              <div v-if="route().current(item.route)"
+              <div v-if="isNavItemActive(item)"
                 class="absolute -bottom-[7px] left-2 right-2 border-b-4 border-emerald-600 rounded-full" />
             </Link>
           </div>
@@ -174,13 +174,13 @@
                           @click="isNavOpen = false"
                           :class="[
                               'flex items-center gap-4 p-3.5 rounded-2xl transition-all',
-                              route().current(item.route)
+                              isNavItemActive(item)
                                   ? 'bg-emerald-50 text-emerald-700 font-black shadow-sm'
                                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-800'
                           ]"
                       >
                           <component :is="item.icon" :size="24"
-                              :fillColor="route().current(item.route) ? '#059669' : '#64748b'" />
+                              :fillColor="isNavItemActive(item) ? '#059669' : '#64748b'" />
                           <span class="text-sm font-bold uppercase tracking-wider">{{ item.label }}</span>
                       </Link>
 
@@ -245,6 +245,7 @@
     </div>
   </div>
   <ToastContainer />
+  <ConfirmationDialogHost />
 </template>
 
 <script setup>
@@ -254,6 +255,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import TripSidebar from '@/Components/TripSidebar.vue';
 import HelpPanel from '@/Components/HelpPanel.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
+import ConfirmationDialogHost from '@/Components/ConfirmationDialogHost.vue';
 import { useTheme } from '@/Composables/useTheme.js';
 import { findHelpTopic } from '@/Support/helpContent.js';
 import AccountCircle from 'vue-material-design-icons/AccountCircle.vue';
@@ -437,8 +439,9 @@ const navItems = computed(() => {
           });
           baseItems.push({
               route: 'seller.ticketing',
-              label: 'Voyages',
-              icon: Bus
+              label: 'Billetterie',
+              icon: Ticket,
+              activePrefixes: ['seller.ticketing', 'seller.tickets', 'seller.okohi', 'seller.trips']
           });
       } else if (user.role === 'supervisor') {
           // Supervisor: Dashboard (control tower) as home, Ticketing as secondary
@@ -523,15 +526,24 @@ const navItems = computed(() => {
     });
   }
 
-  // Add settings menu for Admin AND Supervisor
-  if (['admin', 'supervisor'].includes(user.role)) {
+  // Add settings menu for all authenticated tenant roles (read-only for non-admin)
+  if (!['superadmin', 'super_admin'].includes(user.role)) {
     baseItems.push({
-      route: user.role === 'supervisor' ? 'supervisor.settings.index' : 'admin.settings.index',
+      route: user.role === 'seller' ? 'seller.settings.index' : 'settings.index',
       label: 'Paramétrage',
-      icon: Settings
+      icon: Settings,
+      activePrefixes: user.role === 'seller' ? ['seller.settings'] : ['settings', 'admin.settings']
     });
   }
 
   return baseItems;
 });
+
+const isNavItemActive = (item) => {
+  const current = route().current();
+  if (item.activePrefixes) {
+    return item.activePrefixes.some((prefix) => current === prefix || current.startsWith(prefix + '.'));
+  }
+  return current === item.route;
+};
 </script>

@@ -23,6 +23,7 @@ import SeatPassenger from 'vue-material-design-icons/SeatPassenger.vue';
 import Phone from 'vue-material-design-icons/Phone.vue';
 import CardAccountDetails from 'vue-material-design-icons/CardAccountDetails.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -202,8 +203,8 @@ const submitAssignment = () => {
   });
 };
 
-const endAssignment = (assignment) => {
-  if (!assignment || !confirm(`Clôturer l'affectation au véhicule ${assignment.vehicle?.identifier || ''} ?`)) return;
+const endAssignment = async (assignment) => {
+  if (!assignment || !await confirmationStore.confirm({ title: 'Clôturer l’affectation', message: `Mettre fin à l’affectation au véhicule ${assignment.vehicle?.identifier || ''} tout en conservant son historique ?`, confirmLabel: 'Clôturer', tone: 'warning' })) return;
   router.delete(route('fleet.crew-assignments.destroy', assignment.id), {
     preserveScroll: true,
   });
@@ -237,8 +238,8 @@ const submit = () => {
   });
 };
 
-const deleteMember = (id) => {
-  if (confirm("Êtes-vous sûr de vouloir supprimer ce membre d'équipage ?")) {
+const deleteMember = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce membre d’équipage', message: 'Cette action supprimera définitivement ce membre d’équipage.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('fleet.crew-members.destroy', id), {
       onSuccess: () => {
         if (selectedMember.value?.id === id) {
@@ -366,7 +367,7 @@ const isLicenseExpired = (member) => {
                     placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Membre">
                   <Plus class="h-5 w-5" />

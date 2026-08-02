@@ -17,6 +17,10 @@ defineProps({
   actionText: {
     type: String,
     default: ''
+  },
+  plain: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -24,7 +28,12 @@ defineEmits(['action']);
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center text-center p-8 bg-white border border-dashed border-slate-200 rounded-2xl shadow-sm w-full dark:border-slate-700 dark:bg-slate-900">
+  <div
+    :class="[
+      'flex w-full flex-col items-center justify-center p-8 text-center',
+      plain ? '' : 'rounded-2xl border border-dashed border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900',
+    ]"
+  >
     <div class="p-4 bg-slate-50 rounded-full text-slate-400 mb-4 shrink-0 shadow-inner dark:bg-slate-800 dark:text-slate-300">
       <component :is="icon" :size="36" />
     </div>

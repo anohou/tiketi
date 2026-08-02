@@ -8,6 +8,7 @@ use App\Models\Station;
 use App\Models\User;
 use App\Models\UserRouteAssignment;
 use App\Models\UserStationAssignment;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -17,12 +18,37 @@ class UserAssignmentController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'station_id' => ['nullable', 'uuid'],
+            'user_id' => ['nullable', 'uuid'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
+
         $currentUser = auth()->user();
         $stationIds = $currentUser->getActiveStationIds();
 
-        $query = UserStationAssignment::with(['user', 'station']);
+        $query = UserStationAssignment::query()
+            ->with(['user', 'station'])
+            ->when($filters['station_id'] ?? null, fn (Builder $query, string $stationId) => $query->where('station_id', $stationId))
+            ->when($filters['user_id'] ?? null, fn (Builder $query, string $userId) => $query->where('user_id', $userId))
+            ->when(($filters['status'] ?? null) === 'active', fn (Builder $query) => $query->where('active', true))
+            ->when(($filters['status'] ?? null) === 'inactive', fn (Builder $query) => $query->where('active', false))
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) {
+                $term = '%'.trim($search).'%';
+                $query->where(function (Builder $searchQuery) use ($term) {
+                    $searchQuery
+                        ->whereHas('user', fn (Builder $user) => $user
+                            ->whereLike('name', $term, caseSensitive: false)
+                            ->orWhereLike('email', $term, caseSensitive: false))
+                        ->orWhereHas('station', fn (Builder $station) => $station
+                            ->whereLike('name', $term, caseSensitive: false)
+                            ->orWhereLike('city', $term, caseSensitive: false)
+                            ->orWhereLike('code', $term, caseSensitive: false));
+                });
+            });
         if ($currentUser->role === 'supervisor') {
             $query->whereIn('station_id', $stationIds)
                 ->whereHas('user', function ($q) {
@@ -30,7 +56,7 @@ class UserAssignmentController extends Controller
                 });
         }
 
-        $assignments = $query->orderBy('created_at', 'desc')->paginate(20);
+        $assignments = $query->orderBy('created_at', 'desc')->paginate(40)->withQueryString();
         $assignments->getCollection()->each(function ($assignment) {
             $assignment->route_ids = UserRouteAssignment::where('user_id', $assignment->user_id)
                 ->where('station_id', $assignment->station_id)
@@ -80,6 +106,12 @@ class UserAssignmentController extends Controller
             'users' => $users,
             'stations' => $stations,
             'routes' => $routes,
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'station_id' => $filters['station_id'] ?? '',
+                'user_id' => $filters['user_id'] ?? '',
+                'status' => $filters['status'] ?? '',
+            ],
         ]);
     }
 

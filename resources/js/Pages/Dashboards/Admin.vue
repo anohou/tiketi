@@ -31,12 +31,14 @@ import Cash from 'vue-material-design-icons/Cash.vue'
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import ConfigAlertsSection from '@/Components/Settings/ConfigAlertsSection.vue'
 
 const props = defineProps({
     links: Array,
     stats: Object,
     charts: Object,
     systemHealth: Object,
+    configAlerts: Array,
 })
 
 const { isDark } = useTheme()
@@ -226,6 +228,11 @@ watch(isDark, () => {
             </span>
           </div>
         </div>
+      </div>
+
+      <!-- Points d'attention -->
+      <div v-if="configAlerts?.length" class="max-w-3xl">
+        <ConfigAlertsSection :alerts="configAlerts" />
       </div>
 
       <!-- Quick Stats -->

@@ -16,7 +16,7 @@ const props = defineProps({
         <FleetMenu />
       </div>
 
-      <div class="col-span-12 md:col-span-10 bg-white rounded-2xl border border-orange-100 shadow-sm p-6">
+      <div class="col-span-12 md:col-span-10 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <div>
           <VehicleTypeFormFields
             :vehicle-type="vehicleType"

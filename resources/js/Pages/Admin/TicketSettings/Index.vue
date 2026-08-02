@@ -11,6 +11,7 @@ import Plus from 'vue-material-design-icons/Plus.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
+import { toastStore } from '@/Stores/toastStore.js';
 
 const props = defineProps({
   settings: Object,
@@ -183,7 +184,7 @@ const submit = () => {
   router.put(route('admin.ticket-settings.update'), form.value, {
     onSuccess: () => {
       processing.value = false;
-      alert('Paramètres enregistrés avec succès!');
+      toastStore.success('Paramètres enregistrés avec succès.');
     },
     onError: (newErrors) => {
       processing.value = false;

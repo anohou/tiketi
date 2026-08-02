@@ -64,7 +64,7 @@ defineExpose({ focus: () => select.value.focus() });
 
 <template>
     <select ref="select"
-        class="w-full px-3 py-1.5 border border-orange-200 rounded-lg focus:border-green-500 focus:ring-green-500 text-sm bg-white text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:border-emerald-400"
+        class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm bg-white text-slate-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100 dark:focus:border-emerald-400"
         :class="{ 'text-slate-400 dark:text-slate-500': !modelValue }" :value="modelValue" :disabled="disabled"
         @change="$emit('update:modelValue', $event.target.value)">
         <option value="" disabled selected class="bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-400">{{ placeholder }}</option>

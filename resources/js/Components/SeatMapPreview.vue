@@ -74,7 +74,7 @@ const getCellStyle = (cell, row, rowIndex) => {
 </script>
 
 <template>
-  <div class="bg-gray-50 dark:bg-slate-950/60 rounded-2xl border border-orange-100 dark:border-slate-800/80 p-6 flex flex-col items-center overflow-hidden w-full">
+  <div class="bg-gray-50 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800/80 p-6 flex flex-col items-center overflow-hidden w-full">
     <div :class="[
       'inline-flex gap-1.5 justify-center max-w-full',
       orientation === 'vertical' ? 'flex-col' : 'flex-row-reverse'

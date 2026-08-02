@@ -22,6 +22,7 @@ import VehicleSeatMapSVG from '@/Components/VehicleSeatMapSVG.vue';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import SkeletonLoader from '@/Components/SkeletonLoader.vue';
 import EmptyState from '@/Components/EmptyState.vue';
+import { toastStore } from '@/Stores/toastStore.js';
 
 const props = defineProps({
     initialSelectedTripId: {
@@ -35,6 +36,13 @@ const loading = ref(false);
 const selectedTripId = ref(props.initialSelectedTripId);
 const seatMap = ref(null);
 const seatMapLoading = ref(false);
+const selectedVehicleId = ref('');
+const assigningVehicle = ref(false);
+const showVehicleAssignmentModal = ref(false);
+const availableVehiclesLoading = ref(false);
+const assignableVehicles = ref([]);
+const vehiclePoolStation = ref(null);
+const vehiclePoolDate = ref(null);
 const showRouteSchemaModal = ref(false);
 const selectedRouteSchemaTrip = ref(null);
 let realtimeFallbackInterval = null;
@@ -104,6 +112,14 @@ const fetchTrips = async () => {
 
 const fetchSeatMap = async (tripId) => {
     if (!tripId) return;
+
+    const trip = trips.value.find(item => isSameTripId(item.id, tripId));
+    if (trip && !trip.vehicle) {
+        seatMap.value = null;
+        seatMapLoading.value = false;
+        return;
+    }
+
     seatMapLoading.value = true;
     
     // If on ticketing page, we might need stop filters from the parent
@@ -113,7 +129,9 @@ const fetchSeatMap = async (tripId) => {
         // Keep the whole object to stay consistent with Ticketing.vue
         seatMap.value = response.data;
     } catch (error) {
-        console.error("Erreur lors de la récupération du plan de salle:", error);
+        if (error.response?.status !== 409 || !error.response?.data?.vehicle_required) {
+            console.error("Erreur lors de la récupération du plan de salle:", error);
+        }
         seatMap.value = null;
     } finally {
         seatMapLoading.value = false;
@@ -426,10 +444,88 @@ onUnmounted(() => {
     realtimeChannels = [];
 });
 
-// The selected trip object (from trips array)
-const selectedTrip = computed(() => {
-    return trips.value.find(t => t.id === selectedTripId.value);
+// Combined trips list from both API fetch and Inertia page props
+const allTrips = computed(() => {
+    const pageTrips = Array.isArray(page.props.trips)
+        ? page.props.trips
+        : (page.props.trips?.data || []);
+
+    const combined = [...trips.value];
+    pageTrips.forEach(pt => {
+        if (pt && !combined.some(t => isSameTripId(t.id, pt.id))) {
+            combined.push(pt);
+        }
+    });
+    return combined;
 });
+
+// The selected trip object (from trips array or page props)
+const selectedTrip = computed(() => {
+    return allTrips.value.find(t => isSameTripId(t.id, selectedTripId.value));
+});
+
+watch(selectedTrip, (trip) => {
+    selectedVehicleId.value = trip?.vehicle_id || trip?.vehicle?.id || '';
+    if (trip && !trip.vehicle) seatMap.value = null;
+}, { immediate: true });
+
+const openVehicleAssignmentModal = async () => {
+    if (!selectedTrip.value) return;
+
+    selectedVehicleId.value = '';
+    assignableVehicles.value = [];
+    vehiclePoolStation.value = null;
+    showVehicleAssignmentModal.value = true;
+    availableVehiclesLoading.value = true;
+
+    try {
+        const response = await axios.get(route('seller.trips.available-vehicles', {
+            trip: selectedTrip.value.id,
+        }));
+        assignableVehicles.value = response.data.vehicles || [];
+        vehiclePoolStation.value = response.data.station || null;
+        vehiclePoolDate.value = response.data.date || null;
+    } catch (error) {
+        toastStore.error(error.response?.data?.message || 'Impossible de charger le pool de véhicules.');
+        showVehicleAssignmentModal.value = false;
+    } finally {
+        availableVehiclesLoading.value = false;
+    }
+};
+
+const closeVehicleAssignmentModal = () => {
+    if (!assigningVehicle.value) showVehicleAssignmentModal.value = false;
+};
+
+const assignVehicle = async () => {
+    if (!selectedTrip.value || !selectedVehicleId.value || assigningVehicle.value) return;
+
+    assigningVehicle.value = true;
+    try {
+        const response = await axios.patch(route('seller.trips.assign-vehicle', {
+            trip: selectedTrip.value.id,
+        }), {
+            vehicle_id: selectedVehicleId.value,
+        });
+
+        const tripIndex = trips.value.findIndex(trip => isSameTripId(trip.id, selectedTrip.value.id));
+        if (tripIndex !== -1) {
+            trips.value[tripIndex] = {
+                ...trips.value[tripIndex],
+                ...response.data.trip,
+            };
+        }
+
+        toastStore.success(response.data.message || 'Véhicule assigné avec succès.');
+        showVehicleAssignmentModal.value = false;
+        await fetchSeatMap(selectedTrip.value.id);
+        router.reload({ only: ['trips', 'vehicles'], preserveScroll: true });
+    } catch (error) {
+        toastStore.error(error.response?.data?.message || 'Impossible d’assigner ce véhicule.');
+    } finally {
+        assigningVehicle.value = false;
+    }
+};
 
 const assignedStation = computed(() => page.props.assignedStations?.[0] || null);
 const assignedStationId = computed(() => assignedStation.value?.id || null);
@@ -639,7 +735,7 @@ const closeRouteSchemaModal = () => {
 };
 
 const filteredTrips = computed(() => {
-    let result = trips.value;
+    let result = allTrips.value;
     const destName = ticketingStore.selectedDestinationId;
     if (destName) {
         result = result.filter(trip => {
@@ -747,29 +843,29 @@ const getOccupancyRate = (available, total) => {
                 <!-- Seat Map -->
                 <template v-else-if="seatMapReady">
                     <!-- Stats Row -->
-                    <div class="px-3 py-2 flex items-center justify-between gap-3 bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
-                        <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-xs">
+                    <div class="px-2.5 py-1.5 flex items-center justify-between gap-1.5 bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
+                        <div class="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap text-[10px] sm:text-[11px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-1">
                             <span class="font-bold text-gray-500 dark:text-slate-400">Cap</span>
                             <span class="font-black text-gray-800 dark:text-slate-100">{{ seatStats.total }}</span>
-                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
+                            <span class="text-gray-300 dark:text-slate-600">|</span>
                             <span class="font-bold text-blue-500">Bil</span>
                             <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
-                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
+                            <span class="text-gray-300 dark:text-slate-600">|</span>
                             <span class="font-bold text-red-500 dark:text-rose-400/80">Occ</span>
                             <span class="font-black text-red-600 dark:text-rose-400/80">{{ seatStats.occupiedSeats }}</span>
-                            <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
-                                <span class="font-bold text-emerald-500">Lib</span>
-                                <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
-                                <span class="mx-1 text-gray-300 dark:text-slate-600">|</span>
-                                <span class="font-bold text-sky-500">Occ</span>
-                                <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
+                            <span class="text-gray-300 dark:text-slate-600">|</span>
+                            <span class="font-bold text-emerald-500">Lib</span>
+                            <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
+                            <span class="text-gray-300 dark:text-slate-600">|</span>
+                            <span class="font-bold text-sky-500">% Occ</span>
+                            <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                         </div>
                         <!-- Zoom Controls -->
                         <div class="flex shrink-0 items-center gap-0.5 bg-white rounded border border-gray-200 dark:border-slate-700 dark:bg-slate-900">
                             <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
                                 <Minus :size="12" class="text-gray-600" />
                             </button>
-                            <span class="text-[10px] font-bold text-gray-500 px-1 min-w-[32px] text-center dark:text-slate-400">{{ Math.round(zoomLevel * 100) }}%</span>
+                            <button @click="resetZoom" class="text-[10px] font-extrabold text-gray-500 px-1 text-center hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400" :title="`Zoom : ${Math.round(zoomLevel * 100)}% (Réinitialiser)`">%</button>
                             <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom +">
                                 <Plus :size="12" class="text-gray-600" />
                             </button>
@@ -799,6 +895,24 @@ const getOccupancyRate = (available, total) => {
                         </div>
                     </div>
                 </template>
+
+                <!-- Trip without a vehicle -->
+                <div v-else-if="selectedTrip && !selectedTrip.vehicle" class="flex-1 flex flex-col items-center justify-center px-5 text-center dark:text-slate-300">
+                    <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300">
+                        <Bus :size="30" />
+                    </div>
+                    <h3 class="text-sm font-black text-slate-800 dark:text-slate-100">Véhicule non assigné</h3>
+                    <p class="mt-1 max-w-[250px] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                        Assignez un véhicule pour afficher le plan de sièges et ouvrir les ventes.
+                    </p>
+                    <button
+                        type="button"
+                        @click="openVehicleAssignmentModal"
+                        class="mt-5 w-full max-w-[260px] rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"
+                    >
+                        Choisir dans le pool de la gare
+                    </button>
+                </div>
 
                 <!-- No trip selected -->
                 <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4 dark:text-slate-500">
@@ -889,25 +1003,28 @@ const getOccupancyRate = (available, total) => {
 
                     <div v-else-if="seatMap">
                         <!-- Compact Stats Row -->
-                        <div class="px-3 py-2 flex items-center justify-between gap-3 bg-slate-50 border-b border-slate-100 dark:border-slate-800 dark:bg-slate-800/60">
-                        <div class="flex min-w-0 items-center gap-1 whitespace-nowrap text-xs">
-                            <span class="font-bold text-slate-500 dark:text-slate-400">Cap</span>
-                            <span class="font-black text-slate-800 dark:text-slate-100">{{ seatStats.total }}</span>
-                            <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                        <div class="px-2.5 py-1.5 flex items-center justify-between gap-1.5 bg-slate-50 border-b border-slate-100 dark:border-slate-800 dark:bg-slate-800/60">
+                            <div class="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap text-[10px] sm:text-[11px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-1">
+                                <span class="font-bold text-slate-500 dark:text-slate-400">Cap</span>
+                                <span class="font-black text-slate-800 dark:text-slate-100">{{ seatStats.total }}</span>
+                                <span class="text-slate-300 dark:text-slate-600">|</span>
                                 <span class="font-bold text-blue-500">Bil</span>
                                 <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
-                                <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                                <span class="text-slate-300 dark:text-slate-600">|</span>
                                 <span class="font-bold text-rose-500 dark:text-rose-400/80">Occ</span>
                                 <span class="font-black text-rose-600 dark:text-rose-400/80">{{ seatStats.occupiedSeats }}</span>
-                                <span class="mx-1 text-slate-300 dark:text-slate-600">|</span>
+                                <span class="text-slate-300 dark:text-slate-600">|</span>
                                 <span class="font-bold text-emerald-500">Lib</span>
                                 <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
+                                <span class="text-slate-300 dark:text-slate-600">|</span>
+                                <span class="font-bold text-sky-500">% Occ</span>
+                                <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                             </div>
                             <div class="flex shrink-0 items-center gap-0.5 bg-white rounded border border-slate-200 dark:border-slate-700 dark:bg-slate-900">
                                 <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-slate-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
                                     <Minus :size="12" class="text-slate-600" />
                                 </button>
-                                <span class="text-[10px] font-bold text-slate-500 px-1 min-w-[32px] text-center dark:text-slate-400">{{ Math.round(zoomLevel * 100) }}%</span>
+                                <button @click="resetZoom" class="text-[10px] font-extrabold text-slate-500 px-1 text-center hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400" :title="`Zoom : ${Math.round(zoomLevel * 100)}% (Réinitialiser)`">%</button>
                                 <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-slate-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom +">
                                     <Plus :size="12" class="text-slate-600" />
                                 </button>
@@ -951,6 +1068,54 @@ const getOccupancyRate = (available, total) => {
                 </div>
             </div>
         </div>
+
+        <DialogModal :show="showVehicleAssignmentModal" @close="closeVehicleAssignmentModal" maxWidth="lg">
+            <template #title>
+                <div>
+                    <div class="text-lg font-black">Assigner un véhicule</div>
+                    <div v-if="vehiclePoolStation" class="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        Pool de {{ vehiclePoolStation.name }} · voyage du {{ vehiclePoolDate }}
+                    </div>
+                </div>
+            </template>
+            <template #content>
+                <div v-if="availableVehiclesLoading" class="py-8">
+                    <SkeletonLoader type="list" :count="3" />
+                </div>
+                <div v-else-if="!assignableVehicles.length" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-center dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <Bus :size="32" class="mx-auto mb-2 text-amber-500" />
+                    <p class="font-black text-amber-900 dark:text-amber-200">Aucun véhicule disponible dans ce pool</p>
+                    <p class="mt-1 text-xs text-amber-700 dark:text-amber-300">Un administrateur ou gestionnaire de flotte doit affecter un véhicule à cette gare pour cette date.</p>
+                </div>
+                <div v-else class="space-y-2">
+                    <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">Seuls les véhicules affectés à cette gare pour la date du voyage sont proposés.</p>
+                    <label
+                        v-for="vehicle in assignableVehicles"
+                        :key="vehicle.id"
+                        :class="selectedVehicleId === vehicle.id ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-700'"
+                        class="flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition hover:border-emerald-300"
+                    >
+                        <input v-model="selectedVehicleId" type="radio" :value="vehicle.id" class="text-emerald-600 focus:ring-emerald-500" />
+                        <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-800"><Bus :size="22" /></span>
+                        <span class="min-w-0 flex-1">
+                            <strong class="block text-sm text-slate-900 dark:text-slate-100">{{ vehicle.identifier }}</strong>
+                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ vehicle.vehicle_type?.name || vehicle.vehicleType?.name }} · {{ vehicle.seat_count }} places<span v-if="vehicle.maker"> · {{ vehicle.maker }}</span></span>
+                        </span>
+                    </label>
+                </div>
+            </template>
+            <template #footer>
+                <SecondaryButton @click="closeVehicleAssignmentModal">Annuler</SecondaryButton>
+                <button
+                    type="button"
+                    :disabled="!selectedVehicleId || assigningVehicle"
+                    @click="assignVehicle"
+                    class="ml-3 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {{ assigningVehicle ? 'Assignation…' : 'Assigner ce véhicule' }}
+                </button>
+            </template>
+        </DialogModal>
 
         <DialogModal :show="showRouteSchemaModal" @close="closeRouteSchemaModal" maxWidth="5xl">
             <template #title>

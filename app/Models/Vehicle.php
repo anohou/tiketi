@@ -60,6 +60,11 @@ class Vehicle extends Model
             ->withTimestamps();
     }
 
+    public function stationAssignments()
+    {
+        return $this->hasMany(StationVehicleAssignment::class);
+    }
+
     public function crewAssignments()
     {
         return $this->hasMany(VehicleCrewAssignment::class);

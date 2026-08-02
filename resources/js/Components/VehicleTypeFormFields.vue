@@ -233,10 +233,10 @@ const handleCancel = () => {
 <template>
   <form id="vehicle-type-form" @submit.prevent="submit" class="space-y-6">
     <!-- Header with title on left and Save/Cancel buttons on right -->
-    <div v-if="!hideHeader" class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-orange-100 pb-4 shrink-0">
+    <div v-if="!hideHeader" class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4 shrink-0">
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-orange-100 rounded-xl shrink-0">
-          <svg class="text-orange-600 w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+        <div class="p-2 bg-emerald-100 rounded-xl shrink-0">
+          <svg class="text-emerald-600 w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
             <path d="M4 7h16v10H4z" />
           </svg>
         </div>

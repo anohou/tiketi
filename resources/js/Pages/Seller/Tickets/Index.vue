@@ -155,7 +155,7 @@ const cancelTicket = () => {
     </MainNavLayout>
 
     <!-- Custom Confirmation Modal for Cancel Ticket -->
-    <ConfirmationModal :show="showCancelModal" @close="showCancelModal = false">
+    <ConfirmationModal :show="showCancelModal" variant="danger" @close="showCancelModal = false">
         <template #title>
             Annuler le ticket
         </template>

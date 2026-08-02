@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { toastStore } from '@/Stores/toastStore.js';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 import { router, Link, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -27,6 +28,7 @@ import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
 import FileExcel from 'vue-material-design-icons/FileExcel.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
+import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue';
 import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
 import TripConnectionSummary from '@/Components/Seller/TripConnectionSummary.vue';
 import Dropdown from '@/Components/Dropdown.vue';
@@ -370,7 +372,12 @@ const updateTripStatus = async (tripId, status) => {
     confirmMessage = "Voulez-vous vraiment marquer ce voyage comme arrivé ?";
   }
 
-  if (confirmMessage && !window.confirm(confirmMessage)) {
+  if (confirmMessage && !await confirmationStore.confirm({
+    title: status === 'cancelled' ? 'Annuler le voyage' : 'Mettre à jour le voyage',
+    message: confirmMessage,
+    confirmLabel: status === 'cancelled' ? 'Annuler le voyage' : 'Confirmer',
+    tone: status === 'cancelled' ? 'danger' : 'warning',
+  })) {
     return;
   }
 
@@ -2137,7 +2144,7 @@ onBeforeUnmount(() => {
               aria-label="Masquer cette impression"
               @click="dismissPrintEntry(entry.id)"
             >
-              <Close :size="16" />
+              <DeleteOutline :size="16" />
             </button>
           </div>
           <div v-if="['ready', 'failed'].includes(entry.status)" class="mt-2 flex flex-wrap gap-2">

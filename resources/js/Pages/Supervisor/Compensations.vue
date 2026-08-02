@@ -2,10 +2,11 @@
 import axios from 'axios';
 import { router } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 defineProps({ compensations: { type: Array, default: () => [] } });
 const approve = async (item) => {
-  if (!confirm(`Approuver la compensation ${item.reference} ?`)) return;
+  if (!await confirmationStore.confirm({ title: 'Approuver la compensation', message: `Confirmer l’approbation de la compensation ${item.reference} ?`, confirmLabel: 'Approuver', tone: 'success' })) return;
   await axios.patch(route('seller.compensations.approve', item.id));
   router.reload({ preserveScroll: true });
 };

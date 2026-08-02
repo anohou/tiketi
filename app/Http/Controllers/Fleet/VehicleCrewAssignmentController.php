@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CrewMember;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +17,41 @@ class VehicleCrewAssignmentController extends Controller
     /**
      * Display a listing of crew assignments.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $assignments = VehicleCrewAssignment::with(['vehicle.vehicleType', 'crewMember'])
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'vehicle_id' => ['nullable', 'uuid'],
+            'crew_member_id' => ['nullable', 'uuid'],
+            'role' => ['nullable', 'in:driver,assistant'],
+            'status' => ['nullable', 'in:active,closed'],
+        ]);
+
+        $assignments = VehicleCrewAssignment::query()
+            ->with(['vehicle.vehicleType', 'crewMember'])
+            ->when($filters['vehicle_id'] ?? null, fn (Builder $query, string $vehicleId) => $query->where('vehicle_id', $vehicleId))
+            ->when($filters['crew_member_id'] ?? null, fn (Builder $query, string $crewMemberId) => $query->where('crew_member_id', $crewMemberId))
+            ->when($filters['role'] ?? null, fn (Builder $query, string $role) => $query->where('role', $role))
+            ->when(($filters['status'] ?? null) === 'active', fn (Builder $query) => $query->whereNull('assigned_to'))
+            ->when(($filters['status'] ?? null) === 'closed', fn (Builder $query) => $query->whereNotNull('assigned_to'))
+            ->when($filters['search'] ?? null, function (Builder $query, string $search) {
+                $term = '%'.trim($search).'%';
+                $query->where(function (Builder $searchQuery) use ($term) {
+                    $searchQuery
+                        ->whereLike('notes', $term, caseSensitive: false)
+                        ->orWhereHas('crewMember', fn (Builder $member) => $member
+                            ->whereLike('name', $term, caseSensitive: false)
+                            ->orWhereLike('phone', $term, caseSensitive: false)
+                            ->orWhereLike('license_number', $term, caseSensitive: false))
+                        ->orWhereHas('vehicle', fn (Builder $vehicle) => $vehicle
+                            ->whereLike('identifier', $term, caseSensitive: false)
+                            ->orWhereLike('maker', $term, caseSensitive: false)
+                            ->orWhereHas('vehicleType', fn (Builder $type) => $type->whereLike('name', $term, caseSensitive: false)));
+                });
+            })
             ->orderByDesc('assigned_from')
-            ->paginate(30);
+            ->paginate(40)
+            ->withQueryString();
 
         $crewMembers = CrewMember::where('active', true)
             ->orderBy('name')
@@ -35,6 +66,13 @@ class VehicleCrewAssignmentController extends Controller
             'assignments' => $assignments,
             'crewMembers' => $crewMembers,
             'vehicles' => $vehicles,
+            'filters' => [
+                'search' => $filters['search'] ?? '',
+                'vehicle_id' => $filters['vehicle_id'] ?? '',
+                'crew_member_id' => $filters['crew_member_id'] ?? '',
+                'role' => $filters['role'] ?? '',
+                'status' => $filters['status'] ?? '',
+            ],
         ]);
     }
 

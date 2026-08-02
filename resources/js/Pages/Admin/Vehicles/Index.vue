@@ -25,7 +25,7 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Steering from 'vue-material-design-icons/Steering.vue';
 import SeatPassenger from 'vue-material-design-icons/SeatPassenger.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
-import CloseCircle from 'vue-material-design-icons/CloseCircle.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -162,8 +162,8 @@ const submitCrewAssignment = () => {
   });
 };
 
-const endCrewAssignment = (assignmentId) => {
-  if (confirm("Clôturer cette affectation ? L'historique sera conservé.")) {
+const endCrewAssignment = async (assignmentId) => {
+  if (await confirmationStore.confirm({ title: 'Clôturer l’affectation', message: 'L’affectation prendra fin, mais son historique sera conservé.', confirmLabel: 'Clôturer', tone: 'warning' })) {
     router.delete(route('fleet.crew-assignments.destroy', assignmentId), {
       preserveScroll: true,
     });
@@ -258,8 +258,8 @@ const submit = () => {
   });
 };
 
-const deleteVehicle = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce véhicule ?')) {
+const deleteVehicle = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce véhicule', message: 'Cette action supprimera définitivement le véhicule.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('admin.vehicles.destroy', id), {
       onSuccess: () => {
         if (selectedVehicle.value?.id === id) {
@@ -352,7 +352,7 @@ const isInsuranceExpired = (vehicle) => {
                 <div class="relative flex-1">
                   <input type="text" v-model="search" placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100" />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Véhicule">
                   <Plus class="h-5 w-5" />
@@ -368,7 +368,7 @@ const isInsuranceExpired = (vehicle) => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+              <div v-if="filteredVehicles.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400">
                 Aucun véhicule trouvé.
               </div>
               <div v-else>
@@ -392,7 +392,7 @@ const isInsuranceExpired = (vehicle) => {
                       <span v-if="vehicle.insurance_expiry_date && isInsuranceExpired(vehicle)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800 text-center">
                         Assur. exp.
                       </span>
-                      <span class="text-[10px] text-orange-400">
+                      <span class="text-[10px] text-emerald-600">
                         {{ vehicle.trips_count || 0 }} voyages
                       </span>
                     </div>
@@ -406,7 +406,7 @@ const isInsuranceExpired = (vehicle) => {
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <!-- Empty State -->
-          <div v-if="!selectedVehicle" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+          <div v-if="!selectedVehicle" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
             <MapMarkerRadius class="h-16 w-16 text-slate-200 mb-4" />
             <p class="text-lg">Sélectionnez un véhicule pour voir les détails</p>
             <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
@@ -469,7 +469,7 @@ const isInsuranceExpired = (vehicle) => {
                       {{ formatDate(selectedVehicle.insurance_expiry_date) }}
                       <span v-if="isInsuranceExpired(selectedVehicle)" class="text-xs font-bold text-rose-600 ml-1">(Expirée)</span>
                     </span>
-                    <span v-else class="text-orange-400">Non renseignée</span>
+                    <span v-else class="text-slate-400">Non renseignée</span>
                   </div>
                 </div>
                 
@@ -495,7 +495,7 @@ const isInsuranceExpired = (vehicle) => {
                     <button @click.stop="openAddCrewModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Assigner un équipage">
                         <Plus class="h-4 w-4" />
                     </button>
-                    <component :is="showCrew ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
+                    <component :is="showCrew ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
                 </div>
               </div>
               
@@ -519,12 +519,12 @@ const isInsuranceExpired = (vehicle) => {
                       </div>
                       <div>
                         <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.crew_member?.name || 'Inconnu' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
                       <button @click="endCrewAssignment(assignment.id)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" title="Clôturer l'affectation">
-                        <CloseCircle class="h-4 w-4" />
+                        <Trash2 class="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -541,7 +541,7 @@ const isInsuranceExpired = (vehicle) => {
                     Voyages ({{ selectedVehicle.trips_count || (selectedVehicle.trips || []).length }})
                   </h3>
                 </div>
-                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-orange-400" />
+                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
               </div>
               
               <div v-if="showTrips" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
@@ -555,7 +555,7 @@ const isInsuranceExpired = (vehicle) => {
                       <Bus class="h-5 w-5 text-emerald-500" />
                       <div>
                         <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.route?.name || 'Route' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
                           {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                         </p>
                       </div>

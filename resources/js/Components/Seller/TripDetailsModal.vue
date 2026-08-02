@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import axios from 'axios';
 import { toastStore } from '@/Stores/toastStore.js';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 import Close from 'vue-material-design-icons/Close.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Account from 'vue-material-design-icons/Account.vue';
@@ -159,7 +160,7 @@ const printTicket = (ticketId) => {
 
 // Cancel ticket
 const cancelTicket = async (ticketId, seatNumber) => {
-  if (!confirm(`Êtes-vous sûr de vouloir annuler le ticket pour la place ${seatNumber} ?`)) {
+  if (!await confirmationStore.confirm({ title: 'Annuler ce ticket', message: `Annuler le ticket pour la place ${seatNumber} ? La place sera libérée.`, confirmLabel: 'Annuler le ticket', tone: 'danger' })) {
     return;
   }
   cancelingTicketId.value = ticketId;
@@ -717,7 +718,7 @@ watch(() => props.visible, (val) => {
             <!-- Search & Actions Bar -->
             <div class="flex flex-col sm:flex-row items-center gap-3">
               <div class="relative w-full sm:flex-1">
-                <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-emerald-500 dark:text-emerald-400">
                   <Magnify :size="18" />
                 </div>
                 <input 

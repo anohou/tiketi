@@ -16,6 +16,7 @@ use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\RouteStopOrder;
 use App\Models\Station;
+use App\Models\StationVehicleAssignment;
 use App\Models\Ticket;
 use App\Models\TicketConnection;
 use App\Models\TicketSetting;
@@ -268,6 +269,79 @@ class TicketingFlowTest extends TestCase
             'vehicle_id' => $trip->vehicle_id,
             'notes' => 'Rotation actuelle',
         ]);
+    }
+
+    public function test_crew_assignment_list_can_be_filtered_by_vehicle_member_role_status_and_keyword(): void
+    {
+        [$admin, $trip] = $this->ticketingFixture();
+        $driver = CrewMember::create([
+            'name' => 'Fatou Conductrice',
+            'phone' => '+2250700000011',
+            'role' => 'driver',
+            'license_number' => 'DRV-FILTER-11',
+            'license_expiry_date' => now()->addYear(),
+            'pin' => '123456',
+            'active' => true,
+        ]);
+        VehicleCrewAssignment::create([
+            'vehicle_id' => $trip->vehicle_id,
+            'crew_member_id' => $driver->id,
+            'role' => 'driver',
+            'assigned_from' => now()->subHour(),
+            'notes' => 'Rotation littorale',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('fleet.crew-assignments.index', [
+                'vehicle_id' => $trip->vehicle_id,
+                'crew_member_id' => $driver->id,
+                'role' => 'driver',
+                'status' => 'active',
+                'search' => 'littorale',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Fleet/CrewAssignments/Index')
+                ->has('assignments.data', 1)
+                ->where('assignments.data.0.crew_member_id', $driver->id)
+                ->where('filters.vehicle_id', $trip->vehicle_id)
+                ->where('filters.crew_member_id', $driver->id)
+                ->where('filters.role', 'driver')
+                ->where('filters.status', 'active')
+                ->where('filters.search', 'littorale'));
+    }
+
+    public function test_seller_assignment_list_can_be_filtered_by_station_user_status_and_keyword(): void
+    {
+        [$admin, , $stations] = $this->ticketingFixture();
+        $seller = User::factory()->create([
+            'name' => 'Mariam Vendeuse',
+            'email' => 'mariam.filter@example.test',
+            'role' => 'seller',
+            'active' => true,
+        ]);
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.assignments.index', [
+                'station_id' => $stations['b']->id,
+                'user_id' => $seller->id,
+                'status' => 'active',
+                'search' => 'mariam.filter',
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/Assignments/Index')
+                ->has('assignments.data', 1)
+                ->where('assignments.data.0.user_id', $seller->id)
+                ->where('filters.station_id', $stations['b']->id)
+                ->where('filters.user_id', $seller->id)
+                ->where('filters.status', 'active')
+                ->where('filters.search', 'mariam.filter'));
     }
 
     public function test_intermediate_seller_sees_future_trips_regardless_of_sales_mode_or_transitional_status(): void
@@ -2721,6 +2795,156 @@ class TicketingFlowTest extends TestCase
         Event::assertDispatched(TripCreated::class);
     }
 
+    public function test_vehicle_can_be_assigned_from_the_seller_ticketing_workspace(): void
+    {
+        [$admin, $trip] = $this->ticketingFixture();
+        $vehicle = $trip->vehicle;
+        $trip->update(['vehicle_id' => null]);
+
+        $this->actingAs($admin)
+            ->patchJson("/seller/trips/{$trip->id}/vehicle", [
+                'vehicle_id' => $vehicle->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('trip.vehicle.id', $vehicle->id);
+
+        $this->assertDatabaseHas('trips', [
+            'id' => $trip->id,
+            'vehicle_id' => $vehicle->id,
+        ]);
+    }
+
+    public function test_seller_only_sees_and_assigns_vehicles_from_the_departure_station_pool(): void
+    {
+        [, $trip, $stations] = $this->ticketingFixture();
+        $pooledVehicle = $trip->vehicle;
+        $otherVehicle = Vehicle::create([
+            'identifier' => 'BUS-OTHER',
+            'maker' => 'Other',
+            'vehicle_type_id' => $pooledVehicle->vehicle_type_id,
+            'seat_count' => $pooledVehicle->seat_count,
+            'active' => true,
+        ]);
+        $trip->update(['vehicle_id' => null]);
+
+        StationVehicleAssignment::create([
+            'station_id' => $stations['a']->id,
+            'vehicle_id' => $pooledVehicle->id,
+            'valid_from' => today(),
+            'valid_until' => today()->addDay(),
+            'active' => true,
+        ]);
+
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['a']->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($seller)
+            ->getJson("/seller/trips/{$trip->id}/available-vehicles")
+            ->assertOk()
+            ->assertJsonCount(1, 'vehicles')
+            ->assertJsonPath('vehicles.0.id', $pooledVehicle->id);
+
+        $this->actingAs($seller)
+            ->patchJson("/seller/trips/{$trip->id}/vehicle", ['vehicle_id' => $otherVehicle->id])
+            ->assertStatus(422);
+
+        $this->actingAs($seller)
+            ->patchJson("/seller/trips/{$trip->id}/vehicle", ['vehicle_id' => $pooledVehicle->id])
+            ->assertOk();
+    }
+
+    public function test_vehicle_cannot_belong_to_overlapping_station_pools(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)
+            ->post('/fleet/station-vehicle-assignments', [
+                'station_id' => $stations['a']->id,
+                'vehicle_id' => $trip->vehicle_id,
+                'permanent' => true,
+                'valid_from' => null,
+                'valid_until' => null,
+                'active' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('station_vehicle_assignments', [
+            'station_id' => $stations['a']->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'valid_from' => null,
+            'valid_until' => null,
+        ]);
+
+        $this->actingAs($admin)
+            ->from('/fleet/station-vehicle-assignments')
+            ->post('/fleet/station-vehicle-assignments', [
+                'station_id' => $stations['b']->id,
+                'vehicle_id' => $trip->vehicle_id,
+                'permanent' => false,
+                'valid_from' => today()->toDateString(),
+                'valid_until' => today()->addDay()->toDateString(),
+                'active' => true,
+            ])
+            ->assertRedirect('/fleet/station-vehicle-assignments')
+            ->assertSessionHasErrors('vehicle_id');
+    }
+
+    public function test_station_vehicle_pool_list_can_be_filtered_by_station_vehicle_and_keyword(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $otherVehicle = Vehicle::create([
+            'identifier' => 'FILTER-002',
+            'maker' => 'Renault',
+            'vehicle_type_id' => $trip->vehicle->vehicle_type_id,
+            'seat_count' => $trip->vehicle->seat_count,
+            'active' => true,
+        ]);
+
+        StationVehicleAssignment::create([
+            'station_id' => $stations['a']->id,
+            'vehicle_id' => $trip->vehicle_id,
+            'active' => true,
+        ]);
+        StationVehicleAssignment::create([
+            'station_id' => $stations['b']->id,
+            'vehicle_id' => $otherVehicle->id,
+            'active' => true,
+            'notes' => 'Renfort régional',
+        ]);
+
+        $this->actingAs($admin)
+            ->get('/fleet/station-vehicle-assignments?'.http_build_query([
+                'search' => 'renfort',
+                'station_id' => $stations['b']->id,
+                'vehicle_id' => $otherVehicle->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Fleet/StationVehicleAssignments/Index')
+                ->has('assignments.data', 1)
+                ->where('assignments.data.0.vehicle_id', $otherVehicle->id)
+                ->where('filters.station_id', $stations['b']->id)
+                ->where('filters.vehicle_id', $otherVehicle->id)
+                ->where('filters.search', 'renfort'));
+    }
+
+    public function test_seat_map_reports_that_a_vehicle_must_be_assigned(): void
+    {
+        [$admin, $trip] = $this->ticketingFixture();
+        $trip->update(['vehicle_id' => null]);
+
+        $this->actingAs($admin)
+            ->getJson("/seller/trips/{$trip->id}/seat-map")
+            ->assertStatus(409)
+            ->assertJson([
+                'vehicle_required' => true,
+            ]);
+    }
+
     public function test_tids_lists_a_trip_for_an_intermediate_station(): void
     {
         $stationA = Station::create(['name' => 'Gare A', 'code' => 'TA', 'city' => 'A', 'active' => true]);
@@ -2800,6 +3024,12 @@ class TicketingFlowTest extends TestCase
             'is_replicable' => true,
         ]);
         Event::assertDispatched(TripCreated::class, fn (TripCreated $event) => $event->trip->departure_at->equalTo($tomorrowDeparture));
+
+        // A retry during the same night remains idempotent.
+        $this->artisan('trips:replicate')->assertExitCode(0);
+        $this->assertSame(1, Trip::where('route_id', $route->id)
+            ->where('departure_at', $tomorrowDeparture)
+            ->count());
     }
 
     public function test_trip_code_generation_sequential_suffix(): void
@@ -3522,6 +3752,19 @@ class TicketingFlowTest extends TestCase
                 $table->uuid('station_id')->index();
                 $table->boolean('active')->default(true);
                 $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('station_vehicle_assignments')) {
+            Schema::create('station_vehicle_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('station_id')->index();
+                $table->uuid('vehicle_id')->index();
+                $table->date('valid_from')->nullable();
+                $table->date('valid_until')->nullable();
+                $table->boolean('active')->default(true);
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }

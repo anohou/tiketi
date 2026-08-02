@@ -18,6 +18,7 @@ import Car from 'vue-material-design-icons/Car.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SeatMapPreview from '@/Components/SeatMapPreview.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -99,8 +100,8 @@ const selectVehicleType = (vehicleType) => {
   selectedVehicleType.value = vehicleType;
 };
 
-const deleteVehicleType = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce type de véhicule ?')) {
+const deleteVehicleType = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce type de véhicule', message: 'Cette action supprimera définitivement ce type de véhicule.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('fleet.vehicle-types.destroy', id), {
       onSuccess: () => {
         if (selectedVehicleType.value?.id === id) {
@@ -168,7 +169,7 @@ const handlePrint = () => {
                     placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouveau Type">
                   <Plus class="h-5 w-5" />

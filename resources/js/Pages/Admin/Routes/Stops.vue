@@ -11,6 +11,8 @@ import ArrowLeft from 'vue-material-design-icons/ArrowLeft.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ChevronUp from 'vue-material-design-icons/ChevronUp.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
+import { toastStore } from '@/Stores/toastStore.js';
 
 const props = defineProps({
   routeModel: Object,
@@ -44,10 +46,10 @@ const submit = () => {
   });
 };
 
-const deleteStop = (stopOrder) => {
-  if (confirm('Êtes-vous sûr de vouloir retirer cette destination de la route ?')) {
+const deleteStop = async (stopOrder) => {
+  if (await confirmationStore.confirm({ title: 'Retirer cette destination', message: 'Cette destination sera retirée du trajet.', confirmLabel: 'Retirer', tone: 'danger' })) {
     router.delete(route('admin.routes.stops.destroy', [props.routeModel.id, stopOrder.id]), {
-      onError: () => alert('Impossible de supprimer cette destination.')
+      onError: () => toastStore.error('Impossible de supprimer cette destination.')
     });
   }
 };
@@ -67,7 +69,7 @@ const moveUp = (index) => {
     onSuccess: () => { processing.value = false; },
     onError: () => {
       processing.value = false;
-      alert('Erreur lors du réordonnancement.');
+      toastStore.error('Erreur lors du réordonnancement.');
     }
   });
 };
@@ -87,7 +89,7 @@ const moveDown = (index) => {
     onSuccess: () => { processing.value = false; },
     onError: () => {
       processing.value = false;
-      alert('Erreur lors du réordonnancement.');
+      toastStore.error('Erreur lors du réordonnancement.');
     }
   });
 };
@@ -97,7 +99,7 @@ const moveDown = (index) => {
   <MainNavLayout>
     <div class="w-full px-4">
       <!-- Header -->
-      <div class="bg-gradient-to-r from-green-50 to-orange-50/30 border-b border-orange-200 px-4 py-2 mb-4">
+      <div class="bg-gradient-to-r from-emerald-50 to-slate-50 border-b border-slate-200 px-4 py-2 mb-4">
         <div class="flex items-center gap-4">
           <Link :href="route('admin.routes.index')" class="text-green-700 hover:text-green-900">
             <ArrowLeft class="w-6 h-6" />
@@ -118,13 +120,13 @@ const moveDown = (index) => {
 
         <!-- Middle Column - Stops List -->
         <div class="col-span-12 md:col-span-6">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm">
-            <div class="border-b border-orange-200 p-3 bg-gradient-to-r from-green-50 to-orange-50/30">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
+            <div class="border-b border-slate-200 p-3 bg-gradient-to-r from-emerald-50 to-slate-50">
               <h2 class="text-lg font-semibold text-green-700">Liste des Destinations ({{ stops.length }})</h2>
             </div>
 
             <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-orange-200">
+              <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-green-50">
                   <tr>
                     <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">Ordre</th>
@@ -133,17 +135,17 @@ const moveDown = (index) => {
                     <th class="px-3 py-2 text-right text-sm font-semibold text-green-700">Actions</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-orange-200">
+                <tbody class="divide-y divide-slate-200">
                   <tr v-if="stops.length === 0">
                     <td colspan="4" class="px-3 py-3 text-center text-gray-500">
-                      <div class="rounded-lg bg-orange-50 p-1 text-orange-700">
+                      <div class="rounded-lg bg-emerald-50 p-1 text-emerald-700">
                         Aucune destination configurée pour cette route.
                       </div>
                     </td>
                   </tr>
                   <tr v-for="(stopOrder, index) in stops" :key="stopOrder.id" class="hover:bg-green-50">
                     <td class="px-3 py-2 whitespace-nowrap">
-                      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-100 text-orange-800 text-xs font-bold">
+                      <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold">
                         {{ index + 1 }}
                       </span>
                     </td>
@@ -193,7 +195,7 @@ const moveDown = (index) => {
 
         <!-- Right Column - Form -->
         <div class="col-span-12 md:col-span-4">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-4">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
             <h2 class="text-lg font-semibold text-green-700 mb-4">
               Ajouter une destination
             </h2>
@@ -223,7 +225,7 @@ const moveDown = (index) => {
                   <InputError class="mt-2" :message="errors.stop_index" />
                 </div>
 
-                <div class="pt-3 flex justify-end border-t border-orange-200">
+                <div class="pt-3 flex justify-end border-t border-slate-200">
                   <button type="submit"
                     class="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors flex items-center"
                     :disabled="processing">

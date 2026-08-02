@@ -3,7 +3,7 @@
   <div class="hidden md:block">
     <div class="grid grid-cols-12 gap-4">
       <!-- Left Column - Selector -->
-      <div class="col-span-2 bg-white p-4 rounded-lg shadow-md border border-orange-200">
+      <div class="col-span-2 bg-white p-4 rounded-lg shadow-md border border-slate-200">
         <div class="space-y-2">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">Analytics</h3>
           <!-- Chart Options - Scrollable container -->
@@ -26,7 +26,7 @@
       </div>
 
       <!-- Middle Column - Current Chart -->
-      <div class="col-span-5 bg-white p-4 rounded-lg shadow-md border border-orange-200">
+      <div class="col-span-5 bg-white p-4 rounded-lg shadow-md border border-slate-200">
         <Transition
           name="chart"
           mode="out-in"
@@ -44,7 +44,7 @@
       </div>
 
       <!-- Right Column - Previous Chart -->
-      <div class="col-span-5 bg-white p-4 rounded-lg shadow-md border border-orange-200">
+      <div class="col-span-5 bg-white p-4 rounded-lg shadow-md border border-slate-200">
         <Transition
           name="chart"
           mode="out-in"
@@ -66,7 +66,7 @@
   <!-- Mobile Layout -->
   <div class="md:hidden space-y-4">
     <!-- Chart Selector -->
-    <div class="bg-white p-4 rounded-lg shadow-md border border-orange-200">
+    <div class="bg-white p-4 rounded-lg shadow-md border border-slate-200">
       <h3 class="text-lg font-semibold text-gray-800 mb-4">Sellectionez une statistique</h3>
       <select
         v-model="selectedChart"
@@ -83,7 +83,7 @@
     </div>
 
     <!-- Single Chart Display -->
-    <div class="bg-white p-4 rounded-lg shadow-md border border-orange-200">
+    <div class="bg-white p-4 rounded-lg shadow-md border border-slate-200">
       <Transition
         name="chart"
         mode="out-in"

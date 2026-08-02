@@ -395,7 +395,7 @@ onMounted(() => {
                     <div class="relative flex-1">
                         <input v-model="search" type="text" placeholder="Rechercher..."
                                class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100">
-                        <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-orange-400" />
+                        <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                     </div>
                     <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Ville">
                        <Plus class="h-5 w-5" />
@@ -434,7 +434,7 @@ onMounted(() => {
                                  </p>
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
-                                <span class="text-xs text-orange-400">{{ dest.stations_count || 0 }} gares</span>
+                                <span class="text-xs text-emerald-600">{{ dest.stations_count || 0 }} gares</span>
                                 <span :class="['px-2 py-0.5 rounded-full text-[10px] font-medium', dest.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800']">
                                     {{ dest.is_active ? 'Active' : 'Inactive' }}
                                 </span>
@@ -554,7 +554,7 @@ onMounted(() => {
                    <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-200">
                      Carte des villes
                    </h2>
-                   <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-orange-400">
+                   <p class="text-sm text-slate-500 dark:text-slate-400">
                      Les villes déjà enregistrées sur la carte.
                    </p>
                  </div>
@@ -669,7 +669,7 @@ onMounted(() => {
     />
 
     <!-- Custom Confirmation Modals -->
-    <ConfirmationModal :show="showDeleteDestModal" @close="showDeleteDestModal = false">
+    <ConfirmationModal :show="showDeleteDestModal" variant="danger" @close="showDeleteDestModal = false">
         <template #title>Supprimer la destination</template>
         <template #content>Êtes-vous sûr de vouloir supprimer cette destination ? Cette action supprimera également toutes les gares associées de manière définitive.</template>
         <template #footer>
@@ -678,7 +678,7 @@ onMounted(() => {
         </template>
     </ConfirmationModal>
 
-    <ConfirmationModal :show="showDeleteStationModal" @close="showDeleteStationModal = false">
+    <ConfirmationModal :show="showDeleteStationModal" variant="danger" @close="showDeleteStationModal = false">
         <template #title>Supprimer la gare</template>
         <template #content>Êtes-vous sûr de vouloir supprimer cette gare ? Cette action est irréversible.</template>
         <template #footer>

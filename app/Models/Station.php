@@ -106,6 +106,11 @@ class Station extends Model
         return $this->belongsToMany(User::class, 'user_station_assignments');
     }
 
+    public function vehicleAssignments()
+    {
+        return $this->hasMany(StationVehicleAssignment::class);
+    }
+
     public function routeStopOrders()
     {
         return $this->hasMany(RouteStopOrder::class);

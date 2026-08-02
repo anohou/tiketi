@@ -19,6 +19,7 @@ trait InteractsWithTenantTicketing
             $table->string('password');
             $table->string('role')->default('seller')->index();
             $table->boolean('active')->default(true);
+            $table->json('settings')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });
@@ -29,6 +30,8 @@ trait InteractsWithTenantTicketing
                 $table->string('name');
                 $table->string('code')->nullable()->unique();
                 $table->string('city')->nullable();
+                $table->string('address')->nullable();
+                $table->string('phone')->nullable();
                 $table->boolean('active')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();
@@ -45,6 +48,19 @@ trait InteractsWithTenantTicketing
             });
         }
 
+        if (! Schema::hasTable('user_route_assignments')) {
+            Schema::create('user_route_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('user_id')->index();
+                $table->uuid('route_id')->index();
+                $table->uuid('station_id')->nullable()->index();
+                $table->boolean('active')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+                $table->unique(['user_id', 'route_id', 'station_id']);
+            });
+        }
+
         if (! Schema::hasTable('routes')) {
             Schema::create('routes', function (Blueprint $table) {
                 $table->uuid('id')->primary();
@@ -54,6 +70,42 @@ trait InteractsWithTenantTicketing
                 $table->boolean('active')->default(true);
                 $table->unsignedInteger('estimated_duration_minutes')->nullable();
                 $table->boolean('automatic_connection_allocation')->nullable();
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('route_stop_orders')) {
+            Schema::create('route_stop_orders', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('route_id')->index();
+                $table->uuid('station_id')->index();
+                $table->unsignedInteger('stop_index');
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('route_fares')) {
+            Schema::create('route_fares', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('from_station_id')->index();
+                $table->uuid('to_station_id')->index();
+                $table->unsignedInteger('amount');
+                $table->boolean('is_bidirectional')->default(true);
+                $table->boolean('active')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('destinations')) {
+            Schema::create('destinations', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->text('description')->nullable();
+                $table->string('region')->nullable();
+                $table->boolean('is_active')->default(true);
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });
@@ -77,9 +129,24 @@ trait InteractsWithTenantTicketing
             Schema::create('vehicles', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('identifier')->unique();
+                $table->string('maker')->nullable();
                 $table->uuid('vehicle_type_id')->index();
                 $table->unsignedInteger('seat_count');
                 $table->boolean('active')->default(true);
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('station_vehicle_assignments')) {
+            Schema::create('station_vehicle_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('station_id')->index();
+                $table->uuid('vehicle_id')->index();
+                $table->date('valid_from')->nullable();
+                $table->date('valid_until')->nullable();
+                $table->boolean('active')->default(true);
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }
@@ -99,6 +166,18 @@ trait InteractsWithTenantTicketing
                 $table->boolean('allows_open_connections')->default(false);
                 $table->json('settings')->nullable();
                 $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('trip_seat_occupancies')) {
+            Schema::create('trip_seat_occupancies', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('trip_id')->index();
+                $table->unsignedInteger('seat_number');
+                $table->uuid('ticket_id')->nullable()->index();
+                $table->json('settings')->nullable();
+                $table->timestamps();
+                $table->unique(['trip_id', 'seat_number'], 'uniq_trip_seat');
             });
         }
 
@@ -190,6 +269,36 @@ trait InteractsWithTenantTicketing
                 $table->boolean('automatic_connection_allocation')->default(false);
                 $table->unsignedInteger('connection_transfer_buffer_minutes')->default(15);
                 $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('crew_members')) {
+            Schema::create('crew_members', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('name');
+                $table->string('phone')->nullable();
+                $table->enum('role', ['driver', 'assistant'])->index();
+                $table->string('license_number')->nullable();
+                $table->date('license_expiry_date')->nullable();
+                $table->string('pin')->nullable();
+                $table->string('push_token')->nullable();
+                $table->boolean('active')->default(true);
+                $table->text('notes')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('vehicle_crew_assignments')) {
+            Schema::create('vehicle_crew_assignments', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('vehicle_id')->index();
+                $table->uuid('crew_member_id')->index();
+                $table->enum('role', ['driver', 'assistant'])->index();
+                $table->dateTime('assigned_from');
+                $table->dateTime('assigned_to')->nullable();
+                $table->json('settings')->nullable();
+                $table->text('notes')->nullable();
                 $table->timestamps();
             });
         }

@@ -17,6 +17,7 @@ import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const page = usePage();
 const isAdmin = computed(() => page.props.auth.user?.role === 'admin');
@@ -127,8 +128,8 @@ const submit = () => {
   });
 };
 
-const deleteAssignment = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer cette affectation ?')) {
+const deleteAssignment = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer cette affectation', message: 'Cette affectation sera définitivement supprimée.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('fleet.assignments.destroy', id), {
       onSuccess: () => {
         if (selectedAssignment.value?.id === id) {
@@ -178,7 +179,7 @@ const handlePrint = () => {
             </div>
             Affectations véhicules
           </h1>
-          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Attribuer des véhicules aux fleet managers</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Attribuer des véhicules aux gestionnaires de flotte</p>
         </div>
       </div>
 
@@ -199,7 +200,7 @@ const handlePrint = () => {
                     placeholder="Rechercher..."
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle affectation">
                   <Plus class="h-5 w-5" />

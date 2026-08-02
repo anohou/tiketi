@@ -8,9 +8,11 @@ import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import EmptyState from '@/Components/EmptyState.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 import { toastStore } from '@/Stores/toastStore.js';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 import {
   buildTripCreationDestinationOptions,
   buildTripCreationRouteOptions,
@@ -26,6 +28,7 @@ import Ticket from 'vue-material-design-icons/Ticket.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
 import FileExcel from 'vue-material-design-icons/FileExcel.vue';
 import FilePdfBox from 'vue-material-design-icons/FilePdfBox.vue';
+import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 const { exportToExcel, printList } = useExportPrint();
 
@@ -49,6 +52,22 @@ const props = defineProps({
   stations: {
     type: Array,
     default: () => []
+  },
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS })
+  },
+  title: {
+    type: String,
+    default: 'Gestion des Voyages'
+  },
+  subtitle: {
+    type: String,
+    default: 'Paramètres du système'
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -459,8 +478,8 @@ const submit = () => {
   });
 };
 
-const deleteTrip = (id) => {
-  if (confirm('Êtes-vous sûr de vouloir supprimer ce voyage ?')) {
+const deleteTrip = async (id) => {
+  if (await confirmationStore.confirm({ title: 'Supprimer ce voyage', message: 'Cette action supprimera définitivement le voyage.', confirmLabel: 'Supprimer', tone: 'danger' })) {
     router.delete(route('admin.trips.destroy', id), {
       onSuccess: () => {
         if (selectedTrip.value?.id === id) {
@@ -568,7 +587,7 @@ const handlePrint = () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden bg-slate-50 dark:bg-slate-950">
       <!-- Header with padding -->
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
@@ -577,9 +596,9 @@ const handlePrint = () => {
             <div class="p-2 bg-emerald-100 dark:bg-emerald-950/50 rounded-2xl shadow-sm">
               <Calendar class="text-green-600 dark:text-green-400" :size="28" />
             </div>
-            Gestion des Voyages
+            {{ props.title }}
           </h1>
-          <p class="text-slate-500 dark:text-slate-400 mt-1">Paramètres du système</p>
+          <p class="text-slate-500 dark:text-slate-400 mt-1">{{ props.subtitle }}</p>
         </div>
       </div>
 
@@ -601,10 +620,11 @@ const handlePrint = () => {
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-400 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-sm" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm shrink-0" title="Nouveau Voyage">
+                <button v-if="permissions.canCreate" @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm shrink-0" title="Nouveau Voyage">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons 
+                  v-if="permissions.canExport"
                   :disabled="filteredTrips.length === 0"
                   @export="handleExport"
                   @print="handlePrint"
@@ -650,8 +670,13 @@ const handlePrint = () => {
 
             <!-- List Content -->
             <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredTrips.length === 0" class="p-4 text-center text-slate-500 dark:text-slate-400">
-                Aucun voyage trouvé.
+              <div v-if="filteredTrips.length === 0" class="flex min-h-72 items-center justify-center p-4">
+                <EmptyState
+                  title="Aucun voyage trouvé"
+                  message="Modifiez les critères de recherche ou créez un voyage avec le bouton '+'."
+                  :icon="Calendar"
+                  plain
+                />
               </div>
               <div v-else>
                 <div v-for="trip in filteredTrips" :key="trip.id" 
@@ -698,7 +723,7 @@ const handlePrint = () => {
           <div v-if="!selectedTrip" class="bg-white/90 dark:bg-slate-900/90 backdrop-blur rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
             <MapClock class="h-16 w-16 text-emerald-200 dark:text-slate-700 mb-4" />
             <p class="text-lg">Sélectionnez un voyage pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium">
+            <button v-if="permissions.canCreate" @click="openCreateModal" class="mt-4 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium">
               ou créez un nouveau voyage
             </button>
           </div>
@@ -721,6 +746,7 @@ const handlePrint = () => {
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                   <button
+                    v-if="permissions.canExport"
                     @click="exportSelectedTicketsToExcel"
                     :disabled="exportingTripExcel || !hasVisibleTickets"
                     class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -730,6 +756,7 @@ const handlePrint = () => {
                     <span class="text-sm font-medium">CSV</span>
                   </button>
                   <button
+                    v-if="permissions.canExport"
                     @click="exportSelectedTicketsToPdf"
                     :disabled="exportingTripPdf || !hasVisibleTickets"
                     class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
@@ -738,10 +765,10 @@ const handlePrint = () => {
                     <FilePdfBox :size="18" />
                     <span class="text-sm font-medium">PDF</span>
                   </button>
-                  <button @click="openEditModal" class="p-2 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-xl transition-colors" title="Modifier">
+                  <button v-if="permissions.canUpdate" @click="openEditModal" class="p-2 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/40 rounded-xl transition-colors" title="Modifier">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteTrip(selectedTrip.id)" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors" title="Supprimer">
+                  <button v-if="permissions.canDelete" @click="deleteTrip(selectedTrip.id)" class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors" title="Supprimer">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>

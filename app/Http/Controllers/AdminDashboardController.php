@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CrewMember;
 use App\Models\Destination;
 use App\Models\Route;
 use App\Models\RouteFare;
@@ -65,6 +66,9 @@ class AdminDashboardController extends Controller
         $totalUsers = User::count();
         $activeUsers = User::where('active', true)->count();
         $fleetManagers = User::where('role', 'fleet_manager')->count();
+
+        // Configuration alerts ("Points d'attention")
+        $configAlerts = $this->configAlerts();
 
         // System Health Metrics
         $systemHealth = [
@@ -149,6 +153,7 @@ class AdminDashboardController extends Controller
                 'totalAssignments' => $totalAssignments,
             ],
             'systemHealth' => $systemHealth,
+            'configAlerts' => $configAlerts,
             'charts' => [
                 'salesTrend' => $salesTrend,
                 'topRoutes' => $topRoutes,
@@ -168,6 +173,76 @@ class AdminDashboardController extends Controller
                 ['label' => 'Config. Tickets', 'href' => '/admin/ticket-settings', 'icon' => 'settings'],
             ],
         ]);
+    }
+
+    /**
+     * Alertes de configuration (réservées au tableau de bord administrateur).
+     */
+    private function configAlerts(): array
+    {
+        $alerts = [];
+
+        $sellersWithoutStation = User::where('role', 'seller')
+            ->whereDoesntHave('stationAssignments', fn ($query) => $query->where('active', true))
+            ->count();
+
+        if ($sellersWithoutStation > 0) {
+            $alerts[] = [
+                'id' => 'sellers-without-station',
+                'type' => 'warning',
+                'title' => 'Vendeurs sans gare',
+                'message' => "{$sellersWithoutStation} vendeur(s) ne sont affectés à aucune gare.",
+                'route' => 'admin.users.index',
+            ];
+        }
+
+        $supervisedStationIds = UserStationAssignment::where('active', true)
+            ->whereHas('user', fn ($query) => $query->where('role', 'supervisor'))
+            ->pluck('station_id');
+
+        $stationsWithoutSupervisor = Station::where('active', true)
+            ->whereNotIn('id', $supervisedStationIds)
+            ->count();
+
+        if ($stationsWithoutSupervisor > 0) {
+            $alerts[] = [
+                'id' => 'stations-without-supervisor',
+                'type' => 'warning',
+                'title' => 'Gares sans superviseur',
+                'message' => "{$stationsWithoutSupervisor} gare(s) active(s) n'ont aucun superviseur affecté.",
+                'route' => 'admin.stations.index',
+            ];
+        }
+
+        $vehiclesWithoutPool = Vehicle::where('active', true)
+            ->whereDoesntHave('stationAssignments', fn ($query) => $query->where('active', true))
+            ->count();
+
+        if ($vehiclesWithoutPool > 0) {
+            $alerts[] = [
+                'id' => 'vehicles-without-pool',
+                'type' => 'warning',
+                'title' => 'Véhicules sans pool',
+                'message' => "{$vehiclesWithoutPool} véhicule(s) actif(s) ne sont rattachés à aucun pool de gare.",
+                'route' => 'fleet.station-vehicle-assignments.index',
+            ];
+        }
+
+        $crewUnassigned = CrewMember::where('active', true)
+            ->whereDoesntHave('currentAssignment')
+            ->count();
+
+        if ($crewUnassigned > 0) {
+            $alerts[] = [
+                'id' => 'crew-unassigned',
+                'type' => 'warning',
+                'title' => 'Équipages non affectés',
+                'message' => "{$crewUnassigned} membre(s) d'équipage actif(s) ne sont affectés à aucun véhicule.",
+                'route' => 'fleet.crew-assignments.index',
+            ];
+        }
+
+        return $alerts;
     }
 
     private function checkDatabaseHealth(): array

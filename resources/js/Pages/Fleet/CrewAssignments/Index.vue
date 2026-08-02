@@ -1,10 +1,9 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import FleetMenu from '@/Components/FleetMenu.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
-import { usePage } from '@inertiajs/vue3';
 import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -14,554 +13,241 @@ import InputError from '@/Components/InputError.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
-import Trash2 from 'vue-material-design-icons/Delete.vue';
+import Delete from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
 import Steering from 'vue-material-design-icons/Steering.vue';
 import SeatPassenger from 'vue-material-design-icons/SeatPassenger.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
-import CheckCircle from 'vue-material-design-icons/CheckCircle.vue';
-import CloseCircle from 'vue-material-design-icons/CloseCircle.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
-const { exportToExcel, printList } = useExportPrint();
+const props = defineProps({
+  assignments: { type: Object, default: () => ({ data: [] }) },
+  crewMembers: { type: Array, default: () => [] },
+  vehicles: { type: Array, default: () => [] },
+  filters: { type: Object, default: () => ({}) },
+});
 
 const page = usePage();
 const isAdmin = computed(() => page.props.auth.user?.role === 'admin');
+const { exportToExcel, printList } = useExportPrint();
 
-const props = defineProps({
-  assignments: {
-    type: Object,
-    default: () => ({ data: [] }),
-  },
-  crewMembers: {
-    type: Array,
-    default: () => [],
-  },
-  vehicles: {
-    type: Array,
-    default: () => [],
-  },
-});
-
-const search = ref('');
-const statusFilter = ref('');
-const roleFilter = ref('');
-const selectedAssignment = ref(null);
+const selectedVehicleId = ref(props.filters.vehicle_id || '');
+const selectedCrewMemberId = ref(props.filters.crew_member_id || '');
+const roleFilter = ref(props.filters.role || '');
+const statusFilter = ref(props.filters.status || '');
+const search = ref(props.filters.search || '');
+const showModal = ref(false);
+const editing = ref(null);
 const processing = ref(false);
 const errors = ref({});
-const showModal = ref(false);
-const isEditing = ref(false);
 
-const form = ref({
+const blankForm = () => ({
   vehicle_id: '',
   crew_member_id: '',
   role: 'driver',
   assigned_from: '',
+  assigned_to: '',
   notes: '',
 });
+const form = ref(blankForm());
+const visibleAssignments = computed(() => props.assignments?.data || []);
+const hasFilters = computed(() => Boolean(selectedVehicleId.value || selectedCrewMemberId.value || roleFilter.value || statusFilter.value || search.value));
+const filteredCrewForForm = computed(() => props.crewMembers.filter(member => member.role === form.value.role));
+let filterTimer = null;
 
-// Filtered crew members based on selected role
-const filteredCrewForForm = computed(() => {
-  return props.crewMembers.filter(m => m.role === form.value.role);
-});
-
-const filteredAssignments = computed(() => {
-  let assignments = props.assignments?.data || [];
-
-  if (search.value) {
-    const searchTerm = search.value.toLowerCase();
-    assignments = assignments.filter(a =>
-      (a.crew_member?.name || '').toLowerCase().includes(searchTerm) ||
-      (a.vehicle?.identifier || '').toLowerCase().includes(searchTerm)
-    );
-  }
-
-  if (statusFilter.value === 'active') {
-    assignments = assignments.filter(a => !a.assigned_to);
-  } else if (statusFilter.value === 'closed') {
-    assignments = assignments.filter(a => a.assigned_to);
-  }
-
-  if (roleFilter.value) {
-    assignments = assignments.filter(a => a.role === roleFilter.value);
-  }
-
-  return assignments;
-});
-
-watch(() => props.assignments, (newAssignments) => {
-  if (selectedAssignment.value) {
-    const updated = newAssignments.data.find(a => a.id === selectedAssignment.value.id);
-    if (updated) {
-      selectedAssignment.value = updated;
-    } else {
-      selectedAssignment.value = null;
-    }
-  }
-}, { deep: true });
-
-const isSelected = (assignment) => selectedAssignment.value?.id === assignment.id;
-const selectAssignment = (assignment) => { selectedAssignment.value = assignment; };
-
-const isActive = (assignment) => !assignment.assigned_to;
-const getRoleLabel = (role) => role === 'driver' ? 'Chauffeur' : 'Assistant';
-const getRoleColor = (role) => role === 'driver' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
-
-const formatDate = (dateString) => {
-  if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric'
+const applyFilters = () => {
+  router.get(route('fleet.crew-assignments.index'), {
+    vehicle_id: selectedVehicleId.value || undefined,
+    crew_member_id: selectedCrewMemberId.value || undefined,
+    role: roleFilter.value || undefined,
+    status: statusFilter.value || undefined,
+    search: search.value || undefined,
+  }, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true,
+    only: ['assignments', 'filters'],
   });
 };
 
-const formatDateTime = (dateString) => {
-  if (!dateString) return '';
-  return new Date(dateString).toLocaleString('fr-FR', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
+watch([selectedVehicleId, selectedCrewMemberId, roleFilter, statusFilter, search], () => {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilters, 350);
+});
+onBeforeUnmount(() => clearTimeout(filterTimer));
+
+const resetFilters = () => {
+  selectedVehicleId.value = '';
+  selectedCrewMemberId.value = '';
+  roleFilter.value = '';
+  statusFilter.value = '';
+  search.value = '';
 };
 
-const openCreateModal = () => {
-  isEditing.value = false;
+const isActive = assignment => !assignment.assigned_to;
+const roleLabel = role => role === 'driver' ? 'Chauffeur' : 'Assistant';
+const formatDate = value => value ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(new Date(value)) : '—';
+const formatDateTime = value => value ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+
+const openCreate = () => {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  form.value = {
-    vehicle_id: '',
-    crew_member_id: '',
-    role: 'driver',
-    assigned_from: now.toISOString().slice(0, 16),
-    notes: '',
-  };
+  editing.value = null;
+  form.value = { ...blankForm(), assigned_from: now.toISOString().slice(0, 16) };
   errors.value = {};
   showModal.value = true;
 };
 
-const openEditModal = () => {
-  if (!selectedAssignment.value) return;
-  isEditing.value = true;
+const openEdit = assignment => {
+  editing.value = assignment;
   form.value = {
-    vehicle_id: selectedAssignment.value.vehicle_id,
-    crew_member_id: selectedAssignment.value.crew_member_id,
-    role: selectedAssignment.value.role,
-    assigned_from: selectedAssignment.value.assigned_from?.slice(0, 16) || '',
-    assigned_to: selectedAssignment.value.assigned_to?.slice(0, 16) || '',
-    notes: selectedAssignment.value.notes || '',
+    vehicle_id: assignment.vehicle_id,
+    crew_member_id: assignment.crew_member_id,
+    role: assignment.role,
+    assigned_from: assignment.assigned_from?.slice(0, 16) || '',
+    assigned_to: assignment.assigned_to?.slice(0, 16) || '',
+    notes: assignment.notes || '',
   };
   errors.value = {};
   showModal.value = true;
 };
 
 const closeModal = () => {
+  if (processing.value) return;
   showModal.value = false;
-  form.value = { vehicle_id: '', crew_member_id: '', role: 'driver', assigned_from: '', notes: '' };
-  errors.value = {};
+  editing.value = null;
 };
 
 const submit = () => {
   processing.value = true;
   errors.value = {};
-
-  const url = isEditing.value
-    ? route('fleet.crew-assignments.update', selectedAssignment.value.id)
-    : route('fleet.crew-assignments.store');
-
-  const method = isEditing.value ? 'put' : 'post';
-
-  router[method](url, form.value, {
-    onSuccess: () => {
-      processing.value = false;
-      closeModal();
-    },
-    onError: (newErrors) => {
-      processing.value = false;
-      errors.value = newErrors;
-    },
-  });
-};
-
-const closeAssignment = (id) => {
-  if (confirm("Clôturer cette affectation ? L'historique sera conservé.")) {
-    router.delete(route('fleet.crew-assignments.destroy', id), {
-      onSuccess: () => {
-        if (selectedAssignment.value?.id === id) {
-          selectedAssignment.value = null;
-        }
-      },
-    });
+  const options = {
+    preserveScroll: true,
+    onSuccess: () => { showModal.value = false; editing.value = null; },
+    onError: validationErrors => { errors.value = validationErrors; },
+    onFinish: () => { processing.value = false; },
+  };
+  if (editing.value) {
+    router.put(route('fleet.crew-assignments.update', editing.value.id), form.value, options);
+  } else {
+    router.post(route('fleet.crew-assignments.store'), form.value, options);
   }
 };
 
-const assignmentColumns = {
-  'crew_member.name': 'Membre',
-  role: 'Rôle',
-  'vehicle.identifier': 'Véhicule',
-  assigned_from: 'Début',
-  assigned_to: 'Fin',
+const remove = async assignment => {
+  const active = isActive(assignment);
+  const confirmed = await confirmationStore.confirm({
+    title: active ? 'Clôturer l’affectation' : 'Supprimer l’affectation',
+    message: active
+      ? `Clôturer l’affectation de ${assignment.crew_member?.name} au véhicule ${assignment.vehicle?.identifier} ? L’historique sera conservé.`
+      : `Supprimer définitivement l’affectation de ${assignment.crew_member?.name} ?`,
+    confirmLabel: active ? 'Clôturer' : 'Supprimer',
+    tone: active ? 'warning' : 'danger',
+  });
+  if (confirmed) router.delete(route('fleet.crew-assignments.destroy', assignment.id), { preserveScroll: true });
 };
 
-const handleExport = () => {
-  const data = filteredAssignments.value.map(a => ({
-    ...a,
-    role: getRoleLabel(a.role),
-    assigned_from: formatDate(a.assigned_from),
-    assigned_to: a.assigned_to ? formatDate(a.assigned_to) : 'En cours',
-  }));
-  exportToExcel(data, assignmentColumns, 'affectations-equipage');
+const columns = {
+  'crew_member.name': 'Membre', role: 'Rôle', 'vehicle.identifier': 'Véhicule', assigned_from: 'Début', assigned_to: 'Fin',
 };
-
-const handlePrint = () => {
-  const data = filteredAssignments.value.map(a => ({
-    ...a,
-    role: getRoleLabel(a.role),
-    assigned_from: formatDate(a.assigned_from),
-    assigned_to: a.assigned_to ? formatDate(a.assigned_to) : 'En cours',
-  }));
-  printList(data, assignmentColumns, 'Affectations Équipage');
-};
+const exportRows = () => visibleAssignments.value.map(assignment => ({
+  ...assignment,
+  role: roleLabel(assignment.role),
+  assigned_from: formatDateTime(assignment.assigned_from),
+  assigned_to: assignment.assigned_to ? formatDateTime(assignment.assigned_to) : 'En cours',
+}));
+const handleExport = () => exportToExcel(exportRows(), columns, 'affectations-equipage');
+const handlePrint = () => printList(exportRows(), columns, 'Affectations Équipage');
 </script>
 
 <template>
   <MainNavLayout :fullHeight="true">
-    <div class="flex flex-col h-full w-full overflow-hidden">
-      <!-- Header -->
-      <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
+    <div class="flex h-full w-full flex-col overflow-hidden">
+      <header class="flex shrink-0 flex-col justify-between gap-4 px-6 pb-4 pt-6 md:flex-row md:items-center">
         <div>
-          <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
-            <div class="p-2 bg-emerald-100 rounded-xl">
-              <SwapHorizontal class="text-emerald-600" :size="28" />
-            </div>
+          <h1 class="flex items-center gap-3 text-3xl font-black text-slate-900 dark:text-slate-100">
+            <span class="rounded-xl bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><SwapHorizontal :size="28" /></span>
             Affectations Équipage
           </h1>
-          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Historique des affectations chauffeurs/assistants aux véhicules</p>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Gérez et consultez les chauffeurs et assistants affectés à chaque véhicule.</p>
         </div>
-      </div>
+        <div class="flex items-center gap-2">
+          <ExportPrintButtons :disabled="!visibleAssignments.length" @export="handleExport" @print="handlePrint" />
+          <button @click="openCreate" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-emerald-700">
+            <Plus :size="18" /> Nouvelle affectation
+          </button>
+        </div>
+      </header>
 
-      <!-- Three Column Layout -->
-      <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
-        <!-- Left Column - Navigation -->
-        <div class="col-span-12 md:col-span-2 overflow-y-auto h-full pr-2 custom-scrollbar">
+      <div class="grid min-h-0 flex-1 grid-cols-12 gap-4 px-6 pb-6">
+        <aside class="col-span-12 h-full overflow-y-auto pr-2 md:col-span-2">
           <SettingsMenu v-if="isAdmin" />
           <FleetMenu v-else />
-        </div>
+        </aside>
 
-        <!-- Middle Column - Assignments List -->
-        <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
-            <!-- List Header -->
-            <div class="border-b border-slate-200 dark:border-slate-800 p-3 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20 shrink-0">
-              <div class="flex items-center justify-between gap-2 mb-2">
-                <div class="relative flex-1">
-                  <input
-                    type="text"
-                    v-model="search"
-                    placeholder="Rechercher..."
-                    class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
-                  />
-                  <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle Affectation">
-                  <Plus class="h-5 w-5" />
-                </button>
-                <ExportPrintButtons
-                  :disabled="filteredAssignments.length === 0"
-                  @export="handleExport"
-                  @print="handlePrint"
-                />
-              </div>
-              <div class="flex items-center gap-2">
-                <select
-                  v-model="statusFilter"
-                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-emerald-400 dark:bg-slate-950 dark:text-slate-100"
-                >
-                  <option value="">Tous les statuts</option>
-                  <option value="active">En cours</option>
-                  <option value="closed">Clôturées</option>
-                </select>
-                <select
-                  v-model="roleFilter"
-                  class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded text-[11px] focus:outline-none focus:border-emerald-400 dark:bg-slate-950 dark:text-slate-100"
-                >
-                  <option value="">Tous les rôles</option>
-                  <option value="driver">Chauffeurs</option>
-                  <option value="assistant">Assistants</option>
-                </select>
-              </div>
+        <main class="col-span-12 flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 md:col-span-10">
+          <div class="border-b border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <div><h2 class="text-sm font-black text-slate-800 dark:text-slate-100">Liste des affectations</h2><p class="text-xs text-slate-500">{{ assignments.total || 0 }} affectation(s) trouvée(s)</p></div>
+              <button v-if="hasFilters" @click="resetFilters" class="text-xs font-bold text-emerald-700 dark:text-emerald-300">Réinitialiser les filtres</button>
             </div>
-
-            <!-- List Content -->
-            <div class="overflow-y-auto flex-1 custom-scrollbar">
-              <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
-                Aucune affectation trouvée.
-              </div>
-              <div v-else>
-                <div
-                  v-for="assignment in filteredAssignments"
-                  :key="assignment.id"
-                  @click="selectAssignment(assignment)"
-                  class="p-3 cursor-pointer transition-colors border-b border-slate-50 dark:border-slate-800/30 last:border-0"
-                  :class="[isSelected(assignment) ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-l-emerald-500' : isActive(assignment) ? 'bg-white dark:bg-slate-900 border-l-emerald-500' : 'bg-white dark:bg-slate-900 border-l-slate-200 dark:border-l-slate-800']"
-                >
-                  <div class="flex justify-between items-start">
-                    <div class="flex items-center gap-3">
-                      <div :class="[
-                        'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-                        assignment.role === 'driver' ? 'bg-blue-100' : 'bg-purple-100'
-                      ]">
-                        <component
-                          :is="assignment.role === 'driver' ? Steering : SeatPassenger"
-                          :class="assignment.role === 'driver' ? 'text-blue-600' : 'text-purple-600'"
-                          :size="16"
-                        />
-                      </div>
-                      <div>
-                        <h3 :class="['font-semibold text-sm', isSelected(assignment) ? 'text-emerald-800' : 'text-gray-800 dark:text-slate-200 dark:text-slate-200']">
-                          {{ assignment.crew_member?.name || 'Inconnu' }}
-                        </h3>
-                        <p class="text-[10px] text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Bus :size="12" class="text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500" />
-                          {{ assignment.vehicle?.identifier || 'Véhicule inconnu' }}
-                        </p>
-                        <p class="text-[10px] text-gray-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">
-                          {{ formatDate(assignment.assigned_from) }}
-                          <template v-if="assignment.assigned_to"> → {{ formatDate(assignment.assigned_to) }}</template>
-                        </p>
-                      </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-1 shrink-0">
-                      <span :class="['px-2 py-0.5 rounded-full text-[9px] font-medium', getRoleColor(assignment.role)]">
-                        {{ getRoleLabel(assignment.role) }}
-                      </span>
-                      <span :class="[
-                        'flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium',
-                        isActive(assignment) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
-                      ]">
-                        <component :is="isActive(assignment) ? CheckCircle : CloseCircle" :size="10" />
-                        {{ isActive(assignment) ? 'En cours' : 'Clôturée' }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="grid gap-3 xl:grid-cols-[1fr_1fr_.8fr_.8fr_1.35fr]">
+              <select v-model="selectedVehicleId" class="w-full rounded-xl border-slate-200 bg-white py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                <option value="">Tous les véhicules</option><option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">{{ vehicle.identifier }} · {{ vehicle.vehicle_type?.name }}</option>
+              </select>
+              <select v-model="selectedCrewMemberId" class="w-full rounded-xl border-slate-200 bg-white py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                <option value="">Tout l’équipage</option><option v-for="member in crewMembers" :key="member.id" :value="member.id">{{ member.name }}</option>
+              </select>
+              <select v-model="roleFilter" class="w-full rounded-xl border-slate-200 bg-white py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                <option value="">Tous les rôles</option><option value="driver">Chauffeurs</option><option value="assistant">Assistants</option>
+              </select>
+              <select v-model="statusFilter" class="w-full rounded-xl border-slate-200 bg-white py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                <option value="">Tous les statuts</option><option value="active">En cours</option><option value="closed">Clôturées</option>
+              </select>
+              <div class="relative"><Magnify class="absolute left-3 top-2.5 text-emerald-500 dark:text-emerald-400" :size="18" /><input v-model="search" type="search" placeholder="Mot-clé : nom, téléphone, véhicule, note…" class="w-full rounded-xl border-slate-200 bg-white py-2 pl-10 pr-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></div>
             </div>
           </div>
-        </div>
 
-        <!-- Right Column - Details -->
-        <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
-          <!-- Empty State -->
-          <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
-            <SwapHorizontal class="h-16 w-16 text-slate-300 mb-4" />
-            <p class="text-lg">Sélectionnez une affectation pour voir les détails</p>
-            <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
-              ou créez une nouvelle affectation
-            </button>
-          </div>
-
-          <!-- Details -->
-          <div v-else class="space-y-4">
-            <!-- Assignment Details Card -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-              <div class="flex justify-between items-start mb-6">
-                <h2 class="text-xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">Détails de l'Affectation</h2>
-                <div class="flex items-center gap-2">
-                  <span :class="[
-                    'flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold',
-                    isActive(selectedAssignment) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600 dark:text-slate-350 dark:text-slate-350'
-                  ]">
-                    <component :is="isActive(selectedAssignment) ? CheckCircle : CloseCircle" :size="14" />
-                    {{ isActive(selectedAssignment) ? 'En cours' : 'Clôturée' }}
-                  </span>
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" title="Modifier">
-                    <Pencil class="h-5 w-5" />
-                  </button>
-                  <button
-                    v-if="isActive(selectedAssignment)"
-                    @click="closeAssignment(selectedAssignment.id)"
-                    class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Clôturer"
-                  >
-                    <CloseCircle class="h-5 w-5" />
-                  </button>
-                  <button
-                    v-else
-                    @click="closeAssignment(selectedAssignment.id)"
-                    class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Supprimer"
-                  >
-                    <Trash2 class="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- Crew Member -->
-              <div class="grid grid-cols-2 gap-6">
-                <div class="col-span-2 md:col-span-1">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">MEMBRE D'ÉQUIPAGE</span>
-                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <div :class="[
-                      'w-10 h-10 rounded-full flex items-center justify-center',
-                      selectedAssignment.role === 'driver' ? 'bg-blue-100' : 'bg-purple-100'
-                    ]">
-                      <component
-                        :is="selectedAssignment.role === 'driver' ? Steering : SeatPassenger"
-                        :class="selectedAssignment.role === 'driver' ? 'text-blue-600' : 'text-purple-600'"
-                        :size="20"
-                      />
-                    </div>
-                    <div>
-                      <p class="font-semibold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedAssignment.crew_member?.name }}</p>
-                      <span :class="['px-2 py-0.5 rounded-full text-[10px] font-medium', getRoleColor(selectedAssignment.role)]">
-                        {{ getRoleLabel(selectedAssignment.role) }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Vehicle -->
-                <div class="col-span-2 md:col-span-1">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">VÉHICULE</span>
-                  <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <Bus class="text-emerald-600" :size="20" />
-                    <div>
-                      <p class="font-semibold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ selectedAssignment.vehicle?.identifier }}</p>
-                      <p class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">{{ selectedAssignment.vehicle?.vehicle_type?.name || '' }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Dates -->
-              <div class="grid grid-cols-2 gap-6 mt-6">
-                <div>
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">DÉBUT</span>
-                  <p class="text-lg font-medium text-gray-900 dark:text-slate-100">{{ formatDateTime(selectedAssignment.assigned_from) }}</p>
-                </div>
-                <div>
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">FIN</span>
-                  <p class="text-lg font-medium" :class="selectedAssignment.assigned_to ? 'text-gray-900 dark:text-slate-100' : 'text-emerald-600'">
-                    {{ selectedAssignment.assigned_to ? formatDateTime(selectedAssignment.assigned_to) : 'En cours' }}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Notes -->
-              <div v-if="selectedAssignment.notes" class="mt-6 pt-6 border-t border-gray-100 dark:border-slate-800">
-                <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">NOTES</span>
-                <p class="text-gray-700 dark:text-slate-300 dark:text-slate-300 text-sm">{{ selectedAssignment.notes }}</p>
-              </div>
+          <div class="flex-1 overflow-auto">
+            <div v-if="!visibleAssignments.length" class="flex h-full min-h-72 flex-col items-center justify-center text-center text-slate-400">
+              <SwapHorizontal :size="48" class="mb-3 opacity-30" /><p class="font-bold">Aucune affectation ne correspond à votre recherche</p>
+              <button v-if="hasFilters" @click="resetFilters" class="mt-2 text-sm font-bold text-emerald-600">Effacer les filtres</button><button v-else @click="openCreate" class="mt-2 text-sm font-bold text-emerald-600">Créer la première affectation</button>
             </div>
+            <table v-else class="w-full min-w-[1050px] border-collapse text-left">
+              <thead class="sticky top-0 z-10 bg-slate-50 text-[11px] font-black uppercase tracking-wider text-slate-500 shadow-[0_1px_0_rgba(148,163,184,0.2)] dark:bg-slate-950 dark:text-slate-400">
+                <tr><th class="px-4 py-3">Membre d’équipage</th><th class="px-4 py-3">Rôle</th><th class="px-4 py-3">Véhicule</th><th class="px-4 py-3">Période</th><th class="px-4 py-3">Statut</th><th class="px-4 py-3">Notes</th><th class="px-4 py-3 text-right">Actions</th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                <tr v-for="assignment in visibleAssignments" :key="assignment.id" class="transition hover:bg-emerald-50/40 dark:hover:bg-emerald-950/10">
+                  <td class="px-4 py-3.5"><div class="flex items-center gap-3"><span :class="assignment.role === 'driver' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"><component :is="assignment.role === 'driver' ? Steering : SeatPassenger" :size="19" /></span><span><strong class="block text-sm text-slate-900 dark:text-slate-100">{{ assignment.crew_member?.name }}</strong><span class="text-xs text-slate-500">{{ assignment.crew_member?.phone || 'Téléphone non renseigné' }}</span></span></div></td>
+                  <td class="px-4 py-3.5"><span :class="assignment.role === 'driver' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'" class="rounded-full px-2.5 py-1 text-xs font-black">{{ roleLabel(assignment.role) }}</span></td>
+                  <td class="px-4 py-3.5"><div class="flex items-center gap-2"><Bus :size="18" class="text-emerald-600" /><span><strong class="block text-sm text-slate-900 dark:text-slate-100">{{ assignment.vehicle?.identifier }}</strong><span class="text-xs text-slate-500">{{ assignment.vehicle?.vehicle_type?.name || assignment.vehicle?.maker || 'Type non renseigné' }}</span></span></div></td>
+                  <td class="px-4 py-3.5"><strong class="block text-xs text-slate-700 dark:text-slate-200">Depuis {{ formatDate(assignment.assigned_from) }}</strong><span class="text-xs text-slate-500">{{ assignment.assigned_to ? `Jusqu’au ${formatDate(assignment.assigned_to)}` : 'Sans date de fin' }}</span></td>
+                  <td class="px-4 py-3.5"><span :class="isActive(assignment) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black"><span :class="isActive(assignment) ? 'bg-emerald-500' : 'bg-slate-400'" class="h-1.5 w-1.5 rounded-full"></span>{{ isActive(assignment) ? 'En cours' : 'Clôturée' }}</span></td>
+                  <td class="max-w-52 px-4 py-3.5"><p class="truncate text-xs text-slate-500" :title="assignment.notes || ''">{{ assignment.notes || '—' }}</p></td>
+                  <td class="px-4 py-3.5"><div class="flex justify-end gap-1"><button @click="openEdit(assignment)" class="rounded-lg p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30" title="Modifier l’affectation" aria-label="Modifier l’affectation"><Pencil :size="18" /></button><button @click="remove(assignment)" class="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30" :title="isActive(assignment) ? 'Clôturer l’affectation' : 'Supprimer l’affectation'" :aria-label="isActive(assignment) ? 'Clôturer l’affectation' : 'Supprimer l’affectation'"><Delete :size="18" /></button></div></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </div>
+          <nav v-if="assignments.last_page > 1" class="flex flex-wrap justify-center gap-1 border-t border-slate-100 p-3 dark:border-slate-800" aria-label="Pagination"><Link v-for="link in assignments.links" :key="link.label" :href="link.url || '#'" preserve-scroll v-html="link.label" :class="['rounded-lg px-3 py-1.5 text-xs font-bold', link.active ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', !link.url ? 'pointer-events-none opacity-40' : '']" /></nav>
+        </main>
       </div>
     </div>
 
-    <!-- Modal -->
-    <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
-      <template #title>
-        {{ isEditing ? "Modifier l'Affectation" : "Nouvelle Affectation" }}
-      </template>
-      <template #content>
-        <div class="space-y-4">
-          <div v-if="!isEditing" class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-            <strong>Note :</strong> Si ce véhicule a déjà un {{ form.role === 'driver' ? 'chauffeur' : 'assistant' }} en cours,
-            l'ancienne affectation sera automatiquement clôturée.
-          </div>
-
-          <div>
-            <InputLabel for="role" value="Rôle" />
-            <select
-              id="role"
-              v-model="form.role"
-              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
-              :disabled="isEditing"
-            >
-              <option value="driver">Chauffeur</option>
-              <option value="assistant">Assistant</option>
-            </select>
-            <InputError :message="errors.role" />
-          </div>
-
-          <div>
-            <InputLabel for="crew_member_id" :value="form.role === 'driver' ? 'Chauffeur' : 'Assistant'" />
-            <select
-              id="crew_member_id"
-              v-model="form.crew_member_id"
-              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
-              required
-            >
-              <option value="">Sélectionner...</option>
-              <option v-for="member in filteredCrewForForm" :key="member.id" :value="member.id">
-                {{ member.name }} {{ member.phone ? `(${member.phone})` : '' }}
-              </option>
-            </select>
-            <InputError :message="errors.crew_member_id" />
-          </div>
-
-          <div>
-            <InputLabel for="vehicle_id" value="Véhicule" />
-            <select
-              id="vehicle_id"
-              v-model="form.vehicle_id"
-              class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
-              required
-            >
-              <option value="">Sélectionner un véhicule</option>
-              <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
-                {{ vehicle.identifier }} {{ vehicle.maker ? `(${vehicle.maker})` : '' }}
-              </option>
-            </select>
-            <InputError :message="errors.vehicle_id" />
-          </div>
-
-          <div :class="isEditing ? 'grid grid-cols-2 gap-4' : ''">
-            <div>
-              <InputLabel for="assigned_from" value="Date de début" />
-              <TextInput v-model="form.assigned_from" id="assigned_from" type="datetime-local" class="w-full" />
-              <InputError :message="errors.assigned_from" />
-            </div>
-            <div v-if="isEditing">
-              <InputLabel for="assigned_to" value="Date de fin (laisser vide = en cours)" />
-              <TextInput v-model="form.assigned_to" id="assigned_to" type="datetime-local" class="w-full" />
-              <InputError :message="errors.assigned_to" />
-            </div>
-          </div>
-
-          <div>
-            <InputLabel for="notes" value="Notes (optionnel)" />
-            <textarea
-              id="notes"
-              v-model="form.notes"
-              rows="2"
-              class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
-              placeholder="Informations complémentaires..."
-            ></textarea>
-            <InputError :message="errors.notes" />
-          </div>
-        </div>
-      </template>
-      <template #footer>
-        <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
-        <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
-          {{ isEditing ? 'Mettre à jour' : 'Affecter' }}
-        </PrimaryButton>
-      </template>
+    <DialogModal :show="showModal" maxWidth="md" @close="closeModal">
+      <template #title>{{ editing ? 'Modifier l’affectation' : 'Nouvelle affectation' }}</template>
+      <template #content><div class="space-y-4">
+        <div v-if="!editing" class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><strong>À savoir :</strong> l’affectation active occupant déjà ce rôle sera automatiquement clôturée.</div>
+        <div><InputLabel for="role" value="Rôle" /><select id="role" v-model="form.role" :disabled="Boolean(editing)" class="w-full rounded-xl border-slate-200 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="driver">Chauffeur</option><option value="assistant">Assistant</option></select><InputError :message="errors.role" /></div>
+        <div><InputLabel for="crew_member_id" :value="form.role === 'driver' ? 'Chauffeur' : 'Assistant'" /><select id="crew_member_id" v-model="form.crew_member_id" class="w-full rounded-xl border-slate-200 text-sm dark:border-slate-700 dark:bg-slate-950" required><option value="">Sélectionner</option><option v-for="member in filteredCrewForForm" :key="member.id" :value="member.id">{{ member.name }}{{ member.phone ? ` · ${member.phone}` : '' }}</option></select><InputError :message="errors.crew_member_id" /></div>
+        <div><InputLabel for="vehicle_id" value="Véhicule" /><select id="vehicle_id" v-model="form.vehicle_id" class="w-full rounded-xl border-slate-200 text-sm dark:border-slate-700 dark:bg-slate-950" required><option value="">Sélectionner un véhicule</option><option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">{{ vehicle.identifier }}{{ vehicle.maker ? ` · ${vehicle.maker}` : '' }}</option></select><InputError :message="errors.vehicle_id" /></div>
+        <div :class="editing ? 'grid grid-cols-2 gap-3' : ''"><div><InputLabel for="assigned_from" value="Date de début" /><TextInput id="assigned_from" v-model="form.assigned_from" type="datetime-local" class="w-full" /><InputError :message="errors.assigned_from" /></div><div v-if="editing"><InputLabel for="assigned_to" value="Date de fin" /><TextInput id="assigned_to" v-model="form.assigned_to" type="datetime-local" class="w-full" /><InputError :message="errors.assigned_to" /></div></div>
+        <div><InputLabel for="notes" value="Notes (facultatif)" /><textarea id="notes" v-model="form.notes" rows="2" class="w-full rounded-xl border-slate-200 text-sm dark:border-slate-700 dark:bg-slate-950" placeholder="Informations complémentaires…"></textarea><InputError :message="errors.notes" /></div>
+      </div></template>
+      <template #footer><SecondaryButton @click="closeModal">Annuler</SecondaryButton><PrimaryButton class="ml-3" :disabled="processing || !form.vehicle_id || !form.crew_member_id || !form.assigned_from" @click="submit">{{ processing ? 'Enregistrement…' : editing ? 'Mettre à jour' : 'Affecter' }}</PrimaryButton></template>
     </DialogModal>
   </MainNavLayout>
 </template>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-</style>

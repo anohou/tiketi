@@ -9,6 +9,9 @@ Artisan::command('inspire', function () {
 
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('trips:replicate')->dailyAt('00:00');
+Schedule::command('trips:replicate')
+    ->dailyAt('00:05')
+    ->timezone(config('app.timezone'))
+    ->withoutOverlapping();
 Schedule::command('offline-actions:purge')->dailyAt('02:30')->withoutOverlapping();
 Schedule::command('okohi:cleanup-expired')->everyMinute()->withoutOverlapping();

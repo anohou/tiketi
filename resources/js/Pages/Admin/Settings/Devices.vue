@@ -6,7 +6,7 @@ import ShieldLock from 'vue-material-design-icons/ShieldLock.vue';
 import Laptop from 'vue-material-design-icons/Laptop.vue';
 import Cellphone from 'vue-material-design-icons/Cellphone.vue';
 import CheckCircle from 'vue-material-design-icons/CheckCircle.vue';
-import CloseCircle from 'vue-material-design-icons/CloseCircle.vue';
+import AccountOff from 'vue-material-design-icons/AccountOff.vue';
 
 const props = defineProps({
     devices: { type: Array, default: () => [] },
@@ -160,7 +160,7 @@ const statusLabel = {
                 <summary class="cursor-pointer font-black">Historique ({{ groups.inactive.length }})</summary>
                 <div class="mt-4 space-y-2">
                     <div v-for="device in groups.inactive" :key="device.id" class="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60">
-                        <CloseCircle :size="20" class="text-slate-400" />
+                        <AccountOff :size="20" class="text-slate-400" />
                         <div class="flex-1">
                             <p class="text-sm font-bold">{{ device.name || 'Appareil sans nom' }}</p>
                             <p class="text-xs text-slate-500">{{ statusLabel[device.status] }} · {{ device.channel }} · {{ formatDate(device.revoked_at) }}</p>

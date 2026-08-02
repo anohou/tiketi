@@ -5,7 +5,7 @@ const props = defineProps({ routeItem: Object, stations: Array })
 <template>
   <SettingsLayout>
     <div class='grid grid-cols-12 gap-4'>
-      <div class='col-span-12 md:col-span-6 bg-white rounded shadow border border-orange-200 p-4'>
+      <div class='col-span-12 md:col-span-6 bg-white rounded shadow border border-slate-200 p-4'>
         <div class='font-semibold text-green-700 mb-3'>{{ props.routeItem ? 'Modifier une route' : 'Créer une route' }}</div>
         <form :action="props.routeItem ? `/admin/routes/${props.routeItem.id}` : '/admin/routes'" method='post'>
           <input type='hidden' name='_token' :value="document.querySelector('meta[name=csrf-token]')?.content"/>

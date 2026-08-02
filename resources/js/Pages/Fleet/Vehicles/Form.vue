@@ -70,7 +70,7 @@ const submit = () => {
         </div>
 
         <div class="col-span-12 md:col-span-10 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-orange-200 shadow-sm p-6">
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
             <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="submit">
               <div>
                 <InputLabel value="Identifiant" />

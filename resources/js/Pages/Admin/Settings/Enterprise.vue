@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useForm, Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
@@ -11,20 +11,34 @@ import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 const props = defineProps({
   tenant: Object,
+  company: Object,
   stats: {
     type: Object,
     default: () => ({}),
   },
   operationalSettings: Object,
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS }),
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false,
+  },
 });
 
+const isReadOnly = computed(() => !props.permissions.canUpdate);
+
+const companyInfo = computed(() => props.company ?? props.tenant ?? {});
+
 const form = useForm({
-  name: props.tenant.name || '',
-  email: props.tenant.email || '',
-  phone: props.tenant.phone || '',
+  name: companyInfo.value.name || '',
+  email: companyInfo.value.email || '',
+  phone: companyInfo.value.phone || '',
   logo: null,
   automatic_connection_allocation: props.operationalSettings?.automatic_connection_allocation || false,
   connection_transfer_buffer_minutes: props.operationalSettings?.connection_transfer_buffer_minutes ?? 15,
@@ -34,7 +48,7 @@ const form = useForm({
   seller_compensation_max_amount: props.operationalSettings?.settings?.seller_compensation_max_amount ?? 0,
 });
 
-const logoPreview = ref(props.tenant.logo_url || null);
+const logoPreview = ref(companyInfo.value.logo_url || null);
 const logoName = ref('');
 const logoMessage = ref('');
 const MAX_UPLOAD_BYTES = 1.8 * 1024 * 1024;
@@ -139,7 +153,7 @@ const submit = () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden">
       <div class="px-6 pt-6 pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
@@ -153,7 +167,7 @@ const submit = () => {
         </div>
         <div class="flex gap-2">
           <Link
-            :href="route('admin.settings.index')"
+            :href="route('settings.index')"
             class="px-4 py-2 rounded-xl border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800"
           >
             Retour
@@ -170,39 +184,42 @@ const submit = () => {
           <div class="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm p-6 h-full flex flex-col">
             <h3 class="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">Logo de l'entreprise</h3>
             <div class="flex-1 flex flex-col items-center justify-center">
-              <div class="relative group">
-                <div class="w-40 h-40 bg-gray-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden transition-all group-hover:border-green-300 dark:group-hover:border-emerald-800">
-                  <template v-if="logoPreview">
-                    <img :src="logoPreview" class="w-full h-full object-contain" alt="Logo preview" />
-                  </template>
-                  <template v-else>
-                    <OfficeBuilding :size="64" class="text-gray-200 dark:text-slate-800" />
-                  </template>
-                </div>
-                <label class="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-2xl">
-                  <input type="file" @change="handleLogoChange" class="hidden" accept="image/*" />
-                </label>
-              </div>
-
-              <div class="mt-5 w-full rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950/40 p-4 space-y-3">
-                <div class="flex items-start gap-3">
-                  <CloudUpload class="text-green-600 dark:text-emerald-450 shrink-0 mt-0.5" :size="20" />
-                  <div>
-                    <p class="text-sm font-bold text-gray-900 dark:text-slate-100">Logo et identité visuelle</p>
-                    <p class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      Cliquez sur la zone pour remplacer le logo de l'entreprise. Le rendu est utilisé dans l'ensemble de l'application.
-                    </p>
+                <div class="relative group">
+                  <div class="w-40 h-40 bg-gray-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden transition-all group-hover:border-green-300 dark:group-hover:border-emerald-800">
+                    <template v-if="logoPreview">
+                      <img :src="logoPreview" class="w-full h-full object-contain" alt="Logo preview" />
+                    </template>
+                    <template v-else>
+                      <OfficeBuilding :size="64" class="text-gray-200 dark:text-slate-800" />
+                    </template>
                   </div>
+                  <label v-if="!isReadOnly" class="absolute inset-0 cursor-pointer flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-all rounded-2xl">
+                    <input type="file" @change="handleLogoChange" class="hidden" accept="image/*" />
+                  </label>
                 </div>
-                <div class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2">
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-slate-450">Fichier sélectionné</p>
-                  <p class="mt-1 text-sm text-gray-700 dark:text-slate-300 truncate">{{ logoName || 'Aucun fichier sélectionné' }}</p>
+
+                <div class="mt-5 w-full rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-950/40 p-4 space-y-3">
+                  <div class="flex items-start gap-3">
+                    <CloudUpload class="text-green-600 dark:text-emerald-450 shrink-0 mt-0.5" :size="20" />
+                    <div>
+                      <p class="text-sm font-bold text-gray-900 dark:text-slate-100">Logo et identité visuelle</p>
+                      <p v-if="!isReadOnly" class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Cliquez sur la zone pour remplacer le logo de l'entreprise. Le rendu est utilisé dans l'ensemble de l'application.
+                      </p>
+                      <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Logo actuel de l'entreprise utilisé dans l'ensemble de l'application.
+                      </p>
+                    </div>
+                  </div>
+                  <div v-if="!isReadOnly" class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-slate-450">Fichier sélectionné</p>
+                    <p class="mt-1 text-sm text-gray-700 dark:text-slate-300 truncate">{{ logoName || 'Aucun fichier sélectionné' }}</p>
+                  </div>
+                  <p v-if="logoMessage" class="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
+                    {{ logoMessage }}
+                  </p>
+                  <InputError :message="form.errors.logo" />
                 </div>
-                <p v-if="logoMessage" class="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
-                  {{ logoMessage }}
-                </p>
-                <InputError :message="form.errors.logo" />
-              </div>
             </div>
 
             <p class="text-xs text-gray-400 dark:text-slate-500 text-center mt-4 leading-relaxed">
@@ -231,7 +248,9 @@ const submit = () => {
             <div class="grid grid-cols-1 gap-5">
               <div>
                 <InputLabel for="name" value="Nom de l'entreprise" />
+                <div v-if="isReadOnly" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ form.name || '—' }}</div>
                 <TextInput
+                  v-else
                   id="name"
                   type="text"
                   class="mt-1 block w-full"
@@ -244,7 +263,9 @@ const submit = () => {
 
               <div>
                 <InputLabel for="email" value="Email de contact" />
+                <div v-if="isReadOnly" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ form.email || '—' }}</div>
                 <TextInput
+                  v-else
                   id="email"
                   type="email"
                   class="mt-1 block w-full"
@@ -256,7 +277,9 @@ const submit = () => {
 
               <div>
                 <InputLabel for="phone" value="Téléphone" />
+                <div v-if="isReadOnly" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ form.phone || '—' }}</div>
                 <TextInput
+                  v-else
                   id="phone"
                   type="text"
                   class="mt-1 block w-full"
@@ -266,7 +289,7 @@ const submit = () => {
                 <InputError class="mt-2" :message="form.errors.phone" />
               </div>
 
-              <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+              <div v-if="!isReadOnly" class="rounded-xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                 <label class="flex items-start gap-3 cursor-pointer">
                   <input v-model="form.automatic_connection_allocation" type="checkbox" class="mt-1 rounded border-emerald-300 text-emerald-600" />
                   <span>
@@ -280,7 +303,7 @@ const submit = () => {
                   <InputError class="mt-2" :message="form.errors.connection_transfer_buffer_minutes" />
                 </div>
               </div>
-              <div class="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div v-if="!isReadOnly" class="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
                 <div>
                   <span class="block text-sm font-bold text-blue-900 dark:text-blue-200">Fenêtre d’affichage des voyages</span>
                   <span class="block text-xs text-blue-700 dark:text-blue-400">Détermine les voyages programmés visibles à l’avance dans la Billetterie pour cette compagnie.</span>
@@ -305,7 +328,7 @@ const submit = () => {
                 </div>
                 <p class="mt-3 text-xs font-medium text-blue-800 dark:text-blue-300">Exemple : avec un début à {{ form.operational_day_start_hour }} h et une fenêtre de {{ form.scheduled_trip_lookahead_hours }} h, la liste couvre {{ form.scheduled_trip_lookahead_hours }} heures à partir du début de chaque journée opérationnelle.</p>
               </div>
-              <div class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
+              <div v-if="!isReadOnly" class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
                 <label class="flex items-start gap-3 cursor-pointer">
                   <input v-model="form.seller_compensation_enabled" type="checkbox" class="mt-1 rounded border-violet-300 text-violet-600" />
                   <span><span class="block text-sm font-bold text-violet-900 dark:text-violet-200">Autoriser les compensations par les vendeurs</span><span class="block text-xs text-violet-700 dark:text-violet-400">Sinon, toute demande sera transmise à un superviseur.</span></span>
@@ -314,7 +337,7 @@ const submit = () => {
               </div>
             </div>
 
-            <div class="mt-6 flex items-center justify-end border-t border-gray-100 pt-6 dark:border-slate-800">
+            <div v-if="!isReadOnly" class="mt-6 flex items-center justify-end border-t border-gray-100 pt-6 dark:border-slate-800">
               <PrimaryButton
                 :class="{ 'opacity-25': form.processing }"
                 :disabled="form.processing"

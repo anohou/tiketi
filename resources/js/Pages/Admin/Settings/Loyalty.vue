@@ -22,11 +22,29 @@ import PencilIcon from 'vue-material-design-icons/Pencil.vue';
 import PlusIcon from 'vue-material-design-icons/Plus.vue';
 import TagIcon from 'vue-material-design-icons/Tag.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
+import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 
 const props = defineProps({
   settings: Object,
+  loyalty: Object,
+  permissions: {
+    type: Object,
+    default: () => ({ ...FULL_PERMISSIONS }),
+  },
+  hideTripSidebar: {
+    type: Boolean,
+    default: false,
+  },
+  loyaltyApiPrefix: {
+    type: String,
+    default: 'admin',
+  },
 });
+
+const isReadOnly = computed(() => !props.permissions.canUpdate);
+
+const loyaltyRoute = (name, params) => route(`${props.loyaltyApiPrefix}.settings.loyalty.${name}`, params);
 
 const flash = usePage().props.flash ?? {};
 
@@ -37,7 +55,9 @@ const copied = ref(false);
 const showConfirm = ref(false);
 const showHelp = ref(false);
 
-const isConnected = computed(() => !!props.settings?.okohi_integration_url);
+const isConnected = computed(() => props.loyalty?.connected !== undefined
+  ? props.loyalty.connected
+  : !!props.settings?.okohi_integration_url);
 const code = ref('');
 const loyaltyParameters = ref(null);
 const parametersLoading = ref(false);
@@ -66,7 +86,7 @@ const fetchLoyaltyParameters = async () => {
   parametersLoading.value = true;
   parametersError.value = null;
   try {
-    const { data } = await axios.get(route('admin.settings.loyalty.parameters'));
+    const { data } = await axios.get(loyaltyRoute('parameters'));
     loyaltyParameters.value = data.data ?? data;
     hydrateParameterForm(loyaltyParameters.value);
   } catch (e) {
@@ -166,11 +186,11 @@ const txError = ref(null);
 const txPage = ref(1);
 
 const fetchTransactions = async (page = 1) => {
-  if (!isConnected.value) return;
+  if (!isConnected.value || isReadOnly.value) return;
   txLoading.value = true;
   txError.value = null;
   try {
-    const { data } = await axios.get(route('admin.settings.loyalty.transactions'), {
+    const { data } = await axios.get(loyaltyRoute('transactions'), {
       params: { page, per_page: 10 },
     });
     transactions.value = data.data?.transactions ?? [];
@@ -184,10 +204,18 @@ const fetchTransactions = async (page = 1) => {
 };
 
 onMounted(() => {
-  if (isConnected.value) { fetchTransactions(1); fetchLoyaltyParameters(); fetchRewards(); }
+  if (isConnected.value) {
+    if (!isReadOnly.value) fetchTransactions(1);
+    fetchLoyaltyParameters();
+    fetchRewards();
+  }
 });
 watch(isConnected, (v) => {
-  if (v) { fetchTransactions(1); fetchLoyaltyParameters(); fetchRewards(); }
+  if (v) {
+    if (!isReadOnly.value) fetchTransactions(1);
+    fetchLoyaltyParameters();
+    fetchRewards();
+  }
   else {
     transactions.value = []; txMeta.value = null;
     rewards.value = []; rewardsError.value = null;
@@ -211,7 +239,7 @@ const statusClass = (s) => s === 'confirmed'
   : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300';
 
 // ─── Rewards catalogue ─────────────────────────────────────────
-const rewards = ref([]);
+const rewards = ref(Array.isArray(props.loyalty?.rewards) ? props.loyalty.rewards : []);
 const rewardsLoading = ref(false);
 const rewardsError = ref(null);
 const showRewardModal = ref(false);
@@ -315,7 +343,7 @@ const fetchRewards = async () => {
   rewardsLoading.value = true;
   rewardsError.value = null;
   try {
-    const { data } = await axios.get(route('admin.settings.loyalty.rewards.index'));
+    const { data } = await axios.get(loyaltyRoute('rewards.index'));
     const rewardPayload = data.data?.rewards ?? data.rewards ?? [];
     rewards.value = Array.isArray(rewardPayload) ? rewardPayload : (rewardPayload.data ?? []);
   } catch (e) {
@@ -435,7 +463,7 @@ const deleteReward = async () => {
 </script>
 
 <template>
-  <MainNavLayout :fullHeight="true">
+  <MainNavLayout :fullHeight="true" :hide-trip-sidebar="hideTripSidebar">
     <div class="flex flex-col h-full w-full overflow-hidden">
 
         <!-- Header -->
@@ -449,7 +477,7 @@ const deleteReward = async () => {
             </h1>
             <p class="text-gray-500 dark:text-slate-455 mt-1">Intégration Okohi — récompensez vos clients à chaque voyage</p>
           </div>
-          <button @click="showHelp = true" type="button" class="mt-1 inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/20 dark:hover:text-blue-300">
+          <button v-if="!isReadOnly" @click="showHelp = true" type="button" class="mt-1 inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/20 dark:hover:text-blue-300">
             <HelpCircleOutline :size="18" />
             Comment ça fonctionne
           </button>
@@ -518,7 +546,7 @@ const deleteReward = async () => {
                     </div>
                   </div>
 
-                  <form v-else class="space-y-4 p-5" @submit.prevent="saveLoyaltyParameters">
+                  <form v-else-if="!isReadOnly" class="space-y-4 p-5" @submit.prevent="saveLoyaltyParameters">
                     <div v-if="parametersError" class="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 dark:border-red-900/30 dark:bg-red-950/20">
                       <AlertCircle :size="16" class="mt-0.5 shrink-0 text-red-400" />
                       <p class="text-xs text-red-600 dark:text-red-400">{{ parametersError }}</p>
@@ -573,6 +601,34 @@ const deleteReward = async () => {
                       {{ parametersSaving ? 'Enregistrement…' : 'Enregistrer la règle' }}
                     </button>
                   </form>
+
+                  <div v-else class="space-y-4 p-5">
+                    <div class="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
+                      <CheckCircle :size="18" class="shrink-0 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p class="text-xs font-black">{{ isFrequencyLoyalty ? 'Fidélité par visites' : 'Fidélité par points' }}</p>
+                        <p class="mt-0.5 text-[10px] leading-snug text-blue-600 dark:text-blue-400">{{ isFrequencyLoyalty ? 'Chaque voyage crédite des visites.' : 'Le montant du billet est divisé en tranches pour créditer des points.' }}</p>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">{{ isFrequencyLoyalty ? 'Prix minimum du voyage' : 'Montant d’une tranche' }}</p>
+                        <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.min_transaction_amount || 0).toLocaleString('fr-FR') }} F CFA</p>
+                      </div>
+                      <div v-if="isFrequencyLoyalty">
+                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">Visites créditées par voyage</p>
+                        <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.times_awarded || 0).toLocaleString('fr-FR') }}</p>
+                      </div>
+                      <div v-else>
+                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">Points crédités par tranche</p>
+                        <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.points_awarded || 0).toLocaleString('fr-FR') }}</p>
+                      </div>
+                    </div>
+                    <div class="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-blue-500">Règle appliquée</p>
+                      <p class="mt-1 text-xs font-bold text-blue-800 dark:text-blue-300">{{ parameterPreview }}</p>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- Flash success -->
@@ -581,7 +637,7 @@ const deleteReward = async () => {
                 </div>
 
                 <!-- NOT connected: connection form -->
-                <div v-if="!isConnected" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+                <div v-if="!isConnected && !isReadOnly" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
                   <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide">Connecter Okohi</p>
                   <div>
                     <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Code de connexion (4 chiffres)</label>
@@ -614,6 +670,7 @@ const deleteReward = async () => {
                 <template v-if="isConnected">
                   <!-- Disconnect -->
                   <button
+                    v-if="!isReadOnly"
                     @click="confirmDisconnect"
                     :disabled="processing"
                     class="w-full py-2 bg-transparent disabled:opacity-40 text-gray-300 dark:text-slate-700 hover:text-gray-400 dark:hover:text-slate-600 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5"
@@ -631,7 +688,7 @@ const deleteReward = async () => {
               <div class="space-y-4">
 
                 <!-- Not connected: guides -->
-                <template v-if="!isConnected">
+                <template v-if="!isConnected && !isReadOnly">
                   <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm p-5">
                     <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide mb-4">Comment connecter Okohi</p>
                     <ol class="space-y-4">
@@ -671,6 +728,7 @@ const deleteReward = async () => {
                         </div>
                       </div>
                       <button
+                        v-if="!isReadOnly"
                         @click="openCreateReward"
                         :disabled="parametersLoading || !loyaltyParameters"
                         class="shrink-0 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-green-100 dark:shadow-emerald-950/20"
@@ -707,6 +765,7 @@ const deleteReward = async () => {
                       <p class="text-sm font-bold text-gray-600 dark:text-slate-300">Aucune récompense créée pour le moment</p>
                       <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Créez votre première récompense pour démarrer la fidélisation</p>
                       <button
+                        v-if="!isReadOnly"
                         @click="openCreateReward"
                         :disabled="parametersLoading || !loyaltyParameters"
                         class="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors"
@@ -727,7 +786,7 @@ const deleteReward = async () => {
                             <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Valeur</th>
                             <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Stock</th>
                             <th class="text-center px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Statut</th>
-                            <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Actions</th>
+                            <th v-if="!isReadOnly" class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Actions</th>
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
@@ -759,7 +818,7 @@ const deleteReward = async () => {
                                 {{ reward.is_available ? 'Actif' : 'Inactif' }}
                               </span>
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <td v-if="!isReadOnly" class="px-4 py-3 text-right whitespace-nowrap">
                               <div class="inline-flex items-center gap-1">
                                 <button @click="openEditReward(reward)" :disabled="!loyaltyParameters" title="Éditer" class="p-1.5 rounded-lg text-gray-400 dark:text-slate-500 hover:text-green-600 dark:hover:text-emerald-400 hover:bg-green-50 dark:hover:bg-emerald-950/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                                   <PencilIcon :size="15" />
@@ -778,8 +837,8 @@ const deleteReward = async () => {
 
               </div>
 
-              <!-- ══════ Full width bottom: Historique ══════ -->
-              <template v-if="isConnected">
+              <!-- ══════ Full width bottom: Historique (admin only) ══════ -->
+              <template v-if="isConnected && !isReadOnly">
                 <div class="col-span-1 md:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden mt-2">
                   <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
                     <div class="flex items-center gap-2">
@@ -1092,7 +1151,7 @@ const deleteReward = async () => {
         <div class="bg-white/95 dark:bg-slate-900 rounded-3xl border border-white/70 dark:border-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.16)] p-6 w-full max-w-sm">
           <div class="flex items-center gap-3 mb-4">
             <div class="p-2 bg-rose-100 dark:bg-rose-950/40 rounded-xl shrink-0">
-              <AlertOutline class="text-rose-500" :size="22" />
+              <Delete class="text-rose-500" :size="22" />
             </div>
             <h3 class="text-base font-black text-slate-900 dark:text-slate-100">Supprimer la récompense ?</h3>
           </div>

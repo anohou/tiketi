@@ -17,6 +17,7 @@ import Play from 'vue-material-design-icons/Play.vue';
 import Bell from 'vue-material-design-icons/Bell.vue';
 import SeatReclineNormal from 'vue-material-design-icons/SeatReclineNormal.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
+import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const props = defineProps({
   departures: Array,
@@ -78,8 +79,8 @@ const handleValidationDecline = (val) => {
   // In real app: router.post(...)
 };
 
-const handleTripDeparture = (trip) => {
-    if (confirm(`Confirmer le départ de ce voyage vers ${trip.destination} ?`)) {
+const handleTripDeparture = async (trip) => {
+    if (await confirmationStore.confirm({ title: 'Confirmer le départ', message: `Confirmer le départ de ce voyage vers ${trip.destination} ?`, confirmLabel: 'Déclarer le départ', tone: 'warning' })) {
         console.log('Departing trip:', trip.id);
         // In real app: router.post(route('trips.depart', trip.id))
     }

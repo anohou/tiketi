@@ -43,6 +43,20 @@ const settingsMenu = computed(() => {
     ];
   }
 
+  if (user.role === 'seller') {
+    return [
+      { name: 'Entreprise', route: 'seller.settings.company', icon: OfficeBuilding },
+      { name: 'Fidélisation — Okohi', route: 'seller.settings.loyalty', icon: GiftOutline },
+      { name: 'Gares / Destinations', route: 'seller.settings.stations', icon: MapMarkerRadius, count: resolvedStats.value.stations },
+      { name: 'Trajets', route: 'seller.settings.routes', icon: Router, count: resolvedStats.value.routes },
+      { name: 'Véhicules de ma gare', route: 'seller.settings.vehicles', icon: Bus, count: resolvedStats.value.vehicles },
+      { name: 'Équipe de ma gare', route: 'seller.settings.team', icon: AccountGroup, count: resolvedStats.value.team },
+      { name: 'Affectations aux guichets', route: 'seller.settings.assignments', icon: AccountMultiple, count: resolvedStats.value.assignments },
+      { name: 'Voyages', route: 'seller.settings.trips', icon: Calendar, count: resolvedStats.value.trips },
+      { name: 'Profil et procédures', route: 'seller.settings.profile', icon: AccountHardHat },
+    ];
+  }
+
   return [
     { name: 'Entreprise', route: 'admin.settings.enterprise', icon: OfficeBuilding },
     { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline },
@@ -53,6 +67,7 @@ const settingsMenu = computed(() => {
     { name: 'Trajets', route: 'admin.routes.index', icon: Router, count: resolvedStats.value.routes },
     { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, count: resolvedStats.value.vehicleTypes },
     { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, count: resolvedStats.value.vehicles },
+    { name: 'Pools véhicules / gare', route: 'fleet.station-vehicle-assignments.index', icon: MapMarkerRadius },
     { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, count: resolvedStats.value.trips },
     { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, count: resolvedStats.value.users },
     { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },
@@ -63,5 +78,10 @@ const settingsMenu = computed(() => {
 </script>
 
 <template>
-  <SectionMenu title="Menu Paramètres" :items="settingsMenu" />
+  <SectionMenu
+    title="Menu Paramètres"
+    :items="settingsMenu"
+    collapsible
+    storage-key="tiketi.settings-menu.collapsed"
+  />
 </template>

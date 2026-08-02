@@ -18,7 +18,7 @@ const statCards = [
   { key: 'totalVehicles', label: 'Véhicules', icon: Bus, tone: 'from-sky-500 to-sky-600' },
   { key: 'activeVehicles', label: 'Actifs', icon: CheckCircle, tone: 'from-emerald-500 to-emerald-600' },
   { key: 'inactiveVehicles', label: 'Inactifs', icon: AlertCircle, tone: 'from-rose-500 to-rose-600' },
-  { key: 'vehicleTypes', label: 'Types de véhicules', icon: Car, tone: 'from-orange-500 to-orange-600' },
+  { key: 'vehicleTypes', label: 'Types de véhicules', icon: Car, tone: 'from-emerald-500 to-emerald-600' },
 ];
 </script>
 
@@ -51,8 +51,8 @@ const statCards = [
       </div>
 
       <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <section class="xl:col-span-2 bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden">
-          <div class="p-5 border-b border-orange-50 bg-gradient-to-r from-sky-50 to-orange-50/30 flex items-center justify-between">
+        <section class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 bg-gradient-to-r from-emerald-50 to-slate-50 flex items-center justify-between">
             <h2 class="text-lg font-bold text-gray-800 flex items-center gap-3">
               <AccountGroup :size="22" class="text-sky-600" />
               Gestion rapide
@@ -65,8 +65,8 @@ const statCards = [
               <div class="font-black text-gray-900">Enregistrer un véhicule</div>
               <div class="text-sm text-gray-500 mt-1">Ajouter un véhicule à la flotte.</div>
             </Link>
-            <Link :href="route('fleet.vehicle-types.create')" class="rounded-2xl border border-orange-100 bg-orange-50/60 p-5 hover:bg-orange-50 transition-colors">
-              <Car :size="24" class="text-orange-600 mb-3" />
+            <Link :href="route('fleet.vehicle-types.create')" class="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5 hover:bg-emerald-50 transition-colors">
+              <Car :size="24" class="text-emerald-600 mb-3" />
               <div class="font-black text-gray-900">Enregistrer un type de véhicule</div>
               <div class="text-sm text-gray-500 mt-1">Définir la configuration des sièges.</div>
             </Link>
@@ -78,10 +78,10 @@ const statCards = [
           </div>
         </section>
 
-        <section class="bg-white rounded-2xl border border-orange-100 shadow-sm overflow-hidden">
-          <div class="p-5 border-b border-orange-50 bg-orange-50/50">
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="p-5 border-b border-slate-100 bg-emerald-50/50">
             <h2 class="text-lg font-bold text-gray-800 flex items-center gap-3">
-              <ClipboardText :size="22" class="text-orange-600" />
+              <ClipboardText :size="22" class="text-emerald-600" />
               Affectations récentes
             </h2>
           </div>
