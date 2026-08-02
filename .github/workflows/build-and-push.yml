@@ -214,7 +214,27 @@ jobs:
             "$repo_digest"
 
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@v0.20.5
+        env:
+          SYFT_VERSION: "1.44.0"
+        run: |
+          set -euo pipefail
+          case "${RUNNER_ARCH}" in
+            X64) syft_arch="amd64" ;;
+            ARM64) syft_arch="arm64" ;;
+            *) echo "Unsupported runner architecture: ${RUNNER_ARCH}" >&2; exit 1 ;;
+          esac
+          archive="syft_${SYFT_VERSION}_linux_${syft_arch}.tar.gz"
+          checksums="syft_${SYFT_VERSION}_checksums.txt"
+          release_url="https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}"
+          install_dir="${RUNNER_TEMP}/syft-${SYFT_VERSION}"
+          mkdir -p "${install_dir}"
+          curl --fail --silent --show-error --location --output "${RUNNER_TEMP}/${archive}" "${release_url}/${archive}"
+          curl --fail --silent --show-error --location --output "${RUNNER_TEMP}/${checksums}" "${release_url}/${checksums}"
+          expected_checksum="$(awk -v file="${archive}" '$2 == file {print $1}' "${RUNNER_TEMP}/${checksums}")"
+          [[ -n "${expected_checksum}" ]] || { echo "Syft checksum not found for ${archive}" >&2; exit 1; }
+          echo "${expected_checksum}  ${RUNNER_TEMP}/${archive}" | sha256sum --check -
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${install_dir}" syft
+          echo "${install_dir}" >> "${GITHUB_PATH}"
 
       - name: Publish signed provenance and SBOM attestations
         run: |
