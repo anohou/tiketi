@@ -57,6 +57,21 @@ jobs:
         id: promotion
         run: |
           set -euo pipefail
+          policy_file="deployment/environments/${DEPLOY_ENV}/release-policy.yml"
+          [[ -f "${policy_file}" ]] || {
+            echo "Missing generated release policy: ${policy_file}" >&2
+            exit 1
+          }
+          artifact="$(awk '$1 == "artifact:" { print $2; exit }' "${policy_file}")"
+          rollout="$(awk '$1 == "rollout:" { print $2; exit }' "${policy_file}")"
+          [[ "${artifact}" == "image" ]] || {
+            echo "${DEPLOY_ENV} uses artifact=${artifact}; image promotion is not allowed for this environment" >&2
+            exit 1
+          }
+          case "${rollout}" in
+            recreate|blue_green) ;;
+            *) echo "Unsupported generated rollout policy: ${rollout}" >&2; exit 1 ;;
+          esac
           image_name="$(
             awk '
               $1 == "registry:" { section="registry"; next }
@@ -107,6 +122,8 @@ jobs:
           echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
           echo "channel=deploy-${DEPLOY_ENV}" >> "$GITHUB_OUTPUT"
+          echo "artifact=${artifact}" >> "$GITHUB_OUTPUT"
+          echo "rollout=${rollout}" >> "$GITHUB_OUTPUT"
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.1.2
@@ -136,9 +153,11 @@ jobs:
             --arg digest "${{ steps.promotion.outputs.digest }}" \
             --arg repository "${{ github.repository }}" \
             --arg actor "${{ github.actor }}" \
+            --arg artifact "${{ steps.promotion.outputs.artifact }}" \
+            --arg rollout "${{ steps.promotion.outputs.rollout }}" \
             --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --arg promoted_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            '{app:$app,environment:$environment,digest:$digest,repository:$repository,actor:$actor,run_url:$run_url,promoted_at:$promoted_at}' \
+            '{app:$app,environment:$environment,artifact:$artifact,rollout:$rollout,digest:$digest,repository:$repository,actor:$actor,run_url:$run_url,promoted_at:$promoted_at}' \
             > "${predicate}"
           cosign attest \
             --yes \
@@ -167,6 +186,8 @@ jobs:
             echo "- Environment: \`${DEPLOY_ENV}\`"
             echo "- Image: \`${{ steps.promotion.outputs.image_ref }}\`"
             echo "- Channel: \`${{ steps.promotion.outputs.image_name }}:${{ steps.promotion.outputs.channel }}\`"
+            echo "- Artifact policy: \`${{ steps.promotion.outputs.artifact }}\`"
+            echo "- Rollout policy: \`${{ steps.promotion.outputs.rollout }}\`"
             echo "- Server access: \`none\`"
             echo "- Promotion attestation: \`${PROMOTION_TYPE}\`"
           } >> "$GITHUB_STEP_SUMMARY"

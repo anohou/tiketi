@@ -1,0 +1,6 @@
+schema_version: 1
+app: tiketi
+environment: staging
+toolkit_environment: staging
+artifact: source
+rollout: recreate

@@ -1,0 +1,6 @@
+schema_version: 1
+app: tiketi
+environment: production
+toolkit_environment: prod
+artifact: image
+rollout: blue_green

@@ -35,7 +35,7 @@ build:
   # Default deploy behavior:
   # - remote: pull image from registry
   # - local: build image on the server
-  default_source: local
+  default_source: remote
   runtime_mode: shared
   runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v1"
   allow_full_local_runtime: true
@@ -64,7 +64,7 @@ repository:
 # ── Deployment runtime policy ────────────────────────────────────────────────
 deploy:
   strategy: recreate
-  allow_emergency_build: true
+  allow_emergency_build: false
   audit_log_path: /srv/apps/anohou/prod/logs/tiketi-deploy.log
   runtime_root: /srv/apps/anohou/prod/app-deployments
   host_platform_root: /srv/platform
