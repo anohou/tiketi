@@ -46,14 +46,21 @@ ENV NPM_CONFIG_AUDIT=false
 WORKDIR /app
 
 # Keep dependency installation independent of application source changes. A
-# backend-only commit should reuse this layer instead of running npm ci again.
-COPY package.json package-lock.json ./
+# backend-only commit should reuse this layer instead of reinstalling packages.
+# Legacy repositories may not have committed a lockfile yet; package*.json keeps
+# those builds working while npm ci remains mandatory whenever a lock is present.
+COPY package*.json ./
 
 RUN if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
-        npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
-            echo "npm ci failed; package-lock.json is likely out of sync with package.json or missing required dev dependencies for the asset build." >&2; \
-            exit 1; \
-        }; \
+        if [ -f package-lock.json ]; then \
+            npm ci --include=dev --ignore-scripts --no-audit --no-fund || { \
+                echo "npm ci failed; package-lock.json is likely out of sync with package.json." >&2; \
+                exit 1; \
+            }; \
+        else \
+            echo "WARN: package-lock.json is missing; resolving dependencies with npm install." >&2; \
+            npm install --include=dev --ignore-scripts --no-audit --no-fund; \
+        fi; \
     fi
 
 COPY --from=composer /app/vendor/ /app/vendor/
