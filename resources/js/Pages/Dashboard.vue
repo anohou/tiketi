@@ -31,18 +31,18 @@ onMounted(() => {
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head :title="$t('dashboard.title')" />
 
     <MainNavLayout>
         <div class="w-full px-4">
             <div class="bg-gradient-to-r from-emerald-50 to-slate-50 border-b border-slate-200 px-4 py-2 mb-4 rounded-2xl">
-                <h1 class="text-2xl font-bold text-slate-800">Redirection...</h1>
-                <p class="mt-1 text-sm text-slate-500">Redirection vers votre tableau de bord</p>
+                <h1 class="text-2xl font-bold text-slate-800">{{ $t('dashboard.redirecting') }}</h1>
+                <p class="mt-1 text-sm text-slate-500">{{ $t('dashboard.redirecting_message') }}</p>
             </div>
             
             <div class="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 text-center">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-                <p class="text-slate-600">Chargement en cours...</p>
+                <p class="text-slate-600">{{ $t('dashboard.loading_message') }}</p>
             </div>
         </div>
     </MainNavLayout>

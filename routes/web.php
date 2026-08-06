@@ -27,7 +27,9 @@ use App\Http\Controllers\Fleet\FleetDashboardController;
 use App\Http\Controllers\Fleet\FleetVehicleController;
 use App\Http\Controllers\Fleet\FleetVehicleTypeController;
 use App\Http\Controllers\Fleet\StationVehicleAssignmentController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\OkohiRewardRequestController;
 use App\Http\Controllers\Seller\SettingsController as SellerSettingsController;
@@ -51,9 +53,12 @@ Route::get('/', function () {
     if ($isTenant) {
         $data['canResetPassword'] = Route::has('password.request');
         $data['status'] = session('status');
+
+        return Inertia::render('Welcome', $data);
     }
 
-    return Inertia::render('Welcome', $data);
+    // Page d'accueil du domaine central : présentation commerciale fusionnée
+    return Inertia::render('Presentation');
 });
 
 Route::get('/dashboard', function () {
@@ -77,11 +82,32 @@ Route::get('/dashboard', function () {
 
 Route::get('/tids', [TicketingController::class, 'tids'])->name('tids');
 
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
+
+// =========================================
+// PUBLIC HELP - accessible avant connexion
+// =========================================
+// Documentation utilisateur publique (tenant et domaine central) : aucune
+// authentification requise. Les visiteurs voient tous les guides avec un
+// sélecteur de rôle ; les utilisateurs connectés retrouvent leur parcours
+// personnalisé. Sur le domaine central, la page reste en mode public.
+Route::get('/help', fn () => Inertia::render('Help/Index', [
+    'public' => ! request()->user() || ! (function_exists('tenancy') && tenancy()->initialized),
+]))->name('help.index');
+
+// Page publique de présentation commerciale (transporteurs professionnels),
+// accessible sur le tenant et le domaine central, sans authentification.
+Route::get('/presentation', fn () => Inertia::render('Presentation'))
+    ->name('presentation');
+
+// Réception du formulaire de contact de la page de présentation (envoi SMTP)
+Route::post('/contact', [ContactController::class, 'send'])
+    ->name('contact.send');
+
 Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::get('/help', fn () => Inertia::render('Help/Index'))->name('help.index');
 
     // =========================================
     // ADMIN ROUTES - Configuration & Statistics

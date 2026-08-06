@@ -435,9 +435,9 @@ const activeBadge = (active) => active
           <h3 class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 dark:text-slate-500">Services actifs</h3>
           <div class="space-y-2 text-sm text-slate-700 dark:text-slate-300">
             <div class="flex items-center justify-between">
-              <span>Fidélité Okohi</span>
+              <span>{{ $t('admin_settings.scope.okohi_loyalty') }}</span>
               <span :class="['font-bold', scope.services.okohiConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400']">
-                {{ scope.services.okohiConnected ? 'Connecté' : 'Non connecté' }}
+                {{ scope.services.okohiConnected ? $t('admin_settings.common.connected') : $t('admin_settings.common.not_connected') }}
               </span>
             </div>
             <div class="flex items-center justify-between">

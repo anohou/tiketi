@@ -5,21 +5,24 @@ import InputError from './InputError.vue';
 import PrimaryButton from './PrimaryButton.vue';
 import SecondaryButton from './SecondaryButton.vue';
 import TextInput from './TextInput.vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const emit = defineEmits(['confirmed']);
 
 defineProps({
     title: {
         type: String,
-        default: 'Confirm Password',
+        default: () => t('auth.confirm_password_modal.title'),
     },
     content: {
         type: String,
-        default: 'For your security, please confirm your password to continue.',
+        default: () => t('auth.confirm_password_modal.content'),
     },
     button: {
         type: String,
-        default: 'Confirm',
+        default: () => t('auth.confirm_password_modal.button'),
     },
 });
 
@@ -90,7 +93,7 @@ const closeModal = () => {
                         v-model="form.password"
                         type="password"
                         class="mt-1 block w-3/4"
-                        placeholder="Password"
+                        :placeholder="$t('auth.password_placeholder')"
                         autocomplete="current-password"
                         @keyup.enter="confirmPassword"
                     />
@@ -101,7 +104,7 @@ const closeModal = () => {
 
             <template #footer>
                 <SecondaryButton @click="closeModal">
-                    Cancel
+                    {{ $t('common.cancel') }}
                 </SecondaryButton>
 
                 <PrimaryButton

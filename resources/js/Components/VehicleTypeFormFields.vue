@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import SeatMapPreview from '@/Components/SeatMapPreview.vue';
+import FormPanel from '@/Components/FormPanel.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 
 const props = defineProps({
@@ -18,8 +20,10 @@ const props = defineProps({
   onSuccess: { type: Function, default: null },
   onCancel: { type: Function, default: null },
   hideHeader: { type: Boolean, default: false },
+  hideHeader: { type: Boolean, default: false },
 });
 
+const { t } = useI18n();
 const processing = ref(false);
 
 const form = ref({
@@ -79,7 +83,7 @@ const liveSeatMap = computed(() => {
     const rowStartSlot = (rowIndex - 1) * slotsPerRow + 1;
 
     if (rowIndex === 0) {
-      row.push({ type: 'driver', label: 'Chauffeur' });
+      row.push({ type: 'driver', label: t('fleet.crew.role_driver') });
       for (let i = 1; i < leftCount; i++) row.push({ type: 'empty' });
     } else {
       for (let i = 0; i < leftCount; i++) {
@@ -100,7 +104,7 @@ const liveSeatMap = computed(() => {
     if (rowIndex === 0) {
       if (doorPositions.includes(0)) {
         for (let i = 1; i < rightCount; i++) row.push({ type: 'empty' });
-        row.push({ type: 'door', label: 'Porte' });
+        row.push({ type: 'door', label: t('fleet.vehicle_type_form.door') });
       } else {
         for (let i = 0; i < rightCount; i++) {
           if (filledSeats < seatsBeforeLast) {
@@ -231,9 +235,9 @@ const handleCancel = () => {
 </script>
 
 <template>
-  <form id="vehicle-type-form" @submit.prevent="submit" class="space-y-6">
+  <FormPanel id="vehicle-type-form" @submit="submit">
     <!-- Header with title on left and Save/Cancel buttons on right -->
-    <div v-if="!hideHeader" class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4 shrink-0">
+    <template #header v-if="!hideHeader">
       <div class="flex items-center gap-3">
         <div class="p-2 bg-emerald-100 rounded-xl shrink-0">
           <svg class="text-emerald-600 w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
@@ -241,52 +245,56 @@ const handleCancel = () => {
           </svg>
         </div>
         <h1 class="text-2xl font-black text-gray-900">
-          {{ vehicleType ? 'Modifier le type de véhicule' : 'Nouveau type de véhicule' }}
+          {{ vehicleType ? $t('fleet.vehicle_type_form.title_edit') : $t('fleet.vehicle_type_form.title_new') }}
         </h1>
       </div>
-      <div class="flex gap-2">
-        <Link v-if="!onCancel" :href="backUrl" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-medium">
-          {{ cancelLabel }}
-        </Link>
-        <button v-else type="button" @click="handleCancel" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-medium">
-          {{ cancelLabel }}
-        </button>
-        <button type="submit" :disabled="processing" class="px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium flex items-center space-x-2">
-          <Loader v-if="processing" class="w-4 h-4 animate-spin" />
-          <span>{{ submitLabel }}</span>
-        </button>
-      </div>
-    </div>
+    </template>
+    
+    <template #secondary-actions>
+      <Link v-if="!onCancel" :href="backUrl" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-medium">
+        {{ cancelLabel === 'Annuler' ? $t('common.cancel') : cancelLabel }}
+      </Link>
+      <button v-else type="button" @click="handleCancel" class="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 text-sm font-medium">
+        {{ cancelLabel === 'Annuler' ? $t('common.cancel') : cancelLabel }}
+      </button>
+    </template>
+    
+    <template #actions>
+      <button type="submit" :disabled="processing" class="px-4 py-2 rounded-xl bg-green-600 text-white hover:bg-green-700 text-sm font-medium flex items-center space-x-2">
+        <Loader v-if="processing" class="w-4 h-4 animate-spin" />
+        <span>{{ submitLabel === 'Enregistrer' ? $t('common.save') : submitLabel }}</span>
+      </button>
+    </template>
 
     <!-- Main Container: Top Form, Bottom Seat Map -->
-    <div class="space-y-6">
+    <div class="space-y-6 pt-4 px-6">
       <!-- Top Section: Form inputs in a compact, structured card -->
       <div class="bg-gray-50/60 dark:bg-slate-900/40 p-5 rounded-2xl border border-gray-200/50 dark:border-slate-800">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
           <!-- Nom du Type -->
           <div class="md:col-span-4">
-            <InputLabel for="name" value="Nom du Type" />
-            <TextInput v-model="form.name" id="name" class="w-full text-sm mt-1" placeholder="Ex: Autocar Standard" required />
+            <InputLabel for="name" :value="$t('fleet.vehicle_type_form.name')" />
+            <TextInput v-model="form.name" id="name" class="w-full text-sm mt-1" :placeholder="$t('fleet.vehicle_type_form.name_placeholder')" required />
             <InputError :message="errors.name" class="mt-1" />
           </div>
 
           <!-- Places -->
           <div class="md:col-span-2">
-            <InputLabel for="seat_count" value="Places" />
+            <InputLabel for="seat_count" :value="$t('fleet.vehicle_type_form.seats')" />
             <TextInput v-model="form.seat_count" id="seat_count" type="number" min="1" class="w-full text-sm mt-1" />
             <InputError :message="errors.seat_count" class="mt-1" />
           </div>
 
           <!-- Config -->
           <div class="md:col-span-2">
-            <InputLabel for="seat_configuration" value="Config" />
+            <InputLabel for="seat_configuration" :value="$t('fleet.vehicle_type_form.config')" />
             <TextInput v-model="form.seat_configuration" id="seat_configuration" class="w-full text-sm mt-1" placeholder="2+2" />
             <InputError :message="errors.seat_configuration" class="mt-1" />
           </div>
 
           <!-- Dernière Rangée -->
           <div class="md:col-span-2">
-            <InputLabel for="last_row_seats" value="Dernière Rangée" />
+            <InputLabel for="last_row_seats" :value="$t('fleet.vehicle_type_form.last_row')" />
             <TextInput v-model="form.last_row_seats" id="last_row_seats" type="number" min="0" class="w-full text-sm mt-1" placeholder="5" />
             <InputError :message="errors.last_row_seats" class="mt-1" />
           </div>
@@ -295,23 +303,23 @@ const handleCancel = () => {
           <div class="md:col-span-2 flex items-center h-full pb-3">
             <label class="flex items-center text-sm text-gray-700 dark:text-slate-350 cursor-pointer select-none">
               <input type="checkbox" v-model="form.active" id="type_active" class="rounded border-gray-300 dark:border-slate-700 dark:bg-slate-950 text-green-600 shadow-sm focus:ring-green-500 w-4 h-4">
-              <span class="ml-2 font-bold text-gray-800 dark:text-slate-200">Type actif</span>
+              <span class="ml-2 font-bold text-gray-800 dark:text-slate-200">{{ $t('fleet.vehicle_type_form.active') }}</span>
             </label>
           </div>
 
           <!-- Côté Portes -->
           <div class="md:col-span-3">
-            <InputLabel for="door_side" value="Côté Portes" />
+            <InputLabel for="door_side" :value="$t('fleet.vehicle_type_form.door_side')" />
             <select v-model="form.door_side" id="door_side" class="w-full text-sm mt-1 border-gray-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-green-500 focus:ring-green-500 rounded-md shadow-sm">
-              <option value="right">Droite</option>
-              <option value="left">Gauche</option>
+              <option value="right">{{ $t('fleet.vehicle_type_form.door_right') }}</option>
+              <option value="left">{{ $t('fleet.vehicle_type_form.door_left') }}</option>
             </select>
             <InputError :message="errors.door_side" class="mt-1" />
           </div>
 
           <!-- Largeur Porte -->
           <div class="md:col-span-3">
-            <InputLabel for="door_width" value="Largeur Porte" />
+            <InputLabel for="door_width" :value="$t('fleet.vehicle_type_form.door_width')" />
             <TextInput v-model="form.door_width" id="door_width" type="number" min="1" max="3" class="w-full text-sm mt-1" />
             <InputError :message="errors.door_width" class="mt-1" />
           </div>
@@ -319,9 +327,9 @@ const handleCancel = () => {
           <!-- Positions portes -->
           <div class="md:col-span-6">
             <div class="flex items-center justify-between">
-              <InputLabel for="door_positions" value="Positions portes" />
-              <button type="button" @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-black flex items-center gap-1 bg-green-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded border border-green-200 dark:border-emerald-900/30 transition-colors" title="Proposer des positions de portes">
-                <span>↺</span> SUGGÉRER
+              <InputLabel for="door_positions" :value="$t('fleet.vehicle_type_form.door_positions')" />
+              <button type="button" @click="recalculateMetadata" class="text-[10px] text-green-600 hover:text-green-700 font-black flex items-center gap-1 bg-green-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded border border-green-200 dark:border-emerald-900/30 transition-colors" :title="$t('fleet.vehicle_type_form.suggest_title')">
+                <span>↺</span> {{ $t('fleet.vehicle_type_form.suggest_btn') }}
               </button>
             </div>
             <TextInput v-model="form.door_positions_text" id="door_positions" class="w-full text-sm mt-1" placeholder="Ex: 0, 11, 12" />
@@ -329,7 +337,7 @@ const handleCancel = () => {
           </div>
         </div>
         <p class="mt-3 text-[10px] text-gray-400 dark:text-slate-500 leading-normal border-t border-gray-100 dark:border-slate-800 pt-2">
-          Note : Les positions des portes sont séparées par des virgules. Le bouton de suggestion propose des positions par défaut sans modifier la capacité.
+          {{ $t('fleet.vehicle_type_form.note') }}
         </p>
       </div>
 
@@ -344,10 +352,10 @@ const handleCancel = () => {
             />
           </div>
           <div v-else class="text-center text-gray-400 dark:text-slate-500">
-            <p class="text-[10px]">Entrez les paramètres pour voir le type de véhicule</p>
+            <p class="text-[10px]">{{ $t('fleet.vehicle_type_form.empty_preview') }}</p>
           </div>
         </div>
       </div>
     </div>
-  </form>
+  </FormPanel>
 </template>

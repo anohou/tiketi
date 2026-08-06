@@ -15,6 +15,7 @@ import Cash from 'vue-material-design-icons/Cash.vue';
 import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
 import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
+import ShieldLock from 'vue-material-design-icons/ShieldLock.vue';
 
 const props = defineProps({
   stats: {
@@ -73,6 +74,7 @@ const settingsMenu = computed(() => {
     { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },
     { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, count: resolvedStats.value.crewMembers },
     { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, count: resolvedStats.value.crewAssignments },
+    { name: 'Appareils (Sécurité)', route: 'admin.settings.devices.index', icon: ShieldLock },
   ];
 });
 </script>

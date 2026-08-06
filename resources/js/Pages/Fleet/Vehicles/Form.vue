@@ -7,6 +7,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import FormPanel from '@/Components/FormPanel.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 
 const props = defineProps({
@@ -70,51 +71,56 @@ const submit = () => {
         </div>
 
         <div class="col-span-12 md:col-span-10 flex flex-col h-full min-h-0">
-          <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-6">
-            <form class="grid grid-cols-1 md:grid-cols-2 gap-4" @submit.prevent="submit">
-              <div>
-                <InputLabel value="Identifiant" />
-                <TextInput v-model="form.identifier" class="w-full" />
-                <InputError :message="errors.identifier" />
-              </div>
-              <div>
-                <InputLabel value="Fabricant" />
-                <TextInput v-model="form.maker" class="w-full" />
-                <InputError :message="errors.maker" />
-              </div>
-              <div>
-                <InputLabel value="Type" />
-                <select v-model="form.vehicle_type_id" class="w-full border-gray-300 rounded-lg">
-                  <option value="">Sélectionner</option>
-                  <option v-for="type in vehicleTypes" :key="type.id" :value="type.id">{{ type.name }}</option>
-                </select>
-                <InputError :message="errors.vehicle_type_id" />
-              </div>
-              <div>
-                <InputLabel value="Places" />
-                <TextInput v-model="form.seat_count" type="number" min="1" class="w-full" />
-                <InputError :message="errors.seat_count" />
-              </div>
-              <div class="md:col-span-2 flex items-center gap-2">
-                <input id="active" v-model="form.active" type="checkbox" class="rounded border-gray-300 text-sky-600" />
-                <label for="active" class="text-sm text-gray-700">Véhicule actif</label>
-              </div>
-              <div v-if="form.active === false" class="md:col-span-2">
-                <InputLabel value="Raison de l'inactivité" />
-                <TextInput v-model="form.inactive_reason" class="w-full" />
-                <InputError :message="errors.inactive_reason" />
+          <div class="bg-white rounded-lg border border-slate-200 shadow-sm h-full overflow-hidden">
+            <FormPanel @submit="submit">
+              <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <InputLabel value="Identifiant" />
+                  <TextInput v-model="form.identifier" class="w-full" />
+                  <InputError :message="errors.identifier" />
+                </div>
+                <div>
+                  <InputLabel value="Fabricant" />
+                  <TextInput v-model="form.maker" class="w-full" />
+                  <InputError :message="errors.maker" />
+                </div>
+                <div>
+                  <InputLabel value="Type" />
+                  <select v-model="form.vehicle_type_id" class="w-full border-gray-300 rounded-lg">
+                    <option value="">Sélectionner</option>
+                    <option v-for="type in vehicleTypes" :key="type.id" :value="type.id">{{ type.name }}</option>
+                  </select>
+                  <InputError :message="errors.vehicle_type_id" />
+                </div>
+                <div>
+                  <InputLabel value="Places" />
+                  <TextInput v-model="form.seat_count" type="number" min="1" class="w-full" />
+                  <InputError :message="errors.seat_count" />
+                </div>
+                <div class="md:col-span-2 flex items-center gap-2">
+                  <input id="active" v-model="form.active" type="checkbox" class="rounded border-gray-300 text-sky-600" />
+                  <label for="active" class="text-sm text-gray-700">Véhicule actif</label>
+                </div>
+                <div v-if="form.active === false" class="md:col-span-2">
+                  <InputLabel value="Raison de l'inactivité" />
+                  <TextInput v-model="form.inactive_reason" class="w-full" />
+                  <InputError :message="errors.inactive_reason" />
+                </div>
               </div>
 
-              <div class="md:col-span-2 flex items-center gap-3 pt-2">
-                <PrimaryButton :disabled="processing">{{ vehicle ? 'Mettre à jour' : 'Créer' }}</PrimaryButton>
+              <template #secondary-actions>
                 <Link
                   :href="route('fleet.vehicles.index')"
                   class="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
                 >
                   Annuler
                 </Link>
-              </div>
-            </form>
+              </template>
+              
+              <template #actions>
+                <PrimaryButton type="submit" :disabled="processing">{{ vehicle ? 'Mettre à jour' : 'Créer' }}</PrimaryButton>
+              </template>
+            </FormPanel>
           </div>
         </div>
       </div>

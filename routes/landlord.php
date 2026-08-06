@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Landlord\TenantController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -12,6 +13,16 @@ use Illuminate\Support\Facades\Route;
 | They run on central domains (localhost, admin.transport.ci, etc.)
 |
 */
+
+// =========================================
+// PUBLIC DOCUMENTATION (avant connexion)
+// =========================================
+// Documentation utilisateur publique accessible sur le domaine central,
+// sans authentification : utile pour montrer la plateforme à un futur client
+// ou à un utilisateur avant qu'il ne se connecte. (L'URL /help fonctionne
+// aussi côté central via la route publique de web.php.)
+Route::get('/aide', fn () => Inertia::render('Help/Index', ['public' => true]))
+    ->name('public.help');
 
 // Central admin routes - manage tenants
 Route::middleware(['web', 'auth'])->prefix('landlord')->name('landlord.')->group(function () {

@@ -11,7 +11,8 @@ import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
 import AccountHardHat from 'vue-material-design-icons/AccountHardHat.vue';
 import Cog from 'vue-material-design-icons/Cog.vue';
-
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 const props = defineProps({
   stats: {
     type: Object,
@@ -19,23 +20,25 @@ const props = defineProps({
   },
 });
 
-const cards = [
-  { route: 'seller.settings.company', label: 'Entreprise', description: 'Identité et coordonnées de la compagnie', icon: OfficeBuilding },
-  { route: 'seller.settings.loyalty', label: 'Fidélisation — Okohi', description: 'Règles de gain et catalogue des récompenses', icon: GiftOutline },
-  { route: 'seller.settings.stations', label: 'Gares / Destinations', description: 'Vos gares et destinations desservies', icon: MapMarkerRadius, countKey: 'stations' },
-  { route: 'seller.settings.routes', label: 'Trajets', description: 'Les liaisons accessibles depuis vos gares', icon: Router, countKey: 'routes' },
-  { route: 'seller.settings.vehicles', label: 'Véhicules de ma gare', description: 'Les véhicules des pools de vos gares', icon: Bus, countKey: 'vehicles' },
-  { route: 'seller.settings.team', label: 'Équipe de ma gare', description: 'Vos collègues vendeurs et superviseurs', icon: AccountGroup, countKey: 'team' },
-  { route: 'seller.settings.assignments', label: 'Affectations aux guichets', description: 'Les guichets de vos gares et leurs affectations', icon: AccountMultiple, countKey: 'assignments' },
-  { route: 'seller.settings.trips', label: 'Voyages', description: 'Les prochains départs de votre périmètre', icon: Calendar, countKey: 'trips' },
-  { route: 'seller.settings.profile', label: 'Profil et procédures', description: 'Votre profil professionnel et les directives de vente', icon: AccountHardHat },
-];
+const { t } = useI18n();
+
+const cards = computed(() => [
+  { route: 'seller.settings.company', label: t('seller_settings.cards.company.title'), description: t('seller_settings.cards.company.description'), icon: OfficeBuilding },
+  { route: 'seller.settings.loyalty', label: t('seller_settings.cards.loyalty.title'), description: t('seller_settings.cards.loyalty.description'), icon: GiftOutline },
+  { route: 'seller.settings.stations', label: t('seller_settings.cards.stations.title'), description: t('seller_settings.cards.stations.description'), icon: MapMarkerRadius, countKey: 'stations' },
+  { route: 'seller.settings.routes', label: t('seller_settings.cards.routes.title'), description: t('seller_settings.cards.routes.description'), icon: Router, countKey: 'routes' },
+  { route: 'seller.settings.vehicles', label: t('seller_settings.cards.vehicles.title'), description: t('seller_settings.cards.vehicles.description'), icon: Bus, countKey: 'vehicles' },
+  { route: 'seller.settings.team', label: t('seller_settings.cards.team.title'), description: t('seller_settings.cards.team.description'), icon: AccountGroup, countKey: 'team' },
+  { route: 'seller.settings.assignments', label: t('seller_settings.cards.assignments.title'), description: t('seller_settings.cards.assignments.description'), icon: AccountMultiple, countKey: 'assignments' },
+  { route: 'seller.settings.trips', label: t('seller_settings.cards.trips.title'), description: t('seller_settings.cards.trips.description'), icon: Calendar, countKey: 'trips' },
+  { route: 'seller.settings.profile', label: t('seller_settings.cards.profile.title'), description: t('seller_settings.cards.profile.description'), icon: AccountHardHat },
+]);
 </script>
 
 <template>
   <SellerSettingsLayout
-    title="Paramétrage"
-    subtitle="Consultez les informations de votre périmètre. La modification des réglages relève de l'administrateur."
+    :title="$t('seller_settings.title')"
+    :subtitle="$t('seller_settings.subtitle')"
     :icon="Cog"
   >
     <div class="grid flex-1 content-start gap-4 md:grid-cols-2 xl:grid-cols-3">

@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { i18n } from '@/i18n.js';
 
 let resolver = null;
 
@@ -6,8 +7,8 @@ export const confirmationStore = reactive({
   show: false,
   title: '',
   message: '',
-  confirmLabel: 'Confirmer',
-  cancelLabel: 'Annuler',
+  confirmLabel: i18n.global.t('stores.confirm.confirm_label'),
+  cancelLabel: i18n.global.t('stores.confirm.cancel_label'),
   tone: 'danger',
 
   confirm(options = {}) {
@@ -15,10 +16,10 @@ export const confirmationStore = reactive({
 
     if (resolver) resolver(false);
 
-    this.title = config.title || 'Confirmer cette action';
-    this.message = config.message || 'Souhaitez-vous continuer ?';
-    this.confirmLabel = config.confirmLabel || 'Confirmer';
-    this.cancelLabel = config.cancelLabel || 'Annuler';
+    this.title = config.title || i18n.global.t('stores.confirm.title');
+    this.message = config.message || i18n.global.t('stores.confirm.message');
+    this.confirmLabel = config.confirmLabel || i18n.global.t('stores.confirm.confirm_label');
+    this.cancelLabel = config.cancelLabel || i18n.global.t('stores.confirm.cancel_label');
     this.tone = config.tone || 'danger';
     this.show = true;
 

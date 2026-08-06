@@ -20,8 +20,8 @@ const props = defineProps({
     <div class="flex h-full">
       <SettingsMenu />
 
-      <div class="flex-1 bg-white">
-        <div class="p-6">
+      <div class="flex-1 bg-white dark:bg-slate-900 h-full min-h-0 flex flex-col">
+        <div class="flex-1 h-full min-h-0">
           <VehicleTypeFormFields
             :vehicle-type="vehicleType"
             :errors="errors"

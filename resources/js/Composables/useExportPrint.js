@@ -1,4 +1,5 @@
 import { toastStore } from '@/Stores/toastStore.js';
+import { i18n } from '@/i18n.js';
 
 /**
  * Composable for exporting data to Excel/CSV and printing lists
@@ -13,7 +14,7 @@ export function useExportPrint() {
      */
     const exportToCsv = (data, columns, filename = 'export') => {
         if (!data || data.length === 0) {
-            toastStore.warning('Aucune donnée à exporter');
+            toastStore.warning(i18n.global.t('composable.export.no_data_to_export'));
             return;
         }
 
@@ -29,7 +30,7 @@ export function useExportPrint() {
                     let value = getNestedValue(row, key);
                     // Handle special values
                     if (value === null || value === undefined) value = '';
-                    if (typeof value === 'boolean') value = value ? 'Oui' : 'Non';
+                    if (typeof value === 'boolean') value = value ? i18n.global.t('composable.export.yes') : i18n.global.t('composable.export.no');
                     // Escape quotes and wrap in quotes if contains semicolon
                     value = String(value);
                     // Prevent spreadsheet formula injection when opened in Excel/LibreOffice.
@@ -69,9 +70,9 @@ export function useExportPrint() {
      * @param {Object} columns - Column configuration { key: 'Label' }
      * @param {string} title - Title for the print document
      */
-    const printList = (data, columns, title = 'Liste') => {
+    const printList = (data, columns, title = i18n.global.t('composable.export.list')) => {
         if (!data || data.length === 0) {
-            toastStore.warning('Aucune donnée à imprimer');
+            toastStore.warning(i18n.global.t('composable.export.no_data_to_print'));
             return;
         }
 
@@ -83,7 +84,7 @@ export function useExportPrint() {
             `<tr>${keys.map(key => {
                 let value = getNestedValue(row, key);
                 if (value === null || value === undefined) value = '-';
-                if (typeof value === 'boolean') value = value ? 'Oui' : 'Non';
+                if (typeof value === 'boolean') value = value ? i18n.global.t('composable.export.yes') : i18n.global.t('composable.export.no');
                 return `<td>${escapeHtml(value)}</td>`;
             }).join('')}</tr>`
         ).join('');
@@ -155,7 +156,7 @@ export function useExportPrint() {
             <body>
                 <div class="header">
                     <div class="title">${escapeHtml(title)}</div>
-                    <div class="date">Imprimé le ${formatDateFull(new Date())}</div>
+                    <div class="date">${i18n.global.t('composable.export.printed_on', { date: formatDateFull(new Date()) })}</div>
                 </div>
                 <table>
                     <thead>
@@ -166,7 +167,7 @@ export function useExportPrint() {
                     </tbody>
                 </table>
                 <div class="footer">
-                    Total: ${data.length} élément(s) • Système de Transport
+                    ${i18n.global.t('composable.export.total', { count: data.length })}
                 </div>
             </body>
             </html>

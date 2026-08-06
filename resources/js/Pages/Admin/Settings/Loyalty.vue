@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, reactive, onMounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
@@ -24,6 +25,8 @@ import TagIcon from 'vue-material-design-icons/Tag.vue';
 import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
+
+const { t } = useI18n();
 
 const props = defineProps({
   settings: Object,
@@ -472,15 +475,11 @@ const deleteReward = async () => {
             <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
               <div class="p-2 bg-green-100 dark:bg-emerald-950/40 rounded-xl">
                 <GiftOutline class="text-green-600 dark:text-emerald-450" :size="28" />
-              </div>
-              Fidélisation
-            </h1>
-            <p class="text-gray-500 dark:text-slate-455 mt-1">Intégration Okohi — récompensez vos clients à chaque voyage</p>
+              </div>{{ $t('admin_settings.loyalty.page_title') }}</h1>
+            <p class="text-gray-500 dark:text-slate-455 mt-1">{{ $t('admin_settings.loyalty.page_subtitle') }}</p>
           </div>
           <button v-if="!isReadOnly" @click="showHelp = true" type="button" class="mt-1 inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-blue-900 dark:hover:bg-blue-950/20 dark:hover:text-blue-300">
-            <HelpCircleOutline :size="18" />
-            Comment ça fonctionne
-          </button>
+            <HelpCircleOutline :size="18" />{{ $t('admin_settings.loyalty.how_it_works') }}</button>
         </div>
 
         <!-- Body -->
@@ -510,10 +509,10 @@ const deleteReward = async () => {
                   <AlertCircle v-else class="text-gray-400 dark:text-slate-500 shrink-0" :size="22" />
                   <div>
                     <p class="text-sm font-bold" :class="isConnected ? 'text-green-800 dark:text-emerald-300' : 'text-gray-600 dark:text-slate-300'">
-                      {{ isConnected ? 'Intégration active' : 'Non connecté' }}
+                      {{ isConnected ? $t('admin_settings.loyalty.integration_active') : $t('admin_settings.common.not_connected') }}
                     </p>
                     <p v-if="!isConnected" class="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">
-                      Saisissez le code Okohi pour activer la fidélisation
+                      {{ isReadOnly ? $t('admin_settings.loyalty.connect_only_admin') : $t('admin_settings.loyalty.enter_code_hint') }}
                     </p>
                   </div>
                 </div>
@@ -524,22 +523,20 @@ const deleteReward = async () => {
                     <div class="flex items-start gap-3">
                       <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">1</span>
                       <div>
-                        <p class="text-sm font-black text-blue-900 dark:text-blue-200">Comment le client gagne sa fidélité</p>
-                        <p class="mt-0.5 text-[11px] leading-relaxed text-blue-600 dark:text-blue-400">Cette règle est appliquée par Okohi quand un billet Tiketi est validé.</p>
+                        <p class="text-sm font-black text-blue-900 dark:text-blue-200">{{ $t('admin_settings.loyalty.earning_step_title') }}</p>
+                        <p class="mt-0.5 text-[11px] leading-relaxed text-blue-600 dark:text-blue-400">{{ $t('admin_settings.loyalty.earning_step_hint') }}</p>
                       </div>
                     </div>
                   </div>
 
                   <div v-if="parametersLoading" class="flex items-center justify-center gap-2 px-5 py-10 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    <Loader :size="16" class="animate-spin" />
-                    Chargement de la règle Okohi…
-                  </div>
+                    <Loader :size="16" class="animate-spin" />{{ $t('admin_settings.loyalty.loading_rule') }}</div>
 
                   <div v-else-if="!loyaltyParameters" class="p-5">
                     <div class="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-3 dark:border-red-900/30 dark:bg-red-950/20">
                       <AlertCircle :size="17" class="mt-0.5 shrink-0 text-red-400" />
                       <div>
-                        <p class="text-xs font-bold text-red-700 dark:text-red-400">Mode de fidélité indisponible</p>
+                        <p class="text-xs font-bold text-red-700 dark:text-red-400">{{ $t('admin_settings.loyalty.mode_unavailable') }}</p>
                         <p class="mt-1 text-[11px] leading-relaxed text-red-600 dark:text-red-400/80">{{ parametersError }}</p>
                         <p class="mt-1 text-[11px] text-red-600 dark:text-red-400/80">Définissez d’abord le mode Points ou Visites dans Okohi, puis rechargez cette page.</p>
                       </div>
@@ -557,7 +554,7 @@ const deleteReward = async () => {
                     </div>
 
                     <div>
-                      <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">Mode défini dans Okohi</p>
+                      <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">{{ $t('admin_settings.loyalty.mode_defined') }}</p>
                       <div class="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-300">
                         <CheckCircle :size="18" class="shrink-0 text-blue-600 dark:text-blue-400" />
                         <div>
@@ -579,20 +576,20 @@ const deleteReward = async () => {
                       </div>
 
                       <div v-if="parameterForm.loyalty_type === 'points'">
-                        <label class="mb-1 block text-xs font-bold text-gray-700 dark:text-slate-300">Points crédités par tranche</label>
+                        <label class="mb-1 block text-xs font-bold text-gray-700 dark:text-slate-300">{{ $t('admin_settings.loyalty.points_per_tranche') }}</label>
                         <input v-model="parameterForm.points_awarded" type="number" min="1" class="w-full rounded-lg border-gray-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                         <InputError class="mt-1" :message="parameterFieldError('points_awarded')" />
                       </div>
 
                       <div v-else>
-                        <label class="mb-1 block text-xs font-bold text-gray-700 dark:text-slate-300">Visites créditées par voyage</label>
+                        <label class="mb-1 block text-xs font-bold text-gray-700 dark:text-slate-300">{{ $t('admin_settings.loyalty.visits_per_trip') }}</label>
                         <input v-model="parameterForm.times_awarded" type="number" min="1" class="w-full rounded-lg border-gray-200 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100" />
                         <InputError class="mt-1" :message="parameterFieldError('times_awarded')" />
                       </div>
                     </div>
 
                     <div class="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
-                      <p class="text-[10px] font-bold uppercase tracking-wide text-blue-500">Règle appliquée</p>
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-blue-500">{{ $t('admin_settings.loyalty.applied_rule') }}</p>
                       <p class="mt-1 text-xs font-bold text-blue-800 dark:text-blue-300">{{ parameterPreview }}</p>
                     </div>
 
@@ -616,16 +613,16 @@ const deleteReward = async () => {
                         <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.min_transaction_amount || 0).toLocaleString('fr-FR') }} F CFA</p>
                       </div>
                       <div v-if="isFrequencyLoyalty">
-                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">Visites créditées par voyage</p>
+                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">{{ $t('admin_settings.loyalty.visits_per_trip') }}</p>
                         <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.times_awarded || 0).toLocaleString('fr-FR') }}</p>
                       </div>
                       <div v-else>
-                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">Points crédités par tranche</p>
+                        <p class="mb-1 text-xs font-bold text-gray-700 dark:text-slate-300">{{ $t('admin_settings.loyalty.points_per_tranche') }}</p>
                         <p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ Number(parameterForm.points_awarded || 0).toLocaleString('fr-FR') }}</p>
                       </div>
                     </div>
                     <div class="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
-                      <p class="text-[10px] font-bold uppercase tracking-wide text-blue-500">Règle appliquée</p>
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-blue-500">{{ $t('admin_settings.loyalty.applied_rule') }}</p>
                       <p class="mt-1 text-xs font-bold text-blue-800 dark:text-blue-300">{{ parameterPreview }}</p>
                     </div>
                   </div>
@@ -638,9 +635,9 @@ const deleteReward = async () => {
 
                 <!-- NOT connected: connection form -->
                 <div v-if="!isConnected && !isReadOnly" class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
-                  <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide">Connecter Okohi</p>
+                  <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide">{{ $t('admin_settings.loyalty.connect_okohi') }}</p>
                   <div>
-                    <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Code de connexion (4 chiffres)</label>
+                    <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.connection_code') }}</label>
                     <input
                       v-model="code"
                       type="text"
@@ -651,9 +648,7 @@ const deleteReward = async () => {
                       :class="{ 'border-red-400': errors.code }"
                     />
                     <InputError class="mt-1" :message="errors.code" />
-                    <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                      Dans Okohi : <strong>Modification de l'établissement → Intégration API → Apps Partenaires → Connecter</strong>.
-                    </p>
+                    <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-1">{{ $t('admin_settings.loyalty.connection_steps') }}</p>
                   </div>
                   <button
                     @click="connect"
@@ -690,23 +685,23 @@ const deleteReward = async () => {
                 <!-- Not connected: guides -->
                 <template v-if="!isConnected && !isReadOnly">
                   <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 shadow-sm p-5">
-                    <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide mb-4">Comment connecter Okohi</p>
+                    <p class="text-xs font-bold text-gray-500 dark:text-slate-450 uppercase tracking-wide mb-4">{{ $t('admin_settings.loyalty.connect_guide_title') }}</p>
                     <ol class="space-y-4">
                       <li class="flex gap-3">
                         <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">1</span>
-                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">Dans l'app <strong>Okohi</strong>, allez dans <strong>Modification de l'établissement → Intégration API → Apps Partenaires</strong> et cliquez <strong>Connecter</strong> à côté de <em>Tiketi</em>.</p>
+                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">{{ $t('admin_settings.loyalty.connect_step_1') }}</p>
                       </li>
                       <li class="flex gap-3">
                         <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">2</span>
-                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">Okohi génère un <strong>code à 4 chiffres</strong> valable 24h. Copiez-le.</p>
+                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">{{ $t('admin_settings.loyalty.connect_step_2') }}</p>
                       </li>
                       <li class="flex gap-3">
                         <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">3</span>
-                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">Saisissez le code dans le formulaire ci-contre et cliquez <strong>Connecter</strong>.</p>
+                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">{{ $t('admin_settings.loyalty.connect_step_3') }}</p>
                       </li>
                       <li class="flex gap-3">
                         <span class="w-6 h-6 rounded-full bg-green-100 dark:bg-emerald-950/40 text-green-700 dark:text-emerald-300 font-black text-xs flex items-center justify-center shrink-0">4</span>
-                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">L'intégration est active. Le QR code sur chaque ticket imprimé permet au client de scanner et gagner des points automatiquement.</p>
+                        <p class="text-xs text-gray-600 dark:text-slate-400 leading-relaxed pt-0.5">{{ $t('admin_settings.loyalty.connect_step_4') }}</p>
                       </li>
                     </ol>
                   </div>
@@ -722,8 +717,8 @@ const deleteReward = async () => {
                           <GiftIcon class="text-green-600 dark:text-emerald-400" :size="18" />
                         </div>
                         <div>
-                          <p class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wide">2. Échanger la fidélité contre des récompenses</p>
-                          <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">Définissez combien de points ou visites donnent droit à chaque avantage</p>
+                          <p class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wide">{{ $t('admin_settings.loyalty.rewards_header') }}</p>
+                          <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">{{ $t('admin_settings.loyalty.rewards_header_hint') }}</p>
                           <p v-if="loyaltyParameters" class="mt-1 text-[10px] font-medium text-blue-600 dark:text-blue-400">Gain actuel : {{ earningRule }}</p>
                         </div>
                       </div>
@@ -733,9 +728,7 @@ const deleteReward = async () => {
                         :disabled="parametersLoading || !loyaltyParameters"
                         class="shrink-0 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-green-100 dark:shadow-emerald-950/20"
                       >
-                        <PlusIcon :size="14" />
-                        Nouvelle Récompense
-                      </button>
+                        <PlusIcon :size="14" />{{ $t('admin_settings.loyalty.new_reward') }}</button>
                     </div>
 
                     <!-- Loading -->
@@ -752,9 +745,7 @@ const deleteReward = async () => {
                         :disabled="rewardsLoading"
                         class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 font-bold text-xs rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60"
                       >
-                        <Loader v-if="rewardsLoading" :size="12" class="animate-spin" />
-                        Réessayer
-                      </button>
+                        <Loader v-if="rewardsLoading" :size="12" class="animate-spin" />{{ $t('admin_settings.loyalty.retry') }}</button>
                     </div>
 
                     <!-- Empty -->
@@ -762,17 +753,15 @@ const deleteReward = async () => {
                       <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center">
                         <GiftOutline class="text-gray-300 dark:text-slate-600" :size="28" />
                       </div>
-                      <p class="text-sm font-bold text-gray-600 dark:text-slate-300">Aucune récompense créée pour le moment</p>
-                      <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Créez votre première récompense pour démarrer la fidélisation</p>
+                      <p class="text-sm font-bold text-gray-600 dark:text-slate-300">{{ $t('admin_settings.loyalty.no_rewards_title') }}</p>
+                      <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">{{ $t('admin_settings.loyalty.no_rewards_hint') }}</p>
                       <button
                         v-if="!isReadOnly"
                         @click="openCreateReward"
                         :disabled="parametersLoading || !loyaltyParameters"
                         class="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs rounded-lg transition-colors"
                       >
-                        <PlusIcon :size="14" />
-                        Nouvelle Récompense
-                      </button>
+                        <PlusIcon :size="14" />{{ $t('admin_settings.loyalty.new_reward') }}</button>
                     </div>
 
                     <!-- Table -->
@@ -780,13 +769,13 @@ const deleteReward = async () => {
                       <table class="w-full text-xs">
                         <thead>
                           <tr class="bg-gray-50 dark:bg-slate-800/50">
-                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Titre</th>
-                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Type</th>
-                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Coût</th>
-                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Valeur</th>
-                            <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Stock</th>
-                            <th class="text-center px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Statut</th>
-                            <th v-if="!isReadOnly" class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Actions</th>
+                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_title') }}</th>
+                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_type') }}</th>
+                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_cost') }}</th>
+                            <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_value') }}</th>
+                            <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_stock') }}</th>
+                            <th class="text-center px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_status') }}</th>
+                            <th v-if="!isReadOnly" class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_actions') }}</th>
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
@@ -843,7 +832,7 @@ const deleteReward = async () => {
                   <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <HistoryIcon class="text-green-600 dark:text-emerald-400" :size="18" />
-                      <p class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wide">Historique des fidélisations</p>
+                      <p class="text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wide">{{ $t('admin_settings.loyalty.history_title') }}</p>
                     </div>
                     <button @click="fetchTransactions(txPage)" :disabled="txLoading" class="text-[11px] text-gray-400 hover:text-green-600 dark:text-slate-500 dark:hover:text-emerald-400 transition-colors font-medium">
                       {{ txLoading ? 'Chargement…' : 'Actualiser' }}
@@ -858,20 +847,20 @@ const deleteReward = async () => {
                   </div>
                   <div v-else-if="transactions.length === 0" class="px-5 py-10 text-center">
                     <GiftOutline class="text-gray-300 dark:text-slate-700 mx-auto mb-2" :size="36" />
-                    <p class="text-sm text-gray-400 dark:text-slate-500">Aucune transaction pour l'instant</p>
-                    <p class="text-[11px] text-gray-300 dark:text-slate-600 mt-1">Les transactions apparaîtront ici dès que des clients scanneront leurs QR codes</p>
+                    <p class="text-sm text-gray-400 dark:text-slate-500">{{ $t('admin_settings.loyalty.no_transactions') }}</p>
+                    <p class="text-[11px] text-gray-300 dark:text-slate-600 mt-1">{{ $t('admin_settings.loyalty.no_transactions_hint') }}</p>
                   </div>
                   <div v-else class="overflow-x-auto">
                     <table class="w-full text-xs">
                       <thead>
                         <tr class="bg-gray-50 dark:bg-slate-800/50">
-                          <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Client</th>
-                          <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Ticket</th>
-                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Montant</th>
-                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Points</th>
-                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Visites</th>
-                          <th class="text-center px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Statut</th>
-                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Date</th>
+                          <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_client') }}</th>
+                          <th class="text-left px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_ticket') }}</th>
+                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_amount') }}</th>
+                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_points') }}</th>
+                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_visits') }}</th>
+                          <th class="text-center px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_status') }}</th>
+                          <th class="text-right px-4 py-2.5 font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">{{ $t('admin_settings.loyalty.table_date') }}</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
@@ -933,8 +922,8 @@ const deleteReward = async () => {
                 <HelpCircleOutline class="text-blue-600 dark:text-blue-400" :size="22" />
               </div>
               <div>
-                <h3 class="text-base font-black text-slate-900 dark:text-slate-100">Comment ça fonctionne</h3>
-                <p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Parcours de fidélisation Tiketi → Okohi</p>
+                <h3 class="text-base font-black text-slate-900 dark:text-slate-100">{{ $t('admin_settings.loyalty.how_it_works') }}</h3>
+                <p class="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{{ $t('admin_settings.loyalty.help_modal_subtitle') }}</p>
               </div>
             </div>
             <button type="button" @click="showHelp = false" class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
@@ -945,11 +934,11 @@ const deleteReward = async () => {
           <ol class="space-y-3">
             <li class="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
               <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">1</span>
-              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"><strong>Tiketi vend et imprime le billet.</strong> Son QR code contient les informations nécessaires à la fidélisation.</p>
+              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ $t('admin_settings.loyalty.help_step_1') }}</p>
             </li>
             <li class="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
               <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">2</span>
-              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"><strong>Le client scanne le QR code dans Okohi.</strong> Okohi demande alors à Tiketi de vérifier le billet.</p>
+              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ $t('admin_settings.loyalty.help_step_2') }}</p>
             </li>
             <li class="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
               <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">3</span>
@@ -957,7 +946,7 @@ const deleteReward = async () => {
             </li>
             <li class="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
               <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-black text-green-700 dark:bg-emerald-950/40 dark:text-emerald-300">4</span>
-              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300"><strong>Le client reçoit ses points ou sa visite.</strong> Il pourra ensuite les échanger contre les récompenses du catalogue.</p>
+              <p class="pt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ $t('admin_settings.loyalty.help_step_4') }}</p>
             </li>
           </ol>
 
@@ -974,14 +963,12 @@ const deleteReward = async () => {
             <div class="p-2 bg-rose-100 dark:bg-rose-950/40 rounded-xl shrink-0">
               <AlertOutline class="text-rose-500" :size="22" />
             </div>
-            <h3 class="text-base font-black text-slate-900 dark:text-slate-100">Déconnecter Okohi ?</h3>
+            <h3 class="text-base font-black text-slate-900 dark:text-slate-100">{{ $t('admin_settings.loyalty.disconnect_title') }}</h3>
           </div>
-          <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
-            Les QR codes des prochains tickets n'auront plus de lien Okohi. Les tickets déjà imprimés ne sont pas affectés.
-          </p>
+          <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">{{ $t('admin_settings.loyalty.disconnect_message') }}</p>
           <div class="flex gap-3">
             <button @click="showConfirm = false" class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-350 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Annuler</button>
-            <button @click="disconnect" class="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition-colors">Déconnecter</button>
+            <button @click="disconnect" class="flex-1 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition-colors">{{ $t('admin_settings.loyalty.disconnect') }}</button>
           </div>
         </div>
       </div>
@@ -1015,17 +1002,17 @@ const deleteReward = async () => {
             <div class="flex items-start gap-2.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-3 dark:border-blue-900/40 dark:bg-blue-950/20">
               <TagIcon :size="17" class="mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
               <div>
-                <p class="text-xs font-bold text-blue-800 dark:text-blue-300">Cette récompense sera enregistrée dans Okohi</p>
+                <p class="text-xs font-bold text-blue-800 dark:text-blue-300">{{ $t('admin_settings.loyalty.saved_in_okohi') }}</p>
                 <p class="mt-0.5 text-[11px] leading-relaxed text-blue-600 dark:text-blue-400">Choisissez l’avantage reçu par le client, puis le coût prélevé sur son solde fidélité.</p>
               </div>
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Titre <span class="text-rose-400">*</span></label>
+              <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.table_title') }}<span class="text-rose-400">*</span></label>
               <input
                 v-model="rewardForm.title"
                 type="text"
-                placeholder="Ex : Réduction 20% sur un billet"
+                :placeholder="$t('admin_settings.loyalty.title_placeholder')"
                 class="w-full rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-sm shadow-sm focus:border-green-500 focus:ring-green-500"
                 :class="{ 'border-red-400': formErrors.title }"
               />
@@ -1033,11 +1020,11 @@ const deleteReward = async () => {
             </div>
 
             <div>
-              <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Description</label>
+              <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.description_label') }}</label>
               <textarea
                 v-model="rewardForm.description"
                 rows="2"
-                placeholder="Description optionnelle de la récompense"
+                :placeholder="$t('admin_settings.loyalty.description_placeholder')"
                 class="w-full rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-sm shadow-sm focus:border-green-500 focus:ring-green-500 resize-none"
                 :class="{ 'border-red-400': formErrors.description }"
               ></textarea>
@@ -1046,7 +1033,7 @@ const deleteReward = async () => {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Avantage offert <span class="text-rose-400">*</span></label>
+                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.benefit_label') }}<span class="text-rose-400">*</span></label>
                 <select
                   v-model="rewardForm.benefit_type"
                   class="w-full rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-sm shadow-sm focus:border-green-500 focus:ring-green-500"
@@ -1073,8 +1060,8 @@ const deleteReward = async () => {
               </div>
 
               <div v-else class="rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                <p class="text-xs font-bold text-green-700 dark:text-emerald-300">Avantage : un billet offert</p>
-                <p class="mt-1 text-[11px] leading-relaxed text-green-600 dark:text-emerald-400">Aucun montant à saisir : Okohi applique automatiquement une prise en charge de 100 %.</p>
+                <p class="text-xs font-bold text-green-700 dark:text-emerald-300">{{ $t('admin_settings.loyalty.free_ticket_benefit') }}</p>
+                <p class="mt-1 text-[11px] leading-relaxed text-green-600 dark:text-emerald-400">{{ $t('admin_settings.loyalty.free_ticket_benefit_hint') }}</p>
               </div>
 
               <div>
@@ -1102,21 +1089,21 @@ const deleteReward = async () => {
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Nombre de récompenses disponibles</label>
+                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.stock_label') }}</label>
                 <input
                   v-model="rewardForm.stock"
                   type="number"
                   min="0"
-                  placeholder="Illimité"
+                  :placeholder="$t('admin_settings.common.unlimited')"
                   class="w-full rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-sm shadow-sm focus:border-green-500 focus:ring-green-500"
                   :class="{ 'border-red-400': formErrors.stock }"
                 />
-                <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-1">Chaque attribution consomme une unité. Laissez vide pour un nombre illimité.</p>
+                <p class="text-[11px] text-gray-400 dark:text-slate-500 mt-1">{{ $t('admin_settings.loyalty.stock_hint') }}</p>
                 <InputError class="mt-1" :message="formErrors.stock" />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">Valable jusqu'au</label>
+                <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.valid_until') }}</label>
                 <input
                   v-model="rewardForm.valid_until"
                   type="date"
@@ -1128,7 +1115,7 @@ const deleteReward = async () => {
               </div>
 
               <div v-if="rewardPreview" class="sm:col-span-2 rounded-xl border border-green-200 bg-green-50 px-3.5 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
-                <p class="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-emerald-400">Résumé</p>
+                <p class="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-emerald-400">{{ $t('admin_settings.loyalty.summary') }}</p>
                 <p class="mt-1 text-xs font-semibold text-green-800 dark:text-emerald-300">{{ rewardPreview }}</p>
               </div>
             </div>
@@ -1153,7 +1140,7 @@ const deleteReward = async () => {
             <div class="p-2 bg-rose-100 dark:bg-rose-950/40 rounded-xl shrink-0">
               <Delete class="text-rose-500" :size="22" />
             </div>
-            <h3 class="text-base font-black text-slate-900 dark:text-slate-100">Supprimer la récompense ?</h3>
+            <h3 class="text-base font-black text-slate-900 dark:text-slate-100">{{ $t('admin_settings.loyalty.delete_reward_title') }}</h3>
           </div>
           <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
             <span class="font-bold text-slate-800 dark:text-slate-200">{{ deletingReward?.title }}</span> sera supprimée du catalogue Okohi. Cette action est irréversible.

@@ -19,20 +19,20 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Confirmer le mot de passe" />
+        <Head :title="$t('auth.confirm_password')" />
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Sécurité</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Confirmez votre mot de passe</h1>
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">{{ $t('auth.badge.security') }}</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ $t('auth.confirm_password_page.heading') }}</h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
-                    Cette zone est protégée. Merci de confirmer votre mot de passe pour continuer.
+                    {{ $t('auth.confirm_password_page.description') }}
                 </p>
             </div>
 
             <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="password" value="Mot de passe" />
+                    <InputLabel for="password" :value="$t('auth.password')" />
                     <TextInput
                         id="password"
                         type="password"
@@ -50,7 +50,7 @@ const submit = () => {
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Confirmer
+                        {{ $t('common.confirm') }}
                     </PrimaryButton>
                 </div>
             </form>

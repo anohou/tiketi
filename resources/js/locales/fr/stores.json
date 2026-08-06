@@ -1,0 +1,10 @@
+{
+  "stores": {
+    "confirm": {
+      "title": "Confirmer cette action",
+      "message": "Souhaitez-vous continuer ?",
+      "confirm_label": "Confirmer",
+      "cancel_label": "Annuler"
+    }
+  }
+}

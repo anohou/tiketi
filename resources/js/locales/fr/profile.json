@@ -1,0 +1,37 @@
+{
+  "profile": {
+    "title": "Profil",
+    "my_profile": "Mon Profil",
+    "header_subtitle": "Gérez vos informations personnelles et paramètres de compte",
+    "saved": "Enregistré.",
+    "stations": {
+      "title": "Stations assignées",
+      "description": "Les stations pour lesquelles vous êtes autorisé à vendre des billets.",
+      "assigned_on": "Assigné le {date}",
+      "no_station_title": "Aucune station assignée",
+      "no_station_description": "Vous n'avez pas encore de station assignée. Veuillez contacter votre superviseur pour pouvoir vendre des billets."
+    },
+    "information": {
+      "title": "Informations du profil",
+      "description": "Mettez à jour vos informations personnelles et votre adresse e-mail.",
+      "email_not_verified": "Votre adresse e-mail n’est pas vérifiée.",
+      "resend_verification_email": "Renvoyer l’e-mail de vérification",
+      "verification_link_sent": "Un nouveau lien de vérification a été envoyé à votre adresse e-mail."
+    },
+    "password": {
+      "title": "Modifier le mot de passe",
+      "description": "Utilisez un mot de passe long et unique pour sécuriser votre compte.",
+      "current_password": "Mot de passe actuel",
+      "new_password": "Nouveau mot de passe"
+    },
+    "delete": {
+      "title": "Supprimer le compte",
+      "description": "Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Avant de supprimer votre compte, veuillez télécharger les données ou informations que vous souhaitez conserver.",
+      "button": "Supprimer le compte",
+      "modal_title": "Êtes-vous sûr de vouloir supprimer votre compte ?",
+      "modal_description": "Une fois votre compte supprimé, toutes ses ressources et données seront définitivement effacées. Veuillez saisir votre mot de passe pour confirmer la suppression définitive de votre compte.",
+      "password_label": "Mot de passe",
+      "password_placeholder": "Mot de passe"
+    }
+  }
+}

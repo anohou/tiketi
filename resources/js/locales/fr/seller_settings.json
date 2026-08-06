@@ -1,0 +1,44 @@
+{
+  "seller_settings": {
+    "title": "Paramétrage",
+    "subtitle": "Consultez les informations de votre périmètre. La modification des réglages relève de l'administrateur.",
+    "cards": {
+      "company": {
+        "title": "Entreprise",
+        "description": "Identité et coordonnées de la compagnie"
+      },
+      "loyalty": {
+        "title": "Fidélisation — Okohi",
+        "description": "Règles de gain et catalogue des récompenses"
+      },
+      "stations": {
+        "title": "Gares / Destinations",
+        "description": "Vos gares et destinations desservies"
+      },
+      "routes": {
+        "title": "Trajets",
+        "description": "Les liaisons accessibles depuis vos gares"
+      },
+      "vehicles": {
+        "title": "Véhicules de ma gare",
+        "description": "Les véhicules des pools de vos gares"
+      },
+      "team": {
+        "title": "Équipe de ma gare",
+        "description": "Vos collègues vendeurs et superviseurs"
+      },
+      "assignments": {
+        "title": "Affectations aux guichets",
+        "description": "Les guichets de vos gares et leurs affectations"
+      },
+      "trips": {
+        "title": "Voyages",
+        "description": "Les prochains départs de votre périmètre"
+      },
+      "profile": {
+        "title": "Profil et procédures",
+        "description": "Votre profil professionnel et les directives de vente"
+      }
+    }
+  }
+}

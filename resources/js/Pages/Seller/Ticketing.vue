@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { toastStore } from '@/Stores/toastStore.js';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
 import { router, Link, usePage } from '@inertiajs/vue3';
@@ -36,6 +37,8 @@ import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { useExportPrint } from '@/Composables/useExportPrint.js';
 import { useTicketing } from '@/Composables/useTicketing.js';
 import axios from 'axios';
+
+const { t } = useI18n();
 
 const props = defineProps({
   trips: [Array, Object],
@@ -359,23 +362,23 @@ const updateTripStatus = async (tripId, status) => {
     || 'la gare qui a actuellement la main';
   let confirmMessage = "";
   if (status === 'boarding') {
-    confirmMessage = "Voulez-vous vraiment démarrer l'embarquement pour ce voyage ?";
+    confirmMessage = t('ticketing.dashboard.confirm_boarding');
   } else if (status === 'departed') {
     confirmMessage = trip?.status === 'departed'
-      ? `Confirmer le départ de ${statusStationName} ? La main sur les ventes passera à la gare suivante.`
-      : `Confirmer le départ de ${statusStationName} ? Le voyage sera en route vers la gare suivante.`;
+      ? `${t('ticketing.dashboard.confirm_departure_from')} ${statusStationName}${t('ticketing.dashboard.handover_next_station')}`
+      : `${t('ticketing.dashboard.confirm_departure_from')} ${statusStationName}${t('ticketing.dashboard.en_route_next_station')}`;
   } else if (status === 'delayed') {
-    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme retardé ?";
+    confirmMessage = t('ticketing.dashboard.confirm_delayed');
   } else if (status === 'cancelled') {
-    confirmMessage = "Voulez-vous vraiment annuler ce voyage ? Toutes les correspondances seront libérées.";
+    confirmMessage = t('ticketing.dashboard.confirm_cancelled');
   } else if (status === 'arrived') {
-    confirmMessage = "Voulez-vous vraiment marquer ce voyage comme arrivé ?";
+    confirmMessage = t('ticketing.dashboard.confirm_arrived');
   }
 
   if (confirmMessage && !await confirmationStore.confirm({
-    title: status === 'cancelled' ? 'Annuler le voyage' : 'Mettre à jour le voyage',
+    title: status === 'cancelled' ? t('ticketing.dashboard.cancel_trip') : t('ticketing.dashboard.update_trip'),
     message: confirmMessage,
-    confirmLabel: status === 'cancelled' ? 'Annuler le voyage' : 'Confirmer',
+    confirmLabel: status === 'cancelled' ? t('ticketing.dashboard.cancel_trip') : t('common.confirm'),
     tone: status === 'cancelled' ? 'danger' : 'warning',
   })) {
     return;
@@ -387,11 +390,11 @@ const updateTripStatus = async (tripId, status) => {
       status,
       station_id: status === 'departed' ? statusStationId : undefined,
     });
-    toastStore.success('Le statut du voyage a été mis à jour.');
+    toastStore.success(t('ticketing.dashboard.trip_status_updated'));
     router.reload({ preserveScroll: true });
   } catch (error) {
     console.error('Erreur lors de la mise à jour du statut:', error);
-    toastStore.error(error.response?.data?.message || 'Impossible de mettre à jour le statut.');
+    toastStore.error(error.response?.data?.message || t('ticketing.dashboard.status_update_error'));
   } finally {
     updatingTripStatusId.value = null;
   }
@@ -460,16 +463,16 @@ const isTripPastForDisplay = (trip) => ['past', 'arrived', 'cancelled', 'departe
 const getTripStationStatusLabel = (trip) => {
   const phase = getTripStationPhase(trip);
   const labels = {
-    cancelled: 'Annulé',
-    arrived: 'Arrivé',
-    boarding: 'Embarquement',
-    delayed: 'Retardé',
-    en_route: 'En route',
-    en_route_to_station: 'En route vers votre gare',
-    departed_from_station: 'Parti de votre gare',
-    upcoming_station: 'À venir',
-    past: 'Voyage passé',
-    scheduled: 'En cours',
+    cancelled: t('ticketing.dashboard.status_cancelled'),
+    arrived: t('ticketing.dashboard.status_arrived'),
+    boarding: t('ticketing.dashboard.status_boarding'),
+    delayed: t('ticketing.dashboard.status_delayed'),
+    en_route: t('ticketing.dashboard.status_en_route'),
+    en_route_to_station: t('ticketing.dashboard.status_en_route_to_station'),
+    departed_from_station: t('ticketing.dashboard.status_departed_from_station'),
+    upcoming_station: t('ticketing.dashboard.status_upcoming'),
+    past: t('ticketing.dashboard.status_past_trip'),
+    scheduled: t('ticketing.dashboard.status_in_progress'),
   };
 
   return labels[phase] || 'En cours';
@@ -574,7 +577,7 @@ const toggleTicketingFocusMode = async () => {
     const requestFullscreen = root.requestFullscreen || root.webkitRequestFullscreen;
 
     if (!requestFullscreen) {
-      toastStore.error('Le plein écran n’est pas pris en charge par ce navigateur.');
+      toastStore.error(t('ticketing.dashboard.fullscreen_not_supported'));
       return;
     }
 
@@ -582,7 +585,7 @@ const toggleTicketingFocusMode = async () => {
     navigateTicketingFocusMode(true);
   } catch (error) {
     console.error('Impossible d’activer le plein écran de la billetterie.', error);
-    toastStore.error('Le navigateur a refusé l’ouverture en plein écran.');
+    toastStore.error(t('ticketing.dashboard.fullscreen_denied'));
   } finally {
     window.setTimeout(() => {
       fullscreenNavigationInProgress.value = false;
@@ -627,11 +630,11 @@ const exportTicketsToExcel = async (tripId) => {
       };
       exportToExcel(response.data.data, columns, 'rapport_tickets');
     } else {
-      toastStore.warning('Aucun ticket à exporter pour aujourd\'hui.');
+      toastStore.warning(t('ticketing.dashboard.no_ticket_export'));
     }
   } catch (error) {
     console.error('Erreur export CSV:', error);
-    toastStore.error('Erreur lors de l\'export CSV. Veuillez réessayer.');
+    toastStore.error(t('ticketing.dashboard.export_csv_error'));
   } finally {
     exportExcelLoadingTripId.value = null;
   }
@@ -646,7 +649,7 @@ const exportTicketsToPdf = (tripId) => {
     window.open(url, '_blank');
   } catch (error) {
     console.error('Erreur export PDF:', error);
-    toastStore.error('Erreur lors de l\'export PDF. Veuillez réessayer.');
+    toastStore.error(t('ticketing.dashboard.export_pdf_error'));
   } finally {
     exportPdfLoadingTripId.value = null;
   }
@@ -721,25 +724,25 @@ const toggleTripDetails = (trip) => {
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
-      label: 'ANNULÉ', 
+      label: t('ticketing.dashboard.status_upper_cancelled'), 
       color: 'text-rose-600 bg-rose-50 border border-rose-200 dark:text-rose-450 dark:bg-rose-950/30 dark:border-rose-900/50' 
     };
   }
   if (trip.status === 'delayed') {
     return { 
-      label: 'RETARDÉ', 
+      label: t('ticketing.dashboard.status_upper_delayed'), 
       color: 'text-amber-605 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800/50 animate-pulse' 
     };
   }
   if (trip.status === 'boarding') {
     return { 
-      label: 'EMBARQUEMENT', 
+      label: t('ticketing.dashboard.status_upper_boarding'), 
       color: 'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-405 dark:bg-orange-950/30 dark:border-orange-850/50 font-black animate-pulse' 
     };
   }
   if (trip.status === 'arrived') {
     return {
-      label: 'ARRIVÉ',
+      label: t('ticketing.dashboard.status_upper_arrived'),
       color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50'
     };
   }
@@ -747,30 +750,30 @@ const getAirportStatus = (trip) => {
     const phase = getTripStationPhase(trip);
     if (phase === 'departed_from_station') {
       return {
-        label: 'PARTI DE VOTRE GARE',
+        label: t('ticketing.dashboard.status_upper_departed_from_station'),
         color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-400 dark:bg-slate-900/40 dark:border-slate-800/50'
       };
     }
     if (phase === 'upcoming_station') {
       return {
-        label: 'À VENIR',
+        label: t('ticketing.dashboard.status_upper_upcoming'),
         color: 'text-sky-700 bg-sky-50 border border-sky-200 dark:text-sky-300 dark:bg-sky-950/30 dark:border-sky-800/50'
       };
     }
 
     return {
-      label: phase === 'en_route_to_station' ? 'EN ROUTE VERS VOTRE GARE' : 'EN ROUTE',
+      label: phase === 'en_route_to_station' ? t('ticketing.dashboard.status_upper_en_route_to_station') : t('ticketing.dashboard.status_upper_en_route'),
       color: 'text-blue-700 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-950/30 dark:border-blue-800/50'
     };
   }
   if (trip.available_seats <= 0) {
     return { 
-      label: 'COMPLET', 
+      label: t('ticketing.dashboard.status_upper_full'), 
       color: 'text-red-600 bg-red-50 border border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50 font-bold' 
     };
   }
   return { 
-    label: 'À L\'HEURE', 
+    label: t('ticketing.dashboard.status_upper_on_time'), 
     color: 'text-emerald-600 bg-emerald-50 border border-emerald-250 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800/50' 
   };
 }
@@ -818,19 +821,19 @@ onBeforeUnmount(() => {
               <div class="p-5 bg-emerald-50 rounded-full shadow-sm mb-6 dark:bg-emerald-900/25">
                 <OfficeBuilding class="w-16 h-16 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h2 class="text-2xl font-black text-gray-900 mb-3 dark:text-slate-100">Aucune station assignée</h2>
+              <h2 class="text-2xl font-black text-gray-900 mb-3 dark:text-slate-100">{{ $t('ticketing.dashboard.no_assigned_station') }}</h2>
               <p class="text-gray-600 mb-6 leading-relaxed dark:text-slate-400">
-                Vous n'avez pas encore de station assignée. Vous ne pouvez pas vendre de billets tant qu'un superviseur ne vous a pas assigné à une station.
+                {{ $t('ticketing.dashboard.no_assigned_station_desc') }}
               </p>
               <div class="space-y-3 w-full">
                 <p class="text-sm text-gray-500 dark:text-slate-500">
-                  Contactez votre Administrateur pour être assigné à une station.
+                  {{ $t('ticketing.dashboard.contact_admin_assign') }}
                 </p>
                 <Link 
                   :href="route('profile.edit')" 
                   class="inline-flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
-                  Voir mon profil
+                  {{ $t('ticketing.dashboard.view_profile') }}
                 </Link>
               </div>
             </div>
@@ -843,7 +846,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div class="z-10">
                 <div class="flex items-center gap-3">
-                  <h1 class="text-3xl font-black text-gray-900 tracking-tight dark:text-slate-100">Billetterie</h1>
+                  <h1 class="text-3xl font-black text-gray-900 tracking-tight dark:text-slate-100">{{ $t('ticketing.dashboard.ticketing_title') }}</h1>
                   <div
                     v-if="assignedStation || ['admin', 'executive', 'supervisor'].includes($page.props.auth.user.role)"
                     class="px-3 py-1 text-xs font-black rounded-full border flex items-center gap-1.5 shadow-sm"
@@ -854,10 +857,10 @@ onBeforeUnmount(() => {
                     } : null"
                   >
                       <OfficeBuilding :size="14" />
-                      {{ assignedStation || 'Toutes les gares' }}
+                      {{ assignedStation || $t('ticketing.dashboard.all_stations') }}
                   </div>
                 </div>
-                <p class="text-gray-500 font-medium dark:text-slate-400">Vente de tickets en temps réel</p>
+                <p class="text-gray-500 font-medium dark:text-slate-400">{{ $t('ticketing.dashboard.realtime_sales') }}</p>
               </div>
  
               <!-- Absolute Centered Clock on Desktop -->
@@ -878,7 +881,7 @@ onBeforeUnmount(() => {
                   class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex-shrink-0"
                 >
                   <Plus :size="20" />
-                  <span>Nouveau Voyage</span>
+                  <span>{{ $t('ticketing.dashboard.new_trip') }}</span>
                 </button>
                 <button
                   type="button"
@@ -922,12 +925,12 @@ onBeforeUnmount(() => {
                     <div class="flex items-center justify-between w-full md:w-auto">
                       <h2 class="text-base font-semibold text-emerald-700 flex items-center shrink-0 dark:text-emerald-300">
                         <Bus class="mr-2 w-5 h-5" />
-                        Voyages
+                        {{ $t('ticketing.dashboard.trips') }}
                       </h2>
                       <!-- Badges on Mobile -->
                       <div class="flex items-center gap-2 md:hidden">
                         <span class="px-2 py-0.5 bg-emerald-600 text-white rounded-full text-xs font-black shadow-sm dark:bg-emerald-500">
-                          {{ trips.length }} en cours
+                          {{ trips.length }} {{ $t('ticketing.dashboard.in_progress') }}
                         </span>
                       </div>
                     </div>
@@ -935,7 +938,9 @@ onBeforeUnmount(() => {
                     <!-- Destination Filter + Changer on Mobile & Desktop -->
                     <div class="flex items-center gap-2 w-full md:w-auto">
                        <select v-model="selectedDestinationId" class="flex-1 md:w-48 border-slate-200 text-slate-700 rounded-lg text-sm px-3 py-1.5 focus:border-emerald-500 focus:ring-emerald-500 bg-white shadow-sm font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100">
-                          <option value="">Toutes les destinations</option>
+                          <option value="">
+                          {{ $t('ticketing.dashboard.all_destinations') }}
+                          </option>
                           <option v-for="dest in destinations" :key="dest.id" :value="dest.id">{{ dest.name }}</option>
                        </select>
   
@@ -956,15 +961,17 @@ onBeforeUnmount(() => {
                          class="px-3 py-1.5 bg-white border border-emerald-500 text-emerald-700 rounded-lg text-sm font-bold shadow-sm whitespace-nowrap active:bg-emerald-50 flex items-center justify-center gap-1.5 hover:bg-emerald-50 transition-colors dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
                        >
                          <Magnify v-if="!isMobile" :size="18" />
-                         <span>Tous les voyages</span>
+                         <span>
+                         {{ $t('ticketing.dashboard.all_trips') }}
+                       </span>
                        </button>
                      </div>
                    </div>
                    
                    <div class="hidden md:flex items-center gap-2 shrink-0">
                      <span class="px-2.5 py-1 bg-emerald-600 text-white rounded-full text-sm font-black shadow-sm">
-                       {{ trips.length }} en cours
-                     </span>
+                       {{ trips.length }} {{ $t('ticketing.dashboard.in_progress') }}
+                        </span>
                    </div>
                  </div>
                  <div class="flex-1 p-3 overflow-y-auto">
@@ -980,15 +987,15 @@ onBeforeUnmount(() => {
                          </div>
                          <div class="flex items-center gap-2 flex-wrap">
                            <span class="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black tracking-wider">
-                             {{ currentTrip.code || 'Code en attente' }}
+                             {{ currentTrip.code || $t('ticketing.dashboard.pending_code') }}
                            </span>
                            <span v-if="currentTrip.allows_open_connections" class="inline-flex items-center px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[10px] font-black tracking-wider uppercase">
-                             Correspondances
-                           </span>
+                             {{ $t('ticketing.dashboard.connections') }}
+                            </span>
                            <span v-else class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[10px] font-black tracking-wider uppercase">
-                             Direct
-                           </span>
-                           <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Trajet</span>
+                             {{ $t('ticketing.dashboard.direct') }}
+                            </span>
+                           <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">{{ $t('ticketing.dashboard.journey') }}</span>
                          </div>
                          <div class="text-base font-black text-gray-900 dark:text-slate-100 leading-tight whitespace-normal break-words">
                            {{ currentTrip.display_name }}
@@ -1001,8 +1008,8 @@ onBeforeUnmount(() => {
                                type="button"
                                class="relative rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
                                :class="showPrintPool ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : ''"
-                               title="Afficher le pool d’impression"
-                               aria-label="Afficher le pool d’impression"
+                               :title="$t('ticketing.dashboard.show_print_pool')"
+                               :aria-label="$t('ticketing.dashboard.show_print_pool')"
                                :aria-expanded="showPrintPool"
                                @click.stop="togglePrintPool"
                              >
@@ -1032,14 +1039,14 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
-                                       <span>Modifier le voyage</span>
+                                       <span>{{ $t('ticketing.dashboard.edit_trip') }}</span>
                                      </button>
                                      <button
                                        @click="openTripDetailsWithOverview(currentTrip.id)"
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
-                                       <span>Détails & Tickets</span>
+                                       <span>{{ $t('ticketing.dashboard.details_tickets') }}</span>
                                      </button>
                                      <button
                                        v-if="currentTrip?.has_connections"
@@ -1047,7 +1054,9 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
-                                       <span>Correspondances</span>
+                                       <span>
+                             {{ $t('ticketing.dashboard.connections') }}
+                            </span>
                                      </button>
                                      <button
                                        @click="exportTicketsToExcel(currentTrip.id)"
@@ -1055,7 +1064,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                       <span>Exporter Excel</span>
+                                       <span>{{ $t('ticketing.dashboard.export_excel') }}</span>
                                      </button>
                                      <button
                                        @click="exportTicketsToPdf(currentTrip.id)"
@@ -1063,7 +1072,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
-                                       <span>Exporter PDF</span>
+                                       <span>{{ $t('ticketing.dashboard.export_pdf') }}</span>
                                      </button>
                                    </div>
                                  </template>
@@ -1087,53 +1096,53 @@ onBeforeUnmount(() => {
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Embarquement
-                        </button>
+                           {{ $t('ticketing.dashboard.status_boarding') }}
+                          </button>
                         <button
                           v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(currentTrip.status)"
                           @click.stop="updateTripStatus(currentTrip.id, 'departed')"
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Déclarer le départ
-                        </button>
+                           {{ $t('ticketing.dashboard.declare_departure') }}
+                          </button>
                         <button
                           v-if="['scheduled', 'boarding'].includes(currentTrip.status)"
                           @click.stop="updateTripStatus(currentTrip.id, 'delayed')"
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Retardé
-                        </button>
+                           {{ $t('ticketing.dashboard.status_delayed') }}
+                          </button>
                         <button
                           v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(currentTrip.status)"
                           @click.stop="updateTripStatus(currentTrip.id, 'cancelled')"
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 dark:bg-rose-800 dark:hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Annulé
-                        </button>
+                           {{ $t('ticketing.dashboard.status_cancelled') }}
+                          </button>
                         <button
                           v-if="['departed'].includes(currentTrip.status) && ['admin', 'supervisor', 'superadmin', 'super_admin', 'executive'].includes($page.props.auth.user.role)"
                           @click.stop="updateTripStatus(currentTrip.id, 'arrived')"
                           :disabled="updatingTripStatusId === currentTrip.id"
                           class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                         >
-                          Arrivé
-                        </button>
+                           {{ $t('ticketing.dashboard.status_arrived') }}
+                          </button>
                       </div>
                       <div v-else-if="seatStats.total > 0" class="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                         <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-rose-50 dark:bg-rose-950/30 rounded-lg">
                           <span class="text-lg font-black text-rose-600 dark:text-rose-450">{{ seatStats.available }}</span>
-                          <span class="text-[10px] text-rose-600 dark:text-rose-400 font-medium">restantes</span>
+                          <span class="text-[10px] text-rose-600 dark:text-rose-400 font-medium">{{ $t('ticketing.dashboard.remaining') }}</span>
                         </div>
                         <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
                           <span class="text-lg font-black text-emerald-600 dark:text-emerald-450">{{ seatStats.total }}</span>
-                          <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">total</span>
+                          <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{{ $t('ticketing.dashboard.total') }}</span>
                         </div>
                         <div class="flex-1 flex items-center justify-center gap-1 py-1 bg-slate-50 dark:bg-slate-800 rounded-lg">
                           <span class="text-lg font-black text-slate-700 dark:text-slate-300">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
-                          <span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Taux de remplissage</span>
+                          <span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium">{{ $t('ticketing.dashboard.occupancy_rate') }}</span>
                         </div>
                       </div>
                    </div>
@@ -1149,8 +1158,8 @@ onBeforeUnmount(() => {
                          class="flex items-center gap-3 px-2 pb-1 pt-4"
                        >
                          <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                           Voyages passés
-                         </span>
+                           {{ $t('ticketing.dashboard.past_trips') }}
+                          </span>
                          <span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>
                          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                            {{ orderedTrips.filter(isTripPastForDisplay).length }}
@@ -1211,14 +1220,16 @@ onBeforeUnmount(() => {
                              />
                            </div>
                            <p class="mt-1 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">
-                             Départ : {{ parseRouteName(trip).origin }}
+                             {{ $t('ticketing.dashboard.departure') }} {{ parseRouteName(trip).origin }}
                            </p>
                            <div class="mt-2 flex flex-wrap items-center gap-1.5">
                              <span :class="['rounded-full px-2 py-0.5 text-[9px] font-black uppercase', getTripStationStatusClass(trip)]">
                                {{ getTripStationStatusLabel(trip) }}
                              </span>
-                             <span v-if="trip.allows_open_connections" class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">Correspondance</span>
-                             <span v-else class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">Direct</span>
+                             <span v-if="trip.allows_open_connections" class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{{ $t('ticketing.dashboard.connections') }}</span>
+                             <span v-else class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                             {{ $t('ticketing.dashboard.direct') }}
+                            </span>
                            </div>
                          </div>
                          <div class="ml-auto flex shrink-0 items-center gap-1">
@@ -1228,8 +1239,8 @@ onBeforeUnmount(() => {
                                type="button"
                                class="relative rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-400 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-300"
                                :class="showPrintPool ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : ''"
-                               title="Afficher le pool d’impression"
-                               aria-label="Afficher le pool d’impression"
+                               :title="$t('ticketing.dashboard.show_print_pool')"
+                               :aria-label="$t('ticketing.dashboard.show_print_pool')"
                                :aria-expanded="showPrintPool"
                                @click.stop="togglePrintPool"
                                @dragstart.stop.prevent
@@ -1260,7 +1271,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Pencil :size="16" class="text-sky-600 dark:text-sky-400 shrink-0" />
-                                       <span>Modifier le voyage</span>
+                                       <span>{{ $t('ticketing.dashboard.edit_trip') }}</span>
                                      </button>
                                      <button
                                        @click="openTripDetailsWithOverview(trip.id)"
@@ -1268,7 +1279,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Eye :size="16" class="text-blue-600 dark:text-blue-400 shrink-0" />
-                                       <span>Détails & Tickets</span>
+                                       <span>{{ $t('ticketing.dashboard.details_tickets') }}</span>
                                      </button>
                                      <button
                                        v-if="trip.has_connections"
@@ -1277,7 +1288,9 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left"
                                      >
                                        <Routes :size="16" class="text-violet-600 dark:text-violet-400 shrink-0" />
-                                       <span>Correspondances</span>
+                                       <span>
+                             {{ $t('ticketing.dashboard.connections') }}
+                            </span>
                                      </button>
                                      <button
                                        @click="exportTicketsToExcel(trip.id)"
@@ -1286,7 +1299,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FileExcel :size="16" class="text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                       <span>Exporter Excel</span>
+                                       <span>{{ $t('ticketing.dashboard.export_excel') }}</span>
                                      </button>
                                      <button
                                        @click="exportTicketsToPdf(trip.id)"
@@ -1295,7 +1308,7 @@ onBeforeUnmount(() => {
                                        class="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-left disabled:opacity-50"
                                      >
                                        <FilePdfBox :size="16" class="text-rose-600 dark:text-rose-400 shrink-0" />
-                                       <span>Exporter PDF</span>
+                                       <span>{{ $t('ticketing.dashboard.export_pdf') }}</span>
                                      </button>
                                    </div>
                                  </template>
@@ -1306,11 +1319,11 @@ onBeforeUnmount(() => {
                        </div>
                        <div v-if="expandedTripId === trip.id" class="border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/40" @click.stop>
                          <div class="mb-3 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                           <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">{{ trip.code || 'Code en attente' }}</span>
-                           <span>{{ trip.vehicle?.identifier || 'Véhicule non assigné' }}</span>
+                           <span class="rounded-full bg-white px-2.5 py-1 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">{{ trip.code || $t('ticketing.dashboard.pending_code') }}</span>
+                           <span>{{ trip.vehicle?.identifier || $t('ticketing.dashboard.unassigned_vehicle') }}</span>
                            <span v-if="trip.vehicle?.vehicle_type?.name">• {{ trip.vehicle.vehicle_type.name }}</span>
                            <span :title="trip.sales_control === 'open' ? 'Ventes simultanées autorisées' : 'Ventes origine uniquement'">
-                             {{ trip.sales_control === 'open' ? '🔓 Ventes simultanées' : '🔒 Ventes à l\'origine' }}
+                             {{ trip.sales_control === 'open' ? $t('ticketing.dashboard.sales_simultaneous') : $t('ticketing.dashboard.sales_origin_only') }}
                            </span>
                          </div>
 
@@ -1323,58 +1336,58 @@ onBeforeUnmount(() => {
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Embarquement
-                         </button>
+                           {{ $t('ticketing.dashboard.status_boarding') }}
+                          </button>
                          <button
                            v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(trip.status)"
                            @click.stop="updateTripStatus(trip.id, 'departed')"
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Déclarer le départ
-                         </button>
+                           {{ $t('ticketing.dashboard.declare_departure') }}
+                          </button>
                          <button
                            v-if="['scheduled', 'boarding'].includes(trip.status)"
                            @click.stop="updateTripStatus(trip.id, 'delayed')"
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Retardé
-                         </button>
+                           {{ $t('ticketing.dashboard.status_delayed') }}
+                          </button>
                          <button
                            v-if="['scheduled', 'boarding', 'delayed', 'departed'].includes(trip.status)"
                            @click.stop="updateTripStatus(trip.id, 'cancelled')"
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-rose-600 hover:bg-rose-700 dark:bg-rose-800 dark:hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Annulé
-                         </button>
+                           {{ $t('ticketing.dashboard.status_cancelled') }}
+                          </button>
                          <button
                           v-if="['departed'].includes(trip.status) && ['admin', 'supervisor', 'superadmin', 'super_admin', 'executive'].includes($page.props.auth.user.role)"
                            @click.stop="updateTripStatus(trip.id, 'arrived')"
                            :disabled="updatingTripStatusId === trip.id"
                            class="flex-1 min-w-[80px] text-center px-2 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-[10px] rounded-lg transition-all shadow-sm"
                          >
-                           Arrivé
-                         </button>
+                           {{ $t('ticketing.dashboard.status_arrived') }}
+                          </button>
                        </div>
                        <div v-else class="flex items-center gap-3 mt-4 pt-4 border-t border-dashed" :class="selectedTripId === trip.id ? 'border-emerald-200 dark:border-emerald-800/80' : 'border-slate-200 dark:border-slate-800/40'">
                          <div class="flex-1 bg-white dark:bg-slate-950/45 rounded-xl p-2 border border-slate-200 dark:border-slate-800 shadow-sm">
-                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">Restantes</div>
+                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{{ $t('ticketing.dashboard.remaining_upper') }}</div>
                              <div class="flex items-end gap-1">
                                  <span class="text-base font-black text-rose-600 dark:text-rose-400">{{ trip.available_seats || 0 }}</span>
-                                 <span class="text-[9px] text-rose-600/70 dark:text-rose-400/70 mb-0.5 font-bold uppercase">Lib</span>
+                                 <span class="text-[9px] text-rose-600/70 dark:text-rose-400/70 mb-0.5 font-bold uppercase">{{ $t('ticketing.dashboard.free_seats') }}</span>
                              </div>
                          </div>
                          <div class="flex-1 bg-white dark:bg-slate-950/45 rounded-xl p-2 border border-slate-200 dark:border-slate-800 shadow-sm">
-                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">Total</div>
+                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{{ $t('ticketing.dashboard.total_upper') }}</div>
                              <div class="flex items-end gap-1">
                                  <span class="text-base font-black text-slate-700 dark:text-slate-300">{{ trip.total_seats || 0 }}</span>
-                                 <span class="text-[9px] text-slate-500 dark:text-slate-400 mb-0.5 font-bold uppercase">Cap</span>
+                                 <span class="text-[9px] text-slate-500 dark:text-slate-400 mb-0.5 font-bold uppercase">{{ $t('ticketing.dashboard.capacity') }}</span>
                              </div>
                          </div>
                          <div class="flex-1 bg-white dark:bg-slate-950/45 rounded-xl p-2 border border-slate-200 dark:border-slate-800 shadow-sm">
-                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">Taux de remplissage</div>
+                             <div class="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{{ $t('ticketing.dashboard.occupancy_rate') }}</div>
                              <div class="flex items-end gap-1">
                                  <span class="text-base font-black text-slate-700 dark:text-slate-300">{{ getOccupancyRate(trip.available_seats || 0, trip.total_seats || 0) }}%</span>
                                  <span class="text-[9px] text-slate-500/70 dark:text-slate-400/70 mb-0.5 font-bold uppercase">Occ</span>
@@ -1394,7 +1407,8 @@ onBeforeUnmount(() => {
                           {{ trips.length }}
                         </div>
                      </div>
-                     <h3 class="text-2xl font-black text-gray-900 dark:text-slate-100 mb-2">{{ trips.length }} voyages en cours</h3>
+                     <h3 class="text-2xl font-black text-gray-900 dark:text-slate-100 mb-2">{{ trips.length }} voyages {{ $t('ticketing.dashboard.in_progress') }}
+                        </h3>
                      <p class="text-gray-500 dark:text-slate-400 text-sm max-w-[250px] text-center mb-6">Sélectionnez le voyage pour lequel vous souhaitez vendre des billets.</p>
                      <button
                        @click="showTripSelectionModal = true"
@@ -1576,7 +1590,9 @@ onBeforeUnmount(() => {
                           class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm"
                         >
                           <Routes :size="16" />
-                          <span>Correspondances</span>
+                          <span>
+                             {{ $t('ticketing.dashboard.connections') }}
+                            </span>
                         </button>
                       </div>
 
@@ -1584,13 +1600,15 @@ onBeforeUnmount(() => {
                       <div v-if="pendingOkohiRequestsForCurrentTrip.length > 0" class="mt-2 p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-2xl space-y-2">
                         <div class="text-[10px] font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center justify-between">
                           <span class="flex items-center gap-1">
-                            <span>🎁 {{ pendingOkohiRequestsForCurrentTrip.length }} Privilège(s) Okohi en attente</span>
+                            <span>
+                            🎁 {{ pendingOkohiRequestsForCurrentTrip.length }} {{ $t('ticketing.dashboard.pending_okohi') }}
+                          </span>
                           </span>
                         </div>
                         <div v-for="req in pendingOkohiRequestsForCurrentTrip" :key="req.id" class="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-amber-200/60 dark:border-amber-800/40 text-xs shadow-sm">
                           <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
-                              <span class="font-black text-amber-700 dark:text-amber-400">Siège {{ req.seat_number }}</span>
+                              <span class="font-black text-amber-700 dark:text-amber-400">{{ $t('ticketing.dashboard.seat') }} {{ req.seat_number }}</span>
                               <span class="text-slate-500 text-[10px] font-semibold">({{ req.customer_number }})</span>
                             </div>
                             <div class="flex items-center gap-1.5 mt-1">
@@ -1607,7 +1625,9 @@ onBeforeUnmount(() => {
                             @click="openPendingOkohiModal(req)"
                             class="shrink-0 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[10px] rounded-lg shadow-sm transition-all flex items-center gap-1"
                           >
-                            <span>Gérer</span>
+                            <span>
+                            {{ $t('common.manage') }}
+                          </span>
                           </button>
                         </div>
                       </div>
@@ -1618,7 +1638,7 @@ onBeforeUnmount(() => {
                  <div id="mobile-seat-map" v-if="seatMap && currentTrip?.vehicle?.vehicle_type" class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center overflow-x-hidden md:hidden">
                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-250 mb-8 w-full flex items-center justify-center gap-2">
                       <Bus class="w-5 h-5 text-emerald-600 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-slate-800 rounded p-0.5 shadow-sm" />
-                      Avant du bus
+                      {{ $t('ticketing.dashboard.front_of_bus') }}
                    </h3>
                    
                    <div class="w-full flex items-center justify-center py-4 overflow-x-auto">
@@ -1642,7 +1662,7 @@ onBeforeUnmount(() => {
                    </div>
                    
                    <div class="mt-8 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                      Arrière du bus
+                      {{ $t('ticketing.dashboard.back_of_bus') }}
                    </div>
                  </div>
                  
@@ -1683,17 +1703,17 @@ onBeforeUnmount(() => {
     <div v-if="showCreateTripModal" class="fixed inset-0 z-[1000] flex h-full w-full items-center justify-center overflow-y-auto bg-slate-900/35 p-4 backdrop-blur-sm">
       <div class="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-white/70 bg-white/95 dark:bg-slate-900 dark:border-slate-800 shadow-[0_24px_70px_rgba(15,23,42,0.16)] dark:shadow-black/40">
         <div class="p-5">
-          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">{{ isEditingTrip ? 'Modifier le voyage' : 'Créer un nouveau voyage' }}</h3>
+          <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-slate-100">{{ isEditingTrip ? $t('ticketing.dashboard.edit_trip') : $t('ticketing.dashboard.create_new_trip') }}</h3>
           <form @submit.prevent="createTrip" class="mt-2 space-y-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div v-if="!isEditingTrip && props.replicableTrips && props.replicableTrips.length > 0" class="md:col-span-2">
-                <InputLabel for="template_select" value="Sélectionner un modèle de voyage récurrent" />
+                <InputLabel for="template_select" :value="$t('ticketing.dashboard.select_recurring_template')" />
                 <select
                   id="template_select"
                   v-model="selectedTemplate"
                   class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
                 >
-                  <option :value="null">-- Voyage personnalisé (créer de zéro) --</option>
+                  <option :value="null">{{ $t('ticketing.dashboard.custom_trip') }}</option>
                   <option v-for="t in props.replicableTrips" :key="t.id" :value="t">
                     {{ getRouteName(t.route_id) }} (Départ : {{ t.time }})
                   </option>
@@ -1701,7 +1721,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <InputLabel for="origin_station_display" value="Gare d'origine" />
+                <InputLabel for="origin_station_display" :value="$t('ticketing.dashboard.origin_station')" />
                 <select
                   v-if="props.canSelectTripOrigin"
                   id="origin_station_display"
@@ -1710,26 +1730,26 @@ onBeforeUnmount(() => {
                   required
                   :disabled="isEditingTrip"
                 >
-                  <option value="">Sélectionner une gare d'origine</option>
+                  <option value="">{{ $t('ticketing.dashboard.select_origin_station') }}</option>
                   <option v-for="station in props.originStations" :key="station.id" :value="station.id">
                     {{ station.name }}
                   </option>
                 </select>
                 <div v-else class="mt-1 block w-full px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-500 dark:text-slate-400 text-sm font-semibold select-none">
-                  {{ props.assignedStation || 'Toutes les gares' }}
+                  {{ props.assignedStation || $t('ticketing.dashboard.all_stations') }}
                 </div>
                 <InputError class="mt-2" :message="createTripErrors.origin_station_id" />
               </div>
 
               <div>
-                <InputLabel for="route_id" value="Ligne" />
+                <InputLabel for="route_id" :value="$t('ticketing.dashboard.route_line')" />
                 <select
                   id="route_id"
                   v-model="createTripForm.route_id"
                   class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
                   required
                 >
-                  <option value="">Sélectionner une ligne</option>
+                  <option value="">{{ $t('ticketing.dashboard.select_route_line') }}</option>
                   <option v-for="opt in availableRouteOptions" :key="opt.value" :value="opt.value">
                     {{ opt.label }}
                   </option>
@@ -1738,7 +1758,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <InputLabel for="destination_station_id" value="Gare d'arrivée (Destination)" />
+                <InputLabel for="destination_station_id" :value="$t('ticketing.dashboard.arrival_station')" />
                 <select
                   id="destination_station_id"
                   v-model="createTripForm.destination_station_id"
@@ -1746,7 +1766,7 @@ onBeforeUnmount(() => {
                   required
                   :disabled="!createTripForm.route_id"
                 >
-                  <option value="">Sélectionner une destination</option>
+                  <option value="">{{ $t('ticketing.dashboard.select_destination') }}</option>
                   <option v-for="opt in availableDestinationOptions" :key="opt.value" :value="opt.value">
                     {{ opt.label }}
                   </option>
@@ -1755,13 +1775,13 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <InputLabel for="vehicle_id" value="Véhicule" />
+                <InputLabel for="vehicle_id" :value="$t('ticketing.dashboard.vehicle')" />
                 <select
                   id="vehicle_id"
                   v-model="createTripForm.vehicle_id"
                   class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
                 >
-                  <option value="">Sélectionner un véhicule</option>
+                  <option value="">{{ $t('ticketing.dashboard.select_vehicle') }}</option>
                   <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">
                     {{ vehicle.identifier }} ({{ vehicle.seat_count }} places)
                   </option>
@@ -1770,7 +1790,7 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <InputLabel for="departure_at" value="Heure de départ" />
+                <InputLabel for="departure_at" :value="$t('ticketing.dashboard.departure_time')" />
                 <TextInput
                   id="departure_at"
                   v-model="createTripForm.departure_at"
@@ -1782,13 +1802,13 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <InputLabel for="code" value="Code / Numéro de voyage" />
+                <InputLabel for="code" :value="$t('ticketing.dashboard.trip_code_number')" />
                 <TextInput
                   id="code"
                   v-model="createTripForm.code"
                   type="text"
                   class="mt-1 block w-full rounded-lg border-slate-200 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:bg-slate-950 dark:text-slate-100"
-                  placeholder="Sera généré automatiquement (Ex: ABJ-BKE-0800)"
+                  :placeholder="$t('ticketing.dashboard.auto_generated_code')"
                 />
                 <InputError class="mt-2" :message="createTripErrors.code" />
               </div>
@@ -1798,7 +1818,7 @@ onBeforeUnmount(() => {
                 <div class="flex items-center justify-between">
                   <div>
                     <label for="sales_control" class="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      Ventes simultanées
+                      {{ $t('ticketing.dashboard.simultaneous_sales') }}
                     </label>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       {{ createTripForm.sales_control === 'open'
@@ -1827,9 +1847,9 @@ onBeforeUnmount(() => {
               <div class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800">
                 <div class="flex items-center justify-between gap-4">
                   <div>
-                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</label>
+                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ $t('ticketing.dashboard.open_connections') }}</label>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Permet de vendre un billet vers une autre destination via une gare commune où le passager change de voyage.
+                      {{ $t('ticketing.dashboard.open_connections_desc') }}
                     </p>
                   </div>
                   <button type="button" @click="createTripForm.allows_open_connections = !createTripForm.allows_open_connections"
@@ -1840,20 +1860,20 @@ onBeforeUnmount(() => {
               </div>
 
               <div v-if="createTripForm.allows_open_connections" class="md:col-span-2">
-                <InputLabel for="trip_auto_allocation" value="Allocation automatique des correspondances sur ce voyage" />
+                <InputLabel for="trip_auto_allocation" :value="$t('ticketing.dashboard.auto_allocate_connections')" />
                 <select id="trip_auto_allocation" v-model="createTripForm.automatic_connection_allocation" class="mt-1 block w-full rounded-lg border-slate-200 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100">
-                  <option :value="null">Hériter du trajet et de la compagnie</option>
-                  <option :value="true">Activer pour ce voyage</option>
-                  <option :value="false">Désactiver pour ce voyage</option>
+                  <option :value="null">{{ $t('ticketing.dashboard.inherit_route_company') }}</option>
+                  <option :value="true">{{ $t('ticketing.dashboard.enable_for_trip') }}</option>
+                  <option :value="false">{{ $t('ticketing.dashboard.disable_for_trip') }}</option>
                 </select>
               </div>
 
               <div v-if="['admin', 'supervisor'].includes($page.props.auth.user.role)" class="bg-slate-55 dark:bg-slate-950/40 rounded-lg p-4 border border-slate-200 dark:border-slate-800 md:col-span-2">
                 <div class="flex items-center justify-between gap-4">
                   <div>
-                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</label>
+                    <label class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ $t('ticketing.dashboard.replicable_trip') }}</label>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Recréer ce voyage chaque jour à minuit (sans bus ni équipage affectés).
+                      {{ $t('ticketing.dashboard.replicable_trip_desc') }}
                     </p>
                   </div>
                   <button type="button" @click="createTripForm.is_replicable = !createTripForm.is_replicable"
@@ -1870,14 +1890,14 @@ onBeforeUnmount(() => {
                 @click="showCreateTripModal = false"
                 class="px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-slate-700 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
-                Annuler
+                {{ $t('common.cancel') }}
               </button>
               <button
                 type="submit"
                 :disabled="createTripProcessing"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
                 >
-                {{ createTripProcessing ? (isEditingTrip ? 'Modification...' : 'Création...') : (isEditingTrip ? 'Enregistrer' : 'Créer') }}
+                {{ createTripProcessing ? (isEditingTrip ? $t('common.modifying') : $t('common.creating')) : (isEditingTrip ? $t('common.save') : $t('common.create')) }}
               </button>
             </div>
           </form>
@@ -1891,8 +1911,8 @@ onBeforeUnmount(() => {
         <!-- Modal Header -->
         <div class="flex items-center justify-between border-b border-emerald-100 dark:border-slate-800 bg-emerald-50 dark:bg-emerald-950/30 px-6 py-4">
           <div>
-            <h3 class="text-xl font-bold text-emerald-700 dark:text-emerald-300">Sélectionner un voyage</h3>
-            <p class="text-sm text-emerald-600 dark:text-emerald-400">Choisissez le départ pour lequel vous vendez des billets</p>
+            <h3 class="text-xl font-bold text-emerald-700 dark:text-emerald-300">{{ $t('ticketing.dashboard.select_a_trip') }}</h3>
+            <p class="text-sm text-emerald-600 dark:text-emerald-400">{{ $t('ticketing.dashboard.choose_departure') }}</p>
           </div>
           <button @click="showTripSelectionModal = false" class="p-2 text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-350 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors">
             <Close class="w-6 h-6" />
@@ -1908,7 +1928,9 @@ onBeforeUnmount(() => {
                 v-model="selectedDestinationId"
               class="w-full pl-10 py-3 bg-slate-50 dark:bg-slate-950 border-0 focus:ring-2 focus:ring-emerald-500 rounded-xl text-sm transition-all font-bold text-slate-800 dark:text-slate-100 cursor-pointer"
               >
-                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Toutes les destinations</option>
+                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                          {{ $t('ticketing.dashboard.all_destinations') }}
+                          </option>
                 <option v-for="dest in destinations" :key="dest.id" :value="dest.id" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{{ dest.name }}</option>
               </select>
               <div class="absolute left-3 top-1/2 transform -translate-y-1/2 text-emerald-600 dark:text-emerald-400 pointer-events-none">
@@ -1926,7 +1948,7 @@ onBeforeUnmount(() => {
                :title="showHistory ? 'Masquer l\'historique' : 'Voir l\'historique (48h)'"
             >
                <History :size="20" />
-               <span v-if="!isMobile">{{ showHistory ? 'Masquer historique' : 'Historique' }}</span>
+               <span v-if="!isMobile">{{ showHistory ? $t('ticketing.dashboard.hide_history_short') : $t('ticketing.dashboard.history') }}</span>
             </button>
           </div>
         </div>
@@ -1936,12 +1958,12 @@ onBeforeUnmount(() => {
           <div v-if="filteredTrips.length > 0">
             <!-- Desktop Table Headers -->
             <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-               <div class="col-span-1">Heure</div>
-               <div class="col-span-2">Code Voyage</div>
-               <div class="col-span-4">Destination</div>
-               <div class="col-span-2">Véhicule</div>
-               <div class="col-span-1 text-center">Places</div>
-               <div class="col-span-2">Statut</div>
+               <div class="col-span-1">{{ $t('ticketing.dashboard.time') }}</div>
+               <div class="col-span-2">{{ $t('ticketing.dashboard.trip_code') }}</div>
+               <div class="col-span-4">{{ $t('ticketing.dashboard.destination') }}</div>
+               <div class="col-span-2">{{ $t('ticketing.dashboard.vehicle') }}</div>
+               <div class="col-span-1 text-center">{{ $t('ticketing.dashboard.seats_header') }}</div>
+               <div class="col-span-2">{{ $t('ticketing.dashboard.status') }}</div>
             </div>
 
             <div class="divide-y divide-slate-100 dark:divide-slate-900 bg-white dark:bg-slate-950">
@@ -1951,8 +1973,8 @@ onBeforeUnmount(() => {
                   class="flex items-center gap-3 border-y border-slate-200 bg-slate-50 px-6 py-2 dark:border-slate-800 dark:bg-slate-900/70"
                 >
                   <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                    Voyages passés
-                  </span>
+                           {{ $t('ticketing.dashboard.past_trips') }}
+                          </span>
                   <span class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></span>
                   <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-300">
                     {{ sortedTripsForModal.filter(isTripPastForDisplay).length }}
@@ -1976,14 +1998,14 @@ onBeforeUnmount(() => {
                    <!-- CODE VOYAGE -->
                    <div class="col-span-2 flex flex-col gap-1 items-start">
                      <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
-                       {{ trip.code || 'Code en attente' }}
+                       {{ trip.code || $t('ticketing.dashboard.pending_code') }}
                      </span>
                      <span v-if="trip.allows_open_connections" class="inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-750 dark:text-violet-300 text-[8px] font-black tracking-wider uppercase">
                        Correspondance
                      </span>
                      <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[8px] font-black tracking-wider uppercase">
-                       Direct
-                     </span>
+                             {{ $t('ticketing.dashboard.direct') }}
+                            </span>
                    </div>
                    <!-- DESTINATION -->
                    <div class="col-span-4 flex flex-col justify-center min-w-0 py-1">
@@ -1991,7 +2013,7 @@ onBeforeUnmount(() => {
                          {{ parseRouteName(trip).destination }}
                       </span>
                       <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase mt-0.5 flex flex-wrap items-center gap-1">
-                         <span class="text-slate-400 font-normal">depuis</span>
+                         <span class="text-slate-400 font-normal">{{ $t('ticketing.dashboard.from') }}</span>
                          <span class="text-slate-600 dark:text-slate-300">{{ parseRouteName(trip).origin }}</span>
                       </span>
                    </div>
@@ -2030,16 +2052,16 @@ onBeforeUnmount(() => {
                            {{ parseRouteName(trip).destination }}
                          </span>
                          <span class="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase mt-0.5 flex flex-wrap items-center gap-1 leading-none">
-                           <span class="text-slate-400 font-normal">depuis</span>
+                           <span class="text-slate-400 font-normal">{{ $t('ticketing.dashboard.from') }}</span>
                            <span class="text-slate-600 dark:text-slate-350">{{ parseRouteName(trip).origin }}</span>
                          </span>
                          <span class="text-[9px] font-mono text-amber-600 dark:text-amber-500/80 uppercase mt-1 leading-none">
-                            {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                            {{ trip.code || $t('ticketing.dashboard.pending_code') }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
                             <span v-if="trip.allows_open_connections" class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[8px] font-black tracking-wider uppercase">
-                              Corresp.
+                               {{ $t('ticketing.dashboard.corresp') }}
                             </span>
                             <span v-else class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[8px] font-black tracking-wider uppercase">
-                              Direct
+                             {{ $t('ticketing.dashboard.direct') }}
                             </span>
                          </span>
                       </div>
@@ -2070,14 +2092,14 @@ onBeforeUnmount(() => {
                 class="px-8 py-2.5 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 text-slate-705 dark:text-amber-400 font-mono text-xs font-bold rounded-xl uppercase tracking-wider transition-all shadow-sm active:scale-95 disabled:opacity-50 flex items-center gap-2"
               >
                 <Refresh v-if="loadingMore" class="animate-spin" />
-                <span>{{ loadingMore ? 'Chargement...' : 'Afficher plus de voyages' }}</span>
+                <span>{{ loadingMore ? $t('common.loading') : $t('ticketing.dashboard.load_more_trips') }}</span>
               </button>
             </div>
           </div>
           <div v-else class="h-64 flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 bg-white dark:bg-slate-950">
             <Bus class="w-16 h-16 mb-4 opacity-20 text-slate-405 dark:text-slate-800" />
-            <p class="text-base font-bold uppercase tracking-widest text-slate-405 dark:text-slate-550">Aucun voyage trouvé</p>
-            <p class="text-xs text-slate-500 dark:text-slate-600 mt-1">Essayez une autre destination ou créez un nouveau voyage</p>
+            <p class="text-base font-bold uppercase tracking-widest text-slate-405 dark:text-slate-550">{{ $t('ticketing.dashboard.no_trips_found') }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-600 mt-1">{{ $t('ticketing.dashboard.try_another_dest') }}</p>
           </div>
         </div>
 
@@ -2087,7 +2109,7 @@ onBeforeUnmount(() => {
              @click="showTripSelectionModal = false"
              class="px-6 py-2 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-350 font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
            >
-             Fermer
+             {{ $t('common.close') }}
            </button>
         </div>
       </div>
@@ -2101,14 +2123,14 @@ onBeforeUnmount(() => {
       <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <div class="flex items-center gap-2">
           <Printer :size="19" class="text-emerald-600" />
-          <span class="text-sm font-black text-slate-900 dark:text-white">Impressions</span>
+          <span class="text-sm font-black text-slate-900 dark:text-white">{{ $t('ticketing.dashboard.prints') }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <span v-if="printQueueRunning" class="text-[11px] font-bold text-amber-600">En cours…</span>
+          <span v-if="printQueueRunning" class="text-[11px] font-bold text-amber-600">{{ $t('common.in_progress') }}</span>
           <button
             type="button"
             class="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label="Fermer le pool d’impression"
+            :aria-label="$t('ticketing.dashboard.close_print_pool')"
             @click="showPrintPool = false"
           >
             <Close :size="17" />
@@ -2116,7 +2138,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div v-if="printQueue.length === 0" class="p-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
-        Aucune impression en attente.
+        {{ $t('ticketing.dashboard.no_print_pending') }}
       </div>
       <div v-else class="max-h-64 space-y-2 overflow-y-auto p-3">
         <div
@@ -2131,17 +2153,17 @@ onBeforeUnmount(() => {
               </p>
               <p class="mt-0.5 text-[11px] font-semibold"
                  :class="entry.status === 'failed' ? 'text-rose-600' : entry.status === 'printed' ? 'text-emerald-600' : 'text-slate-500'">
-                <template v-if="entry.status === 'pending'">En attente Bluetooth</template>
-                <template v-else-if="entry.status === 'printing'">Impression Bluetooth…</template>
-                <template v-else-if="entry.status === 'printed'">Impression lancée</template>
-                <template v-else-if="entry.status === 'ready'">Prêt pour impression navigateur</template>
-                <template v-else>Échec : {{ entry.error || 'imprimante indisponible' }}</template>
+                <template v-if="entry.status === 'pending'">{{ $t('ticketing.dashboard.bluetooth_pending') }}</template>
+                <template v-else-if="entry.status === 'printing'">{{ $t('ticketing.dashboard.bluetooth_printing') }}</template>
+                <template v-else-if="entry.status === 'printed'">{{ $t('ticketing.dashboard.print_started') }}</template>
+                <template v-else-if="entry.status === 'ready'">{{ $t('ticketing.dashboard.ready_browser_print') }}</template>
+                <template v-else>{{ $t('ticketing.dashboard.failed') }} {{ entry.error || $t('ticketing.dashboard.printer_unavailable') }}</template>
               </p>
             </div>
             <button
               type="button"
               class="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800"
-              aria-label="Masquer cette impression"
+              :aria-label="$t('ticketing.dashboard.hide_print')"
               @click="dismissPrintEntry(entry.id)"
             >
               <DeleteOutline :size="16" />
@@ -2153,7 +2175,7 @@ onBeforeUnmount(() => {
               class="rounded-lg bg-slate-900 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-slate-700 dark:bg-slate-700"
               @click="printInBrowser(entry.id)"
             >
-              Imprimer dans le navigateur
+              {{ $t('ticketing.dashboard.print_in_browser') }}
             </button>
             <button
               v-if="entry.status === 'failed' && useBluetoothPrinter"
@@ -2161,7 +2183,7 @@ onBeforeUnmount(() => {
               class="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-white dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
               @click="retryPrint(entry.id)"
             >
-              <Refresh :size="13" /> Réessayer Bluetooth
+              <Refresh :size="13" /> {{ $t('ticketing.dashboard.retry_bluetooth') }}
             </button>
           </div>
         </div>

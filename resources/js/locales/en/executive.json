@@ -1,0 +1,22 @@
+{
+  "executive": {
+    "title": "Executive Dashboard",
+    "subtitle": "Strategic view • {start} to {end}",
+    "period_day": "Today",
+    "period_week": "This week",
+    "period_month": "This month",
+    "period_quarter": "This quarter",
+    "period_year": "This year",
+    "revenue_label": "Revenue (FCFA)",
+    "tickets_sold": "Tickets sold",
+    "avg_occupancy": "Average occupancy rate",
+    "fleet_utilization": "Fleet utilization",
+    "revenue_trend": "Revenue Trend",
+    "revenue_by_station": "Revenue by Station",
+    "top_routes": "Top Performing Routes",
+    "route_tickets": "{count} ticket | {count} tickets",
+    "no_data_period": "No data available for this period",
+    "read_only": "📊 Read-only mode",
+    "chart_revenue_label": "Revenue"
+  }
+}

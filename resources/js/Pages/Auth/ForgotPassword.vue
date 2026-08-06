@@ -23,14 +23,14 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Mot de passe oublié" />
+        <Head :title="$t('auth.forgot_password.title')" />
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Réinitialisation</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Mot de passe oublié ?</h1>
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">{{ $t('auth.badge.reset') }}</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ $t('auth.forgot_password.heading') }}</h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
-                    Indiquez votre adresse e-mail et nous vous enverrons un lien sécurisé pour en définir un nouveau.
+                    {{ $t('auth.forgot_password.description') }}
                 </p>
             </div>
 
@@ -43,7 +43,7 @@ const submit = () => {
 
             <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="email" value="Adresse e-mail" />
+                    <InputLabel for="email" :value="$t('common.email')" />
 
                     <TextInput
                         id="email"
@@ -63,14 +63,14 @@ const submit = () => {
                         :href="route('login')"
                         class="rounded-md text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
-                        Retour à la connexion
+                        {{ $t('auth.forgot_password.back_to_login') }}
                     </Link>
 
                     <PrimaryButton
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Envoyer le lien
+                        {{ $t('auth.forgot_password.send_link') }}
                     </PrimaryButton>
                 </div>
             </form>

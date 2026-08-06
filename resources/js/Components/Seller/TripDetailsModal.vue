@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 import { toastStore } from '@/Stores/toastStore.js';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
@@ -30,6 +31,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'ticket-cancelled']);
 
+const { t } = useI18n();
+
 const activeTab = ref('overview'); // overview, gps, tickets, transit
 const tickets = ref([]);
 const transitPool = ref([]);
@@ -53,12 +56,12 @@ const canManageTransit = computed(() => {
 
 const tabs = computed(() => {
   const items = [
-    { id: 'overview', label: "Vue d'ensemble" },
-    { id: 'gps', label: 'Position & Crew App' },
-    { id: 'tickets', label: `Billets & occupations (${tickets.value.length})` }
+    { id: 'overview', label: t('ticketing.trip_details.overview') },
+    { id: 'gps', label: t('ticketing.trip_details.gps_crew') },
+    { id: 'tickets', label: `${t('ticketing.trip_details.tickets_occupancy')} (${tickets.value.length})` }
   ];
   if (transitPool.value.length > 0) {
-    items.push({ id: 'transit', label: `Pool de transit (${transitPool.value.length})` });
+    items.push({ id: 'transit', label: `${t('ticketing.trip_details.transit_pool')} (${transitPool.value.length})` });
   }
   return items;
 });
@@ -400,7 +403,7 @@ watch(() => props.visible, (val) => {
         <div>
           <h3 class="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Bus class="text-emerald-600 dark:text-emerald-400" />
-            <span>Détails & Tickets du Voyage</span>
+            <span>{{ $t('ticketing.trip_details.trip_details_title') }}</span>
           </h3>
           <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
             {{ tripDetails?.code || '-' }} • {{ tripDetails?.display_name || '-' }}
@@ -437,7 +440,7 @@ watch(() => props.visible, (val) => {
       <div class="flex-1 overflow-y-auto p-6 min-h-0 bg-slate-50/30 dark:bg-slate-900/10">
         <div v-if="loading && !tripDetails" class="h-full flex items-center justify-center flex-col gap-3">
           <div class="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">Chargement des données...</span>
+          <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">{{ $t('common.loading_data') }}</span>
         </div>
 
         <template v-else-if="tripDetails">
@@ -452,8 +455,8 @@ watch(() => props.visible, (val) => {
                   <Bus :size="24" />
                 </div>
                 <div>
-                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Véhicule</div>
-                  <div class="text-base font-black text-slate-800 dark:text-slate-200">{{ tripDetails.vehicle?.identifier || 'Non assigné' }}</div>
+                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.vehicle') }}</div>
+                  <div class="text-base font-black text-slate-800 dark:text-slate-200">{{ tripDetails.vehicle?.identifier || $t('ticketing.trip_details.unassigned') }}</div>
                   <div class="text-xs text-slate-500 dark:text-slate-400">{{ tripDetails.vehicle?.vehicle_type?.name || '-' }}</div>
                 </div>
               </div>
@@ -463,7 +466,7 @@ watch(() => props.visible, (val) => {
                   <Clock :size="24" />
                 </div>
                 <div>
-                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Départ</div>
+                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.departure') }}</div>
                   <div class="text-base font-black text-slate-800 dark:text-slate-200">{{ formatTime(tripDetails.departure_at) }}</div>
                   <div class="text-xs text-slate-500 dark:text-slate-400">{{ formatDate(tripDetails.departure_at) }}</div>
                 </div>
@@ -474,7 +477,7 @@ watch(() => props.visible, (val) => {
                   <CheckCircle :size="24" />
                 </div>
                 <div>
-                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">Statut Course</div>
+                  <div class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.trip_status') }}</div>
                   <div class="mt-1">
                     <span :class="['px-2.5 py-1 rounded-full text-xs font-black', getStatusClass(tripDetails.status)]">
                       {{ getStatusLabel(tripDetails.status) }}
@@ -487,36 +490,36 @@ watch(() => props.visible, (val) => {
             <!-- Occupancy Rate and Financial Recap Card -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="bg-white dark:bg-slate-950/45 p-5 border border-slate-200 dark:border-slate-800/60 rounded-2xl">
-                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wider">Remplissage</h4>
+                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wider">{{ $t('ticketing.trip_details.occupancy_rate') }}</h4>
                 <div class="flex items-end justify-between mb-2">
                   <div class="text-2xl font-black text-slate-800 dark:text-slate-100">
                     {{ tickets.length }} / {{ tripDetails.total_seats }}
                   </div>
                   <div class="text-sm font-bold text-slate-500 dark:text-slate-400">
-                    {{ Math.round((tickets.length / (tripDetails.total_seats || 1)) * 100) }}% Occupé
+                    {{ Math.round((tickets.length / (tripDetails.total_seats || 1)) * 100) }}% {{ $t('ticketing.trip_details.occupied') }}
                   </div>
                 </div>
                 <div class="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
                   <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" :style="{ width: `${(tickets.length / (tripDetails.total_seats || 1)) * 100}%` }"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/40 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  <div>Places occupées: <span class="font-bold text-slate-800 dark:text-slate-200">{{ tickets.length }}</span></div>
-                  <div>Places disponibles: <span class="font-bold text-slate-800 dark:text-slate-200">{{ Math.max(0, tripDetails.total_seats - tickets.length) }}</span></div>
+                  <div>{{ $t('ticketing.trip_details.occupied_seats') }} <span class="font-bold text-slate-800 dark:text-slate-200">{{ tickets.length }}</span></div>
+                  <div>{{ $t('ticketing.trip_details.available_seats') }} <span class="font-bold text-slate-800 dark:text-slate-200">{{ Math.max(0, tripDetails.total_seats - tickets.length) }}</span></div>
                 </div>
               </div>
 
               <!-- Crew Assignments Card -->
               <div class="bg-white dark:bg-slate-950/45 p-5 border border-slate-200 dark:border-slate-800/60 rounded-2xl flex flex-col justify-between">
-                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wider">Équipage à bord (Crew)</h4>
+                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wider">{{ $t('ticketing.trip_details.crew_onboard') }}</h4>
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400">
                       <Account :size="18" />
                     </div>
                     <div>
-                      <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Conducteur</div>
+                      <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.driver') }}</div>
                       <div class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {{ tripDetails.driver?.name || 'Aucun conducteur assigné' }}
+                        {{ tripDetails.driver?.name || $t('ticketing.trip_details.no_driver_assigned') }}
                       </div>
                     </div>
                   </div>
@@ -525,9 +528,9 @@ watch(() => props.visible, (val) => {
                       <Account :size="18" />
                     </div>
                     <div>
-                      <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Assistant</div>
+                      <div class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.assistant') }}</div>
                       <div class="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {{ tripDetails.assistant?.name || 'Aucun assistant assigné' }}
+                        {{ tripDetails.assistant?.name || $t('ticketing.trip_details.no_assistant_assigned') }}
                       </div>
                     </div>
                   </div>
@@ -537,7 +540,7 @@ watch(() => props.visible, (val) => {
 
             <!-- Route Stop Timeline -->
             <div class="bg-white dark:bg-slate-950/45 p-5 border border-slate-200 dark:border-slate-800/60 rounded-2xl">
-              <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-6 uppercase tracking-wider">Itinéraire du Trajet</h4>
+              <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-6 uppercase tracking-wider">{{ $t('ticketing.trip_details.route_timeline') }}</h4>
               
               <!-- Visuelle Timeline -->
               <div class="relative flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6 pl-4 md:pl-0">
@@ -574,13 +577,13 @@ watch(() => props.visible, (val) => {
                         {{ stop.station?.name || stop.name || 'Station' }}
                       </div>
                       <div class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase">
-                        <span v-if="idx === 0">Départ Originel</span>
-                        <span v-else-if="idx === timelineStops.length - 1">Terminus</span>
-                        <span v-else>Arrêt N°{{ idx }}</span>
+                        <span v-if="idx === 0">{{ $t('ticketing.trip_details.original_departure') }}</span>
+                        <span v-else-if="idx === timelineStops.length - 1">{{ $t('ticketing.trip_details.terminus') }}</span>
+                        <span v-else>{{ $t('ticketing.trip_details.stop_number') }}{{ idx }}</span>
                       </div>
                       <div v-if="idx < timelineStops.length - 1" class="mt-1">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40">
-                          {{ getTicketsCountForStation(stop.station?.id || stop.id) }} ticket(s) vendu(s)
+                          {{ getTicketsCountForStation(stop.station?.id || stop.id) }} {{ $t('ticketing.trip_details.tickets_sold') }}
                         </span>
                       </div>
                     </div>
@@ -596,10 +599,10 @@ watch(() => props.visible, (val) => {
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">
                         {{ tripDetails.origin_station?.name || tripDetails.route?.origin_station?.name || 'Départ' }}
                       </div>
-                      <div class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase">Départ Originel</div>
+                      <div class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.original_departure') }}</div>
                       <div class="mt-1">
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40">
-                          {{ getTicketsCountForStation(tripDetails.origin_station_id || tripDetails.route?.origin_station_id) }} ticket(s) vendu(s)
+                          {{ getTicketsCountForStation(tripDetails.origin_station_id || tripDetails.route?.origin_station_id) }} {{ $t('ticketing.trip_details.tickets_sold') }}
                         </span>
                       </div>
                     </div>
@@ -612,7 +615,7 @@ watch(() => props.visible, (val) => {
                       <div class="text-xs font-black text-slate-800 dark:text-slate-200">
                         {{ tripDetails.destination_station?.name || tripDetails.route?.destination_station?.name || 'Terminus' }}
                       </div>
-                      <div class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase">Terminus</div>
+                      <div class="text-[10px] font-bold text-slate-450 dark:text-slate-500 uppercase">{{ $t('ticketing.trip_details.terminus') }}</div>
                     </div>
                   </div>
                 </template>
@@ -628,7 +631,9 @@ watch(() => props.visible, (val) => {
             <div class="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-2xl p-4 flex gap-3 text-sm text-blue-800 dark:text-blue-300">
               <Alert class="shrink-0 mt-0.5 text-blue-600 dark:text-blue-450" />
               <div>
-                <strong>Synchronisation de la route (Crew Control) :</strong> Cet onglet affiche les rapports en temps réel envoyés par le conducteur ou l'assistant depuis l'application mobile.
+                <strong>
+                {{ $t('ticketing.trip_details.crew_sync_title') }}
+                </strong> {{ $t('ticketing.trip_details.crew_sync_desc') }}
               </div>
             </div>
 
@@ -638,7 +643,7 @@ watch(() => props.visible, (val) => {
               <!-- Left: Current Live Status Widget -->
               <div class="md:col-span-1 bg-white dark:bg-slate-950/45 p-5 border border-slate-200 dark:border-slate-800/60 rounded-2xl flex flex-col justify-between">
                 <div>
-                  <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">État actuel sur route</h4>
+                  <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">{{ $t('ticketing.trip_details.current_status_road') }}</h4>
                   <div v-if="latestPosition" class="text-center py-6">
                     <div class="inline-flex p-4 rounded-full mb-3" :class="[latestPosition.status === 'normal' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/45 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/45 dark:text-rose-400']">
                       <Bus :size="48" />
@@ -648,7 +653,7 @@ watch(() => props.visible, (val) => {
                       {{ getReportStatusLabel(latestPosition.status) }}
                     </div>
                     <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                      Rapporté par <span class="font-bold text-slate-700 dark:text-slate-300">{{ latestPosition.crew_member?.name || 'Équipage' }}</span> à {{ formatTime(latestPosition.reported_at) }}
+                      {{ $t('ticketing.trip_details.reported_by') }} <span class="font-bold text-slate-700 dark:text-slate-300">{{ latestPosition.crew_member?.name || $t('ticketing.trip_details.crew') }}</span> {{ $t('ticketing.trip_details.at') }} {{ formatTime(latestPosition.reported_at) }}
                     </p>
                     <div v-if="latestPosition.note" class="mt-4 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 text-left rounded-xl italic">
                       " {{ latestPosition.note }} "
@@ -656,8 +661,8 @@ watch(() => props.visible, (val) => {
                   </div>
                   <div v-else class="text-center py-10 text-slate-400 dark:text-slate-500">
                     <MapMarker :size="48" class="mx-auto mb-3 opacity-30" />
-                    <p class="text-sm font-semibold">Aucun signal GPS reçu pour le moment.</p>
-                    <p class="text-xs mt-1">L'équipage n'a pas encore partagé son premier rapport de position.</p>
+                    <p class="text-sm font-semibold">{{ $t('ticketing.trip_details.no_gps_signal') }}</p>
+                    <p class="text-xs mt-1">{{ $t('ticketing.trip_details.no_position_report') }}</p>
                   </div>
                 </div>
 
@@ -668,14 +673,14 @@ watch(() => props.visible, (val) => {
                     class="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all"
                   >
                     <MapMarker :size="16" />
-                    Voir sur Google Maps
+                    {{ $t('ticketing.trip_details.view_on_maps') }}
                   </a>
                 </div>
               </div>
 
               <!-- Right: Reports History List -->
               <div class="md:col-span-2 bg-white dark:bg-slate-950/45 p-5 border border-slate-200 dark:border-slate-800/60 rounded-2xl flex flex-col">
-                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">Historique des Rapports</h4>
+                <h4 class="text-sm font-black text-slate-700 dark:text-slate-300 mb-4 uppercase tracking-wider">{{ $t('ticketing.trip_details.reports_history') }}</h4>
                 
                 <div v-if="statusReports.length > 0" class="flex-1 overflow-y-auto space-y-4 pr-1 max-h-[300px] scrollbar-thin">
                   <div 
@@ -694,17 +699,17 @@ watch(() => props.visible, (val) => {
                         <span class="text-[10px] text-slate-400">{{ formatTime(report.reported_at) }} ({{ formatDate(report.reported_at) }})</span>
                       </div>
                       <p v-if="report.note" class="text-slate-600 dark:text-slate-400 mt-1 italic">" {{ report.note }} "</p>
-                      <div class="text-[10px] text-slate-500 mt-1">Coordonnées : {{ report.latitude || '-' }}, {{ report.longitude || '-' }}</div>
+                      <div class="text-[10px] text-slate-500 mt-1">{{ $t('ticketing.trip_details.coordinates') }} {{ report.latitude || '-' }}, {{ report.longitude || '-' }}</div>
                     </div>
                     <div class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 shrink-0">
-                      Par {{ report.crew_member?.name || 'Crew' }}
+                      {{ $t('ticketing.trip_details.by') }} {{ report.crew_member?.name || $t('ticketing.trip_details.crew') }}
                     </div>
                   </div>
                 </div>
 
                 <div v-else class="flex-1 flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500">
-                  <p class="text-sm font-semibold">Aucun incident ou rapport signalé.</p>
-                  <p class="text-xs mt-1">Tous les signaux de route sont vierges pour l'instant.</p>
+                  <p class="text-sm font-semibold">{{ $t('ticketing.trip_details.no_incident_reported') }}</p>
+                  <p class="text-xs mt-1">{{ $t('ticketing.trip_details.all_signals_blank') }}</p>
                 </div>
               </div>
 
@@ -724,7 +729,7 @@ watch(() => props.visible, (val) => {
                 <input 
                   type="text" 
                   v-model="searchQuery" 
-                  placeholder="Rechercher par nom, téléphone, place ou n° ticket..." 
+                  :placeholder="$t('ticketing.trip_details.search_placeholder')" 
                   class="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-semibold focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
@@ -736,14 +741,14 @@ watch(() => props.visible, (val) => {
                 <table class="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr class="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-850 font-bold text-slate-500 uppercase text-[10px]">
-                      <th class="py-3 px-4 w-16">Siège</th>
-                      <th class="py-3 px-4">Billet</th>
-                      <th class="py-3 px-4">Passager</th>
-                      <th class="py-3 px-4">Trajet</th>
-                      <th class="py-3 px-4 text-right">Tarif</th>
-                      <th class="py-3 px-4">Vendeur</th>
-                      <th class="py-3 px-4 text-center">Statut</th>
-                      <th class="py-3 px-4 text-center w-24">Actions</th>
+                      <th class="py-3 px-4 w-16">{{ $t('ticketing.trip_details.seat') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.ticket') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.passenger') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.journey') }}</th>
+                      <th class="py-3 px-4 text-right">{{ $t('ticketing.trip_details.fare') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.seller') }}</th>
+                      <th class="py-3 px-4 text-center">{{ $t('ticketing.trip_details.status') }}</th>
+                      <th class="py-3 px-4 text-center w-24">{{ $t('common.actions') }}</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-150 dark:divide-slate-850">
@@ -759,14 +764,14 @@ watch(() => props.visible, (val) => {
                       </td>
                       <td class="py-3 px-4">
                         <div class="font-bold text-slate-900 dark:text-slate-200">{{ ticket.ticket_number }}</div>
-                        <div class="text-[9px] text-slate-400 mt-0.5">Vendu à {{ formatTime(ticket.created_at) }}</div>
+                        <div class="text-[9px] text-slate-400 mt-0.5">{{ $t('ticketing.trip_details.sold_at') }} {{ formatTime(ticket.created_at) }}</div>
                         <span
                           v-if="ticket.journey_type !== 'direct'"
                           class="mt-1 inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black text-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
                         >{{ ticket.journey_type === 'connection' ? 'Correspondance' : 'Trajet avec transit' }}</span>
                       </td>
                       <td class="py-3 px-4">
-                        <div class="font-bold text-slate-800 dark:text-slate-200">{{ ticket.passenger_name || 'Anonyme' }}</div>
+                        <div class="font-bold text-slate-800 dark:text-slate-200">{{ ticket.passenger_name || $t('ticketing.trip_details.anonymous') }}</div>
                         <div class="text-[10px] text-slate-500 mt-0.5">{{ ticket.passenger_phone || '-' }}</div>
                       </td>
                       <td class="py-3 px-4">
@@ -776,10 +781,10 @@ watch(() => props.visible, (val) => {
                           {{ ticket.to_station?.name?.split(' - ')[1] || ticket.to_station?.name }}
                         </div>
                         <div v-if="ticket.journey_type === 'connection_origin'" class="mt-1 text-[10px] leading-snug text-violet-700 dark:text-violet-300">
-                          Destination finale : <strong>{{ ticket.final_destination?.name || ticket.connection_destination?.name }}</strong>
-                          <span class="block">Transit : {{ ticket.transfer_station?.name }}</span>
-                          <span class="block" v-if="ticket.connection_trip">Suite : {{ ticket.connection_trip.code }}</span>
-                          <span class="block" v-else>Suite : en attente d’affectation</span>
+                          {{ $t('ticketing.trip_details.final_destination') }} <strong>{{ ticket.final_destination?.name || ticket.connection_destination?.name }}</strong>
+                          <span class="block">{{ $t('ticketing.trip_details.transit') }} {{ ticket.transfer_station?.name }}</span>
+                          <span class="block" v-if="ticket.connection_trip">{{ $t('ticketing.trip_details.next_leg') }} {{ ticket.connection_trip.code }}</span>
+                          <span class="block" v-else>{{ $t('ticketing.trip_details.next_leg') }} {{ $t('ticketing.trip_details.pending_assignment') }}</span>
                         </div>
                       </td>
                       <td class="py-3 px-4 text-right font-black text-slate-900 dark:text-slate-100">
@@ -813,7 +818,7 @@ watch(() => props.visible, (val) => {
                           <button 
                             @click="printTicket(ticket.id)" 
                             class="p-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all active:scale-90"
-                            title="Imprimer le ticket"
+                            :title="$t('ticketing.trip_details.print_ticket')"
                           >
                             <Printer :size="16" />
                           </button>
@@ -822,14 +827,14 @@ watch(() => props.visible, (val) => {
                             @click="compensateTicket(ticket)"
                             :disabled="compensatingTicketId === ticket.id"
                             class="p-1 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 rounded-lg disabled:opacity-50"
-                            title="Compenser ce ticket"
+                            :title="$t('ticketing.trip_details.compensate_ticket')"
                           ><Alert :size="16" /></button>
                           <button 
                             v-if="ticket.status !== 'cancelled' && canCancel(ticket)"
                             @click="cancelTicket(ticket.id, ticket.seat_number)" 
                             :disabled="cancelingTicketId === ticket.id"
                             class="p-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-lg transition-all active:scale-90 disabled:opacity-50"
-                            title="Annuler le ticket"
+                            :title="$t('ticketing.trip_details.cancel_ticket')"
                           >
                             <TrashCan :size="16" />
                           </button>
@@ -838,7 +843,7 @@ watch(() => props.visible, (val) => {
                     </tr>
                     <tr v-if="filteredTickets.length === 0">
                       <td colspan="8" class="text-center py-10 text-slate-400 dark:text-slate-500 italic">
-                        Aucun ticket trouvé.
+                        {{ $t('ticketing.trip_details.no_ticket_found') }}
                       </td>
                     </tr>
                   </tbody>
@@ -854,7 +859,9 @@ watch(() => props.visible, (val) => {
               <div class="flex gap-3">
                 <Alert class="shrink-0 mt-0.5 text-violet-600 dark:text-violet-450" />
                 <div>
-                  <strong>Passagers en correspondance attendus à cette gare :</strong> Liste des voyageurs arrivant d'une autre ligne et devant être réaffectés à ce voyage pour leur destination finale.
+                  <strong>
+                  {{ $t('ticketing.trip_details.transit_passengers_title') }}
+                  </strong> {{ $t('ticketing.trip_details.transit_passengers_desc') }}
                 </div>
               </div>
               <button
@@ -864,7 +871,7 @@ watch(() => props.visible, (val) => {
                 class="shrink-0 px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-sm shadow-violet-100 dark:shadow-none"
               >
                 <span v-if="autoAllocating" class="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                <span>Répartir automatiquement</span>
+                <span>{{ $t('ticketing.trip_details.auto_allocate') }}</span>
               </button>
             </div>
 
@@ -874,12 +881,12 @@ watch(() => props.visible, (val) => {
                 <table class="w-full text-left border-collapse text-xs font-semibold">
                   <thead>
                     <tr class="bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-850 font-bold text-slate-500 uppercase text-[10px]">
-                      <th class="py-3 px-4">Billet</th>
-                      <th class="py-3 px-4">Passager</th>
-                      <th class="py-3 px-4">Provenance</th>
-                      <th class="py-3 px-4">Destination</th>
-                      <th class="py-3 px-4 text-center">État</th>
-                      <th class="py-3 px-4 text-right w-60">Actions d'affectation</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.ticket') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.passenger') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.origin') }}</th>
+                      <th class="py-3 px-4">{{ $t('ticketing.trip_details.destination') }}</th>
+                      <th class="py-3 px-4 text-center">{{ $t('ticketing.trip_details.state') }}</th>
+                      <th class="py-3 px-4 text-right w-60">{{ $t('ticketing.trip_details.assignment_actions') }}</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-150 dark:divide-slate-850">
@@ -922,7 +929,7 @@ watch(() => props.visible, (val) => {
                             :disabled="markingReadyConnectionId === connection.id"
                             class="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold disabled:opacity-50"
                           >
-                            {{ markingReadyConnectionId === connection.id ? 'Attente...' : 'Marquer Présent' }}
+                            {{ markingReadyConnectionId === connection.id ? $t('ticketing.trip_details.waiting') : $t('ticketing.trip_details.mark_ready') }}
                           </button>
                           
                           <!-- Assign Seat Form -->
@@ -939,18 +946,18 @@ watch(() => props.visible, (val) => {
                               :disabled="assigningConnectionId === connection.id"
                               class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-50"
                             >
-                              Affecter
+                              {{ $t('ticketing.trip_details.assign') }}
                             </button>
                           </div>
                         </div>
                         <div v-else class="text-right text-slate-400 text-[10px]">
-                          Lecture seule (Gare originelle requise)
+                          {{ $t('ticketing.trip_details.readonly_station_required') }}
                         </div>
                       </td>
                     </tr>
                     <tr v-if="transitPool.length === 0">
                       <td colspan="6" class="text-center py-10 text-slate-400 dark:text-slate-500 italic">
-                        Aucun passager en transit attendu pour ce trajet.
+                        {{ $t('ticketing.trip_details.no_transit_passengers') }}
                       </td>
                     </tr>
                   </tbody>

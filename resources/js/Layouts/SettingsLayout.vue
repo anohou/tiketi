@@ -1,9 +1,12 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Link, usePage } from '@inertiajs/vue3';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
+import HelpPanel from '@/Components/HelpPanel.vue';
+import { findHelpTopic } from '@/Support/helpContent.js';
 import Earth from 'vue-material-design-icons/Earth.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
@@ -14,38 +17,58 @@ import Bus from 'vue-material-design-icons/Bus.vue';
 import Car from 'vue-material-design-icons/Car.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
+import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 
 const page = usePage();
+const { t } = useI18n();
+
+const isHelpOpen = ref(false);
+const currentRouteName = computed(() => {
+  try {
+    const current = route().current();
+    return typeof current === 'string' ? current : null;
+  } catch (error) {
+    return null;
+  }
+});
+const currentHelpTopic = computed(() => findHelpTopic({
+  routeName: currentRouteName.value,
+  path: typeof window !== 'undefined' ? window.location.pathname : '',
+  role: page.props.auth.user?.role,
+}));
+const openHelp = () => {
+  isHelpOpen.value = true;
+};
 
 const menuItems = computed(() => [
   {
     route: 'admin.stations.index',
-    label: 'Gares',
+    label: t('layout.stations_mobile'),
     icon: OfficeBuilding
   },
   {
     route: 'admin.routes.index',
-    label: 'Trajets',
+    label: t('layout.routes'),
     icon: Router
   },
   {
     route: 'admin.vehicles.index',
-    label: 'Vehicles',
+    label: t('layout.vehicles'),
     icon: Bus
   },
   {
     route: 'admin.vehicle-types.index',
-    label: 'Vehicle Types',
+    label: t('layout.vehicle_types'),
     icon: Car
   },
   {
     route: 'admin.trips.index',
-    label: 'Trips',
+    label: t('layout.trips'),
     icon: Calendar
   },
   {
     route: 'admin.assignments.index',
-    label: 'Assignments',
+    label: t('layout.assignments'),
     icon: AccountGroup
   }
 ]);
@@ -71,18 +94,18 @@ const menuItems = computed(() => [
 
           <!-- Breadcrumb -->
           <div class="flex items-center">
-            <nav class="flex" aria-label="Breadcrumb">
+            <nav class="flex" :aria-label="$t('layout.breadcrumb')">
               <ol class="inline-flex items-center space-x-1 md:space-x-3">
                 <li class="inline-flex items-center">
                   <Link :href="route('dashboard')" class="inline-flex items-center text-sm font-medium text-green-700 hover:text-green-800">
                     <HomeOutline class="mr-2" :size="16"/>
-                    Dashboard
+                    {{ $t('layout.dashboard') }}
                   </Link>
                 </li>
                 <li>
                   <div class="flex items-center">
                     <ChevronRight class="text-green-400" :size="16"/>
-                    <span class="ml-1 text-sm font-medium text-emerald-600 md:ml-2">Configurations</span>
+                    <span class="ml-1 text-sm font-medium text-emerald-600 md:ml-2">{{ $t('layout.configurations') }}</span>
                   </div>
                 </li>
               </ol>
@@ -91,6 +114,14 @@ const menuItems = computed(() => [
 
           <!-- User Menu -->
           <div class="flex items-center gap-3">
+            <button
+              type="button"
+              @click="openHelp"
+              class="p-2 rounded-full border border-slate-300 text-slate-500 hover:bg-slate-100 transition-all flex items-center justify-center cursor-help dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              :title="t('layout.help')"
+            >
+              <HelpCircleOutline :size="20" />
+            </button>
             <ThemeToggle />
             <Dropdown align="right" width="48">
               <template #trigger>
@@ -106,10 +137,10 @@ const menuItems = computed(() => [
 
               <template #content>
                 <DropdownLink :href="route('profile.edit')" class="text-green-700 hover:bg-green-50">
-                  Profile
+                  {{ $t('layout.profile') }}
                 </DropdownLink>
                 <DropdownLink :href="route('logout')" method="post" as="button" class="text-green-700 hover:bg-green-50">
-                  Log Out
+                  {{ $t('layout.logout') }}
                 </DropdownLink>
               </template>
             </Dropdown>
@@ -125,7 +156,7 @@ const menuItems = computed(() => [
         <div class="p-4">
           <h2 class="text-lg font-semibold text-green-700 mb-4 flex items-center dark:text-emerald-300">
             <Settings class="mr-2" :size="24"/>
-            Configurations
+            {{ $t('layout.configurations') }}
           </h2>
           
           <nav class="space-y-2">
@@ -161,5 +192,7 @@ const menuItems = computed(() => [
         </div>
       </div>
     </div>
+
+    <HelpPanel :show="isHelpOpen" :topic="currentHelpTopic" :role="page.props.auth.user?.role" @close="isHelpOpen = false" />
   </div>
 </template>

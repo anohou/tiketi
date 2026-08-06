@@ -22,8 +22,8 @@ const props = defineProps({
 
 <template>
   <SellerSettingsLayout
-    title="Profil et procédures"
-    subtitle="Votre profil professionnel et les directives de vente (lecture seule)"
+    :title="$t('seller_settings.cards.profile.title')"
+    :subtitle="$t('seller_settings.cards.profile.description') + ' (' + $t('common.read_only', 'lecture seule') + ')'"
     :icon="AccountHardHat"
   >
     <div class="grid max-w-4xl content-start gap-4 lg:grid-cols-3">
@@ -37,8 +37,8 @@ const props = defineProps({
             <InformationOutline class="text-emerald-600 dark:text-emerald-400" :size="22" />
           </div>
           <div>
-            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Directives de vente</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Procédures à appliquer</p>
+            <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">{{ $t('admin_settings.directives.title', 'Directives de vente') }}</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ $t('admin_settings.directives.subtitle') }}</p>
           </div>
         </div>
 

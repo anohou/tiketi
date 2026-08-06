@@ -10,6 +10,7 @@ import axios from 'axios';
 import BluetoothPrinter from '@/Services/BluetoothPrinter.js';
 import { ticketingStore } from '@/Stores/ticketingStore.js';
 import { toastStore } from '@/Stores/toastStore.js';
+import { i18n } from '@/i18n.js';
 import {
   buildTripCreationDestinationOptions,
   buildTripCreationRouteOptions,
@@ -181,16 +182,16 @@ export function useTicketing(props, options = {}) {
         try {
           const connected = await ensureBluetoothPrinterConnected({ allowPrompt: false });
           if (!connected) {
-            throw new Error('Imprimante Bluetooth indisponible');
+            throw new Error(i18n.global.t('composable.ticketing.bluetooth_unavailable'));
           }
           await printWithBluetooth(entry.ticketId);
           updatePrintEntry(entry, { status: 'printed' });
-          toastStore.success('Ticket imprimé avec succès.');
+          toastStore.success(i18n.global.t('composable.ticketing.ticket_printed_success'));
           schedulePrintedEntryCleanup(entry.id);
         } catch (error) {
           updatePrintEntry(entry, {
             status: 'failed',
-            error: error?.message || 'Échec de l’impression Bluetooth',
+            error: error?.message || i18n.global.t('composable.ticketing.bluetooth_print_failed'),
           });
         }
       }
@@ -216,7 +217,7 @@ export function useTicketing(props, options = {}) {
     if (!opened) {
       updatePrintEntry(entry, {
         status: 'failed',
-        error: 'Le navigateur a bloqué la fenêtre d’impression',
+        error: i18n.global.t('composable.ticketing.browser_blocked_print'),
       });
       return;
     }
@@ -252,9 +253,9 @@ export function useTicketing(props, options = {}) {
       });
       await bluetoothPrinter.connect();
       syncBluetoothStatus();
-      toastStore.success(`Imprimante connectée: ${bluetoothPrinterName.value}`);
+      toastStore.success(i18n.global.t('composable.ticketing.printer_connected', { name: bluetoothPrinterName.value }));
     } catch (error) {
-      toastStore.error('Échec de la connexion à l\'imprimante Bluetooth. Veuillez réessayer.');
+      toastStore.error(i18n.global.t('composable.ticketing.printer_connection_failed'));
     }
   };
 
@@ -332,7 +333,7 @@ export function useTicketing(props, options = {}) {
     const printUrl = route('tickets.print', { ticket: ticketId });
     const printWindow = window.open(printUrl, '_blank', 'width=400,height=600');
     if (!printWindow) {
-      toastStore.warning('Veuillez autoriser les popups pour imprimer le ticket.');
+      toastStore.warning(i18n.global.t('composable.ticketing.allow_popups'));
       return false;
     }
     return true;
@@ -461,25 +462,28 @@ export function useTicketing(props, options = {}) {
     const claimId = e.claim_id;
 
     if (localStatus === 'approved_pending_cash') {
-      toastStore.success(`🎁 Privilège Okohi validé pour le Siège ${seatNum || ''} ! Encaisser le montant restant.`);
+      toastStore.success(i18n.global.t('composable.ticketing.okohi_approved_cash', { seat: seatNum || '' }));
       okohiNotifications.value.unshift({
         id: claimId || Date.now(),
         seatNumber: seatNum,
         tripId: e.trip_id,
         status: 'approved_pending_cash',
-        message: `Siège ${seatNum ? '#' + seatNum : ''} - Privilège Okohi validé (À encaisser)`,
+        message: i18n.global.t('composable.ticketing.okohi_approved_cash_notification', { seat: seatNum ? '#' + seatNum : '' }),
       });
     } else if (localStatus === 'confirmed') {
-      toastStore.success(`🎁 Privilège Okohi validé pour le Siège ${seatNum || ''} ! Billet émis avec succès.`);
+      toastStore.success(i18n.global.t('composable.ticketing.okohi_confirmed_ticket', { seat: seatNum || '' }));
       okohiNotifications.value.unshift({
         id: claimId || Date.now(),
         seatNumber: seatNum,
         tripId: e.trip_id,
         status: 'confirmed',
-        message: `Siège ${seatNum ? '#' + seatNum : ''} - Billet Okohi émis`,
+        message: i18n.global.t('composable.ticketing.okohi_ticket_issued_notification', { seat: seatNum ? '#' + seatNum : '' }),
       });
     } else if (status === 'rejected' || status === 'expired') {
-      toastStore.warning(`Demande Okohi ${status === 'expired' ? 'expirée' : 'refusée'} (Siège ${seatNum || ''}).`);
+      const requestKey = status === 'expired'
+        ? 'composable.ticketing.okohi_request_expired'
+        : 'composable.ticketing.okohi_request_rejected';
+      toastStore.warning(i18n.global.t(requestKey, { seat: seatNum || '' }));
     }
   };
 
@@ -737,7 +741,7 @@ export function useTicketing(props, options = {}) {
     return uniqueOrderedSeats.slice(0, ticketQuantity.value).map((seat_number, index) => ({
       seat_number,
       score: 1000 - (index * 10),
-      reason: 'Place disponible à votre gare',
+      reason: i18n.global.t('composable.ticketing.seat_available_reason'),
     }));
   };
 
@@ -1405,7 +1409,7 @@ export function useTicketing(props, options = {}) {
       .then((response) => { seatMap.value = response.data; })
       .catch((error) => {
         console.error('Erreur lors de la récupération du plan de salle:', error);
-        if (!silent) errors.value.seatmap = 'Impossible de charger le plan de salle.';
+        if (!silent) errors.value.seatmap = i18n.global.t('composable.ticketing.seatmap_load_error');
       })
       .finally(() => { if (!silent) seatMapLoading.value = false; });
   }
@@ -1572,7 +1576,7 @@ export function useTicketing(props, options = {}) {
           id: 'req-' + seatObj.ticket_id,
           ticket_number: seatObj.ticket_number || null,
           seller_name: seatObj.seller_name || null,
-          reason: 'Inspection Directe',
+          reason: i18n.global.t('composable.ticketing.inspection_reason_direct'),
           created_at: seatObj.created_at || null,
           seat_number: seatNumber,
           trip_id: selectedTripId.value,
@@ -1610,21 +1614,21 @@ export function useTicketing(props, options = {}) {
     // The seat-first flow opens the modal before a destination is selected.
     if (!selectedFare.value || selectedSeatNumber.value === null) return;
     if (seatsToBook.value.length !== ticketQuantity.value) {
-      toastStore.error('La sélection de sièges est incomplète.');
+      toastStore.error(i18n.global.t('composable.ticketing.seat_selection_incomplete'));
       return;
     }
     if (seatFirstFlow.value && ticketQuantity.value > maxSellableQuantity.value) {
-      toastStore.error(`Seulement ${maxSellableQuantity.value} place(s) sont vendables depuis cette gare.`);
+      toastStore.error(i18n.global.t('composable.ticketing.only_seats_sellable', { count: maxSellableQuantity.value }));
       return;
     }
 
     // Validate
     passengerFormErrors.value = {};
     if (showPassengerFields.value && passengerForm.value.name && passengerForm.value.name.trim().length < 2) {
-      passengerFormErrors.value.name = 'Le nom doit contenir au moins 2 caractères';
+      passengerFormErrors.value.name = i18n.global.t('composable.ticketing.name_min_length');
     }
     if (showPassengerFields.value && passengerForm.value.phone && !/^[0-9]{9,15}$/.test(passengerForm.value.phone.replace(/\s/g, ''))) {
-      passengerFormErrors.value.phone = 'Numéro de téléphone invalide (9-15 chiffres)';
+      passengerFormErrors.value.phone = i18n.global.t('composable.ticketing.invalid_phone');
     }
     if (Object.keys(passengerFormErrors.value).length > 0) return;
 
@@ -1744,7 +1748,7 @@ export function useTicketing(props, options = {}) {
           available_seats: snapshot.tripAvailable ?? (trips.value[revertIdx].available_seats || 0) + allSeats.length,
         };
       }
-      const message = error.response?.data?.message || 'Erreur lors de la création du ticket.';
+      const message = error.response?.data?.message || i18n.global.t('composable.ticketing.ticket_creation_error');
       toastStore.error(message);
     }
 
@@ -1752,7 +1756,7 @@ export function useTicketing(props, options = {}) {
       if (ticketsToPrint.length > 0) {
         printTickets(ticketsToPrint);
       }
-      toastStore.success('Vente enregistrée. L’impression est suivie séparément.');
+      toastStore.success(i18n.global.t('composable.ticketing.sale_registered'));
       fetchSeatMap({ silent: true });
       ticketingStore.notifySeatMapChanged();
     }
@@ -1799,7 +1803,7 @@ export function useTicketing(props, options = {}) {
   };
 
   const handleOkohiSuccess = async (ticketId) => {
-    toastStore.success('Paiement Okohi validé ! Impression du ticket...');
+    toastStore.success(i18n.global.t('composable.ticketing.okohi_payment_validated'));
     showPassengerModal.value = false;
     selectedSeatNumber.value = null;
     activeOkohiRequest.value = null;

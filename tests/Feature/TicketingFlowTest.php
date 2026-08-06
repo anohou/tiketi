@@ -2383,6 +2383,94 @@ class TicketingFlowTest extends TestCase
         $this->assertNotContains($suggestedSeat, range(34, 49));
     }
 
+    public function test_window_seat_penalized_when_aisle_occupant_descends_after(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [2],
+        ])->assertCreated();
+
+        $response = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['b']->id,
+            'boarding_station_id' => $stations['a']->id,
+            'quantity' => 5,
+        ]))->assertOk();
+
+        $suggestions = collect($response->json('suggested_seats'))->keyBy('seat_number');
+        $this->assertTrue($suggestions->has(1));
+        $this->assertStringContainsString('Bloqué par couloir', $suggestions->get(1)['reason']);
+    }
+
+    public function test_window_seat_not_penalized_when_aisle_occupant_descends_before(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [2],
+        ])->assertCreated();
+
+        $response = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['a']->id,
+            'quantity' => 5,
+        ]))->assertOk();
+
+        $suggestions = collect($response->json('suggested_seats'))->keyBy('seat_number');
+        $this->assertTrue($suggestions->has(1));
+        $this->assertStringNotContainsString('Bloqué par couloir', $suggestions->get(1)['reason']);
+    }
+
+    public function test_aisle_seat_penalized_when_window_occupant_descends_before(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['b']->id,
+            'seats' => [1],
+        ])->assertCreated();
+
+        $response = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['c']->id,
+            'boarding_station_id' => $stations['a']->id,
+            'quantity' => 5,
+        ]))->assertOk();
+
+        $suggestions = collect($response->json('suggested_seats'))->keyBy('seat_number');
+        $this->assertTrue($suggestions->has(2));
+        $this->assertStringContainsString('Bloquerait fenêtre', $suggestions->get(2)['reason']);
+    }
+
+    public function test_aisle_seat_not_penalized_when_window_occupant_descends_after(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)->postJson('/seller/tickets', [
+            'trip_id' => $trip->id,
+            'from_station_id' => $stations['a']->id,
+            'to_station_id' => $stations['c']->id,
+            'seats' => [1],
+        ])->assertCreated();
+
+        $response = $this->actingAs($admin)->getJson("/seller/trips/{$trip->id}/suggest-seats?".http_build_query([
+            'destination_station_id' => $stations['b']->id,
+            'boarding_station_id' => $stations['a']->id,
+            'quantity' => 5,
+        ]))->assertOk();
+
+        $suggestions = collect($response->json('suggested_seats'))->keyBy('seat_number');
+        $this->assertTrue($suggestions->has(2));
+        $this->assertStringNotContainsString('Bloquerait fenêtre', $suggestions->get(2)['reason']);
+    }
+
     public function test_closed_trip_suggests_only_seats_freed_at_boarding_station(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();

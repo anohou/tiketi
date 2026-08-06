@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
+import FormPanel from '@/Components/FormPanel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -372,14 +373,16 @@ const submit = () => {
         </div>
 
         <!-- Right Column - Form -->
-        <div class="col-span-12 md:col-span-5 h-full overflow-y-auto custom-scrollbar">
-          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 h-full flex flex-col">
-            <h2 class="text-lg font-semibold text-green-700 dark:text-emerald-400 mb-4 shrink-0">
-              Configuration
-            </h2>
+        <div class="col-span-12 md:col-span-5 h-full">
+          <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden h-full">
+            <FormPanel @submit="submit">
+              <template #header>
+                <h2 class="text-lg font-semibold text-green-700 dark:text-emerald-400 px-4 py-3">
+                  Configuration
+                </h2>
+              </template>
 
-            <form @submit.prevent="submit" class="flex-1 overflow-y-auto pr-2 custom-scrollbar mb-4">
-              <div class="space-y-6">
+              <div class="p-6 space-y-6">
                 <!-- Company Name -->
                 <div>
                   <InputLabel for="company_name" value="Nom de l'entreprise" />
@@ -522,12 +525,10 @@ const submit = () => {
                   </Link>
                 </div>
               </div>
-            </form>
 
-            <!-- Submit Button (Fixed at bottom) -->
-            <div class="pt-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+              <template #actions>
               <button
-                @click="submit"
+                type="submit"
                 class="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg shadow-green-200 flex items-center justify-center gap-2 dark:bg-emerald-600 dark:shadow-none dark:hover:bg-emerald-500"
                 :disabled="processing"
               >
@@ -535,7 +536,8 @@ const submit = () => {
                 <Printer v-else class="w-5 h-5" />
                 <span>{{ processing ? 'Enregistrement...' : 'Enregistrer les paramètres' }}</span>
               </button>
-            </div>
+              </template>
+            </FormPanel>
           </div>
         </div>
       </div>

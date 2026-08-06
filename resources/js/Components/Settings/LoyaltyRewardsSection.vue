@@ -46,7 +46,7 @@ const rewardList = computed(() => {
         ]"
       >
         <span :class="['w-1.5 h-1.5 rounded-full', loyalty.connected ? 'bg-emerald-500' : 'bg-slate-400']" />
-        {{ loyalty.connected ? 'Programme connecté' : 'Non connecté' }}
+        {{ loyalty.connected ? $t('admin_settings.loyalty_rewards.connected_badge') : $t('admin_settings.common.not_connected') }}
       </span>
     </div>
 
@@ -60,9 +60,9 @@ const rewardList = computed(() => {
         <div class="p-4 bg-slate-50 rounded-full text-slate-400 mb-4 shrink-0 dark:bg-slate-800">
           <GiftOutline :size="36" />
         </div>
-        <h3 class="text-base font-bold text-slate-800 mb-1 dark:text-slate-100">Programme non actif</h3>
+        <h3 class="text-base font-bold text-slate-800 mb-1 dark:text-slate-100">{{ $t('admin_settings.loyalty_rewards.inactive_title') }}</h3>
         <p class="text-xs text-slate-500 max-w-sm leading-relaxed dark:text-slate-400">
-          Le programme de fidélité Okohi n'est pas configuré pour votre compagnie. Seul l'administrateur peut l'activer.
+          {{ $t('admin_settings.loyalty_rewards.inactive_message') }}
         </p>
       </div>
     </template>

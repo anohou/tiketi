@@ -4,6 +4,7 @@ import { onMounted } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import ToastContainer from '@/Components/ToastContainer.vue';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
+import HelpCircleOutline from 'vue-material-design-icons/HelpCircleOutline.vue';
 
 onMounted(() => {
     if (!localStorage.getItem('locale')) {
@@ -25,7 +26,18 @@ onMounted(() => {
                     <ApplicationLogo class="h-14 w-auto sm:h-16 drop-shadow-[0_4px_10px_rgba(15,23,42,0.08)] dark:drop-shadow-[0_0_12px_rgba(255,255,255,0.14)]" />
                 </Link>
 
-                <ThemeToggle />
+                <div class="flex items-center gap-2">
+                    <!-- Accès à la documentation avant connexion -->
+                    <Link
+                        :href="$page.props.isTenant ? '/help' : '/aide'"
+                        class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:border-emerald-600"
+                        :title="'Documentation'"
+                    >
+                        <HelpCircleOutline :size="16" />
+                        Documentation
+                    </Link>
+                    <ThemeToggle />
+                </div>
             </div>
 
             <div class="w-full max-w-md rounded-3xl border border-white/70 bg-white/92 px-6 py-8 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20">

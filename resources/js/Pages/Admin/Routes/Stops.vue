@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Link, router } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -13,6 +14,8 @@ import ChevronUp from 'vue-material-design-icons/ChevronUp.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
 import { toastStore } from '@/Stores/toastStore.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   routeModel: Object,
@@ -47,9 +50,9 @@ const submit = () => {
 };
 
 const deleteStop = async (stopOrder) => {
-  if (await confirmationStore.confirm({ title: 'Retirer cette destination', message: 'Cette destination sera retirée du trajet.', confirmLabel: 'Retirer', tone: 'danger' })) {
+  if (await confirmationStore.confirm({ title: t('fleet.routes.stops.remove_destination'), message: t('fleet.routes.stops.remove_destination_confirm'), confirmLabel: t('fleet.routes.stops.remove'), tone: 'danger' })) {
     router.delete(route('admin.routes.stops.destroy', [props.routeModel.id, stopOrder.id]), {
-      onError: () => toastStore.error('Impossible de supprimer cette destination.')
+      onError: () => toastStore.error(t('fleet.routes.stops.remove_error'))
     });
   }
 };
@@ -69,7 +72,7 @@ const moveUp = (index) => {
     onSuccess: () => { processing.value = false; },
     onError: () => {
       processing.value = false;
-      toastStore.error('Erreur lors du réordonnancement.');
+      toastStore.error(t('fleet.routes.stops.reorder_error'));
     }
   });
 };
@@ -89,7 +92,7 @@ const moveDown = (index) => {
     onSuccess: () => { processing.value = false; },
     onError: () => {
       processing.value = false;
-      toastStore.error('Erreur lors du réordonnancement.');
+      toastStore.error(t('fleet.routes.stops.reorder_error'));
     }
   });
 };
@@ -105,7 +108,7 @@ const moveDown = (index) => {
             <ArrowLeft class="w-6 h-6" />
           </Link>
           <div>
-            <h1 class="text-2xl font-bold text-green-700">Destinations de la Route</h1>
+            <h1 class="text-2xl font-bold text-green-700">{{ $t('fleet.routes.stops.route_destinations') }}</h1>
             <p class="mt-1 text-sm text-green-600">{{ routeModel.name }}</p>
           </div>
         </div>
@@ -122,24 +125,24 @@ const moveDown = (index) => {
         <div class="col-span-12 md:col-span-6">
           <div class="bg-white rounded-lg border border-slate-200 shadow-sm">
             <div class="border-b border-slate-200 p-3 bg-gradient-to-r from-emerald-50 to-slate-50">
-              <h2 class="text-lg font-semibold text-green-700">Liste des Destinations ({{ stops.length }})</h2>
+              <h2 class="text-lg font-semibold text-green-700">{{ $t('fleet.routes.stops.destinations_list', { count: stops.length }) }}</h2>
             </div>
 
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-green-50">
                   <tr>
-                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">Ordre</th>
-                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">Destination</th>
-                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">Ville</th>
-                    <th class="px-3 py-2 text-right text-sm font-semibold text-green-700">Actions</th>
+                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">{{ $t('fleet.routes.stops.order') }}</th>
+                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">{{ $t('fleet.routes.stops.destination') }}</th>
+                    <th class="px-3 py-2 text-left text-sm font-semibold text-green-700">{{ $t('fleet.routes.stops.city') }}</th>
+                    <th class="px-3 py-2 text-right text-sm font-semibold text-green-700">{{ $t('common.actions') }}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-200">
                   <tr v-if="stops.length === 0">
                     <td colspan="4" class="px-3 py-3 text-center text-gray-500">
                       <div class="rounded-lg bg-emerald-50 p-1 text-emerald-700">
-                        Aucune destination configurée pour cette route.
+                        {{ $t('fleet.routes.stops.no_destinations') }}
                       </div>
                     </td>
                   </tr>
@@ -162,7 +165,7 @@ const moveDown = (index) => {
                           @click="moveUp(index)" 
                           :disabled="index === 0 || processing"
                           class="p-1 rounded text-green-600 hover:bg-green-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
-                          title="Monter"
+                          :title="$t('fleet.routes.stops.move_up')"
                         >
                           <ChevronUp class="w-5 h-5" />
                         </button>
@@ -171,7 +174,7 @@ const moveDown = (index) => {
                           @click="moveDown(index)" 
                           :disabled="index === stops.length - 1 || processing"
                           class="p-1 rounded text-green-600 hover:bg-green-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
-                          title="Descendre"
+                          :title="$t('fleet.routes.stops.move_down')"
                         >
                           <ChevronDown class="w-5 h-5" />
                         </button>
@@ -180,7 +183,7 @@ const moveDown = (index) => {
                           @click="deleteStop(stopOrder)" 
                           :disabled="processing"
                           class="p-1 rounded text-red-600 hover:bg-red-100 disabled:text-gray-300 disabled:hover:bg-transparent transition-colors"
-                          title="Retirer"
+                          :title="$t('fleet.routes.stops.remove')"
                         >
                           <Trash2 class="h-5 w-5" />
                         </button>
@@ -197,17 +200,17 @@ const moveDown = (index) => {
         <div class="col-span-12 md:col-span-4">
           <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4">
             <h2 class="text-lg font-semibold text-green-700 mb-4">
-              Ajouter une destination
+              {{ $t('fleet.routes.stops.add_destination') }}
             </h2>
 
             <form @submit.prevent="submit">
               <div class="space-y-3">
                 <div>
-                  <InputLabel for="station_id" value="Sélectionner une destination" />
+                  <InputLabel for="station_id" :value="$t('fleet.routes.stops.select_destination')" />
                   <select v-model="form.station_id" id="station_id"
                     class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     :class="{ 'border-red-500': errors.station_id }">
-                    <option value="">Choisir une destination...</option>
+                    <option value="">{{ $t('fleet.routes.stops.choose_destination') }}</option>
                     <option v-for="stop in availableStops" :key="stop.id" :value="stop.id">
                       {{ stop.name }} ({{ stop.city }})
                     </option>
@@ -216,12 +219,12 @@ const moveDown = (index) => {
                 </div>
 
                 <div>
-                  <InputLabel for="stop_index" value="Position (Index)" />
+                  <InputLabel for="stop_index" :value="$t('fleet.routes.stops.position_index')" />
                   <input type="number" v-model="form.stop_index" id="stop_index"
                     class="w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                     min="0"
                   />
-                  <p class="text-xs text-gray-500 mt-1">0 = Début, {{ stops.length }} = Fin</p>
+                  <p class="text-xs text-gray-500 mt-1">{{ $t('fleet.routes.stops.position_help', { count: stops.length }) }}</p>
                   <InputError class="mt-2" :message="errors.stop_index" />
                 </div>
 
@@ -231,11 +234,11 @@ const moveDown = (index) => {
                     :disabled="processing">
                     <span v-if="processing" class="flex items-center">
                       <Loader class="w-5 h-5 mr-2 animate-spin" />
-                      Ajout...
+                      {{ $t('fleet.routes.stops.adding') }}
                     </span>
                     <span v-else class="flex items-center">
                       <OfficeBuilding class="w-5 h-5 mr-1" />
-                      Ajouter la destination
+                      {{ $t('fleet.routes.stops.add_destination_button') }}
                     </span>
                   </button>
                 </div>

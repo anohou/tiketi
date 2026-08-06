@@ -1,31 +1,22 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
     status: Number,
     message: String,
 });
 
-const title = computed(() => {
-    return {
-        503: 'Service Indisponible',
-        500: 'Erreur Serveur',
-        404: 'Page Non Trouvée',
-        403: 'Accès Interdit',
-    }[props.status]
-});
+const title = computed(() => t(`error.titles.${props.status}`));
 
 const description = computed(() => {
     if (props.message) {
         return props.message;
     }
-    return {
-        503: 'Désolé, nous effectuons une maintenance. Veuillez réessayer plus tard.',
-        500: 'Oups, quelque chose s\'est mal passé sur nos serveurs.',
-        404: 'Désolé, la page que vous recherchez est introuvable.',
-        403: 'Désolé, vous n\'êtes pas autorisé à accéder à cette page.',
-    }[props.status]
+    return t(`error.descriptions.${props.status}`);
 });
 </script>
 
@@ -48,7 +39,7 @@ const description = computed(() => {
                 :href="route('dashboard')"
                 class="inline-flex items-center px-4 py-2 bg-green-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-green-700 focus:bg-green-700 active:bg-green-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
             >
-                Retour au tableau de bord
+                {{ $t('error.back_to_dashboard') }}
             </Link>
         </div>
     </div>

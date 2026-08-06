@@ -4,6 +4,7 @@ import { router, Head } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Chart from 'chart.js/auto';
 import { useTheme } from '@/Composables/useTheme.js';
+import { useI18n } from 'vue-i18n';
 import ChartLine from 'vue-material-design-icons/ChartLine.vue';
 import TrendingUp from 'vue-material-design-icons/TrendingUp.vue';
 import TrendingDown from 'vue-material-design-icons/TrendingDown.vue';
@@ -26,14 +27,15 @@ const props = defineProps({
 });
 
 const { isDark } = useTheme();
+const { t } = useI18n();
 
-const periods = [
-    { value: 'day', label: 'Aujourd\'hui' },
-    { value: 'week', label: 'Cette semaine' },
-    { value: 'month', label: 'Ce mois' },
-    { value: 'quarter', label: 'Ce trimestre' },
-    { value: 'year', label: 'Cette année' },
-];
+const periods = computed(() => [
+    { value: 'day', label: t('executive.period_day') },
+    { value: 'week', label: t('executive.period_week') },
+    { value: 'month', label: t('executive.period_month') },
+    { value: 'quarter', label: t('executive.period_quarter') },
+    { value: 'year', label: t('executive.period_year') },
+]);
 
 const selectedPeriod = ref(props.period);
 
@@ -79,7 +81,7 @@ const renderCharts = () => {
             data: {
                 labels: props.revenueTrend.map(item => item.date),
                 datasets: [{
-                    label: 'Revenus',
+                    label: t('executive.chart_revenue_label'),
                     data: props.revenueTrend.map(item => item.revenue),
                     borderColor: '#059669',
                     backgroundColor: isDark.value ? 'rgba(5, 150, 105, 0.2)' : 'rgba(5, 150, 105, 0.1)',
@@ -170,7 +172,7 @@ watch(isDark, () => {
 </script>
 
 <template>
-    <Head title="Tableau de Bord Exécutif" />
+    <Head :title="$t('executive.title')" />
     
     <MainNavLayout>
         <div class="max-w-7xl mx-auto space-y-6">
@@ -181,10 +183,10 @@ watch(isDark, () => {
                         <div class="p-2 bg-purple-100 dark:bg-purple-950/50 rounded-xl">
                             <ChartLine class="text-purple-600 dark:text-purple-400" :size="28" />
                         </div>
-                        Tableau de Bord Exécutif
+                        {{ $t('executive.title') }}
                     </h1>
                     <p class="text-gray-500 dark:text-slate-400 mt-1">
-                        Vue stratégique • {{ dateRange.start }} au {{ dateRange.end }}
+                        {{ $t('executive.subtitle', { start: dateRange.start, end: dateRange.end }) }}
                     </p>
                 </div>
                 
@@ -226,7 +228,7 @@ watch(isDark, () => {
                         </div>
                     </div>
                     <div class="text-3xl font-black text-gray-900 dark:text-slate-100">{{ formatCurrency(kpis.revenue.current) }}</div>
-                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">Revenus (FCFA)</div>
+                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">{{ $t('executive.revenue_label') }}</div>
                 </div>
 
                 <!-- Tickets -->
@@ -247,7 +249,7 @@ watch(isDark, () => {
                         </div>
                     </div>
                     <div class="text-3xl font-black text-gray-900 dark:text-slate-100">{{ formatCurrency(kpis.tickets.current) }}</div>
-                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">Billets vendus</div>
+                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">{{ $t('executive.tickets_sold') }}</div>
                 </div>
 
                 <!-- Average Occupancy -->
@@ -258,7 +260,7 @@ watch(isDark, () => {
                         </div>
                     </div>
                     <div class="text-3xl font-black text-gray-900 dark:text-slate-100">{{ kpis.avg_occupancy }}%</div>
-                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">Taux d'occupation moyen</div>
+                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">{{ $t('executive.avg_occupancy') }}</div>
                     <div class="mt-3 h-2 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div 
                             class="h-full bg-orange-500 rounded-full transition-all"
@@ -275,7 +277,7 @@ watch(isDark, () => {
                         </div>
                     </div>
                     <div class="text-3xl font-black text-gray-900 dark:text-slate-100">{{ fleetUtilization }}%</div>
-                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">Utilisation de la flotte</div>
+                    <div class="text-sm text-gray-500 dark:text-slate-400 mt-1">{{ $t('executive.fleet_utilization') }}</div>
                     <div class="mt-3 h-2 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div 
                             class="h-full bg-purple-500 rounded-full transition-all"
@@ -291,7 +293,7 @@ watch(isDark, () => {
                 <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
                     <h3 class="font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 mb-4">
                         <ChartLine :size="20" class="text-gray-500 dark:text-slate-400" />
-                        Tendance des Revenus
+                        {{ $t('executive.revenue_trend') }}
                     </h3>
                     <div class="h-[300px]">
                         <canvas ref="revenueTrendChartRef"></canvas>
@@ -302,7 +304,7 @@ watch(isDark, () => {
                 <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
                     <h3 class="font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 mb-4">
                         <OfficeBuilding :size="20" class="text-gray-500 dark:text-slate-400" />
-                        Revenus par Station
+                        {{ $t('executive.revenue_by_station') }}
                     </h3>
                     <div class="h-[300px]">
                         <canvas ref="stationChartRef"></canvas>
@@ -314,7 +316,7 @@ watch(isDark, () => {
             <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-6 shadow-sm">
                 <h3 class="font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2 mb-4">
                     <Routes :size="20" class="text-gray-500 dark:text-slate-400" />
-                    Trajets les Plus Performants
+                    {{ $t('executive.top_routes') }}
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div 
@@ -333,12 +335,12 @@ watch(isDark, () => {
                                 {{ formatCurrency(route.revenue) }}
                             </div>
                             <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                                {{ route.ticket_count }} billets
+                                {{ $t('executive.route_tickets', { count: route.ticket_count }, route.ticket_count) }}
                             </div>
                         </div>
                     </div>
                     <div v-if="topRoutes.length === 0" class="col-span-5 text-center py-8 text-gray-400 dark:text-slate-500">
-                        Aucune donnée disponible pour cette période
+                        {{ $t('executive.no_data_period') }}
                     </div>
                 </div>
             </div>
@@ -346,7 +348,7 @@ watch(isDark, () => {
             <!-- Read-only notice -->
             <div class="text-center text-sm text-gray-400 dark:text-slate-500 py-4">
                 <span class="bg-gray-100 dark:bg-slate-900 px-3 py-1 rounded-full">
-                    📊 Mode consultation uniquement
+                    {{ $t('executive.read_only') }}
                 </span>
             </div>
         </div>

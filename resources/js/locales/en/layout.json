@@ -1,0 +1,40 @@
+{
+  "layout": {
+    "help": "Help",
+    "assigned_stations": "Assigned stations",
+    "no_assigned_station": "No assigned station",
+    "light_mode": "Light Mode",
+    "dark_mode": "Dark Mode",
+    "my_profile": "My Profile",
+    "logout": "Log out",
+    "utilities": "Utilities",
+    "portal": "Portal",
+    "central": "Central",
+    "dashboard": "Dashboard",
+    "ticketing": "Ticketing",
+    "sell_tickets": "Sell Tickets",
+    "manage_trips": "Manage Trips",
+    "view_tickets": "View Tickets",
+    "configurations": "Configurations",
+    "stations": "Stations",
+    "stations_mobile": "Stations",
+    "routes": "Routes",
+    "routes_mobile": "Routes",
+    "vehicles": "Vehicles",
+    "vehicle_types": "Vehicle Types",
+    "trips": "Trips",
+    "assignments": "Assignments",
+    "profile": "Profile",
+    "breadcrumb": "Breadcrumb"
+  },
+  "nav": {
+    "home": "Home",
+    "ticketing": "Ticketing",
+    "reports": "Reports",
+    "dashboard": "Dashboard",
+    "vehicles": "Vehicles",
+    "accounting": "Accounting",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  }
+}

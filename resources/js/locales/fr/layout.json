@@ -1,0 +1,40 @@
+{
+  "layout": {
+    "help": "Aide",
+    "assigned_stations": "Stations assignées",
+    "no_assigned_station": "Aucune station assignée",
+    "light_mode": "Mode Clair",
+    "dark_mode": "Mode Sombre",
+    "my_profile": "Mon Profil",
+    "logout": "Déconnexion",
+    "utilities": "Utilitaires",
+    "portal": "Portail",
+    "central": "Central",
+    "dashboard": "Tableau de bord",
+    "ticketing": "Billetterie",
+    "sell_tickets": "Vendre des billets",
+    "manage_trips": "Gérer les trajets",
+    "view_tickets": "Voir les billets",
+    "configurations": "Configurations",
+    "stations": "Stations",
+    "stations_mobile": "Gares",
+    "routes": "Trajets",
+    "routes_mobile": "Routes",
+    "vehicles": "Véhicules",
+    "vehicle_types": "Types de véhicules",
+    "trips": "Trajets",
+    "assignments": "Affectations",
+    "profile": "Profil",
+    "breadcrumb": "Fil d'Ariane"
+  },
+  "nav": {
+    "home": "Accueil",
+    "ticketing": "Billetterie",
+    "reports": "Rapports",
+    "dashboard": "Tableau de Bord",
+    "vehicles": "Véhicules",
+    "accounting": "Comptabilité",
+    "analytics": "Analytics",
+    "settings": "Paramétrage"
+  }
+}

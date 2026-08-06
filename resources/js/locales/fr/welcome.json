@@ -1,0 +1,168 @@
+{
+  "welcome": {
+    "title": "TIKETI - Gestion Billetterie",
+    "tenant_login_title": "{tenant} - Connexion",
+    "logo": "Logo",
+    "partner_space": "Espace Partenaire",
+    "login_prompt": "Veuillez entrer vos identifiants pour accéder au système.",
+    "forgot_password": "Oublié ?",
+    "login_processing": "Connexion...",
+    "seat_layout_alt": "Disposition des sièges",
+    "dashboard_visualization": "Visualisation Dashboard",
+    "live_attribution": "Attribution en direct",
+    "nav": {
+      "platform": "La plateforme",
+      "connections": "Correspondances",
+      "loyalty": "Fidélisation",
+      "dashboard": "Tableau de bord",
+      "admin_login": "Connexion Admin",
+      "contact_us": "Contactez-nous",
+      "documentation": "Documentation"
+    },
+    "tenant": {
+      "seat_management": "Gestion intelligente de la répartition des sièges",
+      "instant_sync": "Synchronisation instantanée entre toutes vos gares."
+    },
+    "hero": {
+      "title_prefix": "Le Futur de la",
+      "title_accent": "Gestion de Transport",
+      "description": "De la vente au guichet jusqu'au contrôle à l'embarquement, pilotez vos lignes, vos correspondances et chaque siège en temps réel. Une seule plateforme pour fluidifier le voyage et sécuriser vos revenus.",
+      "badge_ticketing": "Billetterie & guichet",
+      "badge_connections": "Correspondances",
+      "badge_mobile_control": "Contrôle mobile",
+      "badge_financial": "Pilotage financier",
+      "request_demo": "Demander une Démo",
+      "discover": "Découvrir"
+    },
+    "features": {
+      "eyebrow": "Tout-en-un",
+      "title": "Des fonctionnalités pensées pour vous",
+      "description": "Dans un secteur en constante évolution, TIKETI vous offre une longueur d'avance. Fini les pertes de revenus, les guichetiers débordés et le manque de visibilité.",
+      "ticketing_title": "Billetterie Intelligente",
+      "ticketing_items": {
+        "seat_map_title": "Plan de Siège Interactif:",
+        "seat_map_text": "Visualisez l'occupation de vos cars en un coup d'œil.",
+        "bluetooth_title": "Impression Bluetooth:",
+        "bluetooth_text": "Tickets sécurisés avec QR Code.",
+        "stops_title": "Gestion des Escales:",
+        "stops_text": "Vendez des trajets complexes sans conflit."
+      },
+      "admin_title": "Administration & Finance",
+      "admin_items": {
+        "dashboard_title": "Dashboard Stratégique:",
+        "dashboard_text": "Visualisation en temps réel du chiffre d'affaires et volume de ventes.",
+        "network_title": "Gestion du Réseau:",
+        "network_text": "Gares, destinations et flexibilité tarifaire.",
+        "accounting_title": "Comptabilité:",
+        "accounting_text": "Rapports de fermeture de caisse par vendeur."
+      },
+      "control_title": "Tiketi Control sur le terrain",
+      "control_items": {
+        "scan_title": "Scan QR instantané :",
+        "scan_text": "vérifiez le billet et détectez les doublons.",
+        "manifest_title": "Manifeste numérique :",
+        "manifest_text": "suivez les passagers et validez l'embarquement.",
+        "offline_title": "Mode hors ligne :",
+        "offline_text": "continuez le contrôle, puis synchronisez à la reconnexion."
+      }
+    },
+    "connections": {
+      "eyebrow": "Voyage sans rupture",
+      "title": "Les correspondances, enfin simples à opérer",
+      "description": "Vendez un trajet combiné avec changement de véhicule sur un seul billet. TIKETI suit le passager jusqu'à sa destination finale et donne à chaque gare la bonne information, au bon moment.",
+      "item1_title": "Bassin de transit centralisé",
+      "item1_text": "Visualisez les voyageurs attendus par gare, leur statut et leur destination finale.",
+      "item2_title": "Affectation intelligente",
+      "item2_text": "Attribuez automatiquement le meilleur siège disponible ou gardez la main en mode manuel.",
+      "item3_title": "Présence confirmée",
+      "item3_text": "L'agent de transit marque le passager prêt avant son placement sur le voyage de reprise.",
+      "item4_title": "Zéro conflit de siège",
+      "item4_text": "Les disponibilités sont vérifiées par segment pour empêcher toute double occupation.",
+      "journey_label": "Parcours passager",
+      "journey_one_ticket": "1 billet",
+      "step1_title": "Vente du trajet complet",
+      "step1_text": "Destination finale et gare de transfert enregistrées.",
+      "step2_title": "Transit confirmé à Bouaké",
+      "step2_text": "Le passager est prêt pour sa correspondance.",
+      "step3_title": "Place affectée pour Korhogo",
+      "step3_text": "Le manifeste du second véhicule est mis à jour."
+    },
+    "control": {
+      "phone_title": "Contrôle billet",
+      "phone_online": "EN LIGNE",
+      "phone_valid": "Billet valide",
+      "phone_valid_detail": "Siège 18 · Abidjan → Bouaké",
+      "eyebrow": "Application équipage",
+      "title": "Tiketi Control sécurise chaque embarquement",
+      "description": "Donnez aux contrôleurs, chauffeurs et superviseurs les outils utiles sur le terrain. L'application reste rapide, lisible et opérationnelle même lorsque le réseau devient instable.",
+      "scan_title": "Scan & anti-fraude",
+      "scan_text": "Validez le QR code, le voyage, le siège et l'état du billet en quelques secondes.",
+      "manifest_title": "Manifeste en direct",
+      "manifest_text": "Consultez les passagers, les correspondances et confirmez chaque embarquement.",
+      "offline_title": "Continuité hors ligne",
+      "offline_text": "Travaillez sur un cache fiable ; les actions sont rapprochées et synchronisées au retour du réseau.",
+      "field_title": "Vue terrain complète",
+      "field_text": "Voyages du jour, plan de salle, messages d'équipe et suivi des incidents au même endroit."
+    },
+    "roles": {
+      "title": "Une Solution pour Chaque Acteur",
+      "description": "TIKETI structure votre entreprise en définissant clairement les responsabilités.",
+      "admin_title": "L'Administrateur",
+      "admin_text": "Crée les lignes, fixe les prix, gère les rôles et analyse la rentabilité globale.",
+      "supervisor_title": "Superviseur",
+      "supervisor_text": "Gestion terrain, contrôle des tickets et supervision des ventes aux guichets.",
+      "seller_title": "Le Vendeur",
+      "seller_text": "Interface de vente ultra-rapide. Attribution des sièges en temps réel.",
+      "executive_title": "L'Exécutif",
+      "executive_text": "Audit et vue consolidée : accès aux rapports financiers détaillés et consolidés."
+    },
+    "selling_desk": {
+      "alt": "Guichet de Vente Tiketi",
+      "badge_title": "Opérations Fluides",
+      "badge_subtitle": "Sur le terrain"
+    },
+    "loyalty": {
+      "eyebrow": "Exclusivité OKOHI",
+      "title": "Fidélisez vos Voyageurs",
+      "description": "Grâce à l'intégration native avec l'écosystème **OKOHI**, offrez à vos passagers une expérience de fidélité moderne et 100% numérique.",
+      "qr_title": "QR Code Intelligent.",
+      "qr_text": " Un scan rapide à chaque achat pour cumuler des points instantanément.",
+      "rewards_title": "Récompenses Automatiques.",
+      "rewards_text": " Après 10 voyages, débloquez des réductions ou des trajets gratuits configurés par vos soins.",
+      "retention_title": "Analyse de Rétention.",
+      "retention_text": " Identifiez vos clients les plus réguliers et adaptez vos offres commerciales.",
+      "available_on": "Disponible sur",
+      "card_alt": "OKOHI Loyalty Card Screenshot",
+      "synced": "Synchronisé OKOHI"
+    },
+    "why": {
+      "title": "Pourquoi TIKETI ?",
+      "description": "Maximisez vos profits et modernisez votre image de marque grâce à une solution robuste."
+    },
+    "benefits": {
+      "real_time_title": "Temps Réel Absolu",
+      "real_time_text": "Fini les doubles ventes. Quand un ticket est vendu à la gare A, la place est instantanément bloquée pour la gare B.",
+      "revenue_title": "Optimisation des Revenus",
+      "revenue_text": "Grâce à notre système de tronçons intelligents, une place libérée devient immédiatement revendable pour la suite du trajet.",
+      "control_title": "Contrôle Total",
+      "control_text": "Suivez chaque centime. Des rapports financiers détaillés aux audits de caisse instantanés, vous avez l'œil sur tout."
+    },
+    "contact": {
+      "title": "Prêt à moderniser votre flotte ?",
+      "description": "Laissez-nous un message et notre équipe d'experts vous contactera pour une démonstration personnalisée.",
+      "company_label": "Nom de l'entreprise",
+      "company_placeholder": "Ex: UTB Transports",
+      "email_label": "Email professionnel",
+      "email_placeholder": "vous@entreprise.ci",
+      "phone_label": "Numéro de téléphone",
+      "phone_placeholder": "+225 00 00 00 00 00",
+      "message_label": "Message (facultatif)",
+      "message_placeholder": "Parlez-nous de vos besoins...",
+      "submit": "Demander une démo via WhatsApp"
+    },
+    "footer": {
+      "description": "La solution complète pour la gestion de vos billetteries et de votre parc de transport.",
+      "copyright": "© {year} TIKETI. Tous droits réservés."
+    }
+  }
+}

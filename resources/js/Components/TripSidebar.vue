@@ -800,9 +800,9 @@ const getOccupancyRate = (available, total) => {
             <div>
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2 dark:text-slate-100">
                     <Bus :size="20" class="text-emerald-600 dark:text-emerald-400" />
-                    Voyages
+                    {{ $t('trip.sidebar_title') }}
                 </h2>
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider dark:text-slate-400">Plan & Occupations</p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider dark:text-slate-400">{{ $t('trip.plan_occupations') }}</p>
             </div>
             <div class="flex items-center gap-2">
                 <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-emerald-600 disabled:opacity-50 dark:hover:bg-slate-800">
@@ -827,10 +827,10 @@ const getOccupancyRate = (available, total) => {
                             type="button"
                             @click.stop="openRouteSchemaModal(selectedTrip)"
                             class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-white hover:text-emerald-800 dark:border-emerald-900/60 dark:bg-slate-950/40 dark:text-emerald-300 dark:hover:border-emerald-700"
-                            title="Voir le schéma du trajet"
+                            :title="$t('trip.view_schema_title')"
                         >
                             <Routes :size="12" />
-                            Schéma
+                            {{ $t('trip.schema') }}
                         </button>
                     </div>
                 </div>
@@ -845,28 +845,28 @@ const getOccupancyRate = (available, total) => {
                     <!-- Stats Row -->
                     <div class="px-2.5 py-1.5 flex items-center justify-between gap-1.5 bg-gray-50 border-b border-gray-100 shrink-0 dark:border-slate-800 dark:bg-slate-800/60">
                         <div class="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto whitespace-nowrap text-[10px] sm:text-[11px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-1">
-                            <span class="font-bold text-gray-500 dark:text-slate-400">Cap</span>
+                            <span class="font-bold text-gray-500 dark:text-slate-400">{{ $t('trip.stats_capacity') }}</span>
                             <span class="font-black text-gray-800 dark:text-slate-100">{{ seatStats.total }}</span>
                             <span class="text-gray-300 dark:text-slate-600">|</span>
-                            <span class="font-bold text-blue-500">Bil</span>
+                            <span class="font-bold text-blue-500">{{ $t('trip.stats_tickets') }}</span>
                             <span class="font-black text-blue-600">{{ seatStats.soldTickets }}</span>
                             <span class="text-gray-300 dark:text-slate-600">|</span>
-                            <span class="font-bold text-red-500 dark:text-rose-400/80">Occ</span>
+                            <span class="font-bold text-red-500 dark:text-rose-400/80">{{ $t('trip.stats_occupied') }}</span>
                             <span class="font-black text-red-600 dark:text-rose-400/80">{{ seatStats.occupiedSeats }}</span>
                             <span class="text-gray-300 dark:text-slate-600">|</span>
-                            <span class="font-bold text-emerald-500">Lib</span>
+                            <span class="font-bold text-emerald-500">{{ $t('trip.stats_available') }}</span>
                             <span class="font-black text-emerald-600">{{ seatStats.available }}</span>
                             <span class="text-gray-300 dark:text-slate-600">|</span>
-                            <span class="font-bold text-sky-500">% Occ</span>
+                            <span class="font-bold text-sky-500">{{ $t('trip.stats_occupancy') }}</span>
                             <span class="font-black text-sky-600">{{ getOccupancyRate(seatStats.available, seatStats.total) }}%</span>
                         </div>
                         <!-- Zoom Controls -->
                         <div class="flex shrink-0 items-center gap-0.5 bg-white rounded border border-gray-200 dark:border-slate-700 dark:bg-slate-900">
-                            <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom -">
+                            <button @click="zoomOut" :disabled="zoomLevel <= minZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" :title="$t('trip.zoom_minus')">
                                 <Minus :size="12" class="text-gray-600" />
                             </button>
-                            <button @click="resetZoom" class="text-[10px] font-extrabold text-gray-500 px-1 text-center hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400" :title="`Zoom : ${Math.round(zoomLevel * 100)}% (Réinitialiser)`">%</button>
-                            <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" title="Zoom +">
+                            <button @click="resetZoom" class="text-[10px] font-extrabold text-gray-500 px-1 text-center hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400" :title="$t('trip.zoom_reset', { percent: Math.round(zoomLevel * 100) })">%</button>
+                            <button @click="zoomIn" :disabled="zoomLevel >= maxZoom" class="p-1 hover:bg-gray-100 disabled:opacity-30 transition-all dark:hover:bg-slate-800" :title="$t('trip.zoom_plus')">
                                 <Plus :size="12" class="text-gray-600" />
                             </button>
                         </div>
@@ -901,23 +901,23 @@ const getOccupancyRate = (available, total) => {
                     <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300">
                         <Bus :size="30" />
                     </div>
-                    <h3 class="text-sm font-black text-slate-800 dark:text-slate-100">Véhicule non assigné</h3>
+                    <h3 class="text-sm font-black text-slate-800 dark:text-slate-100">{{ $t('trip.vehicle_not_assigned') }}</h3>
                     <p class="mt-1 max-w-[250px] text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-                        Assignez un véhicule pour afficher le plan de sièges et ouvrir les ventes.
+                        {{ $t('trip.vehicle_not_assigned_hint') }}
                     </p>
                     <button
                         type="button"
                         @click="openVehicleAssignmentModal"
                         class="mt-5 w-full max-w-[260px] rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"
                     >
-                        Choisir dans le pool de la gare
+                        {{ $t('trip.choose_from_pool') }}
                     </button>
                 </div>
 
                 <!-- No trip selected -->
                 <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-400 px-4 dark:text-slate-500">
                     <Bus :size="32" class="mb-2 opacity-30" />
-                    <p class="text-xs text-center">Sélectionnez un voyage pour voir le plan</p>
+                    <p class="text-xs text-center">{{ $t('trip.select_trip_hint') }}</p>
                 </div>
             </div>
         </template>
@@ -930,16 +930,16 @@ const getOccupancyRate = (available, total) => {
 
             <div v-else-if="trips.length === 0" class="py-6">
                 <EmptyState
-                    title="Aucun voyage disponible"
-                    message="Aucun voyage n'est programmé pour le moment."
+                    :title="$t('trip.no_trips_title')"
+                    :message="$t('trip.no_trips_message')"
                     :icon="Bus"
                 />
             </div>
 
             <div v-else-if="filteredTrips.length === 0" class="py-6">
                 <EmptyState
-                    title="Aucun résultat"
-                    message="Aucun voyage ne correspond à la destination sélectionnée."
+                    :title="$t('trip.no_results_title')"
+                    :message="$t('trip.no_results_message')"
                     :icon="Bus"
                 />
             </div>

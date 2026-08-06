@@ -1,0 +1,17 @@
+{
+  "error": {
+    "titles": {
+      "503": "Service Unavailable",
+      "500": "Server Error",
+      "404": "Page Not Found",
+      "403": "Access Denied"
+    },
+    "descriptions": {
+      "503": "Sorry, we are performing maintenance. Please try again later.",
+      "500": "Oops, something went wrong on our servers.",
+      "404": "Sorry, the page you are looking for could not be found.",
+      "403": "Sorry, you are not authorized to access this page."
+    },
+    "back_to_dashboard": "Back to dashboard"
+  }
+}

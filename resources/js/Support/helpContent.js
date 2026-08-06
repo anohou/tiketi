@@ -90,7 +90,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.ticketing', 'supervisor.ticketing'],
     pathPrefixes: ['/seller/ticketing', '/supervisor/ticketing'],
-    image: '/images/help/ticketing-auto.png',
+    image: '/images/help/help-seller-ticketing.png',
     roleVariants: {
       seller: {
         description: 'Créer ou choisir votre voyage, sélectionner une destination, vendre la place et imprimer le ticket.',
@@ -224,7 +224,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.ticketing'],
     pathPrefixes: ['/seller/ticketing'],
-    image: '/images/help/ticketing-auto.png',
+    image: '/images/help/help-seller-ticketing.png',
     sections: [
       {
         title: 'Avant de connecter',
@@ -279,7 +279,7 @@ const helpTopics = [
     audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
     routes: ['seller.ticketing', 'admin.trips.index', 'accountant.reports', 'executive.analytics'],
     pathPrefixes: ['/seller/ticketing', '/admin/trips', '/accountant/reports', '/executive/analytics'],
-    image: '/images/help/ticketing-auto.png',
+    image: '/images/help/help-seller-ticketing.png',
     sections: [
       {
         title: 'Couleurs principales',
@@ -317,7 +317,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.ticketing', 'supervisor.ticketing'],
     pathPrefixes: ['/seller/ticketing', '/supervisor/ticketing'],
-    image: '/images/help/ticketing-manual.png',
+    image: '/images/help/help-seller-ticketing.png',
     sections: [
       {
         title: 'Objectif',
@@ -357,6 +357,7 @@ const helpTopics = [
     category: 'Billetterie',
     title: 'Annulation et libération des places',
     description: 'Annuler un ticket, conserver la trace et libérer une place pour une nouvelle vente.',
+    image: '/images/help/help-seller-tickets.png',
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.tickets.index', 'supervisor.compensations.index'],
     pathPrefixes: ['/seller/tickets', '/seller/ticketing', '/supervisor/compensations'],
@@ -385,7 +386,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.ticketing'],
     pathPrefixes: ['/seller/ticketing'],
-    image: '/images/help/ticketing-auto.png',
+    image: '/images/help/help-seller-ticketing.png',
     sections: [
       {
         title: 'Aucune destination ne s’affiche',
@@ -439,7 +440,7 @@ const helpTopics = [
     audience: ['admin'],
     routes: ['admin.ticket-settings.index'],
     pathPrefixes: ['/admin/ticket-settings'],
-    image: '/images/help/ticket-settings.png',
+    image: '/images/help/help-ticket-settings.png',
     sections: [
       {
         title: 'Aperçu du ticket',
@@ -469,7 +470,7 @@ const helpTopics = [
     audience: ['admin'],
     routes: ['admin.ticket-settings.index', 'admin.settings.loyalty'],
     pathPrefixes: ['/admin/ticket-settings', '/admin/settings/loyalty'],
-    image: '/images/help/ticket-settings.png',
+    image: '/images/help/help-loyalty.png',
     sections: [
       {
         title: 'Fonctionnement',
@@ -513,7 +514,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller', 'accountant', 'executive', 'fleet_manager'],
     routes: ['settings.index', 'seller.settings.index'],
     pathPrefixes: ['/settings', '/seller/settings'],
-    image: '/images/help/route-detail.png',
+    image: '/images/help/help-settings.png',
     roleVariants: {
       supervisor: {
         title: 'Paramétrage de supervision',
@@ -570,7 +571,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor'],
     routes: ['supervisor.stations.index'],
     pathPrefixes: ['/admin/stations', '/admin/routes', '/admin/destinations', '/supervisor/stations'],
-    image: '/images/help/route-destination-order.png',
+    image: '/images/help/help-stations.png',
     roleVariants: {
       supervisor: {
         title: 'Consulter les gares supervisées',
@@ -627,7 +628,7 @@ const helpTopics = [
     description: 'Définir les types de véhicules, les sièges, portes et configurations.',
     audience: ['admin'],
     pathPrefixes: ['/admin/vehicle-types', '/admin/vehicles'],
-    image: '/images/seat-map.png',
+    image: '/images/help/help-vehicle-types.png',
     sections: [
       {
         title: 'Type de véhicule',
@@ -648,6 +649,7 @@ const helpTopics = [
     category: 'Administration',
     title: 'Tarifs',
     description: 'Définir les prix entre les gares et destinations.',
+    image: '/images/help/help-fares.png',
     audience: ['admin'],
     pathPrefixes: ['/admin/route-fares'],
     sections: [
@@ -666,6 +668,7 @@ const helpTopics = [
     category: 'Administration',
     title: 'Utilisateurs et affectations',
     description: 'Créer les comptes et limiter les vendeurs à leurs gares.',
+    image: '/images/help/help-users.png',
     audience: ['admin', 'supervisor'],
     routes: ['admin.users.index', 'admin.assignments.index', 'supervisor.users.index', 'supervisor.assignments.index'],
     pathPrefixes: ['/admin/users', '/admin/assignments', '/supervisor/users', '/supervisor/assignments'],
@@ -694,7 +697,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['admin.trips.index', 'seller.dashboard', 'trips.index'],
     pathPrefixes: ['/admin/trips', '/seller/dashboard', '/trips'],
-    image: '/images/seat-map.png',
+    image: '/images/help/help-trips.png',
     roleVariants: {
       seller: {
         title: 'Créer et préparer mes voyages',
@@ -785,7 +788,7 @@ const helpTopics = [
     title: 'Réutilisation des sièges par tronçon',
     description: 'Comprendre pourquoi une même place peut être vendue plusieurs fois sur un voyage.',
     audience: ['admin', 'supervisor', 'seller'],
-    image: '/images/seat-map.png',
+    image: '/images/help/help-seller-ticketing.png',
     sections: [
       {
         title: 'Principe',
@@ -805,7 +808,7 @@ const helpTopics = [
     audience: ['admin', 'fleet_manager'],
     routes: ['fleet.dashboard', 'fleet.vehicles.index', 'fleet.vehicle-types.index', 'fleet.crew-members.index', 'fleet.crew-assignments.index'],
     pathPrefixes: ['/fleet'],
-    image: '/images/seat-map.png',
+    image: '/images/help/help-vehicles.png',
     sections: [
       {
         title: 'Routine du responsable de flotte',
@@ -837,6 +840,7 @@ const helpTopics = [
     category: 'Gestion de flotte',
     title: 'Anticiper les indisponibilités de la flotte',
     description: 'Contrôler les échéances, les conflits d’affectation et les éléments inactifs avant qu’ils ne bloquent un départ.',
+    image: '/images/help/help-vehicles.png',
     audience: ['admin', 'fleet_manager'],
     pathPrefixes: ['/fleet/vehicles', '/fleet/crew-members', '/fleet/crew-assignments'],
     sections: [
@@ -865,6 +869,7 @@ const helpTopics = [
     category: 'Pilotage',
     title: 'Comptabilité et rapports',
     description: 'Suivre les ventes, exporter les rapports et contrôler les revenus.',
+    image: '/images/help/help-accountant-reports.png',
     audience: ['admin', 'accountant'],
     routes: ['accountant.reports'],
     pathPrefixes: ['/accountant/reports'],
@@ -885,6 +890,7 @@ const helpTopics = [
     category: 'Pilotage',
     title: 'Contrôler et rapprocher les recettes',
     description: 'Passer du total affiché à un contrôle comptable explicable par période, vendeur et voyage.',
+    image: '/images/help/help-accountant-reports.png',
     audience: ['admin', 'accountant'],
     pathPrefixes: ['/accountant/reports'],
     sections: [
@@ -914,6 +920,7 @@ const helpTopics = [
     category: 'Pilotage',
     title: 'Analytics dirigeant',
     description: 'Lire les tendances commerciales et les indicateurs d’exploitation.',
+    image: '/images/help/help-executive-analytics.png',
     audience: ['admin', 'executive'],
     routes: ['executive.analytics'],
     pathPrefixes: ['/executive/analytics'],
@@ -929,6 +936,7 @@ const helpTopics = [
     category: 'Pilotage',
     title: 'Transformer les indicateurs en décisions',
     description: 'Comparer les périodes, distinguer tendance et incident, puis formuler une action mesurable.',
+    image: '/images/help/help-executive-analytics.png',
     audience: ['admin', 'executive'],
     pathPrefixes: ['/executive/analytics'],
     sections: [
@@ -957,6 +965,7 @@ const helpTopics = [
     category: 'Supervision',
     title: 'Tour de contrôle',
     description: 'Superviser les départs, les alertes et les demandes d’annulation.',
+    image: '/images/help/help-control-tower.png',
     audience: ['admin', 'supervisor'],
     routes: ['supervisor.dashboard', 'supervisor.control-tower'],
     pathPrefixes: ['/supervisor'],
@@ -975,6 +984,7 @@ const helpTopics = [
     audience: ['admin', 'supervisor', 'seller'],
     routes: ['seller.transfer-pool.index'],
     pathPrefixes: ['/seller/transfer-pool'],
+    image: '/images/help/help-transfer-pool.png',
     sections: [
       {
         title: 'Principe des correspondances',
@@ -997,6 +1007,338 @@ const helpTopics = [
           'L’affectation automatique place les passagers en transit sur les sièges libres les plus adaptés.',
           'L’affectation manuelle permet de choisir précisément le siège pour chaque passager.',
         ],
+      },
+    ],
+  },
+  {
+    id: 'login-reset-password',
+    category: 'Premiers pas',
+    title: 'Se connecter et réinitialiser son mot de passe',
+    description: 'Accéder à son espace et récupérer l’accès en cas de mot de passe oublié.',
+    audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
+    image: '/images/help/help-login.png',
+    sections: [
+      {
+        title: 'Se connecter',
+        body: 'La page de connexion affiche le nom de votre compagnie. Saisissez votre adresse e-mail et votre mot de passe, puis cliquez sur Se connecter.',
+        steps: [
+          'Ouvrez l’adresse de votre espace (ex. votre-compagnie.transport.ci).',
+          'Saisissez votre adresse e-mail professionnelle.',
+          'Saisissez votre mot de passe.',
+          'Cochez Rester connecté uniquement sur un poste privé et sécurisé.',
+          'Cliquez sur Se connecter.',
+        ],
+      },
+      {
+        title: 'Mot de passe oublié',
+        body: 'Utilisez le lien Mot de passe oublié ? de la page de connexion pour recevoir la procédure de réinitialisation.',
+        steps: [
+          'Cliquez sur Mot de passe oublié ?.',
+          'Saisissez votre adresse e-mail.',
+          'Suivez les instructions envoyées par e-mail.',
+        ],
+      },
+      {
+        title: 'Compte désactivé ou appareil non autorisé',
+        body: 'Si votre compte est désactivé ou si la restriction d’appareils est active, contactez l’administrateur de votre compagnie : il peut réactiver le compte ou autoriser votre appareil depuis Paramétrage puis Appareils (Sécurité).',
+      },
+    ],
+  },
+  {
+    id: 'my-profile',
+    category: 'Premiers pas',
+    title: 'Mon profil et mon mot de passe',
+    description: 'Consulter ses informations, ses gares affectées et changer son mot de passe.',
+    audience: ['admin', 'fleet_manager', 'supervisor', 'seller', 'accountant', 'executive'],
+    routes: ['profile.edit'],
+    pathPrefixes: ['/profile'],
+    image: '/images/help/help-profile.png',
+    sections: [
+      {
+        title: 'Ouvrir mon profil',
+        body: 'Cliquez sur votre nom en haut à droite, puis sur Mon Profil. La page affiche vos informations personnelles et les gares qui vous sont affectées.',
+      },
+      {
+        title: 'Modifier le mot de passe',
+        body: 'Dans l’onglet Modifier le mot de passe, saisissez votre mot de passe actuel puis le nouveau mot de passe, et confirmez.',
+        steps: [
+          'Ouvrez Mon Profil.',
+          'Renseignez le mot de passe actuel.',
+          'Saisissez le nouveau mot de passe.',
+          'Confirmez et enregistrez.',
+        ],
+      },
+      {
+        title: 'Stations assignées',
+        body: 'La section Stations assignées liste les gares où vous pouvez travailler. Pour un vendeur, une gare absente signifie que l’administrateur doit l’affecter dans Paramétrage puis Affectations.',
+      },
+    ],
+  },
+  {
+    id: 'seller-dashboard',
+    category: 'Vente',
+    title: 'Comprendre mon espace vendeur',
+    description: 'Se repérer dans l’accueil du vendeur : ventes du jour, voyages et accès rapides.',
+    audience: ['seller'],
+    routes: ['seller.dashboard'],
+    pathPrefixes: ['/seller/dashboard'],
+    image: '/images/help/help-seller-dashboard.png',
+    sections: [
+      {
+        title: 'Votre accueil',
+        body: 'L’accueil vendeur regroupe les informations de votre journée : ventes, recettes, voyages à venir et accès rapide à la billetterie.',
+      },
+      {
+        title: 'Les accès rapides',
+        body: 'Depuis l’accueil, ouvrez Billetterie pour vendre, Voyages pour préparer un départ, ou Correspondances pour gérer les passagers en transit.',
+      },
+      {
+        title: 'Si un voyage manque',
+        body: 'Vérifiez votre gare active et vos affectations. Un voyage n’apparaît que s’il dessert une gare qui vous est affectée et si la date correspond.',
+      },
+    ],
+  },
+  {
+    id: 'tids-board',
+    category: 'Exploitation',
+    title: 'Tableau des départs (Tids Board)',
+    description: 'Afficher les départs sur un grand écran et suivre les statuts en temps réel.',
+    audience: ['admin', 'supervisor', 'seller'],
+    image: '/images/help/help-tids-board.png',
+    sections: [
+      {
+        title: 'À quoi sert le Tids Board',
+        body: 'Le Tids Board affiche les départs du jour (heure, code voyage, destination, véhicule, places libres, statut) sur un grand écran destiné aux voyageurs. Les statuts sont mis à jour en temps réel.',
+      },
+      {
+        title: 'Ouvrir le tableau',
+        body: 'Le tableau est accessible depuis la billetterie. Utilisez le bouton Plein écran pour l’afficher sur un écran public, puis Quitter le plein écran pour revenir.',
+      },
+      {
+        title: 'Lire les statuts',
+        body: 'Chaque départ affiche un statut coloré : À l’heure, Embarquement, Parti, Retardé, Annulé ou Complet. Un code voyage en attente indique un départ dont le code n’est pas encore confirmé.',
+      },
+    ],
+  },
+  {
+    id: 'replicable-trips',
+    category: 'Exploitation',
+    title: 'Voyages récurrents (réplicables)',
+    description: 'Recréer automatiquement un départ chaque jour à minuit.',
+    audience: ['admin'],
+    pathPrefixes: ['/admin/trips'],
+    image: '/images/help/help-trips.png',
+    sections: [
+      {
+        title: 'Principe',
+        body: 'Un voyage réplicable est recréé automatiquement chaque jour à minuit, sans véhicule ni équipage affectés. Il sert aux départs quotidiens réguliers.',
+      },
+      {
+        title: 'Activer la réplication',
+        body: 'Lors de la création ou de la modification d’un voyage, activez l’option Voyage réplicable (récurrent). Le voyage sera dupliqué pour chaque jour suivant.',
+        steps: [
+          'Ouvrez Paramétrage puis Voyages.',
+          'Créez ou modifiez un voyage.',
+          'Activez l’option Voyage réplicable.',
+          'Enregistrez le voyage.',
+        ],
+      },
+      {
+        title: 'Bonnes pratiques',
+        body: 'Après la création automatique, affectez le véhicule et l’équipage à chaque départ du jour avant l’ouverture des ventes. Un voyage sans véhicule ne peut pas vendre de places.',
+      },
+    ],
+  },
+  {
+    id: 'devices-security',
+    category: 'Administration',
+    title: 'Appareils autorisés et sécurité des accès',
+    description: 'Limiter la connexion aux postes et téléphones approuvés par l’entreprise.',
+    audience: ['admin'],
+    routes: ['admin.settings.devices.index'],
+    pathPrefixes: ['/admin/settings/devices'],
+    image: '/images/help/help-devices.png',
+    sections: [
+      {
+        title: 'Restrictions du tenant',
+        body: 'La page Appareils autorisés permet d’activer la restriction pour TIKETI Web (back-office, vente, supervision) et TIKETI Control (téléphones et tablettes des équipages). Quand une restriction est active, seuls les appareils approuvés peuvent se connecter.',
+      },
+      {
+        title: 'Autoriser un appareil',
+        body: 'Quand un appareil inconnu tente de se connecter, une demande apparaît dans la section Demandes en attente. Vérifiez l’utilisateur et l’appareil avant de cliquer sur Autoriser ou Refuser.',
+        steps: [
+          'Ouvrez Paramétrage puis Appareils (Sécurité).',
+          'Repérez la demande dans la section Demandes en attente.',
+          'Vérifiez l’utilisateur, la plateforme et l’adresse IP.',
+          'Cliquez sur Autoriser pour approuver, ou Refuser pour rejeter.',
+        ],
+      },
+      {
+        title: 'Révoquer un appareil',
+        body: 'La liste des appareils autorisés permet de révoquer un appareil perdu ou non utilisé. L’appareil révoqué ne pourra plus se connecter tant qu’il n’est pas de nouveau autorisé.',
+      },
+      {
+        title: 'Sécurité recommandée',
+        body: 'Activez la restriction Web sur les postes de guichet partagés et la restriction Control sur les téléphones d’équipage. Attention : l’activation de la restriction Web autorise automatiquement l’appareil en cours pour éviter de verrouiller votre propre administration.',
+      },
+    ],
+  },
+  {
+    id: 'station-vehicle-pools',
+    category: 'Gestion de flotte',
+    title: 'Pools de véhicules par gare',
+    description: 'Affecter des véhicules à une gare pour une période donnée.',
+    audience: ['admin', 'fleet_manager'],
+    pathPrefixes: ['/fleet/station-vehicle-assignments'],
+    image: '/images/help/help-settings.png',
+    sections: [
+      {
+        title: 'Pourquoi un pool',
+        body: 'Un pool de véhicules définit les véhicules disponibles pour les départs d’une gare. Lorsqu’un vendeur crée un voyage, seuls les véhicules du pool de sa gare sont proposés.',
+      },
+      {
+        title: 'Créer une affectation',
+        body: 'Depuis Paramétrage puis Pools véhicules / gare, cliquez sur Nouvelle affectation, choisissez la gare, le véhicule et la période (ou affectation permanente).',
+        steps: [
+          'Ouvrez Paramétrage puis Pools véhicules / gare.',
+          'Cliquez sur Nouvelle affectation.',
+          'Choisissez la gare et le véhicule.',
+          'Définissez la période ou cochez Affectation permanente.',
+          'Enregistrez.',
+        ],
+      },
+      {
+        title: 'Véhicule sans pool',
+        body: 'Un véhicule sans pool n’est proposé dans aucune gare. Vérifiez les pools si un départ ne trouve pas de véhicule : créez l’affectation du véhicule à la gare pour la date concernée.',
+      },
+    ],
+  },
+  {
+    id: 'tiketi-control-scan',
+    category: 'Supervision',
+    title: 'Scanner un billet avec TIKETI Control',
+    description: 'Contrôler les billets à bord et sur le quai avec l’application mobile.',
+    audience: ['admin', 'supervisor'],
+    image: '/images/help/help-tids-board.png',
+    sections: [
+      {
+        title: 'Rôle de TIKETI Control',
+        body: 'TIKETI Control est l’application mobile des superviseurs et équipages : scan du QR code des billets, contrôle anti-fraude, manifeste des passagers et continuité hors ligne.',
+      },
+      {
+        title: 'Scanner un billet',
+        body: 'Ouvrez l’application sur le téléphone, connectez-vous avec un appareil autorisé, puis scannez le QR code du billet. L’application indique immédiatement si le billet est valide, déjà utilisé ou annulé.',
+      },
+      {
+        title: 'En cas d’appareil non autorisé',
+        body: 'La première connexion d’un téléphone déclenche une demande d’autorisation. Un administrateur doit l’approuver depuis Paramétrage puis Appareils (Sécurité) avant que le contrôle fonctionne.',
+      },
+    ],
+  },
+  {
+    id: 'export-reports',
+    category: 'Pilotage',
+    title: 'Exporter et archiver un rapport',
+    description: 'Produire un export de contrôle et conserver une trace reproductible.',
+    audience: ['admin', 'accountant'],
+    routes: ['accountant.reports'],
+    pathPrefixes: ['/accountant/reports'],
+    image: '/images/help/help-accountant-reports.png',
+    sections: [
+      {
+        title: 'Exporter une période',
+        body: 'Depuis la page Rapports, choisissez la période puis cliquez sur Exporter pour générer le fichier (Excel ou PDF selon la version). Le fichier reprend les tickets, vendeurs et montants de la période.',
+        steps: [
+          'Ouvrez le menu Comptabilité.',
+          'Choisissez la période à exporter.',
+          'Vérifiez les totaux avant export.',
+          'Cliquez sur Exporter et enregistrez le fichier.',
+        ],
+      },
+      {
+        title: 'Archiver proprement',
+        body: 'Nommez le fichier avec la période (ex. rapport-2026-08-06.xlsx) et conservez-le avec les bordereaux de vente. Un contrôle reste ainsi reproductible par un autre comptable.',
+      },
+      {
+        title: 'Expliquer un écart',
+        body: 'Si le total ne correspond pas aux bordereaux, identifiez le ticket, son statut, son vendeur et son voyage avant de conclure. Une annulation normale ou un changement de filtre expliquent la plupart des écarts.',
+      },
+    ],
+  },
+  {
+    id: 'executive-review',
+    category: 'Pilotage',
+    title: 'Préparer une revue de période',
+    description: 'Structurer une lecture rapide des indicateurs pour décider.',
+    audience: ['admin', 'executive'],
+    routes: ['executive.analytics'],
+    pathPrefixes: ['/executive/analytics'],
+    image: '/images/help/help-executive-analytics.png',
+    sections: [
+      {
+        title: 'Choisir la période',
+        body: 'Dans le tableau de bord exécutif, sélectionnez la période de référence (ex. les 30 derniers jours). Les indicateurs affichent revenus, volume de tickets, occupation et trajets les plus performants.',
+      },
+      {
+        title: 'Lire les indicateurs ensemble',
+        body: 'Ne jugez pas un chiffre isolé. Comparez revenu et volume de tickets : une hausse du revenu sans hausse de fréquentation peut venir d’un tarif plus élevé. Croisez au moins deux indicateurs avant de décider.',
+      },
+      {
+        title: 'Passer à l’action',
+        body: 'Formulez une action avec un responsable, une échéance et un indicateur de réussite. Exemple : ajuster la capacité d’un trajet pendant deux semaines et mesurer l’évolution de l’occupation par départ.',
+      },
+    ],
+  },
+  {
+    id: 'fleet-vehicle-types',
+    category: 'Gestion de flotte',
+    title: 'Créer un type de véhicule avec plan de sièges',
+    description: 'Configurer la capacité, la disposition, les portes et la dernière rangée.',
+    audience: ['admin', 'fleet_manager'],
+    pathPrefixes: ['/fleet/vehicle-types', '/admin/vehicle-types'],
+    image: '/images/help/help-vehicle-types.png',
+    sections: [
+      {
+        title: 'Type de véhicule ou véhicule',
+        body: 'Le type de véhicule décrit le modèle et son plan de sièges (capacité, disposition 2+2 ou 1+2, portes, dernière rangée). Le véhicule est l’unité réelle du parc qui hérite de ce plan.',
+      },
+      {
+        title: 'Créer un type',
+        body: 'Depuis Paramétrage puis Types de Véhicules, cliquez sur Nouveau Type, renseignez le nom, la capacité, la configuration, la largeur, le côté, la dernière rangée et les portes. L’aperçu affiche le plan de sièges.',
+        steps: [
+          'Ouvrez Paramétrage puis Types de Véhicules.',
+          'Cliquez sur Nouveau Type.',
+          'Renseignez le nom et la capacité.',
+          'Configurez la disposition des sièges et les portes.',
+          'Vérifiez l’aperçu puis enregistrez.',
+        ],
+      },
+      {
+        title: 'Impact sur la vente',
+        body: 'La position des portes et des rangées influence la suggestion intelligente des sièges. Une configuration correcte améliore le remplissage et l’embarquement.',
+      },
+    ],
+  },
+  {
+    id: 'crew-management',
+    category: 'Gestion de flotte',
+    title: 'Gérer les équipages',
+    description: 'Enregistrer chauffeurs et assistants, puis les affecter aux véhicules.',
+    audience: ['admin', 'fleet_manager'],
+    pathPrefixes: ['/fleet/crew-members', '/fleet/crew-assignments'],
+    image: '/images/help/help-settings.png',
+    sections: [
+      {
+        title: 'Créer un membre d’équipage',
+        body: 'Depuis Paramétrage puis Équipages, cliquez sur Nouveau Membre. Renseignez le nom, le téléphone, le rôle (Chauffeur ou Assistant), le code PIN (6 à 12 chiffres) et le numéro de permis pour un chauffeur.',
+      },
+      {
+        title: 'Affecter un équipage à un véhicule',
+        body: 'Depuis Affectations Équipages, créez une affectation : choisissez le membre, le véhicule, le rôle et la période. Une affectation en cours clôture automatiquement la précédente pour le même rôle.',
+      },
+      {
+        title: 'Anticiper les conflits',
+        body: 'Avant d’enregistrer une affectation, vérifiez les dates et le rôle. Un conflit signifie que le membre est déjà mobilisé sur une période qui se chevauche. Rendez un membre inactif plutôt que de le supprimer pour conserver son historique.',
       },
     ],
   },
@@ -1144,6 +1486,10 @@ const enrichTopic = (topic, role = null, context = {}) => {
 };
 
 export function getHelpTopicsForRole(role, context = {}) {
+  // Visiteurs non connectés (page d'aide publique) : tous les sujets, sans variante de rôle
+  if (! role || role === 'all' || role === 'public') {
+    return helpTopics.map((topic) => enrichTopic(topic, null, context));
+  }
   return helpTopics
     .filter((topic) => !topic.audience || topic.audience.includes(role))
     .map((topic) => enrichTopic(topic, role, context));

@@ -23,14 +23,14 @@ const isSeller = user.role === 'seller';
 </script>
 
 <template>
-    <Head title="Profile" />
+    <Head :title="$t('profile.title')" />
 
     <MainNavLayout :show-nav="true">
         <div class="max-w-4xl mx-auto space-y-6">
             <!-- Page Header -->
             <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-                <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Mon Profil</h1>
-                <p class="text-slate-500 dark:text-slate-400 font-medium">Gérez vos informations personnelles et paramètres de compte</p>
+                <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{{ $t('profile.my_profile') }}</h1>
+                <p class="text-slate-500 dark:text-slate-400 font-medium">{{ $t('profile.header_subtitle') }}</p>
             </div>
 
             <!-- Assigned Stations Section (for sellers) -->
@@ -39,10 +39,10 @@ const isSeller = user.role === 'seller';
                     <header>
                         <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                             <OfficeBuilding class="text-emerald-600" :size="24" />
-                            Stations assignées
+                            {{ $t('profile.stations.title') }}
                         </h2>
                         <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                            Les stations pour lesquelles vous êtes autorisé à vendre des billets.
+                            {{ $t('profile.stations.description') }}
                         </p>
                     </header>
 
@@ -59,19 +59,19 @@ const isSeller = user.role === 'seller';
                                     </div>
                                     <div>
                                         <div class="font-bold text-slate-900 dark:text-slate-100">{{ station.name }}</div>
-                                        <div class="text-xs text-slate-500 dark:text-slate-400">Assigné le {{ station.assigned_at }}</div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400">{{ $t('profile.stations.assigned_on', { date: station.assigned_at }) }}</div>
                                     </div>
                                 </div>
                                 <div class="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
-                                    Actif
+                                    {{ $t('common.active') }}
                                 </div>
                             </div>
                         </div>
                         <div v-else class="text-center py-8 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
                             <OfficeBuilding class="text-slate-400 mx-auto mb-3" :size="40" />
-                            <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">Aucune station assignée</h3>
+                            <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">{{ $t('profile.stations.no_station_title') }}</h3>
                             <p class="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-                                Vous n'avez pas encore de station assignée. Veuillez contacter votre superviseur pour pouvoir vendre des billets.
+                                {{ $t('profile.stations.no_station_description') }}
                             </p>
                         </div>
                     </div>

@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n.js';
+
 const routeStations = (route) => {
   if (!route) return [];
 
@@ -9,7 +11,7 @@ const routeStations = (route) => {
       .map((stop) => ({
         ...(stop.station || {}),
         id: stop.station_id || stop.station?.id,
-        name: stop.station?.name || 'Gare',
+        name: stop.station?.name || i18n.global.t('composable.trip_creation.station_fallback'),
       })),
     route.destination_station || route.destinationStation,
   ];
@@ -20,7 +22,7 @@ const routeStations = (route) => {
       || (index === 0 ? route.origin_station_id : null)
       || (index === candidates.length - 1 ? route.destination_station_id : null);
     if (id && !stationsById.has(id)) {
-      stationsById.set(id, station?.id ? station : { id, name: 'Gare' });
+      stationsById.set(id, station?.id ? station : { id, name: i18n.global.t('composable.trip_creation.station_fallback') });
     }
   });
 
@@ -34,7 +36,7 @@ export const buildTripCreationRouteOptions = (routes, originId) => {
     .filter((route) => routeStations(route).some((station) => station.id === originId))
     .map((route) => ({
       value: route.id,
-      label: route.name || route.display_name || 'Ligne',
+      label: route.name || route.display_name || i18n.global.t('composable.trip_creation.route_fallback'),
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 };
@@ -52,6 +54,6 @@ export const buildTripCreationDestinationOptions = (routes, originId, routeId, s
     .map((station) => ({
       value: station.id,
       destId: station.id,
-      label: station.name || stationNames.get(station.id) || 'Gare',
+      label: station.name || stationNames.get(station.id) || i18n.global.t('composable.trip_creation.station_fallback'),
     }));
 };

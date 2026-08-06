@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n.js';
+
 class BluetoothPrinter {
     constructor() {
         this.device = null;
@@ -55,7 +57,7 @@ class BluetoothPrinter {
 
     async connect() {
         if (!this.isSupported()) {
-            throw new Error('Web Bluetooth non supporté par ce navigateur');
+            throw new Error(i18n.global.t('service.bluetooth.unsupported'));
         }
 
         try {
@@ -90,7 +92,7 @@ class BluetoothPrinter {
                 }
             }
 
-            throw new Error('Aucune caractéristique d\'écriture trouvée sur cet appareil');
+            throw new Error(i18n.global.t('service.bluetooth.no_write_characteristic'));
 
         } catch (error) {
             this._unregisterDisconnectHandler();
@@ -163,9 +165,9 @@ class BluetoothPrinter {
     }
 
     async send(data) {
-        if (!this.device) throw new Error('Aucun périphérique connecté');
-        if (!this.device.gatt.connected) throw new Error('Périphérique déconnecté');
-        if (!this.characteristic) throw new Error('Aucune caractéristique d\'écriture');
+        if (!this.device) throw new Error(i18n.global.t('service.bluetooth.no_device_connected'));
+        if (!this.device.gatt.connected) throw new Error(i18n.global.t('service.bluetooth.device_disconnected'));
+        if (!this.characteristic) throw new Error(i18n.global.t('service.bluetooth.no_write_characteristic_short'));
 
         const encoder = new TextEncoder();
         const encoded = encoder.encode(data);
@@ -177,7 +179,7 @@ class BluetoothPrinter {
                 .catch(() => undefined)
                 .then(async () => {
                     if (!this.device?.gatt?.connected || !this.characteristic) {
-                        throw new Error('Périphérique déconnecté pendant l’impression');
+                        throw new Error(i18n.global.t('service.bluetooth.device_disconnected_while_printing'));
                     }
                     if (this.characteristic.properties.writeWithoutResponse) {
                         await this.characteristic.writeValueWithoutResponse(chunk);
@@ -270,16 +272,16 @@ class BluetoothPrinter {
 
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;
-        commands += `${this.fit('N TICKET', width)}\n`;
+        commands += `${this.fit(i18n.global.t('service.bluetooth.print.ticket_no'), width)}\n`;
         commands += `${this.fit(ticketData.ticket_number, width)}\n`;
         commands += this.BOLD_OFF;
 
         commands += this.line('-', width);
         commands += this.ALIGN_LEFT;
-        commands += this.pair('DEPART', ticketData.from_stop, width);
+        commands += this.pair(i18n.global.t('service.bluetooth.print.departure'), ticketData.from_stop, width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
-        commands += `${this.fit(ticketData.transfer_stop ? 'DESTINATION FINALE' : 'DESTINATION', width)}\n`;
+        commands += `${this.fit(ticketData.transfer_stop ? i18n.global.t('service.bluetooth.print.final_destination') : i18n.global.t('service.bluetooth.print.destination'), width)}\n`;
         commands += this.SIZE_DOUBLE;
         this.wrap(ticketData.to_stop, 16).slice(0, 2).forEach(line => {
             commands += `${line}\n`;
@@ -289,17 +291,21 @@ class BluetoothPrinter {
 
         commands += this.ALIGN_LEFT;
         if (ticketData.transfer_stop) {
-            commands += this.pair('CORRESP.', ticketData.transfer_stop, width);
+            commands += this.pair(i18n.global.t('service.bluetooth.print.transfer'), ticketData.transfer_stop, width);
         }
         commands += this.line('-', width);
-        commands += this.pair('DATE DEPART', ticketData.date, width);
-        commands += this.pair('VEHICULE', ticketData.vehicle_number, width);
+        commands += this.pair(i18n.global.t('service.bluetooth.print.departure_date'), ticketData.date, width);
+        commands += this.pair(i18n.global.t('service.bluetooth.print.vehicle'), ticketData.vehicle_number, width);
 
         commands += this.line('-', width);
         commands += this.ALIGN_CENTER;
         commands += this.BOLD_ON;
         commands += this.SIZE_DOUBLE;
-        commands += this.pair(`S. ${ticketData.seat_number}`, `H. ${ticketData.time}`, 16);
+        commands += this.pair(
+            i18n.global.t('service.bluetooth.print.seat', { seat: ticketData.seat_number }),
+            i18n.global.t('service.bluetooth.print.time', { time: ticketData.time }),
+            16
+        );
         commands += this.BOLD_OFF;
         commands += this.SIZE_NORMAL;
         commands += this.BOLD_ON;

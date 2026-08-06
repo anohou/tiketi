@@ -18,6 +18,9 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const page = usePage();
 const isAdmin = computed(() => page.props.auth.user?.role === 'admin');
@@ -129,7 +132,7 @@ const submit = () => {
 };
 
 const deleteAssignment = async (id) => {
-  if (await confirmationStore.confirm({ title: 'Supprimer cette affectation', message: 'Cette affectation sera définitivement supprimée.', confirmLabel: 'Supprimer', tone: 'danger' })) {
+  if (await confirmationStore.confirm({ title: t('fleet.assignments.delete_title'), message: t('fleet.assignments.delete_message'), confirmLabel: t('common.delete'), tone: 'danger' })) {
     router.delete(route('fleet.assignments.destroy', id), {
       onSuccess: () => {
         if (selectedAssignment.value?.id === id) {
@@ -144,17 +147,17 @@ const deleteAssignment = async (id) => {
 };
 
 const assignmentColumns = {
-  'user.name': 'Utilisateur',
-  'user.email': 'Email',
-  'vehicle.identifier': 'Véhicule',
-  'vehicle.vehicle_type.name': 'Type',
-  active: 'Statut',
+  'user.name': t('fleet.assignments.user'),
+  'user.email': t('fleet.assignments.email'),
+  'vehicle.identifier': t('fleet.assignments.vehicle'),
+  'vehicle.vehicle_type.name': t('fleet.assignments.type'),
+  active: t('common.status'),
 };
 
 const handleExport = () => {
   const data = filteredAssignments.value.map(a => ({
     ...a,
-    active: a.active ? 'Actif' : 'Inactif',
+    active: a.active ? t('common.active') : t('common.inactive'),
   }));
   exportToExcel(data, assignmentColumns, 'affectations');
 };
@@ -162,9 +165,9 @@ const handleExport = () => {
 const handlePrint = () => {
   const data = filteredAssignments.value.map(a => ({
     ...a,
-    active: a.active ? 'Actif' : 'Inactif',
+    active: a.active ? t('common.active') : t('common.inactive'),
   }));
-  printList(data, assignmentColumns, 'Affectations Véhicules');
+  printList(data, assignmentColumns, t('fleet.assignments.print_title'));
 };
 </script>
 
@@ -177,9 +180,9 @@ const handlePrint = () => {
             <div class="p-2 bg-emerald-100 rounded-xl">
               <AccountGroup class="text-emerald-600" :size="28" />
             </div>
-            Affectations véhicules
+            {{ $t('fleet.assignments.title') }}
           </h1>
-          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Attribuer des véhicules aux gestionnaires de flotte</p>
+          <p class="text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ $t('fleet.assignments.subtitle') }}</p>
         </div>
       </div>
 
@@ -197,12 +200,12 @@ const handlePrint = () => {
                   <input
                     v-model="search"
                     type="text"
-                    placeholder="Rechercher..."
+                    placeholder="{{ $t('fleet.search_placeholder') }}"
                     class="w-full px-4 py-2 pl-10 pr-4 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:border-emerald-400 text-sm dark:bg-slate-950 dark:text-slate-100"
                   />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
-                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" title="Nouvelle affectation">
+                <button @click="openCreateModal" class="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shrink-0" :title="$t('fleet.assignments.create_title')">
                   <Plus class="h-5 w-5" />
                 </button>
                 <ExportPrintButtons
@@ -216,7 +219,7 @@ const handlePrint = () => {
 
             <div class="overflow-y-auto flex-1 custom-scrollbar">
               <div v-if="filteredAssignments.length === 0" class="p-4 text-center text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400">
-                Aucune affectation trouvée.
+                {{ $t('fleet.assignments.empty_list') }}
               </div>
               <div v-else>
                 <div
@@ -239,7 +242,7 @@ const handlePrint = () => {
                       'shrink-0 ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
                       assignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     ]">
-                      {{ assignment.active ? 'Active' : 'Inactive' }}
+                      {{ assignment.active ? $t('fleet.assignments.active') : $t('fleet.assignments.inactive') }}
                     </span>
                   </div>
                 </div>
@@ -251,21 +254,21 @@ const handlePrint = () => {
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
           <div v-if="!selectedAssignment" class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500 dark:text-slate-400 dark:text-slate-500">
             <AccountGroup class="h-16 w-16 text-slate-300 mb-4" />
-            <p class="text-lg">Sélectionnez une affectation pour voir les détails</p>
+            <p class="text-lg">{{ $t('fleet.assignments.details_placeholder') }}</p>
             <button @click="openCreateModal" class="mt-4 text-emerald-600 hover:text-emerald-700 font-medium">
-              ou créez une nouvelle affectation
+              {{ $t('fleet.assignments.details_placeholder_cta') }}
             </button>
           </div>
 
           <div v-else class="space-y-4">
             <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-6">
               <div class="flex justify-between items-start mb-6">
-                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">Détails de l'Affectation</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-200 dark:text-slate-200">{{ $t('fleet.assignments.details_title') }}</h2>
                 <div class="flex gap-2">
-                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" title="Modifier">
+                  <button @click="openEditModal" class="p-2 text-blue-600 hover:bg-blue-50 dark:bg-blue-950/30 rounded-lg transition-colors" :title="$t('common.edit')">
                     <Pencil class="h-5 w-5" />
                   </button>
-                  <button @click="deleteAssignment(selectedAssignment.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Supprimer">
+                  <button @click="deleteAssignment(selectedAssignment.id)" class="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" :title="$t('common.delete')">
                     <Trash2 class="h-5 w-5" />
                   </button>
                 </div>
@@ -273,7 +276,7 @@ const handlePrint = () => {
 
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6 border-r border-gray-100 pr-6">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">UTILISATEUR</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">{{ $t('fleet.assignments.user_label') }}</span>
                   <div class="text-xl font-bold text-gray-900 dark:text-slate-100 leading-tight">
                     {{ selectedAssignment.user?.name }}
                   </div>
@@ -287,7 +290,7 @@ const handlePrint = () => {
                   </div>
                 </div>
                 <div class="col-span-6 pl-6">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">VÉHICULE</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">{{ $t('fleet.assignments.vehicle_label') }}</span>
                   <div class="text-xl font-bold text-gray-900 dark:text-slate-100 leading-tight">
                     {{ selectedAssignment.vehicle?.identifier }}
                   </div>
@@ -296,13 +299,13 @@ const handlePrint = () => {
                   </div>
                 </div>
                 <div class="col-span-12 pt-4 border-t border-gray-100 dark:border-slate-800">
-                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">STATUT</span>
+                  <span class="text-xs text-gray-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">{{ $t('fleet.assignments.status_label') }}</span>
                   <div>
                     <span :class="[
                       'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
                       selectedAssignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                     ]">
-                      {{ selectedAssignment.active ? 'Active' : 'Inactive' }}
+                      {{ selectedAssignment.active ? $t('fleet.assignments.active') : $t('fleet.assignments.inactive') }}
                     </span>
                   </div>
                 </div>
@@ -315,19 +318,19 @@ const handlePrint = () => {
 
     <DialogModal :show="showModal" @close="closeModal" maxWidth="md">
       <template #title>
-        {{ isEditing ? "Modifier l'Affectation" : "Nouvelle Affectation" }}
+        {{ isEditing ? $t('fleet.assignments.edit_title') : $t('fleet.assignments.create_modal_title') }}
       </template>
       <template #content>
         <div class="space-y-4">
           <div>
-            <InputLabel for="user_id" value="Utilisateur" />
+            <InputLabel for="user_id" :value="$t('fleet.assignments.user')" />
             <select
               id="user_id"
               v-model="form.user_id"
               class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
-              <option value="">Sélectionner un utilisateur</option>
+              <option value="">{{ $t('fleet.assignments.select_user') }}</option>
               <option
                 v-for="user in users"
                 :key="user.id"
@@ -340,14 +343,14 @@ const handlePrint = () => {
           </div>
 
           <div>
-            <InputLabel for="vehicle_id" value="Véhicule" />
+            <InputLabel for="vehicle_id" :value="$t('fleet.assignments.vehicle')" />
             <select
               id="vehicle_id"
               v-model="form.vehicle_id"
               class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-emerald-500 focus:ring-emerald-500 text-sm"
               required
             >
-              <option value="">Sélectionner un véhicule</option>
+              <option value="">{{ $t('fleet.assignments.select_vehicle') }}</option>
               <option
                 v-for="vehicle in vehicles"
                 :key="vehicle.id"
@@ -366,14 +369,14 @@ const handlePrint = () => {
               type="checkbox"
               class="rounded border-slate-200 text-emerald-600 shadow-sm focus:ring-emerald-500"
             />
-            <InputLabel for="active" value="Actif" class="ml-2" />
+            <InputLabel for="active" :value="$t('common.active')" class="ml-2" />
           </div>
         </div>
       </template>
       <template #footer>
-        <SecondaryButton @click="closeModal">Annuler</SecondaryButton>
+        <SecondaryButton @click="closeModal">{{ $t('common.cancel') }}</SecondaryButton>
         <PrimaryButton class="ml-3" @click="submit" :disabled="processing">
-          {{ isEditing ? 'Mettre à jour' : 'Enregistrer' }}
+          {{ isEditing ? $t('common.update') : $t('common.save') }}
         </PrimaryButton>
       </template>
     </DialogModal>

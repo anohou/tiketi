@@ -1,0 +1,33 @@
+{
+  "accountant": {
+    "title": "Rapports Financiers",
+    "subtitle": "Analyse détaillée des ventes et revenus",
+    "export_csv": "Exporter CSV",
+    "filters": "Filtres",
+    "start_date": "Date début",
+    "end_date": "Date fin",
+    "station": "Station",
+    "all_stations": "Toutes les stations",
+    "seller": "Vendeur",
+    "all_sellers": "Tous les vendeurs",
+    "apply_filters": "Appliquer les filtres",
+    "total_revenue": "Total Revenus",
+    "tickets_sold": "Tickets Vendus",
+    "tickets_unit": "billets",
+    "avg_price": "Prix Moyen",
+    "avg_price_unit": "FCFA / ticket",
+    "revenue_by_seller": "Revenus par Vendeur",
+    "revenue_by_station": "Revenus par Station",
+    "tickets_count": "{count} ticket | {count} tickets",
+    "unknown": "Inconnu",
+    "ticket_detail": "Détail des Tickets",
+    "col_ticket_number": "N° Ticket",
+    "col_route": "Route",
+    "col_journey": "Trajet",
+    "col_seller": "Vendeur",
+    "col_amount": "Montant",
+    "seat_label": "Place {number}",
+    "no_tickets_period": "Aucun ticket trouvé pour cette période",
+    "showing_results": "Affichage de {from} à {to} sur {total} résultats"
+  }
+}

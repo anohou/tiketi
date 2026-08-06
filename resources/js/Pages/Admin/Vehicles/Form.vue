@@ -11,9 +11,9 @@
       <SettingsMenu />
 
       <!-- Main Content Area -->
-      <div class="flex-1 bg-white">
-        <div class="max-w-2xl mx-auto p-6">
-          <form @submit.prevent="submit" class="space-y-6">
+      <div class="flex-1 bg-white dark:bg-slate-900 h-full min-h-0">
+        <FormPanel @submit="submit" class="max-w-3xl mx-auto h-full">
+          <div class="p-6 space-y-6">
             <div>
               <InputLabel for="identifier" value="Numéro d'identification" />
               <TextInput
@@ -31,7 +31,7 @@
               <select
                 id="vehicle_type_id"
                 v-model="form.vehicle_type_id"
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                 required
               >
                 <option value="">Sélectionner un type</option>
@@ -58,26 +58,28 @@
               />
               <InputError :message="errors.seat_count" class="mt-2" />
             </div>
+          </div>
 
-            <div class="flex items-center space-x-4">
-              <button
-                type="submit"
-                :disabled="processing"
-                class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
-              >
-                <Loader v-if="processing" class="w-4 h-4 animate-spin" />
-                <span>{{ vehicle ? 'Mettre à jour' : 'Créer' }}</span>
-              </button>
-              
-              <Link
-                :href="route('admin.vehicles.index')"
-                class="text-gray-600 hover:text-gray-800 px-4 py-2"
-              >
-                Annuler
-              </Link>
-            </div>
-          </form>
-        </div>
+          <template #secondary-actions>
+            <Link
+              :href="route('admin.vehicles.index')"
+              class="text-gray-600 hover:text-gray-800 px-4 py-2 dark:text-slate-400 dark:hover:text-slate-300"
+            >
+              Annuler
+            </Link>
+          </template>
+          
+          <template #actions>
+            <button
+              type="submit"
+              :disabled="processing"
+              class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+            >
+              <Loader v-if="processing" class="w-4 h-4 animate-spin" />
+              <span>{{ vehicle ? 'Mettre à jour' : 'Créer' }}</span>
+            </button>
+          </template>
+        </FormPanel>
       </div>
     </div>
   </MainNavLayout>
@@ -92,6 +94,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
+import FormPanel from '@/Components/FormPanel.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 
 const props = defineProps({

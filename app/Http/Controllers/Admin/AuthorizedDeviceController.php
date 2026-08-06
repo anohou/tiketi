@@ -21,7 +21,7 @@ class AuthorizedDeviceController extends Controller
     {
         return Inertia::render('Admin/Settings/Devices', [
             'devices' => AuthorizedDevice::query()
-                ->with('approver:id,name')
+                ->with(['approver:id,name', 'requester:id,name'])
                 ->orderByRaw("case when status = 'pending' then 0 else 1 end")
                 ->latest('requested_at')
                 ->get()
@@ -34,6 +34,7 @@ class AuthorizedDeviceController extends Controller
                     'app_version' => $device->app_version,
                     'requested_by_type' => $device->requested_by_type,
                     'requested_by_id' => $device->requested_by_id,
+                    'requester' => $device->requester?->only(['id', 'name']),
                     'approver' => $device->approver?->only(['id', 'name']),
                     'last_ip' => $device->last_ip,
                     'requested_at' => $device->requested_at?->toIso8601String(),

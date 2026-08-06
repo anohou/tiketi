@@ -48,3 +48,10 @@ Ces règles s’appliquent à l’ensemble du dépôt et à toutes les interface
 - Avant de créer un nouveau style local, réutiliser les composants et conventions visuelles déjà présents dans les écrans de listes professionnels.
 - Ne pas imbriquer une carte d’état vide dans une autre carte : utiliser la variante simple du composant lorsque le panneau parent fournit déjà la bordure, le fond et l’ombre.
 - Ne pas répéter une action principale dans l’état vide d’un espace de travail lorsque cette action est déjà clairement disponible dans l’en-tête de la liste ou de la page.
+
+## Formulaires longs
+
+- Dans tout formulaire nécessitant un défilement vertical, les actions principales de validation doivent être placées dans un pied de panneau fixe ou sticky.
+- Le contenu du formulaire défile indépendamment entre l’en-tête et ce pied.
+- Les boutons de validation ne doivent jamais disparaître pendant la saisie.
+- Le composant `FormPanel` de `resources/js/Components/FormPanel.vue` doit être utilisé à cet effet. Il crée un conteneur `<form>` approprié et gère la logique de la zone de défilement centrale et du pied de page.

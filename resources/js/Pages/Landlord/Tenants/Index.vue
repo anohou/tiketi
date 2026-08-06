@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { toastStore } from '@/Stores/toastStore.js';
 
 import Database from 'vue-material-design-icons/Database.vue';
@@ -21,6 +22,8 @@ import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
   tenants: {
@@ -321,10 +324,8 @@ const closePasswordModal = () => {
             <div class="p-2 bg-purple-100 rounded-xl">
               <Domain class="text-purple-600"
                       :size="28" />
-            </div>
-            Gestion des Tenants
-          </h1>
-          <p class="text-gray-500 mt-1">Compagnies de transport avec bases de données séparées</p>
+            </div>{{ $t('landlord.title') }}</h1>
+          <p class="text-gray-500 mt-1">{{ $t('landlord.subtitle') }}</p>
         </div>
       </div>
 
@@ -339,13 +340,13 @@ const closePasswordModal = () => {
                 <div class="relative flex-1">
                   <input type="text"
                          v-model="search"
-                         placeholder="Rechercher..."
+                         :placeholder="$t('landlord.search_placeholder')"
                          class="w-full px-4 py-2 pl-10 pr-4 border border-purple-200 rounded-lg focus:outline-none focus:border-purple-400 text-sm" />
                   <Magnify class="absolute left-3 top-2.5 h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 </div>
                 <button @click="openCreateModal"
                         class="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                        title="Nouveau Tenant">
+                        :title="$t('landlord.new_tenant')">
                   <Plus class="h-5 w-5" />
                 </button>
               </div>
@@ -354,9 +355,7 @@ const closePasswordModal = () => {
             <!-- List Content -->
             <div class="overflow-y-auto flex-1">
               <div v-if="filteredTenants.length === 0"
-                   class="p-4 text-center text-gray-500">
-                Aucun tenant trouvé.
-              </div>
+                   class="p-4 text-center text-gray-500">{{ $t('landlord.no_tenants') }}</div>
               <div v-else>
                 <div v-for="tenant in filteredTenants"
                      :key="tenant.id"
@@ -400,11 +399,9 @@ const closePasswordModal = () => {
           <div v-if="!selectedTenant"
                class="bg-white rounded-lg border border-purple-200 shadow-sm p-8 text-center h-full flex flex-col items-center justify-center text-gray-500">
             <Domain class="h-16 w-16 text-purple-200 mb-4" />
-            <p class="text-lg">Sélectionnez un tenant pour voir les détails</p>
+            <p class="text-lg">{{ $t('landlord.select_tenant_hint') }}</p>
             <button @click="openCreateModal"
-                    class="mt-4 text-purple-600 hover:text-purple-700 font-medium">
-              ou créez un nouveau tenant
-            </button>
+                    class="mt-4 text-purple-600 hover:text-purple-700 font-medium">{{ $t('landlord.or_create_tenant') }}</button>
           </div>
 
           <!-- View Details -->
@@ -422,9 +419,9 @@ const closePasswordModal = () => {
                   <button @click="confirmRegenerateTenantPassword"
                           class="px-3 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors inline-flex items-center gap-2"
                           :disabled="passwordProcessing"
-                          title="Régénérer le mot de passe">
+                          :title="$t('landlord.regenerate_password')">
                     <Refresh class="h-5 w-5" :class="{ 'animate-spin': passwordProcessing }" />
-                    <span class="text-sm font-medium">Régénérer</span>
+                    <span class="text-sm font-medium">{{ $t('landlord.regenerate') }}</span>
                   </button>
                   <button @click="openEditModal"
                           class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -442,19 +439,19 @@ const closePasswordModal = () => {
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6">
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">EMAIL</span>
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">{{ $t('landlord.email_header') }}</span>
                   <div class="text-lg font-medium text-gray-900 break-all">
                     {{ selectedTenant.email || 'Non renseigné' }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">TÉLÉPHONE</span>
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">{{ $t('landlord.phone_header') }}</span>
                   <div class="text-lg font-medium text-gray-900">
                     {{ selectedTenant.phone || 'Non renseigné' }}
                   </div>
                 </div>
                 <div class="col-span-12">
-                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">BASE DE DONNÉES</span>
+                  <span class="text-xs text-gray-500 uppercase tracking-wider font-bold block mb-2">{{ $t('landlord.database_header') }}</span>
                   <div class="flex items-center gap-2">
                     <span class="px-3 py-1 bg-green-100 text-green-700 rounded-lg font-mono text-sm flex items-center gap-3">
                       <Database class="h-4 w-4" />
@@ -480,12 +477,12 @@ const closePasswordModal = () => {
               </div>
 
               <div class="p-4">
-                <p class="text-sm text-gray-500 mb-4">Les domaines et sous-domaines associés à ce tenant</p>
+                <p class="text-sm text-gray-500 mb-4">{{ $t('landlord.domains_associated') }}</p>
 
                 <div v-if="(selectedTenant.domains || []).length === 0"
                      class="text-center py-8 text-gray-400">
                   <Earth class="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>Aucun domaine configuré</p>
+                  <p>{{ $t('landlord.no_domain_configured') }}</p>
                 </div>
 
                 <div v-else
@@ -501,9 +498,7 @@ const closePasswordModal = () => {
                         <p class="font-medium text-gray-800">{{ domain.domain }}</p>
                         <a :href="(domain.domain.includes('localhost') ? 'http://' + domain.domain + ':8000' : 'https://' + domain.domain)"
                            target="_blank"
-                           class="text-xs text-blue-500 hover:underline">
-                          Ouvrir →
-                        </a>
+                           class="text-xs text-blue-500 hover:underline">{{ $t('landlord.open_link') }}</a>
                       </div>
                     </div>
                     <button @click="confirmRemoveDomain(domain.id)"
@@ -533,21 +528,21 @@ const closePasswordModal = () => {
           <!-- ID (only for create) -->
           <div v-if="!isEditing">
             <InputLabel for="id"
-                        value="Identifiant (slug)" />
+                        :value="$t('landlord.tenant_id_label')" />
             <TextInput v-model="form.id"
                        id="id"
                        type="text"
                        class="w-full mt-1"
                        placeholder="alpha-transport"
                        required />
-            <p class="text-xs text-gray-500 mt-1">Lettres minuscules, chiffres et tirets uniquement</p>
+            <p class="text-xs text-gray-500 mt-1">{{ $t('landlord.slug_hint') }}</p>
             <InputError :message="errors.id"
                         class="mt-1" />
           </div>
 
           <div>
             <InputLabel for="name"
-                        value="Nom de la compagnie" />
+                        :value="$t('landlord.company_name')" />
             <TextInput v-model="form.name"
                        id="name"
                        type="text"
@@ -560,7 +555,7 @@ const closePasswordModal = () => {
           <div class="grid grid-cols-2 gap-4">
             <div>
               <InputLabel for="email"
-                          value="Email" />
+                          :value="$t('landlord.email')" />
               <TextInput v-model="form.email"
                          id="email"
                          type="email"
@@ -585,13 +580,13 @@ const closePasswordModal = () => {
           <!-- Domain (only for create) -->
           <div v-if="!isEditing">
             <InputLabel for="domain"
-                        value="Domaine principal" />
+                        :value="$t('landlord.primary_domain')" />
             <TextInput v-model="form.domain"
                        id="domain"
                        type="text"
                        class="w-full mt-1"
                        placeholder="alpha.tiketi.ci ou alpha-express.com" />
-            <p class="text-xs text-gray-500 mt-1">Sous-domaine (alpha.tiketi.ci) ou domaine personnalisé</p>
+            <p class="text-xs text-gray-500 mt-1">{{ $t('landlord.domain_hint') }}</p>
             <InputError :message="createDomainErrorMessage"
                         class="mt-1" />
           </div>
@@ -610,19 +605,17 @@ const closePasswordModal = () => {
     <!-- Add Domain Modal -->
     <DialogModal :show="showDomainModal"
                  @close="closeDomainModal">
-      <template #title>
-        Ajouter un Domaine
-      </template>
+      <template #title>{{ $t('landlord.add_domain') }}</template>
       <template #content>
         <div>
           <InputLabel for="new-domain"
-                      value="Domaine" />
+                      :value="$t('landlord.domain')" />
           <TextInput v-model="domainForm.domain"
                      id="new-domain"
                      type="text"
                      class="w-full mt-1"
                      placeholder="beta.tiketi.ci" />
-          <p class="text-xs text-gray-500 mt-1">Sous-domaine ou domaine personnalisé</p>
+          <p class="text-xs text-gray-500 mt-1">{{ $t('landlord.domain_sub_hint') }}</p>
           <InputError :message="addDomainErrorMessage"
                       class="mt-1" />
         </div>
@@ -639,16 +632,14 @@ const closePasswordModal = () => {
     <!-- Password Display Modal -->
     <DialogModal :show="showPasswordModal"
                  @close="closePasswordModal">
-      <template #title>
-        Mot de passe administrateur
-      </template>
+      <template #title>{{ $t('landlord.admin_password') }}</template>
       <template #content>
         <div class="text-center py-4">
           <div class="mb-4">
             <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
               <Check class="h-6 w-6 text-green-600" />
             </div>
-            <h3 class="text-lg leading-6 font-medium text-gray-900">Mot de passe généré</h3>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">{{ $t('landlord.generated_password') }}</h3>
             <div class="mt-2 px-7 py-3">
               <p class="text-sm text-gray-500">
                 Voici le mot de passe généré pour l'administrateur du tenant.
@@ -666,7 +657,7 @@ const closePasswordModal = () => {
               <button @click="copyPassword"
                       class="h-full px-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-r-md transition-colors border-l"
                       :class="{ 'text-green-500 hover:text-green-600': passwordCopied }"
-                      title="Copier">
+                      :title="$t('landlord.copy')">
                 <Check v-if="passwordCopied"
                        class="h-5 w-5" />
                 <ContentCopy v-else
@@ -675,60 +666,42 @@ const closePasswordModal = () => {
             </div>
           </div>
           <p v-if="passwordCopied"
-             class="text-xs text-green-600 mt-2 font-medium">Mot de passe copié !</p>
+             class="text-xs text-green-600 mt-2 font-medium">{{ $t('landlord.password_copied') }}</p>
         </div>
       </template>
       <template #footer>
-        <PrimaryButton @click="closePasswordModal">
-          Terminer
-        </PrimaryButton>
+        <PrimaryButton @click="closePasswordModal">{{ $t('landlord.finish') }}</PrimaryButton>
       </template>
     </DialogModal>
 
     <!-- Confirmation Modal for Password Regeneration -->
     <ConfirmationModal :show="showPasswordConfirmModal" @close="showPasswordConfirmModal = false">
-      <template #title>
-        Régénérer le mot de passe
-      </template>
-      <template #content>
-        Voulez-vous vraiment régénérer le mot de passe de l'administrateur de ce tenant ? L'ancien mot de passe ne fonctionnera plus.
-      </template>
+      <template #title>{{ $t('landlord.regenerate_password') }}</template>
+      <template #content>{{ $t('landlord.confirm_regenerate_content') }}</template>
       <template #footer>
         <SecondaryButton @click="showPasswordConfirmModal = false">
           Annuler
         </SecondaryButton>
-        <PrimaryButton class="ml-3" @click="regenerateTenantPassword">
-          Régénérer
-        </PrimaryButton>
+        <PrimaryButton class="ml-3" @click="regenerateTenantPassword">{{ $t('landlord.regenerate') }}</PrimaryButton>
       </template>
     </ConfirmationModal>
 
     <!-- Confirmation Modal for Delete Tenant -->
     <ConfirmationModal :show="showDeleteTenantModal" variant="danger" @close="showDeleteTenantModal = false">
-      <template #title>
-        Supprimer le tenant
-      </template>
-      <template #content>
-        Êtes-vous sûr de vouloir supprimer ce tenant ? Cette action est irréversible et supprimera définitivement sa base de données et toutes ses données associées !
-      </template>
+      <template #title>{{ $t('landlord.delete_tenant_title') }}</template>
+      <template #content>{{ $t('landlord.confirm_delete_tenant') }}</template>
       <template #footer>
         <SecondaryButton @click="showDeleteTenantModal = false">
           Annuler
         </SecondaryButton>
-        <DangerButton class="ml-3" @click="deleteTenant">
-          Supprimer définitivement
-        </DangerButton>
+        <DangerButton class="ml-3" @click="deleteTenant">{{ $t('landlord.delete_permanently') }}</DangerButton>
       </template>
     </ConfirmationModal>
 
     <!-- Confirmation Modal for Remove Domain -->
     <ConfirmationModal :show="showRemoveDomainModal" variant="danger" @close="showRemoveDomainModal = false">
-      <template #title>
-        Supprimer le domaine
-      </template>
-      <template #content>
-        Êtes-vous sûr de vouloir supprimer ce domaine ? Les utilisateurs ne pourront plus accéder au tenant via cette adresse.
-      </template>
+      <template #title>{{ $t('landlord.delete_domain_title') }}</template>
+      <template #content>{{ $t('landlord.confirm_delete_domain') }}</template>
       <template #footer>
         <SecondaryButton @click="showRemoveDomainModal = false">
           Annuler

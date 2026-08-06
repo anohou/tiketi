@@ -1,0 +1,22 @@
+{
+  "executive": {
+    "title": "Tableau de Bord Exécutif",
+    "subtitle": "Vue stratégique • {start} au {end}",
+    "period_day": "Aujourd'hui",
+    "period_week": "Cette semaine",
+    "period_month": "Ce mois",
+    "period_quarter": "Ce trimestre",
+    "period_year": "Cette année",
+    "revenue_label": "Revenus (FCFA)",
+    "tickets_sold": "Billets vendus",
+    "avg_occupancy": "Taux d'occupation moyen",
+    "fleet_utilization": "Utilisation de la flotte",
+    "revenue_trend": "Tendance des Revenus",
+    "revenue_by_station": "Revenus par Station",
+    "top_routes": "Trajets les Plus Performants",
+    "route_tickets": "{count} billet | {count} billets",
+    "no_data_period": "Aucune donnée disponible pour cette période",
+    "read_only": "📊 Mode consultation uniquement",
+    "chart_revenue_label": "Revenus"
+  }
+}

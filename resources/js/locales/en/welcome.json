@@ -1,0 +1,168 @@
+{
+  "welcome": {
+    "title": "TIKETI - Ticketing Management",
+    "tenant_login_title": "{tenant} - Sign in",
+    "logo": "Logo",
+    "partner_space": "Partner Space",
+    "login_prompt": "Please enter your credentials to access the system.",
+    "forgot_password": "Forgot it?",
+    "login_processing": "Signing in...",
+    "seat_layout_alt": "Seat layout",
+    "dashboard_visualization": "Dashboard Visualization",
+    "live_attribution": "Live seat assignment",
+    "nav": {
+      "platform": "The platform",
+      "connections": "Connections",
+      "loyalty": "Loyalty",
+      "dashboard": "Dashboard",
+      "admin_login": "Admin Login",
+      "contact_us": "Contact us",
+      "documentation": "Documentation"
+    },
+    "tenant": {
+      "seat_management": "Smart seat distribution management",
+      "instant_sync": "Instant synchronization between all your stations."
+    },
+    "hero": {
+      "title_prefix": "The Future of",
+      "title_accent": "Transport Management",
+      "description": "From counter sales to boarding checks, manage your routes, connections and every seat in real time. A single platform to streamline travel and secure your revenue.",
+      "badge_ticketing": "Ticketing & counter",
+      "badge_connections": "Connections",
+      "badge_mobile_control": "Mobile control",
+      "badge_financial": "Financial oversight",
+      "request_demo": "Request a Demo",
+      "discover": "Discover"
+    },
+    "features": {
+      "eyebrow": "All-in-one",
+      "title": "Features designed for you",
+      "description": "In a constantly evolving sector, TIKETI gives you a head start. No more revenue losses, overwhelmed sellers or lack of visibility.",
+      "ticketing_title": "Smart Ticketing",
+      "ticketing_items": {
+        "seat_map_title": "Interactive Seat Map:",
+        "seat_map_text": "View your bus occupancy at a glance.",
+        "bluetooth_title": "Bluetooth Printing:",
+        "bluetooth_text": "Secure tickets with QR codes.",
+        "stops_title": "Stop Management:",
+        "stops_text": "Sell complex routes without conflicts."
+      },
+      "admin_title": "Administration & Finance",
+      "admin_items": {
+        "dashboard_title": "Strategic Dashboard:",
+        "dashboard_text": "Real-time view of revenue and sales volume.",
+        "network_title": "Network Management:",
+        "network_text": "Stations, destinations and fare flexibility.",
+        "accounting_title": "Accounting:",
+        "accounting_text": "Cash drawer closing reports by seller."
+      },
+      "control_title": "Tiketi Control in the field",
+      "control_items": {
+        "scan_title": "Instant QR scan:",
+        "scan_text": "check the ticket and detect duplicates.",
+        "manifest_title": "Digital manifest:",
+        "manifest_text": "track passengers and validate boarding.",
+        "offline_title": "Offline mode:",
+        "offline_text": "keep checking tickets, then sync when reconnected."
+      }
+    },
+    "connections": {
+      "eyebrow": "Seamless travel",
+      "title": "Connections, finally easy to operate",
+      "description": "Sell a combined trip with a vehicle change on a single ticket. TIKETI follows the passenger to their final destination and gives each station the right information at the right time.",
+      "item1_title": "Centralized transit hub",
+      "item1_text": "View expected passengers by station, their status and final destination.",
+      "item2_title": "Smart assignment",
+      "item2_text": "Automatically assign the best available seat or stay in control with manual mode.",
+      "item3_title": "Confirmed presence",
+      "item3_text": "The transit agent marks the passenger as ready before placing them on the connecting trip.",
+      "item4_title": "Zero seat conflicts",
+      "item4_text": "Availability is checked per segment to prevent any double booking.",
+      "journey_label": "Passenger journey",
+      "journey_one_ticket": "1 ticket",
+      "step1_title": "Full trip sale",
+      "step1_text": "Final destination and transfer station recorded.",
+      "step2_title": "Transit confirmed in Bouaké",
+      "step2_text": "The passenger is ready for their connection.",
+      "step3_title": "Seat assigned for Korhogo",
+      "step3_text": "The second vehicle's manifest is updated."
+    },
+    "control": {
+      "phone_title": "Ticket control",
+      "phone_online": "ONLINE",
+      "phone_valid": "Valid ticket",
+      "phone_valid_detail": "Seat 18 · Abidjan → Bouaké",
+      "eyebrow": "Crew application",
+      "title": "Tiketi Control secures every boarding",
+      "description": "Give controllers, drivers and supervisors useful tools in the field. The app stays fast, readable and operational even when the network becomes unstable.",
+      "scan_title": "Scan & anti-fraud",
+      "scan_text": "Validate the QR code, trip, seat and ticket status in seconds.",
+      "manifest_title": "Live manifest",
+      "manifest_text": "View passengers, connections and confirm every boarding.",
+      "offline_title": "Offline continuity",
+      "offline_text": "Work on a reliable cache; actions are reconciled and synced once the network returns.",
+      "field_title": "Complete field view",
+      "field_text": "Today's trips, seat map, team messages and incident tracking all in one place."
+    },
+    "roles": {
+      "title": "A Solution for Every Stakeholder",
+      "description": "TIKETI structures your company by clearly defining responsibilities.",
+      "admin_title": "The Administrator",
+      "admin_text": "Creates routes, sets prices, manages roles and analyzes overall profitability.",
+      "supervisor_title": "Supervisor",
+      "supervisor_text": "Field management, ticket control and supervision of counter sales.",
+      "seller_title": "The Seller",
+      "seller_text": "Ultra-fast sales interface. Real-time seat assignment.",
+      "executive_title": "The Executive",
+      "executive_text": "Audit and consolidated view: access to detailed and consolidated financial reports."
+    },
+    "selling_desk": {
+      "alt": "Tiketi Sales Desk",
+      "badge_title": "Smooth Operations",
+      "badge_subtitle": "In the field"
+    },
+    "loyalty": {
+      "eyebrow": "OKOHI Exclusive",
+      "title": "Build Passenger Loyalty",
+      "description": "Thanks to native integration with the **OKOHI** ecosystem, offer your passengers a modern, 100% digital loyalty experience.",
+      "qr_title": "Smart QR Code.",
+      "qr_text": " A quick scan with every purchase to earn points instantly.",
+      "rewards_title": "Automatic Rewards.",
+      "rewards_text": " After 10 trips, unlock discounts or free rides that you configure.",
+      "retention_title": "Retention Analytics.",
+      "retention_text": " Identify your most regular customers and adapt your offers.",
+      "available_on": "Available on",
+      "card_alt": "OKOHI Loyalty Card Screenshot",
+      "synced": "OKOHI synced"
+    },
+    "why": {
+      "title": "Why TIKETI?",
+      "description": "Maximize your profits and modernize your brand image with a robust solution."
+    },
+    "benefits": {
+      "real_time_title": "Absolute Real Time",
+      "real_time_text": "No more double sales. When a ticket is sold at station A, the seat is instantly blocked for station B.",
+      "revenue_title": "Revenue Optimization",
+      "revenue_text": "Thanks to our smart segment system, a released seat immediately becomes available again for the rest of the trip.",
+      "control_title": "Total Control",
+      "control_text": "Track every penny. From detailed financial reports to instant cash audits, you have eyes on everything."
+    },
+    "contact": {
+      "title": "Ready to modernize your fleet?",
+      "description": "Leave us a message and our team of experts will contact you for a personalized demo.",
+      "company_label": "Company name",
+      "company_placeholder": "E.g.: UTB Transports",
+      "email_label": "Professional email",
+      "email_placeholder": "you@company.ci",
+      "phone_label": "Phone number",
+      "phone_placeholder": "+225 00 00 00 00 00",
+      "message_label": "Message (optional)",
+      "message_placeholder": "Tell us about your needs...",
+      "submit": "Request a demo via WhatsApp"
+    },
+    "footer": {
+      "description": "The complete solution for managing your ticketing and transport fleet.",
+      "copyright": "© {year} TIKETI. All rights reserved."
+    }
+  }
+}

@@ -64,6 +64,11 @@ class AuthorizedDevice extends Model
         return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 
+    public function requester(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    {
+        return $this->morphTo('requester', 'requested_by_type', 'requested_by_id');
+    }
+
     public function isApproved(): bool
     {
         return $this->status === self::STATUS_APPROVED;

@@ -1,0 +1,291 @@
+{
+  "presentation": {
+    "nav": {
+      "features": "Fonctionnalités",
+      "ticketing": "Billetterie",
+      "connections": "Correspondances",
+      "control": "Tiketi Control",
+      "teams": "Pour vos équipes",
+      "loyalty": "Fidélité",
+      "contact": "Contact"
+    },
+    "header": {
+      "demo": "Demander une démo",
+      "login": "Connexion"
+    },
+    "hero": {
+      "badge": "La billetterie des compagnies de transport",
+      "title_1": "Vendez vos billets plus vite,",
+      "title_2": "pilotez votre réseau en temps réel,",
+      "title_3": "fidélisez vos clients",
+      "subtitle": "TIKETI centralise la billetterie, la supervision des départs, la gestion de flotte, le suivi comptable et la fidélisation de vos voyageurs — au guichet comme au siège, sur un seul outil.",
+      "cta_demo": "Demander une démonstration",
+      "cta_features": "Découvrir les fonctionnalités",
+      "doc_hint": "Documentation publique disponible :",
+      "doc_link": "consulter le guide utilisateur",
+      "mockup_label": "TIKETI — Billetterie",
+      "badge_sale_title": "Vente en quelques secondes",
+      "badge_sale_sub": "Plan de sièges interactif",
+      "badge_qr_title": "QR code de contrôle",
+      "badge_qr_sub": "Validation anti-fraude"
+    },
+    "features": {
+      "eyebrow": "Fonctionnalités clés",
+      "title": "Tout l’exploitation de votre réseau, sans friction",
+      "subtitle": "Chaque fonctionnalité est pensée pour le terrain : simple à utiliser au guichet, fiable pour le contrôle et lisible pour la direction.",
+      "items": [
+        {
+          "title": "Billetterie intelligente",
+          "desc": "Vente au guichet en quelques secondes, plan de sièges interactif et attribution automatique des places selon la destination et le remplissage."
+        },
+        {
+          "title": "Impression instantanée",
+          "desc": "Impression thermique Bluetooth directement au guichet, avec QR code de contrôle sur chaque billet. Solution de secours navigateur intégrée."
+        },
+        {
+          "title": "Supervision en temps réel",
+          "desc": "Tour de contrôle des départs, statuts des voyages, alertes et occupation des véhicules, visibles d’un seul écran."
+        },
+        {
+          "title": "Correspondances maîtrisées",
+          "desc": "Voyages combinés avec changement de véhicule sur un billet unique : suivi des passagers en transit et affectation des places sans conflit."
+        },
+        {
+          "title": "Gestion de flotte complète",
+          "desc": "Véhicules, types et plans de sièges, équipages, pools par gare et échéances administratives au même endroit."
+        },
+        {
+          "title": "Comptabilité et pilotage",
+          "desc": "Rapports par période, export contrôlable, rapprochement des recettes et indicateurs stratégiques pour la direction."
+        }
+      ]
+    },
+    "cases": {
+      "items": [
+        {
+          "tag": "Au guichet",
+          "title": "Vendez plus vite, contrôlez mieux",
+          "points": [
+            "Plan de sièges interactif avec couleurs par destination",
+            "Suggestions intelligentes pour optimiser le remplissage",
+            "Ventes simultanées depuis les gares intermédiaires",
+            "QR code sur chaque billet pour un contrôle anti-fraude"
+          ]
+        },
+        {
+          "tag": "En exploitation",
+          "title": "Suivez vos départs en temps réel",
+          "points": [
+            "Statuts des voyages : à l’heure, embarquement, parti, retardé",
+            "Alertes et actions de validation centralisées",
+            "Position et rapports des équipages depuis l’application mobile",
+            "Tour de contrôle multi-gares pour les superviseurs"
+          ]
+        },
+        {
+          "tag": "En gare",
+          "title": "Un tableau des départs pour vos voyageurs",
+          "points": [
+            "Affichage grand écran des départs : heure, code voyage, destination, véhicule",
+            "Places libres et statuts mis à jour en temps réel",
+            "Mode plein écran pour les écrans publics d’information voyageurs",
+            "Code couleur clair : à l’heure, embarquement, parti, retardé, annulé"
+          ]
+        },
+        {
+          "tag": "Au siège",
+          "title": "Pilotez avec des chiffres fiables",
+          "points": [
+            "Rapports de vente par période, vendeur et voyage",
+            "Exports reproductibles pour la comptabilité",
+            "Tableau de bord direction : revenus, occupation, trajets",
+            "Fidélisation OKOHI : points et récompenses automatiques"
+          ]
+        }
+      ]
+    },
+    "connections": {
+      "eyebrow": "Voyages combinés",
+      "title": "Un billet, plusieurs véhicules",
+      "text": "Vendez un trajet complet avec changement de véhicule à une gare intermédiaire : le passager est suivi jusqu’à sa correspondance, sans double vente ni conflit de siège.",
+      "cards": [
+        {
+          "title": "Bassin de transit centralisé",
+          "desc": "Voyageurs attendus par gare, statut et destination finale visibles en un coup d’œil."
+        },
+        {
+          "title": "Zéro conflit de siège",
+          "desc": "Disponibilités vérifiées par segment : pas de double occupation sur la reprise."
+        },
+        {
+          "title": "Affectation intelligente",
+          "desc": "Meilleur siège disponible attribué automatiquement, ou mode manuel si besoin."
+        },
+        {
+          "title": "Présence confirmée",
+          "desc": "L’agent de transit marque le passager prêt avant son placement sur le voyage de reprise."
+        }
+      ],
+      "passenger_title": "Parcours passager",
+      "passenger_route": "Abidjan → Bouaké → Korhogo",
+      "one_ticket": "1 billet",
+      "steps": [
+        {
+          "title": "Vente du trajet complet",
+          "desc": "Destination finale et gare de transfert enregistrées."
+        },
+        {
+          "title": "Transit confirmé à Bouaké",
+          "desc": "Le passager est prêt pour sa correspondance."
+        },
+        {
+          "title": "Place affectée pour Korhogo",
+          "desc": "Le manifeste du second véhicule est mis à jour."
+        }
+      ]
+    },
+    "control": {
+      "eyebrow": "Application équipage",
+      "title": "Tiketi Control sécurise chaque embarquement",
+      "text": "Donnez aux contrôleurs, chauffeurs et superviseurs les outils utiles sur le terrain. Rapide, lisible, et opérationnel même lorsque le réseau devient instable.",
+      "app_title": "Tiketi Control",
+      "app_subtitle": "Contrôle billet",
+      "online": "EN LIGNE",
+      "valid_title": "Billet valide",
+      "valid_seat": "Siège 18 · Abidjan → Bouaké",
+      "cards": [
+        {
+          "title": "Scan & anti-fraude",
+          "desc": "Validez le QR code, le voyage, le siège et l’état du billet en quelques secondes."
+        },
+        {
+          "title": "Manifeste en direct",
+          "desc": "Consultez les passagers, les correspondances et confirmez chaque embarquement."
+        },
+        {
+          "title": "Continuité hors ligne",
+          "desc": "Travaillez sur un cache fiable ; les actions sont rapprochées au retour du réseau."
+        },
+        {
+          "title": "Vue terrain complète",
+          "desc": "Voyages du jour, plan de salle, messages d’équipe et suivi des incidents au même endroit."
+        }
+      ]
+    },
+    "roles": {
+      "eyebrow": "Une solution pour chaque acteur",
+      "title": "Vos équipes, chacun à sa place",
+      "subtitle": "Chaque profil voit uniquement les écrans utiles à sa mission : vente, contrôle, comptabilité ou pilotage.",
+      "items": [
+        {
+          "name": "Vendeur",
+          "desc": "Vente rapide et impression au guichet"
+        },
+        {
+          "name": "Superviseur",
+          "desc": "Contrôle des départs et des ventes"
+        },
+        {
+          "name": "Comptable",
+          "desc": "Rapports et rapprochement des recettes"
+        },
+        {
+          "name": "Direction",
+          "desc": "Indicateurs stratégiques"
+        }
+      ]
+    },
+    "loyalty": {
+      "title": "Fidélisez vos voyageurs avec OKOHI",
+      "text": "Intégration native avec l’écosystème OKOHI : le QR code imprimé sur chaque billet transforme chaque voyage en opportunité de fidélisation, 100 % numérique et sans friction au guichet.",
+      "items": [
+        {
+          "title": "QR Code Intelligent",
+          "desc": "Un scan rapide à chaque voyage pour cumuler des points ou des visites instantanément."
+        },
+        {
+          "title": "Récompenses automatiques",
+          "desc": "Billets offerts, réductions en pourcentage ou montant fixe : configurez votre catalogue de récompenses, OKOHI applique."
+        },
+        {
+          "title": "Analyse de rétention",
+          "desc": "Identifiez vos clients les plus réguliers, suivez les transactions et adaptez vos offres commerciales."
+        }
+      ],
+      "play_badge": "Disponible sur",
+      "play_store": "Google Play",
+      "synced": "Synchronisé OKOHI"
+    },
+    "why": {
+      "eyebrow": "Pourquoi TIKETI ?",
+      "title": "Maximisez vos profits, modernisez votre image",
+      "items": [
+        {
+          "title": "Temps réel absolu",
+          "desc": "Fini les doubles ventes : quand un ticket est vendu à la gare A, la place est instantanément bloquée pour la gare B."
+        },
+        {
+          "title": "Optimisation des revenus",
+          "desc": "Grâce aux tronçons intelligents, une place libérée devient immédiatement revendable pour la suite du trajet."
+        },
+        {
+          "title": "Contrôle total",
+          "desc": "Suivez chaque centime : rapports financiers détaillés et audits de caisse, vous avez l’œil sur tout."
+        }
+      ]
+    },
+    "faq": {
+      "eyebrow": "Questions fréquentes",
+      "title": "Avant de nous contacter",
+      "items": [
+        {
+          "q": "Faut-il installer un logiciel sur chaque guichet ?",
+          "a": "Non. TIKETI fonctionne dans le navigateur : un poste avec Internet suffit. Les données sont centralisées et accessibles selon les droits de chaque utilisateur."
+        },
+        {
+          "q": "L’impression des billets nécessite-t-elle un équipement spécifique ?",
+          "a": "Une imprimante thermique compatible Bluetooth suffit. TIKETI imprime le billet avec QR code, et bascule automatiquement sur l’impression navigateur en secours."
+        },
+        {
+          "q": "Chaque compagnie a-t-elle un espace séparé ?",
+          "a": "Oui. Chaque compagnie dispose d’un espace isolé avec ses propres données : gares, véhicules, utilisateurs et billets."
+        },
+        {
+          "q": "Peut-on vendre un trajet avec changement de véhicule ?",
+          "a": "Oui. Les correspondances permettent un billet unique pour un trajet combiné, avec suivi du passager à la gare de transit et affectation automatique de la place."
+        }
+      ]
+    },
+    "contact": {
+      "title": "Prêt à moderniser votre billetterie ?",
+      "text": "Laissez-nous un message : notre équipe vous recontacte pour une démonstration adaptée à votre réseau.",
+      "company": "Nom de l’entreprise",
+      "company_ph": "Ex : UTB Transports",
+      "email": "Email professionnel",
+      "email_ph": "vous{'@'}entreprise.ci",
+      "phone": "Téléphone",
+      "phone_ph": "+225 00 00 00 00 00",
+      "message": "Votre besoin (facultatif)",
+      "message_ph": "Parlez-nous de votre réseau, vos gares, votre flotte…",
+      "coordinates": "Contactez-nous",
+      "email_label": "Email",
+      "email_value": "contact{'@'}anohou.dev",
+      "whatsapp_label": "WhatsApp",
+      "whatsapp_value": "+225 07 19 160 119",
+      "cta_whatsapp": "Demander une démo via WhatsApp",
+      "cta_doc": "Consulter la documentation",
+      "mail_subject": "Contact from TIKETI",
+      "wa_message": "Bonjour TIKETI, je souhaite une démonstration.",
+      "send": "Envoyer le message",
+      "success": "Message envoyé, merci ! Nous vous recontactons rapidement.",
+      "error": "L'envoi a échoué. Réessayez ou écrivez-nous directement à contact{'@'}anohou.dev."
+    },
+    "footer": {
+      "tagline": "Plateforme de billetterie et de gestion de transport",
+      "features": "Fonctionnalités",
+      "doc": "Documentation",
+      "contact": "Contact",
+      "rights": "Tous droits réservés"
+    }
+  }
+}

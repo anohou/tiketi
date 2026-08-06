@@ -1,8 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useForm, Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
+import FormPanel from '@/Components/FormPanel.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
 import CloudUpload from 'vue-material-design-icons/CloudUpload.vue';
@@ -12,6 +14,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { FULL_PERMISSIONS } from '@/Support/permissions.js';
+
+const { t } = useI18n();
 
 const props = defineProps({
   tenant: Object,
@@ -160,10 +164,8 @@ const submit = () => {
           <h1 class="text-3xl font-black text-gray-900 dark:text-slate-100 flex items-center gap-3">
             <div class="p-2 bg-green-100 dark:bg-emerald-950/40 rounded-xl">
               <OfficeBuilding class="text-green-600 dark:text-emerald-450" :size="28" />
-            </div>
-            Informations Entreprise
-          </h1>
-          <p class="text-gray-500 dark:text-slate-450 mt-1">Personnalisez l'identité de votre compagnie de transport sur la plateforme.</p>
+            </div>{{ $t('admin_settings.enterprise.title') }}</h1>
+          <p class="text-gray-500 dark:text-slate-450 mt-1">{{ $t('admin_settings.enterprise.subtitle') }}</p>
         </div>
         <div class="flex gap-2">
           <Link
@@ -182,7 +184,7 @@ const submit = () => {
 
         <div class="col-span-12 md:col-span-4 flex flex-col h-full min-h-0">
           <div class="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 shadow-sm p-6 h-full flex flex-col">
-            <h3 class="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">Logo de l'entreprise</h3>
+            <h3 class="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4">{{ $t('admin_settings.enterprise.logo_section_title') }}</h3>
             <div class="flex-1 flex flex-col items-center justify-center">
                 <div class="relative group">
                   <div class="w-40 h-40 bg-gray-50 dark:bg-slate-950 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800 flex items-center justify-center overflow-hidden transition-all group-hover:border-green-300 dark:group-hover:border-emerald-800">
@@ -202,17 +204,13 @@ const submit = () => {
                   <div class="flex items-start gap-3">
                     <CloudUpload class="text-green-600 dark:text-emerald-450 shrink-0 mt-0.5" :size="20" />
                     <div>
-                      <p class="text-sm font-bold text-gray-900 dark:text-slate-100">Logo et identité visuelle</p>
-                      <p v-if="!isReadOnly" class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Cliquez sur la zone pour remplacer le logo de l'entreprise. Le rendu est utilisé dans l'ensemble de l'application.
-                      </p>
-                      <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Logo actuel de l'entreprise utilisé dans l'ensemble de l'application.
-                      </p>
+                      <p class="text-sm font-bold text-gray-900 dark:text-slate-100">{{ $t('admin_settings.enterprise.logo_identity_title') }}</p>
+                      <p v-if="!isReadOnly" class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">{{ $t('admin_settings.enterprise.logo_editable_hint') }}</p>
+                      <p v-else class="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">{{ $t('admin_settings.enterprise.logo_readonly_hint') }}</p>
                     </div>
                   </div>
                   <div v-if="!isReadOnly" class="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2">
-                    <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-slate-450">Fichier sélectionné</p>
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-slate-450">{{ $t('admin_settings.enterprise.selected_file') }}</p>
                     <p class="mt-1 text-sm text-gray-700 dark:text-slate-300 truncate">{{ logoName || 'Aucun fichier sélectionné' }}</p>
                   </div>
                   <p v-if="logoMessage" class="text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/40 rounded-lg px-3 py-2">
@@ -222,32 +220,29 @@ const submit = () => {
                 </div>
             </div>
 
-            <p class="text-xs text-gray-400 dark:text-slate-500 text-center mt-4 leading-relaxed">
-              Format recommandé: PNG ou SVG. Un logo carré ou horizontal fonctionne le mieux.
-            </p>
+            <p class="text-xs text-gray-400 dark:text-slate-500 text-center mt-4 leading-relaxed">{{ $t('admin_settings.enterprise.format_recommendation') }}</p>
           </div>
         </div>
 
-        <div class="col-span-12 md:col-span-6 h-full min-h-0 overflow-y-auto pr-2 custom-scrollbar">
-          <form
-            @submit.prevent="submit"
-            enctype="multipart/form-data"
-            class="min-h-full rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div class="flex items-start justify-between gap-4 mb-6">
-              <div>
-                <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-100">Paramètres de la compagnie</h2>
-                <p class="text-sm text-gray-500 dark:text-slate-450 mt-1">Mettre à jour le nom, les coordonnées et le logo.</p>
-              </div>
-              <div v-if="form.recentlySuccessful" class="hidden lg:flex items-center gap-2 text-green-600 dark:text-green-400 font-bold text-sm shrink-0">
-                <CheckCircle :size="20" />
-                Enregistré
-              </div>
-            </div>
+        <div class="col-span-12 md:col-span-6 h-full min-h-0">
+          <div class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 overflow-hidden h-full">
+            <FormPanel @submit="submit">
+              <template #header>
+                <div class="flex items-start justify-between gap-4 px-4 py-3">
+                  <div>
+                    <h2 class="text-2xl font-bold text-gray-800 dark:text-slate-100">{{ $t('admin_settings.enterprise.form_title') }}</h2>
+                    <p class="text-sm text-gray-500 dark:text-slate-450 mt-1">{{ $t('admin_settings.enterprise.form_subtitle') }}</p>
+                  </div>
+                  <div v-if="form.recentlySuccessful" class="hidden lg:flex items-center gap-2 text-green-600 dark:text-green-400 font-bold text-sm shrink-0">
+                    <CheckCircle :size="18" />{{ $t('admin_settings.enterprise.saved') }}
+                  </div>
+                </div>
+              </template>
 
+              <div class="p-6">
             <div class="grid grid-cols-1 gap-5">
               <div>
-                <InputLabel for="name" value="Nom de l'entreprise" />
+                <InputLabel for="name" :value="$t('admin_settings.enterprise.company_name')" />
                 <div v-if="isReadOnly" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ form.name || '—' }}</div>
                 <TextInput
                   v-else
@@ -256,13 +251,13 @@ const submit = () => {
                   class="mt-1 block w-full"
                   v-model="form.name"
                   required
-                  placeholder="Ex: Transport Express"
+                  :placeholder="$t('admin_settings.enterprise.company_name_placeholder')"
                 />
                 <InputError class="mt-2" :message="form.errors.name" />
               </div>
 
               <div>
-                <InputLabel for="email" value="Email de contact" />
+                <InputLabel for="email" :value="$t('admin_settings.enterprise.contact_email')" />
                 <div v-if="isReadOnly" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">{{ form.email || '—' }}</div>
                 <TextInput
                   v-else
@@ -270,7 +265,7 @@ const submit = () => {
                   type="email"
                   class="mt-1 block w-full"
                   v-model="form.email"
-                  placeholder="contact@entreprise.com"
+                  :placeholder="$t('admin_settings.enterprise.email_placeholder')"
                 />
                 <InputError class="mt-2" :message="form.errors.email" />
               </div>
@@ -284,7 +279,7 @@ const submit = () => {
                   type="text"
                   class="mt-1 block w-full"
                   v-model="form.phone"
-                  placeholder="+225 ..."
+                  :placeholder="$t('admin_settings.enterprise.phone_placeholder')"
                 />
                 <InputError class="mt-2" :message="form.errors.phone" />
               </div>
@@ -293,12 +288,12 @@ const submit = () => {
                 <label class="flex items-start gap-3 cursor-pointer">
                   <input v-model="form.automatic_connection_allocation" type="checkbox" class="mt-1 rounded border-emerald-300 text-emerald-600" />
                   <span>
-                    <span class="block text-sm font-bold text-emerald-900 dark:text-emerald-200">Allocation automatique des correspondances</span>
+                    <span class="block text-sm font-bold text-emerald-900 dark:text-emerald-200">{{ $t('admin_settings.enterprise.automatic_connection_allocation') }}</span>
                     <span class="block text-xs text-emerald-700 dark:text-emerald-400">Politique par défaut de la compagnie. Chaque trajet peut hériter, l’activer ou la désactiver.</span>
                   </span>
                 </label>
                 <div class="mt-3">
-                  <InputLabel for="connection_buffer" value="Marge minimale de correspondance (minutes)" />
+                  <InputLabel for="connection_buffer" :value="$t('admin_settings.enterprise.connection_buffer')" />
                   <TextInput id="connection_buffer" v-model.number="form.connection_transfer_buffer_minutes" type="number" min="0" max="240" class="mt-1 block w-full" />
                   <InputError class="mt-2" :message="form.errors.connection_transfer_buffer_minutes" />
                 </div>
@@ -310,10 +305,10 @@ const submit = () => {
                 </div>
                 <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <InputLabel for="operational_day_start_hour" value="Début de la journée opérationnelle" />
+                    <InputLabel for="operational_day_start_hour" :value="$t('admin_settings.enterprise.operational_day_start')" />
                     <div class="relative mt-1">
                       <TextInput id="operational_day_start_hour" v-model.number="form.operational_day_start_hour" type="number" min="0" max="23" class="block w-full pr-16" />
-                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">heure</span>
+                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{{ $t('admin_settings.enterprise.hour_unit') }}</span>
                     </div>
                     <InputError class="mt-2" :message="form.errors.operational_day_start_hour" />
                   </div>
@@ -321,7 +316,7 @@ const submit = () => {
                     <InputLabel for="scheduled_trip_lookahead_hours" value="Voyages visibles à l’avance" />
                     <div class="relative mt-1">
                       <TextInput id="scheduled_trip_lookahead_hours" v-model.number="form.scheduled_trip_lookahead_hours" type="number" min="1" max="168" class="block w-full pr-16" />
-                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">heures</span>
+                      <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{{ $t('admin_settings.enterprise.hours_unit') }}</span>
                     </div>
                     <InputError class="mt-2" :message="form.errors.scheduled_trip_lookahead_hours" />
                   </div>
@@ -331,22 +326,25 @@ const submit = () => {
               <div v-if="!isReadOnly" class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
                 <label class="flex items-start gap-3 cursor-pointer">
                   <input v-model="form.seller_compensation_enabled" type="checkbox" class="mt-1 rounded border-violet-300 text-violet-600" />
-                  <span><span class="block text-sm font-bold text-violet-900 dark:text-violet-200">Autoriser les compensations par les vendeurs</span><span class="block text-xs text-violet-700 dark:text-violet-400">Sinon, toute demande sera transmise à un superviseur.</span></span>
+                  <span><span class="block text-sm font-bold text-violet-900 dark:text-violet-200">{{ $t('admin_settings.enterprise.seller_compensation') }}</span><span class="block text-xs text-violet-700 dark:text-violet-400">{{ $t('admin_settings.enterprise.seller_compensation_hint') }}</span></span>
                 </label>
-                <div class="mt-3"><InputLabel for="compensation_limit" value="Plafond vendeur (FCFA, 0 = sans plafond)" /><TextInput id="compensation_limit" v-model.number="form.seller_compensation_max_amount" type="number" min="0" class="mt-1 block w-full" /></div>
+                <div class="mt-3"><InputLabel for="compensation_limit" :value="$t('admin_settings.enterprise.seller_compensation_limit')" /><TextInput id="compensation_limit" v-model.number="form.seller_compensation_max_amount" type="number" min="0" class="mt-1 block w-full" /></div>
               </div>
             </div>
+              </div>
 
-            <div v-if="!isReadOnly" class="mt-6 flex items-center justify-end border-t border-gray-100 pt-6 dark:border-slate-800">
+              <template v-if="!isReadOnly" #actions>
+                <div class="flex items-center justify-end">
               <PrimaryButton
+                type="submit"
                 :class="{ 'opacity-25': form.processing }"
                 :disabled="form.processing"
                 class="bg-green-600 dark:bg-emerald-600 hover:bg-green-700 dark:hover:bg-emerald-700 shadow-lg shadow-green-600/20 dark:shadow-emerald-950/20 px-8 py-3 rounded-xl"
-              >
-                Enregistrer les modifications
-              </PrimaryButton>
-            </div>
-          </form>
+              >{{ $t('admin_settings.enterprise.save_changes') }}</PrimaryButton>
+                </div>
+              </template>
+            </FormPanel>
+          </div>
         </div>
       </div>
     </div>

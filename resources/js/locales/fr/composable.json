@@ -1,0 +1,42 @@
+{
+  "composable": {
+    "export": {
+      "no_data_to_export": "Aucune donnée à exporter",
+      "no_data_to_print": "Aucune donnée à imprimer",
+      "yes": "Oui",
+      "no": "Non",
+      "list": "Liste",
+      "printed_on": "Imprimé le {date}",
+      "total": "Total : {count} élément • Système de Transport | Total : {count} éléments • Système de Transport"
+    },
+    "trip_creation": {
+      "station_fallback": "Gare",
+      "route_fallback": "Ligne"
+    },
+    "ticketing": {
+      "bluetooth_unavailable": "Imprimante Bluetooth indisponible",
+      "ticket_printed_success": "Ticket imprimé avec succès.",
+      "bluetooth_print_failed": "Échec de l’impression Bluetooth",
+      "browser_blocked_print": "Le navigateur a bloqué la fenêtre d’impression",
+      "printer_connected": "Imprimante connectée : {name}",
+      "printer_connection_failed": "Échec de la connexion à l'imprimante Bluetooth. Veuillez réessayer.",
+      "allow_popups": "Veuillez autoriser les popups pour imprimer le ticket.",
+      "okohi_approved_cash": "🎁 Privilège Okohi validé pour le Siège {seat} ! Encaisser le montant restant.",
+      "okohi_approved_cash_notification": "Siège {seat} - Privilège Okohi validé (À encaisser)",
+      "okohi_confirmed_ticket": "🎁 Privilège Okohi validé pour le Siège {seat} ! Billet émis avec succès.",
+      "okohi_ticket_issued_notification": "Siège {seat} - Billet Okohi émis",
+      "okohi_request_expired": "Demande Okohi expirée (Siège {seat}).",
+      "okohi_request_rejected": "Demande Okohi refusée (Siège {seat}).",
+      "seat_available_reason": "Place disponible à votre gare",
+      "seatmap_load_error": "Impossible de charger le plan de salle.",
+      "seat_selection_incomplete": "La sélection de sièges est incomplète.",
+      "only_seats_sellable": "Seulement {count} place est vendable depuis cette gare. | Seulement {count} places sont vendables depuis cette gare.",
+      "name_min_length": "Le nom doit contenir au moins 2 caractères",
+      "invalid_phone": "Numéro de téléphone invalide (9-15 chiffres)",
+      "ticket_creation_error": "Erreur lors de la création du ticket.",
+      "sale_registered": "Vente enregistrée. L’impression est suivie séparément.",
+      "okohi_payment_validated": "Paiement Okohi validé ! Impression du ticket...",
+      "inspection_reason_direct": "Inspection Directe"
+    }
+  }
+}

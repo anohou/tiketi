@@ -1,0 +1,44 @@
+{
+  "seller_settings": {
+    "title": "Settings",
+    "subtitle": "View your scope's information. Settings modification is restricted to administrators.",
+    "cards": {
+      "company": {
+        "title": "Company",
+        "description": "Company identity and contact info"
+      },
+      "loyalty": {
+        "title": "Loyalty — Okohi",
+        "description": "Earning rules and rewards catalog"
+      },
+      "stations": {
+        "title": "Stations / Destinations",
+        "description": "Your stations and served destinations"
+      },
+      "routes": {
+        "title": "Routes",
+        "description": "Connections available from your stations"
+      },
+      "vehicles": {
+        "title": "My Station Vehicles",
+        "description": "Vehicles from your station pools"
+      },
+      "team": {
+        "title": "My Station Team",
+        "description": "Your seller and supervisor colleagues"
+      },
+      "assignments": {
+        "title": "Counter Assignments",
+        "description": "Your station counters and assignments"
+      },
+      "trips": {
+        "title": "Trips",
+        "description": "Upcoming departures in your scope"
+      },
+      "profile": {
+        "title": "Profile and Procedures",
+        "description": "Your professional profile and sales guidelines"
+      }
+    }
+  }
+}

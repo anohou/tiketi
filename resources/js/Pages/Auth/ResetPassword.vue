@@ -33,20 +33,20 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Réinitialiser le mot de passe" />
+        <Head :title="$t('auth.reset_password.title')" />
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Nouveau mot de passe</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Choisissez un nouveau mot de passe</h1>
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">{{ $t('auth.badge.new_password') }}</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ $t('auth.reset_password.heading') }}</h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
-                    Saisissez vos nouveaux identifiants pour retrouver l’accès à votre espace.
+                    {{ $t('auth.reset_password.description') }}
                 </p>
             </div>
 
             <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="email" value="Adresse e-mail" />
+                    <InputLabel for="email" :value="$t('common.email')" />
 
                     <TextInput
                         id="email"
@@ -62,7 +62,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="password" value="Mot de passe" />
+                    <InputLabel for="password" :value="$t('auth.password')" />
 
                     <TextInput
                         id="password"
@@ -79,7 +79,7 @@ const submit = () => {
                 <div>
                     <InputLabel
                         for="password_confirmation"
-                        value="Confirmer le mot de passe"
+                        :value="$t('auth.confirm_password')"
                     />
 
                     <TextInput
@@ -103,7 +103,7 @@ const submit = () => {
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Réinitialiser
+                        {{ $t('auth.reset_password.submit') }}
                     </PrimaryButton>
                 </div>
             </form>

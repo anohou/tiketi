@@ -32,6 +32,7 @@ import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue'
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue'
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import ConfigAlertsSection from '@/Components/Settings/ConfigAlertsSection.vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
     links: Array,
@@ -41,7 +42,10 @@ const props = defineProps({
     configAlerts: Array,
 })
 
+const { t, locale } = useI18n()
 const { isDark } = useTheme()
+
+const currentLocale = computed(() => (locale.value === 'en' ? 'en-GB' : 'fr-FR'))
 
 const salesChartRef = ref(null)
 const routesChartRef = ref(null)
@@ -55,48 +59,48 @@ const formatCurrency = (amount) => {
     } else if (amount >= 1000) {
         return (amount / 1000).toFixed(0) + 'K'
     }
-    return new Intl.NumberFormat('fr-FR').format(amount)
+    return new Intl.NumberFormat(currentLocale.value).format(amount)
 }
 
 // Group links by category matching Settings/Index structure
 const configSections = computed(() => [
   {
-    category: 'Entreprise',
+    category: t('dashboards.admin.config_sections.company.label'),
     items: [
-      { name: 'Identité & Logo', routeName: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Nom, contact et visuel de la compagnie' },
-      { name: 'Fidélisation (Okohi)', routeName: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
-      { name: 'Paramètres Tickets', routeName: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
+      { name: t('dashboards.admin.config_sections.company.identity.label'), routeName: 'admin.settings.enterprise', icon: OfficeBuilding, description: t('dashboards.admin.config_sections.company.identity.description') },
+      { name: t('dashboards.admin.config_sections.company.loyalty.label'), routeName: 'admin.settings.loyalty', icon: GiftOutline, description: t('dashboards.admin.config_sections.company.loyalty.description') },
+      { name: t('dashboards.admin.config_sections.company.ticket_settings.label'), routeName: 'admin.ticket-settings.index', icon: Printer, description: t('dashboards.admin.config_sections.company.ticket_settings.description') },
     ]
   },
   {
-    category: 'Infrastructure',
+    category: t('dashboards.admin.config_sections.infrastructure.label'),
     items: [
-      { name: 'Villes / Destinations', routeName: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies', count: props.stats.totalDestinations },
-      { name: 'Gares', routeName: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ', count: props.stats.totalStations },
+      { name: t('dashboards.admin.config_sections.infrastructure.destinations.label'), routeName: 'admin.destinations.index', icon: MapMarkerRadius, description: t('dashboards.admin.config_sections.infrastructure.destinations.description'), count: props.stats.totalDestinations },
+      { name: t('dashboards.admin.config_sections.infrastructure.stations.label'), routeName: 'admin.stations.index', icon: OfficeBuilding, description: t('dashboards.admin.config_sections.infrastructure.stations.description'), count: props.stats.totalStations },
     ]
   },
   {
-    category: 'Flotte',
+    category: t('dashboards.admin.config_sections.fleet.label'),
     items: [
-      { name: 'Véhicules', routeName: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules', count: props.stats.totalVehicles },
-      { name: 'Types de Véhicules', routeName: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types', count: props.stats.totalVehicleTypes },
-      { name: 'Équipages', routeName: 'fleet.crew-members.index', icon: AccountHardHat, description: 'Gérer les chauffeurs et assistants' },
-      { name: 'Affectations Équipages', routeName: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: 'Affecter les équipages aux véhicules' },
+      { name: t('dashboards.admin.config_sections.fleet.vehicles.label'), routeName: 'admin.vehicles.index', icon: Bus, description: t('dashboards.admin.config_sections.fleet.vehicles.description'), count: props.stats.totalVehicles },
+      { name: t('dashboards.admin.config_sections.fleet.vehicle_types.label'), routeName: 'admin.vehicle-types.index', icon: Car, description: t('dashboards.admin.config_sections.fleet.vehicle_types.description'), count: props.stats.totalVehicleTypes },
+      { name: t('dashboards.admin.config_sections.fleet.crew.label'), routeName: 'fleet.crew-members.index', icon: AccountHardHat, description: t('dashboards.admin.config_sections.fleet.crew.description') },
+      { name: t('dashboards.admin.config_sections.fleet.crew_assignments.label'), routeName: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: t('dashboards.admin.config_sections.fleet.crew_assignments.description') },
     ]
   },
   {
-    category: 'Opérations',
+    category: t('dashboards.admin.config_sections.operations.label'),
     items: [
-      { name: 'Trajets', routeName: 'admin.routes.index', icon: RouterIcon, description: 'Configurer les itinéraires', count: props.stats.totalRoutes },
-      { name: 'Voyages', routeName: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages', count: props.stats.activeTrips },
-      { name: 'Tarifs', routeName: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix', count: props.stats.totalFares },
+      { name: t('dashboards.admin.config_sections.operations.routes.label'), routeName: 'admin.routes.index', icon: RouterIcon, description: t('dashboards.admin.config_sections.operations.routes.description'), count: props.stats.totalRoutes },
+      { name: t('dashboards.admin.config_sections.operations.trips.label'), routeName: 'admin.trips.index', icon: Calendar, description: t('dashboards.admin.config_sections.operations.trips.description'), count: props.stats.activeTrips },
+      { name: t('dashboards.admin.config_sections.operations.fares.label'), routeName: 'admin.route-fares.index', icon: Cash, description: t('dashboards.admin.config_sections.operations.fares.description'), count: props.stats.totalFares },
     ]
   },
   {
-    category: 'Utilisateurs',
+    category: t('dashboards.admin.config_sections.users.label'),
     items: [
-      { name: 'Utilisateurs', routeName: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes', count: props.stats.totalUsers },
-      { name: 'Assignations', routeName: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares', count: props.stats.totalAssignments },
+      { name: t('dashboards.admin.config_sections.users.users.label'), routeName: 'admin.users.index', icon: AccountMultiple, description: t('dashboards.admin.config_sections.users.users.description'), count: props.stats.totalUsers },
+      { name: t('dashboards.admin.config_sections.users.assignments.label'), routeName: 'admin.assignments.index', icon: AccountGroup, description: t('dashboards.admin.config_sections.users.assignments.description'), count: props.stats.totalAssignments },
     ]
   }
 ])
@@ -115,7 +119,7 @@ const renderCharts = () => {
             data: {
                 labels: props.charts.salesTrend.map(item => item.date),
                 datasets: [{
-                    label: 'Ventes',
+                    label: t('dashboards.admin.chart_sales_label'),
                     data: props.charts.salesTrend.map(item => item.count),
                     borderColor: '#10b981',
                     backgroundColor: isDark.value ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.12)',
@@ -193,7 +197,7 @@ watch(isDark, () => {
 </script>
 
 <template>
-  <Head title="Administration" />
+  <Head :title="$t('dashboards.admin.title')" />
   
   <MainNavLayout>
     <div class="max-w-7xl mx-auto space-y-6 pb-10">
@@ -204,9 +208,9 @@ watch(isDark, () => {
             <div class="p-2 bg-emerald-100 dark:bg-emerald-950/50 rounded-2xl">
               <Settings class="text-emerald-600 dark:text-emerald-400" :size="28" />
             </div>
-            Administration
+            {{ $t('dashboards.admin.title') }}
           </h1>
-          <p class="text-slate-500 dark:text-slate-400 mt-1">Vue d'ensemble et configuration du système</p>
+          <p class="text-slate-500 dark:text-slate-400 mt-1">{{ $t('dashboards.admin.subtitle') }}</p>
         </div>
         
         <!-- System Health Badge -->
@@ -220,7 +224,7 @@ watch(isDark, () => {
             ]"
           >
             <Database :size="18" />
-            <span>Base de données</span>
+            <span>{{ $t('dashboards.admin.database') }}</span>
             <CheckCircle v-if="systemHealth.database.status === 'healthy'" :size="16" />
             <AlertCircle v-else :size="16" />
             <span class="text-xs opacity-75" v-if="systemHealth.database.latency">
@@ -252,7 +256,7 @@ watch(isDark, () => {
             </div>
           </div>
           <div class="text-3xl font-black">{{ formatCurrency(stats.todayRevenue) }}</div>
-          <div class="text-sm text-emerald-100 mt-1">Recettes aujourd'hui</div>
+          <div class="text-sm text-emerald-100 mt-1">{{ $t('dashboards.admin.revenue_today') }}</div>
         </div>
 
         <!-- Tickets -->
@@ -270,7 +274,7 @@ watch(isDark, () => {
             </div>
           </div>
           <div class="text-3xl font-black">{{ stats.todaySales }}</div>
-          <div class="text-sm text-slate-200 mt-1">Billets vendus aujourd'hui</div>
+          <div class="text-sm text-slate-200 mt-1">{{ $t('dashboards.admin.tickets_sold_today') }}</div>
         </div>
 
         <!-- Active Trips -->
@@ -281,7 +285,7 @@ watch(isDark, () => {
             </div>
           </div>
           <div class="text-3xl font-black">{{ stats.activeTrips }}</div>
-          <div class="text-sm text-emerald-100 mt-1">Voyages actifs</div>
+          <div class="text-sm text-emerald-100 mt-1">{{ $t('dashboards.admin.active_trips') }}</div>
         </div>
 
         <!-- Users -->
@@ -292,31 +296,31 @@ watch(isDark, () => {
             </div>
           </div>
           <div class="text-3xl font-black">{{ stats.totalUsers }}</div>
-          <div class="text-sm text-slate-200 mt-1">Utilisateurs ({{ stats.activeUsers }} actifs)</div>
+          <div class="text-sm text-slate-200 mt-1">{{ $t('dashboards.admin.users_active', { count: stats.activeUsers }) }}</div>
         </div>
       </div>
 
       <!-- System Health Cards -->
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Départs en attente</div>
+          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{{ $t('dashboards.admin.pending_departures') }}</div>
           <div class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ systemHealth.pending_departures }}</div>
-          <div class="text-xs text-slate-500 dark:text-slate-400">< 2 heures</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400">{{ $t('dashboards.admin.less_than_2_hours') }}</div>
         </div>
         <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Voyages du jour</div>
+          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{{ $t('dashboards.admin.trips_today') }}</div>
           <div class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ systemHealth.trips_today }}</div>
         </div>
         <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Véhicules Actifs</div>
+          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{{ $t('dashboards.admin.active_vehicles') }}</div>
           <div class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ stats.activeVehicles }}/{{ stats.totalVehicles }}</div>
         </div>
         <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Gares Actives</div>
+          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{{ $t('dashboards.admin.active_stations') }}</div>
           <div class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ systemHealth.stations_active }}/{{ stats.totalStations }}</div>
         </div>
         <div class="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Trajets</div>
+          <div class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">{{ $t('dashboards.admin.routes_total') }}</div>
           <div class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ stats.totalRoutes }}</div>
         </div>
       </div>
@@ -327,7 +331,7 @@ watch(isDark, () => {
         <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
           <h3 class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
             <ChartLine :size="20" class="text-slate-500 dark:text-slate-400" />
-            Tendance des Ventes (7 jours)
+            {{ $t('dashboards.admin.sales_trend_7d') }}
           </h3>
           <div class="h-[250px]">
             <canvas ref="salesChartRef"></canvas>
@@ -338,7 +342,7 @@ watch(isDark, () => {
         <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
           <h3 class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
             <Routes :size="20" class="text-slate-500 dark:text-slate-400" />
-            Trajets Populaires
+            {{ $t('dashboards.admin.popular_routes') }}
           </h3>
           <div class="h-[250px]">
             <canvas ref="routesChartRef"></canvas>
@@ -350,32 +354,32 @@ watch(isDark, () => {
       <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
         <h3 class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 mb-4">
           <Account :size="20" class="text-slate-500 dark:text-slate-400" />
-          Utilisateurs par Rôle
+          {{ $t('dashboards.admin.users_by_role') }}
         </h3>
         <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div class="text-center p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl">
             <div class="text-3xl font-black text-slate-900 dark:text-slate-100">{{ stats.admins }}</div>
-            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Admins</div>
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">{{ $t('dashboards.admin.role_admins') }}</div>
           </div>
           <div class="text-center p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl">
             <div class="text-3xl font-black text-slate-700 dark:text-slate-300">{{ stats.supervisors }}</div>
-            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Superviseurs</div>
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">{{ $t('dashboards.admin.role_supervisors') }}</div>
           </div>
           <div class="text-center p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-2xl">
             <div class="text-3xl font-black text-emerald-600 dark:text-emerald-400">{{ stats.sellers }}</div>
-            <div class="text-xs font-bold text-emerald-500 dark:text-emerald-300 uppercase mt-1">Vendeurs</div>
+            <div class="text-xs font-bold text-emerald-500 dark:text-emerald-300 uppercase mt-1">{{ $t('dashboards.admin.role_sellers') }}</div>
           </div>
           <div class="text-center p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl">
             <div class="text-3xl font-black text-slate-700 dark:text-slate-300">{{ stats.accountants }}</div>
-            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Comptables</div>
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">{{ $t('dashboards.admin.role_accountants') }}</div>
           </div>
           <div class="text-center p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl">
             <div class="text-3xl font-black text-slate-700 dark:text-slate-300">{{ stats.executives }}</div>
-            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Exécutifs</div>
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">{{ $t('dashboards.admin.role_executives') }}</div>
           </div>
           <div class="text-center p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl">
             <div class="text-3xl font-black text-slate-700 dark:text-slate-300">{{ stats.fleetManagers }}</div>
-            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">Gestionnaires de flotte</div>
+            <div class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mt-1">{{ $t('dashboards.admin.role_fleet_managers') }}</div>
           </div>
         </div>
       </div>
@@ -385,9 +389,9 @@ watch(isDark, () => {
         <div class="mb-6">
           <h3 class="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Settings :size="22" class="text-slate-500 dark:text-slate-400" />
-            Configuration du Système
+            {{ $t('dashboards.admin.system_configuration') }}
           </h3>
-          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Gérez tous les paramètres de votre système de transport</p>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ $t('dashboards.admin.system_configuration_desc') }}</p>
         </div>
         
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -431,19 +435,19 @@ watch(isDark, () => {
       <!-- Monthly Summary -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl p-6 text-white">
-          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Total Ventes (Historique)</div>
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">{{ $t('dashboards.admin.total_sales_history') }}</div>
           <div class="text-3xl font-black">{{ formatCurrency(stats.totalSales) }}</div>
-          <div class="text-sm text-slate-400 mt-1">billets vendus</div>
+          <div class="text-sm text-slate-400 mt-1">{{ $t('dashboards.admin.tickets_sold_label') }}</div>
         </div>
         <div class="bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl p-6 text-white">
-          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Total Revenus (Historique)</div>
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">{{ $t('dashboards.admin.total_revenue_history') }}</div>
           <div class="text-3xl font-black">{{ formatCurrency(stats.totalRevenue) }}</div>
           <div class="text-sm text-slate-400 mt-1">FCFA</div>
         </div>
         <div class="bg-gradient-to-br from-slate-800 to-slate-950 rounded-3xl p-6 text-white">
-          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Ce Mois</div>
+          <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">{{ $t('dashboards.admin.this_month') }}</div>
           <div class="text-3xl font-black">{{ formatCurrency(stats.monthlyRevenue) }}</div>
-          <div class="text-sm text-slate-400 mt-1">FCFA ({{ stats.monthlySales }} billets)</div>
+          <div class="text-sm text-slate-400 mt-1">{{ $t('dashboards.admin.this_month_breakdown', { count: stats.monthlySales }) }}</div>
         </div>
       </div>
     </div>

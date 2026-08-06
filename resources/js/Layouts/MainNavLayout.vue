@@ -17,8 +17,8 @@
             <Link :href="route('dashboard')" :class="['flex items-center gap-2 pr-4 lg:border-r h-full py-2', isLandlord ? 'border-slate-800' : 'border-slate-200 dark:border-slate-800']">
               <img :src="$page.props.tenant?.logo_url || (isDark ? '/images/logo-white.png' : '/images/logo.png')" alt="TIKÊTI Logo" class="h-10 w-auto object-contain" />
               <div v-if="isLandlord" class="hidden sm:flex flex-col ml-1">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">Portail</span>
-                <span class="text-xs font-black text-white uppercase tracking-wider leading-none">Central</span>
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">{{ t('layout.portal') }}</span>
+                <span class="text-xs font-black text-white uppercase tracking-wider leading-none">{{ t('layout.central') }}</span>
               </div>
               <div v-else-if="$page.props.tenant" class="hidden sm:flex flex-col ml-1">
                 <span class="text-xs font-black text-emerald-700 uppercase tracking-wider leading-none">{{ $page.props.tenant.name }}</span>
@@ -52,12 +52,12 @@
           <!-- Right: Utilities & User Profile -->
           <div :class="['flex items-center gap-2 lg:gap-4 h-full lg:pl-4 lg:border-l', isLandlord ? 'border-slate-800' : 'border-slate-200 dark:border-slate-800']">
             <!-- Utility Area (Grouped) -->
-          <div :class="['flex items-center gap-2 pr-4 lg:border-r h-full', isLandlord ? 'border-slate-800' : 'border-slate-200 dark:border-slate-800']">
+            <div :class="['flex items-center gap-2 pr-4 lg:border-r h-full', isLandlord ? 'border-slate-800' : 'border-slate-200 dark:border-slate-800']">
                 <!-- Optional Header Actions Slot -->
                 <slot name="header-actions" />
 
                 <!-- Help Button (Desktop & Mobile) -->
-                <button @click="openHelp" class="p-2 border rounded-full text-slate-500 border-slate-300 hover:bg-slate-100 transition-all flex items-center justify-center cursor-help dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" title="Aide">
+                <button @click="openHelp" class="p-2 border rounded-full text-slate-500 border-slate-300 hover:bg-slate-100 transition-all flex items-center justify-center cursor-help dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" :title="t('layout.help')">
                    <HelpCircleOutline :size="20" />
                 </button>
             </div>
@@ -88,7 +88,7 @@
 
                 <!-- Assigned Stations (for sellers) -->
                 <div v-if="user.role === 'seller' && assignedStations.length > 0" class="px-2 py-2 border-b border-slate-100 mb-1 dark:border-slate-800">
-                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 px-2 dark:text-slate-500">Stations assignées</div>
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 px-2 dark:text-slate-500">{{ t('layout.assigned_stations') }}</div>
                   <div v-for="station in assignedStations" :key="station.id"
                        class="flex items-center gap-2 px-2 py-1.5 rounded-lg border mb-1"
                        :style="getStationBadgeStyle(station)">
@@ -99,7 +99,7 @@
                 <div v-else-if="user.role === 'seller'" class="px-2 py-2 border-b border-slate-100 mb-1 dark:border-slate-800">
                   <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-50 rounded-lg border border-slate-100 dark:border-slate-800 dark:bg-slate-800">
                     <OfficeBuilding :size="14" class="text-slate-500 dark:text-slate-400" />
-                    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">Aucune station assignée</span>
+                    <span class="text-xs font-medium text-slate-600 dark:text-slate-300">{{ t('layout.no_assigned_station') }}</span>
                   </div>
                 </div>
 
@@ -118,14 +118,27 @@
                     </svg>
                   </div>
                   <span class="text-slate-700 font-bold text-sm dark:text-slate-100">
-                    {{ isDark ? 'Mode Clair' : 'Mode Sombre' }}
+                    {{ isDark ? t('layout.light_mode') : t('layout.dark_mode') }}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  @click="toggleLocale(); showMenu = false"
+                  class="w-full flex items-center gap-3 hover:bg-emerald-50 p-3 rounded-xl transition-colors dark:hover:bg-slate-800 text-left"
+                >
+                  <div class="text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <SwapHorizontal :size="22" />
+                  </div>
+                  <span class="text-slate-700 font-bold text-sm dark:text-slate-100 uppercase tracking-wider">
+                    {{ currentLocale === 'fr' ? t('common.english') : t('common.french') }}
                   </span>
                 </button>
 
                 <Link :href="route('profile.edit')" @click="showMenu = false">
                 <div class="flex items-center gap-3 hover:bg-emerald-50 p-3 rounded-xl transition-colors dark:hover:bg-slate-800">
                   <AccountCircle :size="22" class="text-emerald-600 dark:text-emerald-400" />
-                  <span class="text-slate-700 font-bold text-sm dark:text-slate-100">Mon Profil</span>
+                  <span class="text-slate-700 font-bold text-sm dark:text-slate-100">{{ t('layout.my_profile') }}</span>
                 </div>
                 </Link>
 
@@ -134,7 +147,7 @@
                 <Link class="w-full" :href="route('logout')" as="button" method="post" @click="showMenu = false">
                 <div class="flex items-center gap-3 hover:bg-rose-50 p-3 rounded-xl transition-colors text-rose-600 dark:hover:bg-rose-500/10">
                   <Logout :size="22" />
-                  <span class="font-bold text-sm">Déconnexion</span>
+                  <span class="font-bold text-sm">{{ t('layout.logout') }}</span>
                 </div>
                 </Link>
               </div>
@@ -185,7 +198,7 @@
                       </Link>
 
                       <div class="pt-6 mt-6 border-t border-slate-100 space-y-4 dark:border-slate-800">
-                          <div class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest dark:text-slate-500">Utilitaires</div>
+                          <div class="px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest dark:text-slate-500">{{ t('layout.utilities') }}</div>
  
                           <button @click="toggleTheme" class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 text-left">
                               <div class="text-[#64748b] dark:text-slate-350 flex items-center justify-center">
@@ -197,12 +210,12 @@
                                     <path d="M21 12.4A8.5 8.5 0 1 1 11.6 3 7 7 0 0 0 21 12.4Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
                                 </svg>
                               </div>
-                              <span class="text-sm font-bold uppercase tracking-wider">{{ isDark ? 'Mode Clair' : 'Mode Sombre' }}</span>
+                              <span class="text-sm font-bold uppercase tracking-wider">{{ isDark ? t('layout.light_mode') : t('layout.dark_mode') }}</span>
                           </button>
 
                           <button @click="openHelp" class="w-full flex items-center gap-4 p-3.5 rounded-2xl text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800 text-left">
                               <HelpCircleOutline :size="24" fillColor="#64748b" />
-                              <span class="text-sm font-bold uppercase tracking-wider">Aide</span>
+                              <span class="text-sm font-bold uppercase tracking-wider">{{ t('layout.help') }}</span>
                           </button>
                       </div>
                   </div>
@@ -221,7 +234,7 @@
         <TripSidebar />
       </aside>
 
-      <HelpPanel :show="isHelpOpen" :topic="currentHelpTopic" @close="isHelpOpen = false" />
+      <HelpPanel :show="isHelpOpen" :topic="currentHelpTopic" :role="user.role" @close="isHelpOpen = false" />
 
       <!-- Mobile Trip Sidebar Overlay -->
       <div v-if="isSidebarOpen" class="xl:hidden fixed inset-0 z-[100]" @click="isSidebarOpen = false">
@@ -249,8 +262,10 @@
 </template>
 
 <script setup>
-import { Link, usePage } from '@inertiajs/vue3';
+import { Link, usePage, router } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { setLocale } from '@/i18n.js';
 
 import TripSidebar from '@/Components/TripSidebar.vue';
 import HelpPanel from '@/Components/HelpPanel.vue';
@@ -304,6 +319,19 @@ const { isDark, toggleTheme } = useTheme();
 
 const page = usePage();
 const user = page.props.auth.user || {};
+
+const { t } = useI18n();
+const currentLocale = computed(() => page.props.locale || 'fr');
+
+const toggleLocale = () => {
+    const nextLocale = currentLocale.value === 'fr' ? 'en' : 'fr';
+    setLocale(nextLocale);
+    router.post(route('locale.update'), { locale: nextLocale }, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => setLocale(nextLocale),
+    });
+};
 
 const isLandlord = computed(() => ['superadmin', 'super_admin'].includes(user.role));
 
@@ -434,12 +462,12 @@ const navItems = computed(() => {
       if (user.role === 'seller') {
           baseItems.push({
               route: 'seller.dashboard',
-              label: 'Accueil',
+              label: t('nav.home'),
               icon: HomeOutline
           });
           baseItems.push({
               route: 'seller.ticketing',
-              label: 'Billetterie',
+              label: t('nav.ticketing'),
               icon: Ticket,
               activePrefixes: ['seller.ticketing', 'seller.tickets', 'seller.okohi', 'seller.trips']
           });
@@ -447,12 +475,12 @@ const navItems = computed(() => {
           // Supervisor: Dashboard (control tower) as home, Ticketing as secondary
           baseItems.push({
               route: 'supervisor.dashboard',
-              label: 'Accueil',
+              label: t('nav.home'),
               icon: HomeOutline
           });
           baseItems.push({
               route: 'supervisor.ticketing',
-              label: 'Billetterie',
+              label: t('nav.ticketing'),
               icon: Bus
           });
       }
@@ -460,39 +488,39 @@ const navItems = computed(() => {
       // Accountant navigation
       baseItems.push({
           route: 'accountant.reports',
-          label: 'Rapports',
+          label: t('nav.reports'),
           icon: FileDocument
       });
   } else if (user.role === 'executive') {
       // Executive navigation
       baseItems.push({
           route: 'executive.analytics',
-          label: 'Tableau de Bord',
+          label: t('nav.dashboard'),
           icon: ChartLine
       });
   } else if (user.role === 'fleet_manager') {
       baseItems.push({
           route: 'fleet.dashboard',
-          label: 'Accueil',
+          label: t('nav.home'),
           icon: HomeOutline
       });
       baseItems.push({
           route: 'fleet.vehicles.index',
-          label: 'Véhicules',
+          label: t('nav.vehicles'),
           icon: Bus
       });
   } else if (['superadmin', 'super_admin'].includes(user.role)) {
       // Landlord (Superadmin) navigation
       baseItems.push({
           route: 'landlord.tenants.index',
-          label: 'Accueil',
+          label: t('nav.home'),
           icon: HomeOutline
       });
   } else {
       // Admin - Statistiques/Dashboard as home
       baseItems.push({
         route: 'admin.dashboard',
-        label: 'Accueil',
+        label: t('nav.home'),
         icon: HomeOutline
       });
   }
@@ -501,7 +529,7 @@ const navItems = computed(() => {
   if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'seller.ticketing',
-      label: 'Billetterie',
+      label: t('nav.ticketing'),
       icon: Ticket
     });
   }
@@ -512,7 +540,7 @@ const navItems = computed(() => {
   if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'accountant.reports',
-      label: 'Comptabilité',
+      label: t('nav.accounting'),
       icon: FileDocument
     });
   }
@@ -521,7 +549,7 @@ const navItems = computed(() => {
   if (['admin'].includes(user.role)) {
     baseItems.push({
       route: 'executive.analytics',
-      label: 'Analytics',
+      label: t('nav.analytics'),
       icon: ChartLine
     });
   }
@@ -530,7 +558,7 @@ const navItems = computed(() => {
   if (!['superadmin', 'super_admin'].includes(user.role)) {
     baseItems.push({
       route: user.role === 'seller' ? 'seller.settings.index' : 'settings.index',
-      label: 'Paramétrage',
+      label: t('nav.settings'),
       icon: Settings,
       activePrefixes: user.role === 'seller' ? ['seller.settings'] : ['settings', 'admin.settings']
     });

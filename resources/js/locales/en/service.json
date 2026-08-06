@@ -1,0 +1,23 @@
+{
+  "service": {
+    "bluetooth": {
+      "unsupported": "Web Bluetooth is not supported by this browser",
+      "no_write_characteristic": "No writable characteristic found on this device",
+      "no_device_connected": "No device connected",
+      "device_disconnected": "Device disconnected",
+      "no_write_characteristic_short": "No writable characteristic",
+      "device_disconnected_while_printing": "Device disconnected during printing",
+      "print": {
+        "ticket_no": "TICKET NO",
+        "departure": "DEPARTURE",
+        "destination": "DESTINATION",
+        "final_destination": "FINAL DESTINATION",
+        "transfer": "TRANSFER",
+        "departure_date": "DEPART DATE",
+        "vehicle": "VEHICLE",
+        "seat": "S. {seat}",
+        "time": "H. {time}"
+      }
+    }
+  }
+}

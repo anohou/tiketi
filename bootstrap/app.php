@@ -9,6 +9,7 @@ use App\Http\Middleware\RequireAuthorizedControlDevice;
 use App\Http\Middleware\RequireAuthorizedWebDevice;
 use App\Http\Middleware\RequireInitializedTenancy;
 use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\UniversalTenancy;
 use App\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             UniversalTenancy::class,
+            SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);

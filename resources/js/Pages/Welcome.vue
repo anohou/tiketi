@@ -1,11 +1,14 @@
 <script setup>
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Checkbox from '@/Components/Checkbox.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
     canLogin: { type: Boolean },
@@ -16,6 +19,13 @@ const props = defineProps({
 });
 
 const imageError = ref(false);
+
+const pageTitle = computed(() => {
+    if (props.isTenant) {
+        return t('welcome.tenant_login_title', { tenant: props.tenant?.name });
+    }
+    return t('welcome.title');
+});
 
 const form = useForm({
     email: '',
@@ -32,7 +42,7 @@ const submit = () => {
 </script>
 
 <template>
-    <Head :title="isTenant ? (tenant?.name + ' - Connexion') : 'TIKETI - Gestion Billetterie'" />
+    <Head :title="pageTitle" />
 
     <!-- TENANT PORTAL: CLEAN VERSION -->
     <div v-if="isTenant" class="h-screen w-full flex overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -41,19 +51,18 @@ const submit = () => {
         <div class="hidden lg:flex lg:w-1/2 bg-indigo-600 dark:bg-indigo-900 items-center justify-center p-12">
             <div class="max-w-lg w-full text-center">
                 <h2 class="text-3xl font-bold text-white mb-8">
-                    Gestion intelligente <br/> 
-                    de la répartition des sièges
+                    {{ $t('welcome.tenant.seat_management') }}
                 </h2>
                 
                 <div class="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-xl">
-                    <img v-show="!imageError" src="/images/seat-map.png" @error="imageError = true" alt="Disposition des sièges" class="w-full h-auto rounded-lg" />
+                    <img v-show="!imageError" src="/images/seat-map.png" @error="imageError = true" :alt="$t('welcome.seat_layout_alt')" class="w-full h-auto rounded-lg" />
                     <div v-show="imageError" class="py-20 text-gray-400">
-                        Visualisation Dashboard
+                        {{ $t('welcome.dashboard_visualization') }}
                     </div>
                 </div>
                 
                 <p class="mt-8 text-indigo-100 text-sm opacity-80">
-                    Synchronisation instantanée entre toutes vos gares.
+                    {{ $t('welcome.tenant.instant_sync') }}
                 </p>
             </div>
         </div>
@@ -65,21 +74,35 @@ const submit = () => {
                 <!-- Brand -->
                 <div class="mb-12 flex items-center gap-4">
                     <template v-if="tenant?.logo_url">
-                        <img :src="tenant.logo_url" alt="Logo" class="h-12 w-auto" />
+                        <img :src="tenant.logo_url" :alt="$t('welcome.logo')" class="h-12 w-auto" />
                     </template>
                     <template v-else>
-                        <img src="/images/logo.png" alt="Logo" class="h-12 w-auto dark:hidden" />
-                        <img src="/images/logo-white.png" alt="Logo" class="hidden h-12 w-auto dark:block" />
+                        <img src="/images/logo.png" :alt="$t('welcome.logo')" class="h-12 w-auto dark:hidden" />
+                        <img src="/images/logo-white.png" :alt="$t('welcome.logo')" class="hidden h-12 w-auto dark:block" />
                     </template>
                     <div class="border-l border-gray-200 dark:border-gray-800 pl-4">
-                        <span class="block text-[10px] font-bold text-indigo-600 uppercase tracking-widest leading-none mb-1">Espace Partenaire</span>
+                        <span class="block text-[10px] font-bold text-indigo-600 uppercase tracking-widest leading-none mb-1">{{ $t('welcome.partner_space') }}</span>
                         <span class="text-lg font-bold text-gray-900 dark:text-white uppercase">{{ tenant?.name }}</span>
+                    </div>
+                    <div class="ml-auto flex shrink-0 items-center gap-2">
+                        <Link
+                            href="/presentation"
+                            class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-600"
+                        >
+                            Présentation
+                        </Link>
+                        <Link
+                            href="/help"
+                            class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:border-emerald-600"
+                        >
+                            Documentation
+                        </Link>
                     </div>
                 </div>
 
                 <div class="mb-8">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Connexion</h1>
-                    <p class="text-gray-500 text-sm mt-1">Veuillez entrer vos identifiants pour accéder au système.</p>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $t('auth.login.title') }}</h1>
+                    <p class="text-gray-500 text-sm mt-1">{{ $t('welcome.login_prompt') }}</p>
                 </div>
 
                 <div v-if="status" class="mb-6 p-4 bg-green-50 text-green-700 text-sm rounded-lg border border-green-100 font-medium">
@@ -88,7 +111,7 @@ const submit = () => {
 
                 <form @submit.prevent="submit" class="space-y-5">
                     <div>
-                        <InputLabel for="email" value="Email" class="text-xs font-bold text-gray-400 uppercase mb-1" />
+                        <InputLabel for="email" :value="$t('common.email')" class="text-xs font-bold text-gray-400 uppercase mb-1" />
                         <TextInput
                             id="email"
                             type="email"
@@ -102,8 +125,8 @@ const submit = () => {
 
                     <div>
                         <div class="flex items-center justify-between">
-                            <InputLabel for="password" value="Mot de passe" class="text-xs font-bold text-gray-400 uppercase mb-1" />
-                            <Link v-if="canResetPassword" :href="route('password.request')" class="text-xs text-indigo-600 hover:underline">Oublié ?</Link>
+                            <InputLabel for="password" :value="$t('auth.password')" class="text-xs font-bold text-gray-400 uppercase mb-1" />
+                            <Link v-if="canResetPassword" :href="route('password.request')" class="text-xs text-indigo-600 hover:underline">{{ $t('welcome.forgot_password') }}</Link>
                         </div>
                         <TextInput
                             id="password"
@@ -117,7 +140,7 @@ const submit = () => {
 
                     <div class="flex items-center">
                         <Checkbox name="remember" v-model:checked="form.remember" class="border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" />
-                        <span class="ms-2 text-sm text-gray-600">Rester connecté</span>
+                        <span class="ms-2 text-sm text-gray-600">{{ $t('auth.remember_me') }}</span>
                     </div>
 
                     <PrimaryButton
@@ -125,7 +148,7 @@ const submit = () => {
                         :class="{ 'opacity-50': form.processing }"
                         :disabled="form.processing"
                     >
-                        {{ form.processing ? 'Connexion...' : 'Se connecter' }}
+                        {{ form.processing ? $t('welcome.login_processing') : $t('auth.login.submit') }}
                     </PrimaryButton>
                 </form>
 
@@ -153,10 +176,16 @@ const submit = () => {
                 </div>
 
                 <div class="hidden lg:flex lg:items-center lg:gap-x-7">
-                    <a href="#features" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">La plateforme</a>
-                    <a href="#correspondances" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Correspondances</a>
+                    <a href="#features" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">{{ $t('welcome.nav.platform') }}</a>
+                    <a href="#correspondances" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">{{ $t('welcome.nav.connections') }}</a>
                     <a href="#tiketi-control" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Tiketi Control</a>
-                    <a href="#loyalty" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Fidélisation</a>
+                    <a href="#loyalty" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">{{ $t('welcome.nav.loyalty') }}</a>
+                    <Link
+                        :href="$page.props.isTenant ? '/help' : '/aide'"
+                        class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 transition hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+                    >
+                        {{ $t('welcome.nav.documentation') }}
+                    </Link>
                 </div>
                 
                 <div v-if="canLogin" class="flex flex-1 justify-end gap-x-4 h-full items-center">
@@ -165,7 +194,7 @@ const submit = () => {
                         :href="route('dashboard')"
                         class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition"
                     >
-                        Dashboard <span aria-hidden="true">&rarr;</span>
+                        {{ $t('welcome.nav.dashboard') }} <span aria-hidden="true">&rarr;</span>
                     </Link>
 
                     <template v-else>
@@ -173,13 +202,13 @@ const submit = () => {
                             :href="route('login')"
                             class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition mr-4"
                         >
-                            Connexion Admin
+                            {{ $t('welcome.nav.admin_login') }}
                         </Link>
                         <a
                             href="#contact"
                             class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/20 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-0.5"
                         >
-                            Contactez-nous
+                            {{ $t('welcome.nav.contact_us') }}
                         </a>
                     </template>
                 </div>
@@ -199,24 +228,24 @@ const submit = () => {
                         <!-- Hero Text -->
                         <div class="max-w-2xl text-center lg:text-left">
                             <h1 class="text-4xl font-extrabold tracking-tight sm:text-6xl text-gray-900 dark:text-white">
-                                Le Futur de la <br />
-                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500">Gestion de Transport</span>
+                                {{ $t('welcome.hero.title_prefix') }} <br />
+                                <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-cyan-500">{{ $t('welcome.hero.title_accent') }}</span>
                             </h1>
                             <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-                                De la vente au guichet jusqu'au contrôle à l'embarquement, pilotez vos lignes, vos correspondances et chaque siège en temps réel. Une seule plateforme pour fluidifier le voyage et sécuriser vos revenus.
+                                {{ $t('welcome.hero.description') }}
                             </p>
                             <div class="mt-7 flex flex-wrap justify-center gap-2 lg:justify-start">
-                                <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800">Billetterie & guichet</span>
-                                <span class="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800">Correspondances</span>
-                                <span class="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800">Contrôle mobile</span>
-                                <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800">Pilotage financier</span>
+                                <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:ring-indigo-800">{{ $t('welcome.hero.badge_ticketing') }}</span>
+                                <span class="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:ring-violet-800">{{ $t('welcome.hero.badge_connections') }}</span>
+                                <span class="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 ring-1 ring-inset ring-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:ring-cyan-800">{{ $t('welcome.hero.badge_mobile_control') }}</span>
+                                <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-800">{{ $t('welcome.hero.badge_financial') }}</span>
                             </div>
                             <div class="mt-10 flex items-center justify-center lg:justify-start gap-x-6">
                                 <a href="#contact" class="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-blue-500 hover:to-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-all duration-300 transform hover:-translate-y-1">
-                                    Demander une Démo
+                                    {{ $t('welcome.hero.request_demo') }}
                                 </a>
                                 <a href="#features" class="text-sm font-semibold leading-6 text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition group flex items-center gap-2">
-                                    Découvrir <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-y-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg></span>
+                                    {{ $t('welcome.hero.discover') }} <span aria-hidden="true" class="inline-block transition-transform group-hover:translate-y-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-400 rounded-full p-1"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg></span>
                                 </a>
                             </div>
                         </div>
@@ -230,14 +259,14 @@ const submit = () => {
                                 
                                 <div class="bg-gray-100 dark:bg-gray-900 rounded-2xl w-full aspect-[4/3] flex items-center justify-center relative overflow-hidden group-hover:shadow-[inset_0_0_20px_rgba(0,0,0,0.05)] transition-shadow">
                                      <!-- User's Actual Seat Image -->
-                                     <img v-show="!imageError" src="/images/seat-map.png" @error="imageError = true" alt="Disposition des sièges" class="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity hover:opacity-100 z-10" />
+                                     <img v-show="!imageError" src="/images/seat-map.png" @error="imageError = true" :alt="$t('welcome.seat_layout_alt')" class="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity hover:opacity-100 z-10" />
                                      
                                      <!-- Fallback text / Empty state if missing -->
                                      <div v-show="imageError" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-900 border-2 border-dashed border-indigo-300 dark:border-indigo-700 m-4 rounded-xl z-0 p-6 text-center">
                                          <svg class="w-10 h-10 text-indigo-400 mb-2 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                          </svg>
-                                         <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">Visualisation Dashboard</span>
+                                         <span class="text-sm font-semibold text-gray-600 dark:text-gray-400">{{ $t('welcome.dashboard_visualization') }}</span>
                                      </div>
                                 </div>
 
@@ -247,7 +276,7 @@ const submit = () => {
                                       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                                       <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                                     </span>
-                                    <span class="text-xs font-bold text-gray-700 dark:text-gray-200">Attribution en direct</span>
+                                    <span class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ $t('welcome.live_attribution') }}</span>
                                 </div>
                             </div>
                         </div>
@@ -261,12 +290,12 @@ const submit = () => {
         <div id="features" class="py-24 sm:py-32 bg-white dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
             <div class="mx-auto max-w-7xl px-6 lg:px-8">
                 <div class="mx-auto max-w-2xl lg:text-center">
-                    <h2 class="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">Tout-en-un</h2>
+                    <h2 class="text-base font-semibold leading-7 text-indigo-600 dark:text-indigo-400">{{ $t('welcome.features.eyebrow') }}</h2>
                     <p class="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-                        Des fonctionnalités pensées pour vous
+                        {{ $t('welcome.features.title') }}
                     </p>
                     <p class="mt-6 text-lg leading-8 text-gray-600 dark:text-gray-300">
-                        Dans un secteur en constante évolution, TIKETI vous offre une longueur d’avance. Fini les pertes de revenus, les guichetiers débordés et le manque de visibilité.
+                        {{ $t('welcome.features.description') }}
                     </p>
                 </div>
 
@@ -281,13 +310,13 @@ const submit = () => {
                                       <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z" />
                                     </svg>
                                 </div>
-                                Billetterie Intelligente
+                                {{ $t('welcome.features.ticketing_title') }}
                             </dt>
                             <dd class="mt-6 flex flex-auto flex-col text-base leading-7 text-gray-600 dark:text-gray-300">
                                 <ul class="space-y-3 flex-1 list-disc pl-5">
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Plan de Siège Interactif:</strong> Visualisez l'occupation de vos cars en un coup d'œil.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Impression Bluetooth:</strong> Tickets sécurisés avec QR Code.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Gestion des Escales:</strong> Vendez des trajets complexes sans conflit.</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.ticketing_items.seat_map_title') }}</strong> {{ $t('welcome.features.ticketing_items.seat_map_text') }}</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.ticketing_items.bluetooth_title') }}</strong> {{ $t('welcome.features.ticketing_items.bluetooth_text') }}</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.ticketing_items.stops_title') }}</strong> {{ $t('welcome.features.ticketing_items.stops_text') }}</li>
                                 </ul>
                             </dd>
                         </div>
@@ -300,13 +329,13 @@ const submit = () => {
                                       <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                                     </svg>
                                 </div>
-                                Administration & Finance
+                                {{ $t('welcome.features.admin_title') }}
                             </dt>
                             <dd class="mt-6 flex flex-auto flex-col text-base leading-7 text-gray-600 dark:text-gray-300">
                                 <ul class="space-y-3 flex-1 list-disc pl-5">
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Dashboard Stratégique:</strong> Visualisation en temps réel du chiffre d’affaires et volume de ventes.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Gestion du Réseau:</strong> Gares, destinations et flexibilité tarifaire.</li>
-                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">Comptabilité:</strong> Rapports de fermeture de caisse par vendeur.</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.admin_items.dashboard_title') }}</strong> {{ $t('welcome.features.admin_items.dashboard_text') }}</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.admin_items.network_title') }}</strong> {{ $t('welcome.features.admin_items.network_text') }}</li>
+                                    <li><strong class="font-semibold text-gray-900 dark:text-gray-100">{{ $t('welcome.features.admin_items.accounting_title') }}</strong> {{ $t('welcome.features.admin_items.accounting_text') }}</li>
                                 </ul>
                             </dd>
                         </div>
@@ -710,6 +739,26 @@ const submit = () => {
                              <img class="hidden h-16 sm:h-20 w-auto opacity-90 transition-all hover:opacity-100 hover:scale-105 dark:block" src="/images/logo-white.png" alt="Tiketi Logo" />
                         </div>
                         <p class="text-sm leading-6 text-gray-600 dark:text-gray-400">La solution complète pour la gestion de vos billetteries et de votre parc de transport.</p>
+                        <div class="flex flex-wrap gap-x-6 gap-y-3">
+                            <Link
+                                :href="$page.props.isTenant ? '/help' : '/aide'"
+                                class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 transition hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            >
+                                Documentation utilisateur
+                            </Link>
+                            <Link
+                                href="/presentation"
+                                class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 transition hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            >
+                                Présentation
+                            </Link>
+                            <a href="#features" class="text-sm font-semibold text-gray-600 transition hover:text-emerald-600 dark:text-gray-400 dark:hover:text-emerald-300">
+                                {{ $t('welcome.nav.platform') }}
+                            </a>
+                            <a href="#contact" class="text-sm font-semibold text-gray-600 transition hover:text-emerald-600 dark:text-gray-400 dark:hover:text-emerald-300">
+                                {{ $t('welcome.nav.contact_us') }}
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-16 border-t border-gray-200 dark:border-gray-800 pt-8 sm:mt-20 lg:mt-24">

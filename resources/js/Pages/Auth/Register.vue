@@ -22,20 +22,20 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Inscription" />
+        <Head :title="$t('auth.register.title')" />
 
         <div class="mx-auto max-w-md">
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Nouveau compte</p>
-                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">Créer un accès</h1>
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">{{ $t('auth.badge.new_account') }}</p>
+                <h1 class="mt-3 text-2xl font-black text-slate-900 dark:text-white">{{ $t('auth.register.heading') }}</h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
-                    Renseignez vos informations pour rejoindre la plateforme.
+                    {{ $t('auth.register.description') }}
                 </p>
             </div>
 
             <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="name" value="Nom complet" />
+                    <InputLabel for="name" :value="$t('auth.register.full_name')" />
 
                     <TextInput
                         id="name"
@@ -51,7 +51,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="email" value="Adresse e-mail" />
+                    <InputLabel for="email" :value="$t('common.email')" />
 
                     <TextInput
                         id="email"
@@ -66,7 +66,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="password" value="Mot de passe" />
+                    <InputLabel for="password" :value="$t('auth.password')" />
 
                     <TextInput
                         id="password"
@@ -83,7 +83,7 @@ const submit = () => {
                 <div>
                     <InputLabel
                         for="password_confirmation"
-                        value="Confirmer le mot de passe"
+                        :value="$t('auth.confirm_password')"
                     />
 
                     <TextInput
@@ -106,14 +106,14 @@ const submit = () => {
                         :href="route('login')"
                         class="rounded-md text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
-                        Déjà inscrit ?
+                        {{ $t('auth.register.already_registered') }}
                     </Link>
 
                     <PrimaryButton
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Créer le compte
+                        {{ $t('auth.register.submit') }}
                     </PrimaryButton>
                 </div>
             </form>

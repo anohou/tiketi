@@ -1,0 +1,17 @@
+{
+  "error": {
+    "titles": {
+      "503": "Service Indisponible",
+      "500": "Erreur Serveur",
+      "404": "Page Non Trouvée",
+      "403": "Accès Interdit"
+    },
+    "descriptions": {
+      "503": "Désolé, nous effectuons une maintenance. Veuillez réessayer plus tard.",
+      "500": "Oups, quelque chose s'est mal passé sur nos serveurs.",
+      "404": "Désolé, la page que vous recherchez est introuvable.",
+      "403": "Désolé, vous n'êtes pas autorisé à accéder à cette page."
+    },
+    "back_to_dashboard": "Retour au tableau de bord"
+  }
+}

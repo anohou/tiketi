@@ -18,6 +18,7 @@ import Bell from 'vue-material-design-icons/Bell.vue';
 import SeatReclineNormal from 'vue-material-design-icons/SeatReclineNormal.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps({
   departures: Array,
@@ -27,6 +28,9 @@ const props = defineProps({
   todayStats: Object,
   user_stations: Array,
 });
+
+const { t, locale } = useI18n();
+const currentLocale = computed(() => (locale.value === 'en' ? 'en-GB' : 'fr-FR'));
 
 // State for Modals
 const showTripModal = ref(false);
@@ -50,7 +54,7 @@ const formatCurrency = (amount) => {
     } else if (amount >= 1000) {
         return (amount / 1000).toFixed(0) + 'K';
     }
-    return new Intl.NumberFormat('fr-FR').format(amount);
+    return new Intl.NumberFormat(currentLocale.value).format(amount);
 };
 
 // Actions
@@ -80,7 +84,7 @@ const handleValidationDecline = (val) => {
 };
 
 const handleTripDeparture = async (trip) => {
-    if (await confirmationStore.confirm({ title: 'Confirmer le départ', message: `Confirmer le départ de ce voyage vers ${trip.destination} ?`, confirmLabel: 'Déclarer le départ', tone: 'warning' })) {
+    if (await confirmationStore.confirm({ title: t('dashboards.supervisor.confirm_departure_title'), message: t('dashboards.supervisor.confirm_departure_message', { destination: trip.destination }), confirmLabel: t('dashboards.supervisor.confirm_departure_confirm'), tone: 'warning' })) {
         console.log('Departing trip:', trip.id);
         // In real app: router.post(route('trips.depart', trip.id))
     }
@@ -128,7 +132,7 @@ watch(() => props.alerts, (newAlerts) => {
 </script>
 
 <template>
-  <Head title="Supervision" />
+  <Head :title="$t('dashboards.supervisor.title')" />
 
   <MainNavLayout>
     <div class="max-w-4xl mx-auto space-y-6 pb-20">
@@ -136,7 +140,7 @@ watch(() => props.alerts, (newAlerts) => {
       <!-- Top Bar: Station Scope + Refresh -->
       <div class="flex items-center justify-between px-2 pt-2">
         <div>
-          <h1 class="text-2xl font-black text-gray-900 tracking-tight">Tour de Contrôle</h1>
+          <h1 class="text-2xl font-black text-gray-900 tracking-tight">{{ $t('dashboards.supervisor.control_room') }}</h1>
           <p class="text-sm text-gray-500 font-medium truncate max-w-[250px]">{{ user_stations.join(', ') }}</p>
         </div>
         
@@ -145,13 +149,13 @@ watch(() => props.alerts, (newAlerts) => {
            <button 
                @click="refreshData"
                class="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-gray-600 transition-colors"
-               title="Actualiser"
+               :title="$t('dashboards.supervisor.refresh')"
            >
                <Refresh :size="20" />
            </button>
            <div class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm border border-green-200">
              <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-             Live
+             {{ $t('dashboards.supervisor.live') }}
            </div>
         </div>
       </div>
@@ -161,37 +165,37 @@ watch(() => props.alerts, (newAlerts) => {
         <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-4 text-white shadow-lg">
             <div class="flex items-center gap-2 mb-2">
                 <CashMultiple :size="18" class="opacity-80" />
-                <span class="text-xs font-bold text-green-100 uppercase tracking-wide">Recettes</span>
+                <span class="text-xs font-bold text-green-100 uppercase tracking-wide">{{ $t('dashboards.supervisor.revenue') }}</span>
             </div>
             <div class="text-2xl font-black">{{ formatCurrency(todayStats.total_revenue) }}</div>
-            <div class="text-xs text-green-200">FCFA aujourd'hui</div>
+            <div class="text-xs text-green-200">{{ $t('dashboards.supervisor.revenue_today') }}</div>
         </div>
         
         <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-4 text-white shadow-lg">
             <div class="flex items-center gap-2 mb-2">
                 <Ticket :size="18" class="opacity-80" />
-                <span class="text-xs font-bold text-blue-100 uppercase tracking-wide">Billets</span>
+                <span class="text-xs font-bold text-blue-100 uppercase tracking-wide">{{ $t('dashboards.supervisor.tickets') }}</span>
             </div>
             <div class="text-2xl font-black">{{ todayStats.tickets_sold }}</div>
-            <div class="text-xs text-blue-200">vendus aujourd'hui</div>
+            <div class="text-xs text-blue-200">{{ $t('dashboards.supervisor.sold_today') }}</div>
         </div>
         
         <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-lg">
             <div class="flex items-center gap-2 mb-2">
                 <Bus :size="18" class="opacity-80" />
-                <span class="text-xs font-bold text-orange-100 uppercase tracking-wide">Voyages</span>
+                <span class="text-xs font-bold text-orange-100 uppercase tracking-wide">{{ $t('dashboards.supervisor.trips') }}</span>
             </div>
             <div class="text-2xl font-black">{{ todayStats.trips_today }}</div>
-            <div class="text-xs text-orange-200">programmés</div>
+            <div class="text-xs text-orange-200">{{ $t('dashboards.supervisor.scheduled') }}</div>
         </div>
         
         <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-4 text-white shadow-lg">
             <div class="flex items-center gap-2 mb-2">
                 <Play :size="18" class="opacity-80" />
-                <span class="text-xs font-bold text-purple-100 uppercase tracking-wide">Départs</span>
+                <span class="text-xs font-bold text-purple-100 uppercase tracking-wide">{{ $t('dashboards.supervisor.departures') }}</span>
             </div>
             <div class="text-2xl font-black">{{ todayStats.trips_departed }}</div>
-            <div class="text-xs text-purple-200">effectués</div>
+            <div class="text-xs text-purple-200">{{ $t('dashboards.supervisor.completed') }}</div>
         </div>
       </div>
 
@@ -199,7 +203,7 @@ watch(() => props.alerts, (newAlerts) => {
       <div v-if="alerts && alerts.length > 0" class="px-2 space-y-2">
         <div class="flex items-center gap-2 text-red-600 font-bold text-sm">
             <Bell :size="18" class="animate-bounce" />
-            <span>{{ alerts.length }} Alerte(s) Active(s)</span>
+            <span>{{ $t('dashboards.supervisor.active_alerts', { count: alerts.length }) }}</span>
         </div>
         <div class="space-y-2">
           <div 
@@ -252,12 +256,12 @@ watch(() => props.alerts, (newAlerts) => {
                <AlertCircle :size="24" />
              </div>
              <div class="text-left">
-               <div class="font-black text-red-900">Validations Requises</div>
-               <div class="text-xs text-red-700 font-medium">{{ pendingValidationCount }} demande(s) en attente</div>
+               <div class="font-black text-red-900">{{ $t('dashboards.supervisor.validations_required') }}</div>
+               <div class="text-xs text-red-700 font-medium">{{ $t('dashboards.supervisor.pending_requests', { count: pendingValidationCount }) }}</div>
              </div>
            </div>
            <div class="bg-white px-3 py-1.5 rounded-lg text-xs font-bold text-red-700 shadow-sm border border-red-100 uppercase tracking-wide">
-             Gérer
+             {{ $t('dashboards.supervisor.manage') }}
            </div>
         </button>
       </div>
@@ -266,16 +270,16 @@ watch(() => props.alerts, (newAlerts) => {
       <div class="space-y-4 px-1">
         <div class="flex items-center justify-between px-1">
            <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-             <Bus class="text-gray-400" /> Prochains Départs
+             <Bus class="text-gray-400" /> {{ $t('dashboards.supervisor.upcoming_departures') }}
            </h2>
-           <span class="text-xs text-gray-400 font-medium">{{ departures.length }} voyage(s)</span>
+           <span class="text-xs text-gray-400 font-medium">{{ $t('dashboards.supervisor.trips_count', { count: departures.length }) }}</span>
         </div>
 
         <div v-if="departures.length === 0" class="text-center py-12 text-gray-400 bg-white rounded-3xl border-2 border-dashed border-gray-100">
            <div class="bg-gray-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
               <Bus class="text-gray-300" :size="24" />
            </div>
-           <span class="font-medium">Pas de départs prévus</span>
+           <span class="font-medium">{{ $t('dashboards.supervisor.no_departures_planned') }}</span>
         </div>
 
         <div v-else class="grid gap-3">
@@ -312,8 +316,8 @@ watch(() => props.alerts, (newAlerts) => {
                                }" 
                                v-if="trip.status === 'boarding' || trip.mins_to_departure <= 30"
                           >
-                              <span v-if="trip.status === 'boarding'">Embarquement</span>
-                              <span v-else>Dans {{ trip.mins_to_departure }} min</span>
+                          <span v-if="trip.status === 'boarding'">{{ $t('dashboards.supervisor.boarding') }}</span>
+                          <span v-else>{{ $t('dashboards.supervisor.in_minutes', { count: trip.mins_to_departure }) }}</span>
                           </div>
                       </div>
                       <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mt-1 flex items-center gap-1">
@@ -331,7 +335,7 @@ watch(() => props.alerts, (newAlerts) => {
                            {{ trip.license_plate }}
                        </div>
                        <button v-else class="bg-red-50 px-2 py-1.5 rounded-xl text-xs font-bold text-red-600 border border-red-100 flex items-center gap-1 animate-pulse">
-                          <AlertCircle :size="14" /> Assigner Car
+                          <AlertCircle :size="14" /> {{ $t('dashboards.supervisor.assign_car') }}
                        </button>
                        
                        <!-- Quick Departure Button (only show when ready) -->
@@ -340,7 +344,7 @@ watch(() => props.alerts, (newAlerts) => {
                            @click="quickDeparture(trip, $event)"
                            class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 shadow-lg shadow-green-200 transition-all hover:scale-105"
                        >
-                          <Play :size="14" /> Départ
+                          <Play :size="14" /> {{ $t('dashboards.supervisor.depart') }}
                        </button>
                    </div>
                 </div>
@@ -349,9 +353,9 @@ watch(() => props.alerts, (newAlerts) => {
                 <div>
                     <div class="flex justify-between text-xs font-medium mb-2">
                       <span :class="trip.occupancy_percent < 50 && trip.mins_to_departure < 30 ? 'text-red-600 font-bold' : 'text-gray-600'">
-                        {{ trip.tickets_sold || 0 }} billets vendus • {{ trip.occupied_seats || 0 }}/{{ trip.total_seats }} sièges occupés ({{ trip.occupancy_percent }}%)
+                        {{ $t('dashboards.supervisor.occupancy_summary', { count: trip.tickets_sold || 0, occupied: trip.occupied_seats || 0, total: trip.total_seats, percent: trip.occupancy_percent }) }}
                       </span>
-                      <span class="text-gray-400">{{ trip.available_seats }} libres</span>
+                      <span class="text-gray-400">{{ $t('dashboards.supervisor.free_seats', { count: trip.available_seats }) }}</span>
                     </div>
                    <!-- Multi-segment bar -->
                    <div class="h-3 bg-gray-100 rounded-full overflow-hidden flex">

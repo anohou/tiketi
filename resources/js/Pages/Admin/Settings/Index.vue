@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Settings from 'vue-material-design-icons/Cog.vue';
@@ -33,6 +34,8 @@ import GeneralInfoSection from '@/Components/Settings/GeneralInfoSection.vue';
 import UserProfileSection from '@/Components/Settings/UserProfileSection.vue';
 import ScopeSection from '@/Components/Settings/ScopeSection.vue';
 import LoyaltyRewardsSection from '@/Components/Settings/LoyaltyRewardsSection.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
   role: {
@@ -91,11 +94,11 @@ const configSections = computed(() => {
   if (props.role === 'supervisor') {
     return [
       {
-        category: 'Gares & Utilisateurs',
+        category: t('admin_settings.index.categories.stations_users', 'Gares & Utilisateurs'),
         items: [
-          { name: 'Gares', route: 'supervisor.stations.index', icon: OfficeBuilding, description: 'Gares sous votre supervision', count: props.stats.stations },
-          { name: 'Utilisateurs', route: 'supervisor.users.index', icon: AccountMultiple, description: 'Gérer les comptes de votre périmètre', count: props.stats.users },
-          { name: 'Assignations', route: 'supervisor.assignments.index', icon: AccountGroup, description: 'Assigner aux gares de votre périmètre', count: props.stats.assignments },
+          { name: t('admin_settings.index.items.stations', 'Gares'), route: 'supervisor.stations.index', icon: OfficeBuilding, description: t('admin_settings.index.descriptions.supervised_stations'), count: props.stats.stations },
+          { name: t('admin_settings.index.items.users', 'Utilisateurs'), route: 'supervisor.users.index', icon: AccountMultiple, description: t('admin_settings.index.descriptions.manage_perimeter_users'), count: props.stats.users },
+          { name: t('admin_settings.index.items.assignments', 'Assignations'), route: 'supervisor.assignments.index', icon: AccountGroup, description: t('admin_settings.index.descriptions.assign_perimeter_stations'), count: props.stats.assignments },
         ],
       },
     ];
@@ -103,61 +106,61 @@ const configSections = computed(() => {
 
   return [
     {
-      category: 'Entreprise',
+      category: t('admin_settings.index.categories.company', 'Entreprise'),
       items: [
-        { name: 'Identité & Logo', route: 'admin.settings.enterprise', icon: OfficeBuilding, description: 'Nom, contact et visuel de la compagnie' },
-        { name: 'Fidélisation (Okohi)', route: 'admin.settings.loyalty', icon: GiftOutline, description: 'Points de fidélité sur les tickets' },
-        { name: 'Paramètres Tickets', route: 'admin.ticket-settings.index', icon: Printer, description: "Configuration d'impression" },
-        { name: 'Appareils autorisés', route: 'admin.settings.devices.index', icon: ShieldLock, description: 'Contrôler les appareils TIKETI et Control' },
+        { name: t('admin_settings.index.items.identity_logo', 'Identité & Logo'), route: 'admin.settings.enterprise', icon: OfficeBuilding, description: t('admin_settings.index.descriptions.company_identity') },
+        { name: t('admin_settings.index.items.loyalty_okohi', 'Fidélisation (Okohi)'), route: 'admin.settings.loyalty', icon: GiftOutline, description: t('admin_settings.index.descriptions.loyalty_points') },
+        { name: t('admin_settings.index.items.ticket_settings', 'Paramètres Tickets'), route: 'admin.ticket-settings.index', icon: Printer, description: t('admin_settings.index.descriptions.print_configuration') },
+        { name: t('admin_settings.index.items.authorized_devices', 'Appareils autorisés'), route: 'admin.settings.devices.index', icon: ShieldLock, description: t('admin_settings.index.descriptions.control_devices') },
       ],
     },
     {
-      category: 'Infrastructure',
+      category: t('admin_settings.index.categories.infrastructure', 'Infrastructure'),
       items: [
-        { name: 'Villes / Destinations', route: 'admin.destinations.index', icon: MapMarkerRadius, description: 'Gérer les villes desservies', count: props.stats.destinations },
-        { name: 'Gares', route: 'admin.stations.index', icon: OfficeBuilding, description: 'Gérer les gares et points de départ', count: props.stats.stations },
+        { name: t('admin_settings.index.items.cities_destinations', 'Villes / Destinations'), route: 'admin.destinations.index', icon: MapMarkerRadius, description: t('admin_settings.index.descriptions.manage_cities'), count: props.stats.destinations },
+        { name: t('admin_settings.index.items.stations', 'Gares'), route: 'admin.stations.index', icon: OfficeBuilding, description: t('admin_settings.index.descriptions.manage_stations'), count: props.stats.stations },
       ],
     },
     {
-      category: 'Flotte',
+      category: t('admin_settings.index.categories.fleet', 'Flotte'),
       items: [
-        { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, description: 'Configurations des types', count: props.stats.vehicleTypes },
-        { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, description: 'Gérer les véhicules', count: props.stats.vehicles },
-        { name: 'Équipages', route: 'fleet.crew-members.index', icon: AccountHardHat, description: 'Gérer les chauffeurs et assistants' },
-        { name: 'Affectations Équipages', route: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: 'Affecter les équipages aux véhicules' },
+        { name: t('admin_settings.index.items.vehicle_types', 'Types de Véhicules'), route: 'admin.vehicle-types.index', icon: Car, description: t('admin_settings.index.descriptions.vehicle_type_config'), count: props.stats.vehicleTypes },
+        { name: t('admin_settings.index.items.vehicles', 'Véhicules'), route: 'admin.vehicles.index', icon: Bus, description: t('admin_settings.index.descriptions.manage_vehicles'), count: props.stats.vehicles },
+        { name: t('admin_settings.index.items.crews', 'Équipages'), route: 'fleet.crew-members.index', icon: AccountHardHat, description: t('admin_settings.index.descriptions.manage_crews') },
+        { name: t('admin_settings.index.items.crew_assignments', 'Affectations Équipages'), route: 'fleet.crew-assignments.index', icon: SwapHorizontal, description: t('admin_settings.index.descriptions.assign_crews') },
       ],
     },
     {
-      category: 'Opérations',
+      category: t('admin_settings.index.categories.operations', 'Opérations'),
       items: [
-        { name: 'Trajets', route: 'admin.routes.index', icon: Router, description: 'Configurer les itinéraires', count: props.stats.routes },
-        { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, description: 'Planifier les voyages', count: props.stats.trips },
-        { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, description: 'Définir les prix', count: props.stats.fares },
+        { name: t('admin_settings.index.items.routes', 'Trajets'), route: 'admin.routes.index', icon: Router, description: t('admin_settings.index.descriptions.configure_routes'), count: props.stats.routes },
+        { name: t('admin_settings.index.items.trips', 'Voyages'), route: 'admin.trips.index', icon: Calendar, description: t('admin_settings.index.descriptions.plan_trips'), count: props.stats.trips },
+        { name: t('admin_settings.index.items.fares', 'Tarifs'), route: 'admin.route-fares.index', icon: Cash, description: t('admin_settings.index.descriptions.set_prices'), count: props.stats.fares },
       ],
     },
     {
-      category: 'Utilisateurs',
+      category: t('admin_settings.index.categories.users', 'Utilisateurs'),
       items: [
-        { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, description: 'Gérer les comptes', count: props.stats.users },
-        { name: 'Assignations', route: 'admin.assignments.index', icon: AccountGroup, description: 'Assigner aux gares', count: props.stats.assignments },
+        { name: t('admin_settings.index.items.users', 'Utilisateurs'), route: 'admin.users.index', icon: AccountMultiple, description: t('admin_settings.index.descriptions.manage_accounts'), count: props.stats.users },
+        { name: t('admin_settings.index.items.assignments', 'Assignations'), route: 'admin.assignments.index', icon: AccountGroup, description: t('admin_settings.index.descriptions.assign_to_stations'), count: props.stats.assignments },
       ],
     },
   ];
 });
 
 const adminQuickStats = computed(() => [
-  { label: 'Gares', value: props.stats.stations, route: 'admin.stations.index' },
-  { label: 'Trajets', value: props.stats.routes, route: 'admin.routes.index' },
-  { label: 'Destinations', value: props.stats.destinations, route: 'admin.destinations.index' },
-  { label: 'Véhicules', value: props.stats.vehicles, route: 'admin.vehicles.index' },
-  { label: 'Utilisateurs', value: props.stats.users, route: 'admin.users.index' },
-  { label: 'Tarifs', value: props.stats.fares, route: 'admin.route-fares.index' },
+  { label: t('admin_settings.index.items.stations', 'Gares'), value: props.stats.stations, route: 'admin.stations.index' },
+  { label: t('admin_settings.index.items.routes', 'Trajets'), value: props.stats.routes, route: 'admin.routes.index' },
+  { label: t('admin_settings.index.items.destinations', 'Destinations'), value: props.stats.destinations, route: 'admin.destinations.index' },
+  { label: t('admin_settings.index.items.vehicles', 'Véhicules'), value: props.stats.vehicles, route: 'admin.vehicles.index' },
+  { label: t('admin_settings.index.items.users', 'Utilisateurs'), value: props.stats.users, route: 'admin.users.index' },
+  { label: t('admin_settings.index.items.fares', 'Tarifs'), value: props.stats.fares, route: 'admin.route-fares.index' },
 ]);
 
 const supervisorQuickStats = computed(() => [
-  { label: 'Gares', value: props.stats.stations, route: 'supervisor.stations.index' },
-  { label: 'Utilisateurs', value: props.stats.users, route: 'supervisor.users.index' },
-  { label: 'Assignations', value: props.stats.assignments, route: 'supervisor.assignments.index' },
+  { label: t('admin_settings.index.items.stations', 'Gares'), value: props.stats.stations, route: 'supervisor.stations.index' },
+  { label: t('admin_settings.index.items.users', 'Utilisateurs'), value: props.stats.users, route: 'supervisor.users.index' },
+  { label: t('admin_settings.index.items.assignments', 'Assignations'), value: props.stats.assignments, route: 'supervisor.assignments.index' },
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -165,11 +168,11 @@ const supervisorQuickStats = computed(() => [
 /* ------------------------------------------------------------------ */
 
 const menuSections = computed(() => [
-  { id: 'profile', label: 'Mon profil', icon: AccountTie },
-  { id: 'company', label: 'Entreprise', icon: OfficeBuilding },
-  { id: 'perimeter', label: 'Mon périmètre', icon: Sitemap },
-  { id: 'loyalty', label: 'Fidélité', icon: GiftOutline },
-  { id: 'directives', label: 'Directives', icon: Clipboard },
+  { id: 'profile', label: t('admin_settings.index.menu.my_profile', 'Mon profil'), icon: AccountTie },
+  { id: 'company', label: t('admin_settings.index.categories.company', 'Entreprise'), icon: OfficeBuilding },
+  { id: 'perimeter', label: t('admin_settings.index.menu.my_perimeter', 'Mon périmètre'), icon: Sitemap },
+  { id: 'loyalty', label: t('admin_settings.index.menu.loyalty', 'Fidélité'), icon: GiftOutline },
+  { id: 'directives', label: t('admin_settings.index.menu.directives', 'Directives'), icon: Clipboard },
 ]);
 
 const activeSection = ref('profile');
@@ -180,30 +183,30 @@ const perimeterItems = computed(() => {
   switch (props.role) {
     case 'seller':
       return [
-        { id: 'scope-stations', label: 'Mes gares de vente', icon: OfficeBuilding },
-        { id: 'scope-routes', label: 'Mes trajets accessibles', icon: Router },
-        { id: 'scope-payments', label: 'Moyens de paiement', icon: CashMultiple },
-        { id: 'scope-compensation', label: 'Compensation vendeur', icon: Wallet },
-        { id: 'scope-devices', label: 'Appareils', icon: CellphoneLink },
+        { id: 'scope-stations', label: t('admin_settings.index.perimeter.sale_stations', 'Mes gares de vente'), icon: OfficeBuilding },
+        { id: 'scope-routes', label: t('admin_settings.index.perimeter.accessible_routes', 'Mes trajets accessibles'), icon: Router },
+        { id: 'scope-payments', label: t('admin_settings.index.perimeter.payment_methods', 'Moyens de paiement'), icon: CashMultiple },
+        { id: 'scope-compensation', label: t('admin_settings.index.perimeter.seller_compensation', 'Compensation vendeur'), icon: Wallet },
+        { id: 'scope-devices', label: t('admin_settings.index.perimeter.devices', 'Appareils'), icon: CellphoneLink },
       ];
     case 'fleet_manager':
       return [
-        { id: 'scope-fleet', label: 'Flotte & pools', icon: Bus },
-        { id: 'scope-crews', label: 'Équipages', icon: AccountHardHat },
+        { id: 'scope-fleet', label: t('admin_settings.index.perimeter.fleet_pools', 'Flotte & pools'), icon: Bus },
+        { id: 'scope-crews', label: t('admin_settings.index.perimeter.crews', 'Équipages'), icon: AccountHardHat },
       ];
     case 'accountant':
       return [
-        { id: 'scope-payments', label: 'Paiements comptabilisés', icon: CreditCard },
-        { id: 'scope-rules', label: 'Règles de clôture', icon: Clock },
-        { id: 'scope-reports', label: 'Rapports disponibles', icon: FileDocument },
-        { id: 'scope-contacts', label: 'Administrateurs', icon: AccountTie },
+        { id: 'scope-payments', label: t('admin_settings.index.perimeter.accounted_payments', 'Paiements comptabilisés'), icon: CreditCard },
+        { id: 'scope-rules', label: t('admin_settings.index.perimeter.closing_rules', 'Règles de clôture'), icon: Clock },
+        { id: 'scope-reports', label: t('admin_settings.index.perimeter.available_reports', 'Rapports disponibles'), icon: FileDocument },
+        { id: 'scope-contacts', label: t('admin_settings.index.perimeter.administrators', 'Administrateurs'), icon: AccountTie },
       ];
     case 'executive':
       return [
-        { id: 'scope-network', label: 'Réseau', icon: Domain },
-        { id: 'scope-policies', label: 'Politiques commerciales', icon: TagHeart },
-        { id: 'scope-services', label: 'Services actifs', icon: CellphoneLink },
-        { id: 'scope-supervisors', label: 'Superviseurs', icon: AccountTie },
+        { id: 'scope-network', label: t('admin_settings.index.perimeter.network', 'Réseau'), icon: Domain },
+        { id: 'scope-policies', label: t('admin_settings.index.perimeter.commercial_policies', 'Politiques commerciales'), icon: TagHeart },
+        { id: 'scope-services', label: t('admin_settings.index.perimeter.active_services', 'Services actifs'), icon: CellphoneLink },
+        { id: 'scope-supervisors', label: t('admin_settings.index.perimeter.supervisors', 'Superviseurs'), icon: AccountTie },
       ];
     default:
       return [];
@@ -213,15 +216,15 @@ const perimeterItems = computed(() => {
 const listItems = computed(() => {
   switch (activeSection.value) {
     case 'profile':
-      return [{ id: 'profile', label: 'Votre profil professionnel', icon: AccountTie }];
+      return [{ id: 'profile', label: t('admin_settings.index.list.professional_profile', 'Votre profil professionnel'), icon: AccountTie }];
     case 'company':
-      return [{ id: 'company', label: 'Informations générales', icon: OfficeBuilding }];
+      return [{ id: 'company', label: t('admin_settings.index.list.general_information', 'Informations générales'), icon: OfficeBuilding }];
     case 'perimeter':
       return perimeterItems.value;
     case 'loyalty':
-      return [{ id: 'loyalty', label: 'Programme Okohi', icon: GiftOutline }];
+      return [{ id: 'loyalty', label: t('admin_settings.index.list.okohi_program', 'Programme Okohi'), icon: GiftOutline }];
     case 'directives':
-      return [{ id: 'directives', label: 'Directives & procédures', icon: Clipboard }];
+      return [{ id: 'directives', label: t('admin_settings.index.list.directives_procedures', 'Directives & procédures'), icon: Clipboard }];
     default:
       return [];
   }
@@ -246,11 +249,9 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
             <h1 class="text-3xl font-black text-slate-900 flex items-center gap-3 dark:text-slate-100">
               <div class="p-2 bg-emerald-100 rounded-2xl dark:bg-emerald-900/25">
                 <Settings class="text-emerald-600 dark:text-emerald-400" :size="28" />
-              </div>
-              Configuration du Système
-            </h1>
+              </div>{{ $t('admin_settings.index.title') }}</h1>
             <p class="text-slate-500 mt-1 dark:text-slate-400">
-              {{ role === 'supervisor' ? 'Gérez la configuration de votre périmètre' : 'Gérez tous les paramètres de votre système de transport' }}
+              {{ role === 'supervisor' ? $t('admin_settings.index.supervisor_subtitle') : $t('admin_settings.index.admin_subtitle') }}
             </p>
           </div>
         </div>
@@ -333,12 +334,8 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
             <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-3">
               <div class="p-2 bg-emerald-100 rounded-2xl dark:bg-emerald-900/25">
                 <Settings class="text-emerald-600 dark:text-emerald-400" :size="28" />
-              </div>
-              Paramétrage
-            </h1>
-            <p class="text-slate-500 mt-1 dark:text-slate-400">
-              Consultez les informations et réglages de votre espace de travail
-            </p>
+              </div>{{ $t('admin_settings.index.workspace_title') }}</h1>
+            <p class="text-slate-500 mt-1 dark:text-slate-400">{{ $t('admin_settings.index.workspace_subtitle') }}</p>
           </div>
         </div>
 
@@ -346,7 +343,7 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
           <!-- LEFT SIDE MENU -->
           <div class="col-span-12 md:col-span-3 lg:col-span-2 min-h-0">
             <div class="hidden md:flex flex-col gap-1 rounded-2xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <h2 class="pl-0.5 pb-2 pt-0.5 text-base font-semibold text-slate-800 dark:text-slate-100">Paramètres</h2>
+              <h2 class="pl-0.5 pb-2 pt-0.5 text-base font-semibold text-slate-800 dark:text-slate-100">{{ $t('admin_settings.index.menu_title') }}</h2>
               <button
                 v-for="section in menuSections"
                 :key="section.id"
@@ -365,7 +362,7 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
             </div>
 
             <div class="md:hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <h2 class="text-lg font-semibold text-slate-800 mb-3 dark:text-slate-100">Paramètres</h2>
+              <h2 class="text-lg font-semibold text-slate-800 mb-3 dark:text-slate-100">{{ $t('admin_settings.index.menu_title') }}</h2>
               <select
                 :value="activeSection"
                 @change="activeSection = $event.target.value"
@@ -424,8 +421,8 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
                     <Clipboard class="text-emerald-600 dark:text-emerald-400" :size="22" />
                   </div>
                   <div>
-                    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Directives & procédures</h2>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Bonnes pratiques à suivre pour votre fonction</p>
+                    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">{{ $t('admin_settings.index.list.directives_procedures') }}</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ $t('admin_settings.index.directives.subtitle') }}</p>
                   </div>
                 </div>
                 <div v-if="directives.length" class="grid gap-3 md:grid-cols-2">
@@ -438,7 +435,7 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
                     <p class="text-xs text-slate-500 mt-1 leading-relaxed dark:text-slate-400">{{ directive.content }}</p>
                   </div>
                 </div>
-                <p v-else class="text-xs text-slate-500 dark:text-slate-400">Aucune directive définie pour votre fonction.</p>
+                <p v-else class="text-xs text-slate-500 dark:text-slate-400">{{ $t('admin_settings.index.directives.empty') }}</p>
               </div>
             </template>
 
@@ -450,10 +447,8 @@ const activeItemLabel = computed(() => listItems.value.find((item) => item.id ==
               <div class="p-4 bg-slate-50 rounded-full text-slate-400 mb-4 shrink-0 dark:bg-slate-800">
                 <Settings :size="36" />
               </div>
-              <h3 class="text-base font-bold text-slate-800 mb-1 dark:text-slate-100">Sélectionnez un élément</h3>
-              <p class="text-xs text-slate-500 max-w-sm leading-relaxed dark:text-slate-400">
-                Choisissez une rubrique dans le menu puis un élément dans la liste pour consulter son détail.
-              </p>
+              <h3 class="text-base font-bold text-slate-800 mb-1 dark:text-slate-100">{{ $t('admin_settings.index.empty.title') }}</h3>
+              <p class="text-xs text-slate-500 max-w-sm leading-relaxed dark:text-slate-400">{{ $t('admin_settings.index.empty.message') }}</p>
             </div>
           </div>
         </div>

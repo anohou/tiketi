@@ -31,7 +31,7 @@ const submit = () => {
 
 <template>
     <GuestLayout>
-        <Head title="Connexion" />
+        <Head :title="$t('auth.login.title')" />
 
         <div class="mx-auto max-w-md">
             <div v-if="status" class="mb-4 text-sm font-medium text-emerald-600">
@@ -39,18 +39,18 @@ const submit = () => {
             </div>
 
             <div class="mb-8 text-center">
-                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">Espace sécurisé</p>
+                <p class="text-xs font-bold uppercase tracking-[0.3em] text-emerald-600 dark:text-emerald-400">{{ $t('auth.secure_area') }}</p>
                 <h1 class="mt-3 text-2xl font-black text-slate-900 dark:!text-white dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]">
-                    Connexion à TIKÊTI
+                    {{ $t('auth.login.heading', { brand: 'TIKÊTI' }) }}
                 </h1>
                 <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-300">
-                    Accédez à vos outils de billetterie, de flotte et de supervision en quelques secondes.
+                    {{ $t('auth.login.description') }}
                 </p>
             </div>
 
             <form @submit.prevent="submit" class="space-y-5">
                 <div>
-                    <InputLabel for="email" value="Adresse e-mail" />
+                    <InputLabel for="email" :value="$t('common.email')" />
 
                     <TextInput
                         id="email"
@@ -66,7 +66,7 @@ const submit = () => {
                 </div>
 
                 <div>
-                    <InputLabel for="password" value="Mot de passe" />
+                    <InputLabel for="password" :value="$t('auth.password')" />
 
                     <TextInput
                         id="password"
@@ -83,7 +83,7 @@ const submit = () => {
                 <div class="flex items-center justify-between">
                     <label class="flex items-center">
                         <Checkbox name="remember" v-model:checked="form.remember" />
-                        <span class="ms-2 text-sm text-slate-600 dark:text-slate-300">Rester connecté</span>
+                        <span class="ms-2 text-sm text-slate-600 dark:text-slate-300">{{ $t('auth.remember_me') }}</span>
                     </label>
 
                     <Link
@@ -91,7 +91,7 @@ const submit = () => {
                         :href="route('password.request')"
                         class="rounded-md text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                     >
-                        Mot de passe oublié ?
+                        {{ $t('auth.login.forgot_password') }}
                     </Link>
                 </div>
 
@@ -101,7 +101,7 @@ const submit = () => {
                         :class="{ 'opacity-25': form.processing }"
                         :disabled="form.processing"
                     >
-                        Se connecter
+                        {{ $t('auth.login.submit') }}
                     </PrimaryButton>
                 </div>
             </form>

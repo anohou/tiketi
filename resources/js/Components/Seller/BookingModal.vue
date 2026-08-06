@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
@@ -99,6 +100,8 @@ const emit = defineEmits([
   'okohi-success',
   'continue-sales',
 ]);
+
+const { t } = useI18n();
 
 const okohiRequest = ref(props.initialOkohiRequest);
 const isDestinationMode = computed(() => props.mode === 'destination' && !okohiRequest.value);
@@ -462,9 +465,9 @@ watch(() => props.selectedFare?.id, () => {
 
 const seatLabel = computed(() => {
   if (props.seatsToBook.length > 1) {
-    return `Places ${props.seatsToBook.join(', ')}`;
+    return t('ticketing.booking_modal.seats', { seats: props.seatsToBook.join(', ') });
   }
-  return `Place ${props.selectedSeatNumber}`;
+  return t('ticketing.booking_modal.seat', { seat: props.selectedSeatNumber });
 });
 
 const routeLabel = computed(() => {
@@ -472,7 +475,7 @@ const routeLabel = computed(() => {
   const to = props.selectedFare?.to_station?.name;
   const finalDestination = selectedConnectionOption.value?.station?.name || props.selectedFare?.sale_destination?.name;
   if (from && to && finalDestination) {
-    return `${from} → ${finalDestination} (correspondance à ${to})`;
+    return t('ticketing.booking_modal.route_connection', { from, finalDestination, to });
   }
   if (from && to) {
     return `${from} → ${to}`;
@@ -801,10 +804,10 @@ onBeforeUnmount(() => {
       >
         <div>
           <h3 class="text-lg font-black text-gray-900 dark:text-slate-100">
-            {{ isDestinationMode ? 'Choisir une destination' : 'Informations Passager' }}
+            {{ isDestinationMode ? $t('ticketing.booking_modal.choose_destination') : $t('ticketing.booking_modal.passenger_info_title') }}
           </h3>
           <p class="text-xs text-gray-500 dark:text-slate-400">
-            Siège {{ selectedSeatNumber }} sélectionné
+            {{ $t('ticketing.booking_modal.seat_selected', { n: selectedSeatNumber }) }}
           </p>
         </div>
         <button @click="closeOrContinueSales" class="text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer">
@@ -836,8 +839,8 @@ onBeforeUnmount(() => {
                       <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75"></span>
                       <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white/40"></span>
                     </span>
-                    <template v-if="fare.is_connection">Correspondance à {{ fare.transfer_station?.name }}</template>
-                    <template v-else>→ depuis {{ fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }}</template>
+                    <template v-if="fare.is_connection">{{ $t('ticketing.booking_modal.connection_at', { station: fare.transfer_station?.name }) }}</template>
+                    <template v-else>{{ $t('ticketing.booking_modal.from_station', { station: fare.from_station?.name?.split(' - ')[1] || fare.from_station?.name }) }}</template>
                   </div>
                 </div>
                 <div class="text-right shrink-0">
@@ -850,7 +853,7 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <div v-else class="p-8 text-center text-gray-500 dark:text-slate-400">
-            Aucune destination disponible pour ce voyage.
+            {{ $t('ticketing.booking_modal.no_destination_available') }}
           </div>
         </div>
 
@@ -860,8 +863,8 @@ onBeforeUnmount(() => {
           <div class="w-14 h-14 rounded-full bg-green-100 dark:bg-emerald-950/40 flex items-center justify-center mx-auto">
             <CheckCircle class="text-green-500" :size="32" />
           </div>
-          <p class="text-base font-black text-gray-900 dark:text-slate-100">Récompense approuvée !</p>
-          <p class="text-xs text-gray-500 dark:text-slate-400">Le client a accepté. Vous pouvez maintenant valider et imprimer le ticket.</p>
+          <p class="text-base font-black text-gray-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.okohi_reward_approved') }}</p>
+          <p class="text-xs text-gray-500 dark:text-slate-400">{{ $t('ticketing.booking_modal.okohi_client_accepted') }}</p>
           <button
             @click="$emit('confirm')"
             :disabled="processing"
@@ -869,7 +872,7 @@ onBeforeUnmount(() => {
           >
             <div v-if="processing" class="animate-spin"><Refresh :size="18" /></div>
             <Printer v-else :size="18" />
-            {{ processing ? 'Validation...' : 'Valider & Imprimer' }}
+            {{ processing ? $t('ticketing.booking_modal.validating') : $t('ticketing.booking_modal.validate_and_print') }}
           </button>
         </div>
 
@@ -879,13 +882,13 @@ onBeforeUnmount(() => {
             <AlertCircle class="text-red-400" :size="32" />
           </div>
           <p class="text-base font-black text-gray-900 dark:text-slate-100">
-            {{ claimStatus === 'expired' ? 'Demande expirée' : 'Récompense refusée' }}
+            {{ claimStatus === 'expired' ? $t('ticketing.booking_modal.request_expired') : $t('ticketing.booking_modal.reward_rejected') }}
           </p>
           <p class="text-xs text-gray-500 dark:text-slate-400">
-            {{ claimStatus === 'expired' ? 'Le client n\'a pas répondu dans les 10 minutes.' : 'Le client a refusé la récompense.' }}
+            {{ claimStatus === 'expired' ? $t('ticketing.booking_modal.client_no_response') : $t('ticketing.booking_modal.client_rejected') }}
           </p>
           <button @click="$emit('close')" class="w-full py-2.5 border border-gray-300 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 text-sm font-bold hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
-            Fermer
+            {{ $t('common.close') }}
           </button>
         </div>
 
@@ -896,11 +899,11 @@ onBeforeUnmount(() => {
             <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-400 animate-ping opacity-75" />
           </div>
           <div>
-            <p class="text-sm font-black text-gray-900 dark:text-slate-100">En attente de validation</p>
+            <p class="text-sm font-black text-gray-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.pending_validation') }}</p>
             <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
               <span class="font-medium">{{ okohiRewardTitle }}</span>
             </p>
-            <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Le client doit approuver depuis l'application Okohi.</p>
+            <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">{{ $t('ticketing.booking_modal.client_must_approve') }}</p>
           </div>
           <div class="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400">
             <ClockIcon :size="16" />
@@ -913,7 +916,7 @@ onBeforeUnmount(() => {
             />
           </div>
           <button @click="$emit('close')" class="w-full py-2 text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
-            Annuler
+            {{ $t('common.cancel') }}
           </button>
         </div>
 
@@ -928,25 +931,25 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div>
-                <h4 class="text-lg font-black text-gray-900 dark:text-slate-100">Privilège validé !</h4>
+                <h4 class="text-lg font-black text-gray-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.privilege_validated') }}</h4>
                 <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                  Veuillez encaisser le montant restant en espèces avant d'émettre le billet.
+                  {{ $t('ticketing.booking_modal.cash_remainder_info') }}
                 </p>
               </div>
 
               <!-- Privilege info -->
               <div class="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-xl p-3 text-left space-y-1">
                 <div class="text-xs text-gray-500 dark:text-slate-450 mt-1 flex justify-between">
-                  <span>Prix normal :</span>
+                  <span>{{ $t('ticketing.booking_modal.normal_price') }}</span>
                   <span class="font-mono text-gray-800 dark:text-slate-200">{{ okohiAmounts?.gross.toLocaleString('fr-FR') }} FCFA</span>
                 </div>
                 <div class="text-xs text-gray-500 dark:text-slate-450 flex justify-between">
-                  <span>Réduction Okohi :</span>
+                  <span>{{ $t('ticketing.booking_modal.okohi_discount') }}</span>
                   <span class="font-mono text-emerald-600">-{{ okohiAmounts?.discount.toLocaleString('fr-FR') }} FCFA</span>
                 </div>
                 <div class="h-px bg-amber-200/50 dark:bg-amber-900/30 my-1"></div>
                 <div class="text-sm font-bold text-gray-800 dark:text-slate-200 flex justify-between">
-                  <span>À encaisser (Espèces) :</span>
+                  <span>{{ $t('ticketing.booking_modal.to_collect_cash') }}</span>
                   <span class="font-mono text-amber-600 text-lg">{{ okohiAmounts?.amountCollected.toLocaleString('fr-FR') }} FCFA</span>
                 </div>
               </div>
@@ -959,14 +962,14 @@ onBeforeUnmount(() => {
                   class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-all shadow-sm flex items-center justify-center gap-1 active:scale-[0.99] disabled:opacity-50"
                 >
                   <Refresh v-if="confirmingCash" class="animate-spin mr-1" :size="16" />
-                  <span>Encaisser et émettre le ticket</span>
+                  <span>{{ $t('ticketing.booking_modal.collect_and_issue') }}</span>
                 </button>
                 <button
                   type="button"
                   @click="cancelOkohiRequest"
                   class="w-full py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-bold text-sm rounded-xl border border-red-200/50 dark:border-red-900/30 transition-all"
                 >
-                  Annuler la vente
+                  {{ $t('ticketing.booking_modal.cancel_sale') }}
                 </button>
               </div>
             </div>
@@ -983,19 +986,19 @@ onBeforeUnmount(() => {
               </div>
 
               <div>
-                <h4 class="text-lg font-black text-gray-900 dark:text-slate-100">Attente de validation</h4>
+                <h4 class="text-lg font-black text-gray-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.waiting_for_validation') }}</h4>
                 <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                  Demande envoyée sur l'application mobile Okohi du client <strong>{{ okohiCardNumber }}</strong>.
+                  {{ $t('ticketing.booking_modal.request_sent_to_app') }} <strong>{{ okohiCardNumber }}</strong>.
                 </p>
               </div>
 
               <!-- Privilege info -->
               <div v-if="selectedReward" class="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl p-3 text-left">
-                <span class="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">Avantage sélectionné</span>
+                <span class="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">{{ $t('ticketing.booking_modal.selected_advantage') }}</span>
                 <p class="text-sm font-bold text-gray-800 dark:text-slate-200 mt-0.5">{{ selectedReward.title }}</p>
                 <div v-if="okohiAmounts" class="text-xs text-gray-500 dark:text-slate-450 mt-1 flex justify-between">
-                  <span>Prix normal : {{ okohiAmounts.gross.toLocaleString('fr-FR') }} FCFA</span>
-                  <span class="font-bold text-emerald-600">Réduction : -{{ okohiAmounts.discount.toLocaleString('fr-FR') }} FCFA</span>
+                  <span>{{ $t('ticketing.booking_modal.normal_price') }} {{ okohiAmounts.gross.toLocaleString('fr-FR') }} FCFA</span>
+                  <span class="font-bold text-emerald-600">{{ $t('ticketing.booking_modal.discount') }} -{{ okohiAmounts.discount.toLocaleString('fr-FR') }} FCFA</span>
                 </div>
               </div>
 
@@ -1011,14 +1014,14 @@ onBeforeUnmount(() => {
                   class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-sm transition-all active:scale-[0.99] flex items-center justify-center gap-1.5"
                 >
                   <Gift :size="16" />
-                  <span>Poursuivre d'autres ventes (Fermer)</span>
+                  <span>{{ $t('ticketing.booking_modal.continue_sales') }}</span>
                 </button>
                 <button
                   type="button"
                   @click="cancelOkohiRequest"
                   class="w-full py-2 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 font-bold text-xs rounded-xl border border-red-200/50 dark:border-red-900/30 transition-all"
                 >
-                  Annuler la demande
+                  {{ $t('ticketing.booking_modal.cancel_request') }}
                 </button>
               </div>
             </div>
@@ -1042,7 +1045,7 @@ onBeforeUnmount(() => {
                     class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
                     :class="!useOkohi ? 'bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
                   >
-                    Paiement Espèces
+                    {{ $t('ticketing.booking_modal.cash_payment') }}
                   </button>
                   <button
                     type="button"
@@ -1051,7 +1054,7 @@ onBeforeUnmount(() => {
                     :class="useOkohi ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'"
                   >
                     <Gift :size="13" />
-                    Privilège Okohi
+                    {{ $t('ticketing.booking_modal.okohi_privilege') }}
                   </button>
                 </div>
 
@@ -1063,9 +1066,9 @@ onBeforeUnmount(() => {
                 <div v-if="connectionOptions.length > 0" class="mt-4 rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 text-left dark:border-indigo-900/50 dark:bg-indigo-950/20">
                   <div class="flex items-center justify-between gap-3">
                     <div>
-                      <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondance</div>
+                      <div class="text-sm font-black text-slate-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.connection') }}</div>
                       <div class="text-[11px] text-slate-500 dark:text-slate-400">
-                        Afficher les destinations possibles via {{ selectedFare?.to_station?.name }}
+                        {{ $t('ticketing.booking_modal.show_destinations_via') }} {{ selectedFare?.to_station?.name }}
                       </div>
                     </div>
                     <button
@@ -1086,7 +1089,7 @@ onBeforeUnmount(() => {
                   <!-- Selected connection destination badge -->
                   <div v-if="selectedConnectionOption" class="mt-3 p-2.5 bg-indigo-100/90 dark:bg-indigo-950/70 border border-indigo-300 dark:border-indigo-800 rounded-xl flex items-center justify-between text-left shadow-sm">
                     <div>
-                      <div class="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 tracking-wider">Destination choisie</div>
+                      <div class="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-300 tracking-wider">{{ $t('ticketing.booking_modal.chosen_destination') }}</div>
                       <div class="text-xs font-bold text-slate-900 dark:text-slate-100 mt-0.5">{{ selectedConnectionOption.station?.name }}</div>
                     </div>
                     <button
@@ -1094,7 +1097,7 @@ onBeforeUnmount(() => {
                       @click="clearSelectedConnection"
                       class="px-2 py-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/60 text-red-600 dark:text-red-400 text-[11px] font-bold rounded-lg border border-red-200 dark:border-red-900/30 transition-colors cursor-pointer"
                     >
-                      Effacer
+                      {{ $t('ticketing.booking_modal.clear') }}
                     </button>
                   </div>
                 </div>
@@ -1106,7 +1109,7 @@ onBeforeUnmount(() => {
                   :class="isOkohiExpanded ? 'md:contents' : ''"
                 >
                   <div :class="isOkohiExpanded ? 'md:col-start-1 md:mt-4' : ''">
-                    <InputLabel for="okohi_card" value="Numéro de carte fidélité Okohi" />
+                    <InputLabel for="okohi_card" :value="$t('ticketing.booking_modal.okohi_card_number')" />
                     <div class="mt-1 flex gap-2">
                       <div class="relative flex-1">
                         <TextInput
@@ -1125,7 +1128,7 @@ onBeforeUnmount(() => {
                         class="px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-xl hover:bg-slate-700 disabled:opacity-50 font-bold text-xs flex items-center gap-1 transition-colors"
                       >
                         <Refresh v-if="isOkohiSearching" :size="14" class="animate-spin" />
-                        <span>{{ isOkohiSearching ? 'Vérification...' : 'Vérifier' }}</span>
+                        <span>{{ isOkohiSearching ? $t('ticketing.booking_modal.verifying') : $t('ticketing.booking_modal.verify') }}</span>
                       </button>
                     </div>
                   </div>
@@ -1147,17 +1150,17 @@ onBeforeUnmount(() => {
                         <Gift :size="18" />
                       </div>
                       <div>
-                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">Vérification Okohi</p>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400">Identité, voyages récents et privilèges disponibles</p>
+                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">{{ $t('ticketing.booking_modal.okohi_verification') }}</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ $t('ticketing.booking_modal.okohi_identity_desc') }}</p>
                       </div>
                     </div>
                     <div class="flex justify-between items-center">
                       <div>
-                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Client</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">{{ $t('ticketing.booking_modal.customer') }}</p>
                         <p class="text-sm font-bold text-gray-800 dark:text-slate-100">{{ okohiCustomerName }}</p>
                       </div>
                       <div class="text-right">
-                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">Solde</p>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wide">{{ $t('ticketing.booking_modal.balance') }}</p>
                         <p class="text-sm font-black text-emerald-600 dark:text-emerald-400">
                           {{ okohiBalanceLabel }}
                         </p>
@@ -1166,8 +1169,8 @@ onBeforeUnmount(() => {
 
                     <div class="border-t border-slate-200 pt-3 dark:border-slate-800">
                       <div class="mb-2 flex items-center justify-between gap-2">
-                        <p class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400">Voyages récents</p>
-                        <span class="text-[11px] text-gray-400">Vérification client</span>
+                        <p class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400">{{ $t('ticketing.booking_modal.recent_trips') }}</p>
+                        <span class="text-[11px] text-gray-400">{{ $t('ticketing.booking_modal.customer_verification') }}</span>
                       </div>
                       <div v-if="okohiCustomer.recent_trips?.length" class="max-h-44 space-y-2 overflow-y-auto pr-1">
                         <div
@@ -1177,8 +1180,8 @@ onBeforeUnmount(() => {
                         >
                           <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
-                              <p class="truncate font-bold text-slate-700 dark:text-slate-200">{{ trip.route_label || trip.title || 'Voyage Tiketi' }}</p>
-                              <p class="mt-0.5 font-mono text-[11px] text-slate-400">Ticket {{ trip.ticket_id || 'non renseigné' }}</p>
+                              <p class="truncate font-bold text-slate-700 dark:text-slate-200">{{ trip.route_label || trip.title || t('ticketing.booking_modal.tiketi_trip') }}</p>
+                              <p class="mt-0.5 font-mono text-[11px] text-slate-400">{{ $t('ticketing.booking_modal.ticket') }} {{ trip.ticket_id || 'non renseigné' }}</p>
                             </div>
                             <div class="shrink-0 text-right">
                               <p class="font-semibold text-slate-600 dark:text-slate-300">{{ formatOkohiTripDate(trip.travelled_at) }}</p>
@@ -1188,21 +1191,21 @@ onBeforeUnmount(() => {
                         </div>
                       </div>
                       <p v-else class="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
-                        Aucun voyage confirmé trouvé pour cette compagnie.
+                        {{ $t('ticketing.booking_modal.no_recent_trips') }}
                       </p>
                     </div>
 
                     <!-- Rewards dropdown selector -->
                     <div>
-                      <InputLabel for="okohi_reward" value="Privilège à appliquer" />
+                      <InputLabel for="okohi_reward" :value="$t('ticketing.booking_modal.privilege_to_apply')" />
                       <select
                         id="okohi_reward"
                         v-model="selectedReward"
                         class="mt-1 block w-full rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-bold"
                       >
-                        <option :value="null">Sélectionner un privilège...</option>
+                        <option :value="null">{{ $t('ticketing.booking_modal.select_privilege') }}</option>
                         <option v-for="reward in eligibleRewards" :key="reward.id" :value="reward">
-                          {{ reward.title }} (Coût: {{ reward.points_required ?? reward.cost_in_times }} pts)
+                          {{ reward.title }} {{ $t('ticketing.booking_modal.cost_points', { points: reward.points_required ?? reward.cost_in_times }) }}
                         </option>
                       </select>
                     </div>
@@ -1211,7 +1214,7 @@ onBeforeUnmount(() => {
 
                 <!-- QUANTITY SELECTOR -->
                 <div v-if="!useOkohi" class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
-                  <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Quantité:</span>
+                  <span class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ $t('ticketing.booking_modal.quantity') }}</span>
                   <div class="flex items-center bg-white/85 dark:bg-slate-900/85 rounded-xl border border-white/70 dark:border-slate-800/80 shadow-sm overflow-hidden">
                     <button
                       type="button"
@@ -1234,17 +1237,17 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
                 <p v-if="!useOkohi && seatFirstFlow" class="mt-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                  {{ maxSellableQuantity }} place(s) vendable(s) depuis cette gare
-                  <span v-if="maxSellableQuantity > 10"> · maximum 10 par vente</span>
+                  {{ $t('ticketing.booking_modal.sellable_seats', { count: maxSellableQuantity }) }}
+                  <span v-if="maxSellableQuantity > 10"> {{ $t('ticketing.booking_modal.max_per_sale') }}</span>
                 </p>
                 <p v-else-if="!useOkohi" class="mt-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                  {{ seatsToBook.length }} place(s) sélectionnée(s)
+                  {{ $t('ticketing.booking_modal.seats_selected', { count: seatsToBook.length }) }}
                 </p>
                 <div v-else class="mt-3 md:mt-4 text-xs font-bold text-slate-600 dark:text-slate-300 bg-emerald-50/70 dark:bg-emerald-950/30 p-2.5 rounded-xl border border-emerald-100 dark:border-emerald-900/30 text-center">
-                  Quantité : 1 siège (Privilège individuel Okohi)
+                  {{ $t('ticketing.booking_modal.quantity_1_okohi') }}
                 </div>
                 <div v-if="!useOkohi && ticketQuantityModel > 1" class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300 mt-2">
-                  Total: {{ totalLabel }}
+                  {{ $t('ticketing.booking_modal.total') }} {{ totalLabel }}
                 </div>
               </div>
 
@@ -1254,25 +1257,25 @@ onBeforeUnmount(() => {
                 @click="showPassengerFieldsModel = !showPassengerFieldsModel"
                 class="w-full flex items-center justify-between p-3 bg-white/55 dark:bg-slate-950/40 hover:bg-white/75 dark:hover:bg-slate-900/50 rounded-xl mt-4 mb-3 transition-colors border border-white/60 dark:border-slate-800/80 cursor-pointer"
               >
-                <span class="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300">Informations passager (optionnel)</span>
+                <span class="text-xs md:text-sm font-medium text-gray-700 dark:text-slate-300">{{ $t('ticketing.booking_modal.passenger_info_optional') }}</span>
                 <ChevronDown :class="{ 'rotate-180': showPassengerFieldsModel }" class="w-5 h-5 text-gray-500 dark:text-slate-400 transition-transform" />
               </button>
 
               <div v-show="showPassengerFieldsModel" class="space-y-3 mb-3 md:mb-4 text-left">
                 <div>
-                  <InputLabel for="passenger_name" value="Nom du passager" />
+                  <InputLabel for="passenger_name" :value="$t('ticketing.booking_modal.passenger_name')" />
                   <TextInput
                     id="passenger_name"
                     v-model="passengerForm.name"
                     type="text"
                     class="mt-1 block w-full rounded-xl border-slate-200 focus:border-emerald-500 focus:ring-emerald-500"
-                    placeholder="Nom complet"
+                    :placeholder="$t('ticketing.booking_modal.full_name')"
                   />
                   <InputError class="mt-2" :message="passengerFormErrors.name" />
                 </div>
 
                 <div>
-                  <InputLabel for="passenger_phone" value="Téléphone" />
+                  <InputLabel for="passenger_phone" :value="$t('ticketing.booking_modal.phone')" />
                   <TextInput
                     id="passenger_phone"
                     v-model="passengerForm.phone"
@@ -1292,8 +1295,8 @@ onBeforeUnmount(() => {
                     @click="$emit('close')"
                     class="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 text-sm"
                   >
-                    Annuler
-                  </button>
+            {{ $t('common.cancel') }}
+          </button>
 
                   <!-- BUTTON FOR OKOHI VALIDATION -->
                   <button
@@ -1305,7 +1308,7 @@ onBeforeUnmount(() => {
                   >
                     <Refresh v-if="processingOkohi" :size="16" class="animate-spin mr-2" />
                     <Gift v-else :size="16" class="mr-2" />
-                    <span>{{ processingOkohi ? 'Envoi...' : 'Utiliser ce privilège' }}</span>
+                    <span>{{ processingOkohi ? $t('ticketing.booking_modal.sending') : $t('ticketing.booking_modal.use_privilege') }}</span>
                   </button>
 
                   <!-- BUTTON FOR CASH VALIDATION (STANDARD) -->
@@ -1318,7 +1321,7 @@ onBeforeUnmount(() => {
                   >
                     <div v-if="processing" class="animate-spin mr-2"><Refresh :size="16" /></div>
                     <Printer v-else :size="16" class="mr-2" />
-                    <span>{{ processing ? 'Validation...' : 'Valider & Imprimer' }}</span>
+                    <span>{{ processing ? $t('ticketing.booking_modal.validating') : $t('ticketing.booking_modal.validate_and_print') }}</span>
                   </button>
                 </div>
               </div>
@@ -1327,14 +1330,14 @@ onBeforeUnmount(() => {
             <!-- ASIDE CORRESPONDANCES (COLUMN 2) -->
             <aside v-if="showConnections" class="rounded-2xl border border-indigo-200/70 bg-indigo-50/70 p-3 shadow-sm dark:border-indigo-900/50 dark:bg-indigo-950/20 md:p-4 sticky top-0">
               <div class="mb-3 text-left">
-                <div class="text-sm font-black text-slate-900 dark:text-slate-100">Correspondances possibles</div>
-                <div class="text-[11px] text-slate-500 dark:text-slate-400">Via {{ selectedFare?.to_station?.name }}</div>
+                <div class="text-sm font-black text-slate-900 dark:text-slate-100">{{ $t('ticketing.booking_modal.possible_connections') }}</div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400">{{ $t('ticketing.booking_modal.via_station', { station: selectedFare?.to_station?.name }) }}</div>
               </div>
 
               <TextInput
                 v-model="connectionSearch"
                 type="search"
-                placeholder="Rechercher une destination"
+                :placeholder="$t('ticketing.booking_modal.search_destination')"
                 class="block w-full rounded-xl border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               />
 
@@ -1358,11 +1361,11 @@ onBeforeUnmount(() => {
                     <div class="text-base font-black">{{ option.price.toLocaleString('fr-FR') }}</div>
                     <div class="text-[9px] font-bold opacity-75">FCFA</div>
                   </div>
-                  <div v-else class="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400">Non tarifé</div>
+                  <div v-else class="shrink-0 text-[10px] font-bold text-rose-600 dark:text-rose-400">{{ $t('ticketing.booking_modal.unpriced') }}</div>
                 </button>
               </div>
               <div v-else class="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                Aucune correspondance trouvée.
+                {{ $t('ticketing.booking_modal.no_connection_found') }}
               </div>
             </aside>
           </div>

@@ -1,0 +1,291 @@
+{
+  "presentation": {
+    "nav": {
+      "features": "Features",
+      "ticketing": "Ticketing",
+      "connections": "Connections",
+      "control": "Tiketi Control",
+      "teams": "For your teams",
+      "loyalty": "Loyalty",
+      "contact": "Contact"
+    },
+    "header": {
+      "demo": "Request a demo",
+      "login": "Sign in"
+    },
+    "hero": {
+      "badge": "The ticketing platform for transport companies",
+      "title_1": "Sell your tickets faster,",
+      "title_2": "run your network in real time,",
+      "title_3": "build customer loyalty",
+      "subtitle": "TIKETI centralizes ticketing, departure supervision, fleet management, accounting and passenger loyalty — at the counter and at the head office, in a single tool.",
+      "cta_demo": "Request a demonstration",
+      "cta_features": "Discover the features",
+      "doc_hint": "Public documentation available:",
+      "doc_link": "read the user guide",
+      "mockup_label": "TIKETI — Ticketing",
+      "badge_sale_title": "Selling in seconds",
+      "badge_sale_sub": "Interactive seat map",
+      "badge_qr_title": "Control QR code",
+      "badge_qr_sub": "Anti-fraud validation"
+    },
+    "features": {
+      "eyebrow": "Key features",
+      "title": "Run your entire network without friction",
+      "subtitle": "Every feature is built for the field: simple at the counter, reliable for control, and readable for management.",
+      "items": [
+        {
+          "title": "Smart ticketing",
+          "desc": "Counter sales in seconds, an interactive seat map and automatic seat allocation based on destination and occupancy."
+        },
+        {
+          "title": "Instant printing",
+          "desc": "Bluetooth thermal printing right at the counter, with a control QR code on every ticket. Built-in browser fallback."
+        },
+        {
+          "title": "Real-time supervision",
+          "desc": "Departure control tower, trip statuses, alerts and vehicle occupancy, all visible from a single screen."
+        },
+        {
+          "title": "Managed connections",
+          "desc": "Combined trips with a vehicle change on a single ticket: passenger tracking in transit and conflict-free seat allocation."
+        },
+        {
+          "title": "Complete fleet management",
+          "desc": "Vehicles, types and seat plans, crews, per-station pools and administrative deadlines in one place."
+        },
+        {
+          "title": "Accounting & reporting",
+          "desc": "Period reports, auditable exports, revenue reconciliation and strategic KPIs for management."
+        }
+      ]
+    },
+    "cases": {
+      "items": [
+        {
+          "tag": "At the counter",
+          "title": "Sell faster, control better",
+          "points": [
+            "Interactive seat map with destination colors",
+            "Smart suggestions to maximize occupancy",
+            "Simultaneous sales from intermediate stations",
+            "QR code on every ticket for anti-fraud control"
+          ]
+        },
+        {
+          "tag": "In operations",
+          "title": "Track your departures in real time",
+          "points": [
+            "Trip statuses: on time, boarding, departed, delayed",
+            "Centralized alerts and validation actions",
+            "Crew positions and reports from the mobile app",
+            "Multi-station control tower for supervisors"
+          ]
+        },
+        {
+          "tag": "At the station",
+          "title": "A departure board for your passengers",
+          "points": [
+            "Large-screen departures display: time, trip code, destination, vehicle",
+            "Available seats and statuses updated in real time",
+            "Fullscreen mode for public passenger information screens",
+            "Clear color coding: on time, boarding, departed, delayed, cancelled"
+          ]
+        },
+        {
+          "tag": "At the head office",
+          "title": "Lead with reliable numbers",
+          "points": [
+            "Sales reports by period, seller and trip",
+            "Reproducible exports for accounting",
+            "Executive dashboard: revenue, occupancy, trips",
+            "OKOHI loyalty: automatic points and rewards"
+          ]
+        }
+      ]
+    },
+    "connections": {
+      "eyebrow": "Combined trips",
+      "title": "One ticket, several vehicles",
+      "text": "Sell a complete trip with a vehicle change at an intermediate station: the passenger is tracked to their connection, with no double sale or seat conflict.",
+      "cards": [
+        {
+          "title": "Centralized transit pool",
+          "desc": "Expected passengers per station, status and final destination visible at a glance."
+        },
+        {
+          "title": "Zero seat conflict",
+          "desc": "Availability checked per segment: no double occupancy on the connecting leg."
+        },
+        {
+          "title": "Smart allocation",
+          "desc": "Best available seat assigned automatically, or manual mode when needed."
+        },
+        {
+          "title": "Confirmed presence",
+          "desc": "The transit agent marks the passenger ready before seating on the connecting trip."
+        }
+      ],
+      "passenger_title": "Passenger journey",
+      "passenger_route": "Abidjan → Bouaké → Korhogo",
+      "one_ticket": "1 ticket",
+      "steps": [
+        {
+          "title": "Complete trip sale",
+          "desc": "Final destination and transfer station recorded."
+        },
+        {
+          "title": "Transit confirmed at Bouaké",
+          "desc": "The passenger is ready for their connection."
+        },
+        {
+          "title": "Seat assigned for Korhogo",
+          "desc": "The second vehicle manifest is updated."
+        }
+      ]
+    },
+    "control": {
+      "eyebrow": "Crew application",
+      "title": "Tiketi Control secures every boarding",
+      "text": "Give controllers, drivers and supervisors the right tools on the field. Fast, readable, and operational even when the network becomes unstable.",
+      "app_title": "Tiketi Control",
+      "app_subtitle": "Ticket check",
+      "online": "ONLINE",
+      "valid_title": "Valid ticket",
+      "valid_seat": "Seat 18 · Abidjan → Bouaké",
+      "cards": [
+        {
+          "title": "Scan & anti-fraud",
+          "desc": "Validate the QR code, trip, seat and ticket status in seconds."
+        },
+        {
+          "title": "Live manifest",
+          "desc": "Check passengers, connections and confirm every boarding."
+        },
+        {
+          "title": "Offline continuity",
+          "desc": "Work on a reliable cache; actions are reconciled when the network returns."
+        },
+        {
+          "title": "Full field view",
+          "desc": "Today's trips, seating plan, team messages and incident tracking in one place."
+        }
+      ]
+    },
+    "roles": {
+      "eyebrow": "A solution for every player",
+      "title": "Your teams, each in their place",
+      "subtitle": "Each profile only sees the screens useful for their mission: sales, control, accounting or management.",
+      "items": [
+        {
+          "name": "Seller",
+          "desc": "Fast sales and counter printing"
+        },
+        {
+          "name": "Supervisor",
+          "desc": "Departure and sales control"
+        },
+        {
+          "name": "Accountant",
+          "desc": "Reports and revenue reconciliation"
+        },
+        {
+          "name": "Management",
+          "desc": "Strategic indicators"
+        }
+      ]
+    },
+    "loyalty": {
+      "title": "Build loyalty with OKOHI",
+      "text": "Native integration with the OKOHI ecosystem: the QR code printed on every ticket turns each trip into a loyalty opportunity — fully digital, with no friction at the counter.",
+      "items": [
+        {
+          "title": "Smart QR Code",
+          "desc": "A quick scan on every trip to earn points or visits instantly."
+        },
+        {
+          "title": "Automatic rewards",
+          "desc": "Free tickets, percentage or fixed-amount discounts: configure your reward catalog, OKOHI applies it."
+        },
+        {
+          "title": "Retention analytics",
+          "desc": "Identify your most regular customers, track transactions and adapt your offers."
+        }
+      ],
+      "play_badge": "Available on",
+      "play_store": "Google Play",
+      "synced": "Synced with OKOHI"
+    },
+    "why": {
+      "eyebrow": "Why TIKETI?",
+      "title": "Maximize profits, modernize your brand",
+      "items": [
+        {
+          "title": "Absolute real time",
+          "desc": "No more double sales: when a ticket is sold at station A, the seat is instantly locked for station B."
+        },
+        {
+          "title": "Revenue optimization",
+          "desc": "With smart segments, a freed seat becomes immediately resellable for the rest of the trip."
+        },
+        {
+          "title": "Total control",
+          "desc": "Track every cent: detailed financial reports and instant cash audits, you have eyes on everything."
+        }
+      ]
+    },
+    "faq": {
+      "eyebrow": "Frequently asked questions",
+      "title": "Before contacting us",
+      "items": [
+        {
+          "q": "Do I need to install software at every counter?",
+          "a": "No. TIKETI runs in the browser: a computer with an internet connection is enough. Data is centralized and accessible according to each user's permissions."
+        },
+        {
+          "q": "Does ticket printing require specific equipment?",
+          "a": "A Bluetooth thermal printer is enough. TIKETI prints the ticket with a QR code and automatically falls back to browser printing."
+        },
+        {
+          "q": "Does each company get a separate space?",
+          "a": "Yes. Each company has an isolated space with its own data: stations, vehicles, users and tickets."
+        },
+        {
+          "q": "Can I sell a trip with a vehicle change?",
+          "a": "Yes. Connections allow a single ticket for a combined trip, with passenger tracking at the transit station and automatic seat allocation."
+        }
+      ]
+    },
+    "contact": {
+      "title": "Ready to modernize your ticketing?",
+      "text": "Leave us a message: our team will contact you for a demonstration tailored to your network.",
+      "company": "Company name",
+      "company_ph": "e.g. UTB Transports",
+      "email": "Work email",
+      "email_ph": "you{'@'}company.ci",
+      "phone": "Phone",
+      "phone_ph": "+225 00 00 00 00 00",
+      "message": "Your needs (optional)",
+      "message_ph": "Tell us about your network, your stations, your fleet…",
+      "coordinates": "Contact us",
+      "email_label": "Email",
+      "email_value": "contact{'@'}anohou.dev",
+      "whatsapp_label": "WhatsApp",
+      "whatsapp_value": "+225 07 19 160 119",
+      "cta_whatsapp": "Request a demo via WhatsApp",
+      "cta_doc": "Read the documentation",
+      "mail_subject": "Contact from TIKETI",
+      "wa_message": "Hello TIKETI, I would like a demonstration.",
+      "send": "Send message",
+      "success": "Message sent, thank you! We will get back to you shortly.",
+      "error": "Sending failed. Please try again or write to us directly at contact{'@'}anohou.dev."
+    },
+    "footer": {
+      "tagline": "Ticketing and transport management platform",
+      "features": "Features",
+      "doc": "Documentation",
+      "contact": "Contact",
+      "rights": "All rights reserved"
+    }
+  }
+}

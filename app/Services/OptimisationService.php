@@ -151,27 +151,9 @@ class OptimisationService
 
         // Déterminer les sièges disponibles selon le mode de réservation
         $availableSeats = [];
-
-        if ($trip->isSemiIntelligent()) {
-            // MODE SEMI-INTELLIGENT : les sièges peuvent être réutilisés
-            // si l'occupant actuel descend avant l'arrêt d'embarquement du nouveau passager
-            for ($seatNumber = 1; $seatNumber <= $totalSeats; $seatNumber++) {
-                if (! $occupiedSeatsData->has($seatNumber)) {
-                    $availableSeats[] = $seatNumber;
-                } else {
-                    $currentOccupant = $occupiedSeatsData[$seatNumber];
-                    $occupantDestIndex = $this->getStopIndex($trip->route_id, $currentOccupant->to_station_id, $isReversedTrip);
-                    if ($occupantDestIndex <= $boardingIndex) {
-                        $availableSeats[] = $seatNumber;
-                    }
-                }
-            }
-        } else {
-            // MODE INTELLIGENT : seuls les sièges vraiment vides
-            for ($seatNumber = 1; $seatNumber <= $totalSeats; $seatNumber++) {
-                if (! $occupiedSeatsData->has($seatNumber)) {
-                    $availableSeats[] = $seatNumber;
-                }
+        for ($seatNumber = 1; $seatNumber <= $totalSeats; $seatNumber++) {
+            if (! $occupiedSeatsData->has($seatNumber)) {
+                $availableSeats[] = $seatNumber;
             }
         }
 
@@ -199,6 +181,23 @@ class OptimisationService
             );
         }
 
+        // Pré-calculer les taux de remplissage par zone pour optimiser le calcul du score
+        $seatsPerZone = $totalSeats / max(1, $numZones);
+        $zoneSeatCounts = array_fill(1, $numZones, 0);
+        $zoneOccupiedCounts = array_fill(1, $numZones, 0);
+        foreach ($seatMapInfo['seats'] as $sNum => $sInfo) {
+            $sZone = (int) ceil(($sInfo['proximity_rank'] ?? 999) / $seatsPerZone);
+            $sZone = max(1, min($numZones, $sZone));
+            $zoneSeatCounts[$sZone]++;
+            if ($occupiedSeatsData->has($sNum)) {
+                $zoneOccupiedCounts[$sZone]++;
+            }
+        }
+        $zoneFillRates = [];
+        for ($z = 1; $z <= $numZones; $z++) {
+            $zoneFillRates[$z] = $zoneSeatCounts[$z] > 0 ? $zoneOccupiedCounts[$z] / $zoneSeatCounts[$z] : 0;
+        }
+
         // Calculer les scores pour chaque siège disponible
         $seatScores = [];
         foreach ($availableSeats as $seatNumber) {
@@ -214,7 +213,8 @@ class OptimisationService
                 $occupiedSeatsData,
                 $occupantDestIndices,
                 $destinationIndex,
-                $segmentStopDistance
+                $segmentStopDistance,
+                $zoneFillRates
             );
 
             $seatScores[] = [
@@ -342,25 +342,7 @@ class OptimisationService
         return array_slice($result, 0, $maxResults);
     }
 
-    private function filterSeatsByPhysicalZone(array $seatNumbers, array $seatMapInfo, string $zone): array
-    {
-        $rowsWithSeats = max(1, $seatMapInfo['rows_with_seats'] ?? 1);
-        $frontLimit = max(1, (int) ceil($rowsWithSeats / 3));
-        $rearStart = max(1, (int) floor(($rowsWithSeats * 2) / 3) + 1);
 
-        return array_values(array_filter($seatNumbers, function (int $seatNumber) use ($seatMapInfo, $zone, $frontLimit, $rearStart) {
-            $rowRank = $seatMapInfo['seats'][$seatNumber]['row_rank'] ?? null;
-            if ($rowRank === null) {
-                return false;
-            }
-
-            return match ($zone) {
-                'front' => $rowRank <= $frontLimit,
-                'rear' => $rowRank >= $rearStart,
-                default => $rowRank > $frontLimit && $rowRank < $rearStart,
-            };
-        }));
-    }
 
     /**
      * Précharge tous les index d'arrêts d'une route en une seule requête
@@ -619,7 +601,8 @@ class OptimisationService
         Collection $occupiedSeatsData,
         array $occupantDestIndices,
         int $destinationIndex,
-        int $segmentStopDistance
+        int $segmentStopDistance,
+        array $zoneFillRates = []
     ): array {
         $score = 100;
         $reasons = [];
@@ -638,22 +621,7 @@ class OptimisationService
             $reasons[] = "Zone Idéale ($seatZone)";
         } else {
             $zoneDiff = abs($seatZone - $targetZone);
-
-            // Vérifier le taux de remplissage de la zone cible pour réduire la pénalité
-            $seatsInTargetZone = 0;
-            $occupiedInTargetZone = 0;
-            foreach ($seatMapInfo['seats'] as $sNum => $sInfo) {
-                $sZone = (int) ceil(($sInfo['proximity_rank'] ?? 999) / $seatsPerZone);
-                $sZone = max(1, min($numZones, $sZone));
-                if ($sZone === $targetZone) {
-                    $seatsInTargetZone++;
-                    if ($occupiedSeatsData->has($sNum)) {
-                        $occupiedInTargetZone++;
-                    }
-                }
-            }
-
-            $zoneFillRate = $seatsInTargetZone > 0 ? $occupiedInTargetZone / $seatsInTargetZone : 0;
+            $zoneFillRate = $zoneFillRates[$targetZone] ?? 0;
 
             if ($zoneFillRate > 0.80) {
                 // Zone cible quasi pleine : pénalité réduite, favoriser la zone adjacente
@@ -707,14 +675,14 @@ class OptimisationService
 
         // --- 6. ANTI-BLOCAGE BIDIRECTIONNEL ---
 
-        // 6a. Siège fenêtre : vérifier si un passager couloir descend AVANT nous
-        // (il devrait se lever pour nous laisser passer quand nous descendons)
+        // 6a. Siège fenêtre : vérifier si un passager couloir descend APRÈS nous
+        // (il restera assis et nous bloquera quand nous voulons sortir)
         if ($seatType === 'window') {
             foreach ($seatInfo['adjacent_aisle_seats'] as $aisleSeat) {
                 if ($occupiedSeatsData->has($aisleSeat)) {
                     $occupantDest = $occupantDestIndices[$aisleSeat] ?? 0;
-                    if ($occupantDest < $destinationIndex) {
-                        // L'occupant du couloir descend avant nous : il nous bloquera
+                    if ($occupantDest > $destinationIndex) {
+                        // L'occupant du couloir descend après nous : il nous bloquera
                         $score -= 200;
                         $reasons[] = 'Bloqué par couloir';
                         break;
@@ -723,14 +691,14 @@ class OptimisationService
             }
         }
 
-        // 6b. Siège couloir : vérifier si un passager fenêtre descend APRÈS nous
-        // (nous devrions nous lever pour le laisser sortir plus tard)
+        // 6b. Siège couloir : vérifier si un passager fenêtre descend AVANT nous
+        // (nous devrons nous lever pendant le trajet pour le laisser sortir)
         if ($seatType === 'aisle') {
             foreach ($seatInfo['adjacent_window_seats'] as $windowSeat) {
                 if ($occupiedSeatsData->has($windowSeat)) {
                     $occupantDest = $occupantDestIndices[$windowSeat] ?? 0;
-                    if ($occupantDest > $destinationIndex) {
-                        // L'occupant de la fenêtre descend après nous : on le bloquerait
+                    if ($occupantDest < $destinationIndex) {
+                        // L'occupant de la fenêtre descend avant nous : on le bloquerait
                         $score -= 150;
                         $reasons[] = 'Bloquerait fenêtre';
                         break;

@@ -1,10 +1,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { router, usePage } from '@inertiajs/vue3';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Clock from 'vue-material-design-icons/Clock.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
   trips: Array,
@@ -86,7 +89,7 @@ const toggleFullscreen = () => {
     document.documentElement.requestFullscreen().then(() => {
       isFullscreen.value = true;
     }).catch(err => {
-      console.error(`Erreur d'activation du plein écran : ${err.message}`);
+      console.error(`${t('ticketing.tids_board.fullscreen_error')}${err.message}`);
     });
   } else {
     document.exitFullscreen().then(() => {
@@ -132,7 +135,7 @@ const parseRouteName = (trip) => {
   const originName = trip.origin_station?.name || trip.route?.origin_station?.name || '';
   const destName = trip.destination_station?.name || trip.route?.destination_station?.name || name;
   return {
-    origin: originName || 'Départ',
+    origin: originName || t('ticketing.tids_board.departure_origin'),
     destination: destName
   };
 };
@@ -140,36 +143,36 @@ const parseRouteName = (trip) => {
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
-      label: 'ANNULÉ', 
+      label: t('ticketing.tids_board.status_cancelled'), 
       color: 'text-rose-500 border border-rose-950 bg-rose-950/20 text-glow-red' 
     };
   }
   if (trip.status === 'delayed') {
     return { 
-      label: 'RETARDÉ', 
+      label: t('ticketing.tids_board.status_delayed'), 
       color: 'text-amber-500 border border-amber-950 bg-amber-950/20 animate-pulse text-glow-amber' 
     };
   }
   if (trip.status === 'boarding') {
     return { 
-      label: 'EMBARQUEMENT', 
+      label: t('ticketing.tids_board.status_boarding'), 
       color: 'text-orange-500 border border-orange-950 bg-orange-950/30 animate-pulse text-glow-orange' 
     };
   }
   if (trip.status === 'departed' || trip.status === 'arrived') {
     return { 
-      label: 'PARTI', 
+      label: t('ticketing.tids_board.status_departed'), 
       color: 'text-slate-400 border border-slate-800 bg-slate-900/40' 
     };
   }
   if (trip.available_seats <= 0) {
     return { 
-      label: 'COMPLET', 
+      label: t('ticketing.tids_board.status_full'), 
       color: 'text-red-500 border border-red-950 bg-red-950/15' 
     };
   }
   return { 
-    label: 'À L\'HEURE', 
+    label: t('ticketing.tids_board.status_on_time'), 
     color: 'text-emerald-500 border border-emerald-950 bg-emerald-950/20 text-glow-green' 
   };
 };
@@ -244,7 +247,7 @@ const formatDate = (dateString) => {
         <div>
           <div class="flex items-center gap-3">
             <h1 class="text-2xl font-black text-amber-500 uppercase tracking-widest text-glow-amber">
-              {{ props.selectedStationName ? `Départs — ${props.selectedStationName}` : 'Tous les Départs' }}
+              {{ props.selectedStationName ? `${$t('ticketing.tids_board.departures')} ${props.selectedStationName}` : $t('ticketing.tids_board.all_departures') }}
             </h1>
             <span class="px-2.5 py-0.5 rounded text-[10px] font-mono font-extrabold bg-emerald-950/80 text-emerald-400 border border-emerald-900 tracking-wider">LIVE BOARD</span>
           </div>
@@ -266,7 +269,7 @@ const formatDate = (dateString) => {
             @click="refreshData"
             :disabled="isRefreshing"
             class="p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 transition-all text-slate-400 hover:text-amber-500 disabled:opacity-50"
-            title="Rafraîchir"
+            :title="$t('ticketing.tids_board.refresh')"
           >
             <Refresh :size="20" :class="{ 'animate-spin': isRefreshing }" />
           </button>
@@ -275,7 +278,7 @@ const formatDate = (dateString) => {
           <button 
             @click="toggleFullscreen"
             class="p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 bg-slate-950 hover:bg-slate-900 transition-all text-slate-400 hover:text-amber-500"
-            :title="isFullscreen ? 'Quitter le plein écran' : 'Plein écran'"
+            :title="isFullscreen ? $t('ticketing.tids_board.exit_fullscreen') : $t('ticketing.tids_board.fullscreen')"
           >
             <!-- Custom Inline SVGs for Fullscreen & FullscreenExit -->
             <svg v-if="isFullscreen" viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -298,7 +301,7 @@ const formatDate = (dateString) => {
             @change="changeStation"
             class="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 block appearance-none font-bold cursor-pointer"
           >
-            <option value="">Toutes les gares de départ</option>
+            <option value="">{{ $t('ticketing.tids_board.all_departure_stations') }}</option>
             <option v-for="station in stations" :key="station.id" :value="station.id">
               {{ station.name }} ({{ station.city }})
             </option>
@@ -315,12 +318,12 @@ const formatDate = (dateString) => {
       <div v-if="sortedTripsForDisplay.length > 0" class="border border-slate-900 rounded-3xl overflow-hidden shadow-2xl">
         <!-- Table Headers (TIDS Yellow style) -->
         <div class="grid grid-cols-12 gap-4 px-8 py-4 bg-slate-900 border-b border-slate-800 text-[11px] font-mono text-amber-500/80 font-black uppercase tracking-widest leading-none">
-          <div class="col-span-2">Heure / Date</div>
-          <div class="col-span-2">Code Voyage</div>
-          <div class="col-span-4">Destination</div>
-          <div class="col-span-2">Véhicule</div>
-          <div class="col-span-1 text-center">Places</div>
-          <div class="col-span-1 text-right">Statut</div>
+          <div class="col-span-2">{{ $t('ticketing.tids_board.time_date') }}</div>
+          <div class="col-span-2">{{ $t('ticketing.tids_board.trip_code') }}</div>
+          <div class="col-span-4">{{ $t('ticketing.tids_board.destination') }}</div>
+          <div class="col-span-2">{{ $t('ticketing.tids_board.vehicle') }}</div>
+          <div class="col-span-1 text-center">{{ $t('ticketing.tids_board.seats') }}</div>
+          <div class="col-span-1 text-right">{{ $t('ticketing.tids_board.status') }}</div>
         </div>
 
         <!-- Trips Rows -->
@@ -339,7 +342,7 @@ const formatDate = (dateString) => {
             <!-- CODE VOYAGE -->
             <div class="col-span-2">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-slate-900 text-slate-350 text-[10px] font-bold font-mono tracking-wider border border-slate-800">
-                {{ trip.code || 'CODE EN ATTENTE' }}
+                {{ trip.code || $t('ticketing.tids_board.pending_code') }}
               </span>
             </div>
 
@@ -349,7 +352,7 @@ const formatDate = (dateString) => {
                 {{ parseRouteName(trip).destination }}
               </span>
               <span class="text-[10px] text-slate-500 font-semibold uppercase mt-1 flex items-center gap-1 font-mono">
-                <span class="text-slate-600 font-normal">depuis</span>
+                <span class="text-slate-600 font-normal">{{ $t('ticketing.tids_board.from') }}</span>
                 <span class="text-slate-455">{{ parseRouteName(trip).origin }}</span>
               </span>
             </div>
@@ -360,14 +363,14 @@ const formatDate = (dateString) => {
                 {{ trip.vehicle?.identifier || 'N/A' }}
               </span>
               <span class="text-[10px] text-slate-500 font-medium lowercase truncate mt-0.5">
-                {{ trip.vehicle?.vehicle_type?.name || 'standard' }}
+                {{ trip.vehicle?.vehicle_type?.name || $t('ticketing.tids_board.standard_vehicle') }}
               </span>
             </div>
 
             <!-- PLACES -->
             <div class="col-span-1 flex flex-col items-center justify-center font-mono">
               <span class="text-base font-black text-slate-200">{{ trip.available_seats }}</span>
-              <span class="text-[9px] text-slate-605 uppercase font-black leading-none mt-0.5">LIBRES</span>
+              <span class="text-[9px] text-slate-605 uppercase font-black leading-none mt-0.5">{{ $t('ticketing.tids_board.free_seats') }}</span>
             </div>
 
             <!-- STATUT BADGE -->
@@ -387,8 +390,8 @@ const formatDate = (dateString) => {
       <!-- Empty state -->
       <div v-else class="h-96 border-2 border-dashed border-slate-900 rounded-3xl flex flex-col items-center justify-center text-slate-500 bg-slate-950/20">
         <Bus :size="64" class="opacity-20 mb-4 text-slate-605" />
-        <h3 class="text-lg font-black uppercase tracking-widest text-slate-455">Aucun voyage programmé</h3>
-        <p class="text-xs text-slate-605 mt-1 font-mono">LES DÉPARTS SONT MIS À JOUR EN TEMPS RÉEL</p>
+        <h3 class="text-lg font-black uppercase tracking-widest text-slate-455">{{ $t('ticketing.tids_board.no_scheduled_trips') }}</h3>
+        <p class="text-xs text-slate-605 mt-1 font-mono">{{ $t('ticketing.tids_board.realtime_update_msg') }}</p>
       </div>
     </main>
   </div>

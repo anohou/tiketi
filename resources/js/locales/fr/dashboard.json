@@ -1,0 +1,8 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "redirecting": "Redirection...",
+    "redirecting_message": "Redirection vers votre tableau de bord",
+    "loading_message": "Chargement en cours..."
+  }
+}

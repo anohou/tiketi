@@ -26,14 +26,14 @@
                                     :active="route().current('dashboard')"
                                     class="text-green-700 hover:text-green-800"
                                 >
-                                    Dashboard
+                                    {{ $t('layout.dashboard') }}
                                 </NavLink>
                                 
                                 <!-- Ticketing Section -->
                                 <div class="relative group">
                                     <button class="flex items-center text-green-700 hover:text-green-800 px-3 py-2 rounded-md text-sm font-medium">
                                         <Ticket class="mr-2" :size="20"/>
-                                        Ticketing
+                                        {{ $t('layout.ticketing') }}
                                         <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
@@ -41,13 +41,13 @@
                                     <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('seller.dashboard')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Sell Tickets
+                                                {{ $t('layout.sell_tickets') }}
                                             </Link>
                                             <Link :href="route('admin.trips.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Manage Trips
+                                                {{ $t('layout.manage_trips') }}
                                             </Link>
                                             <Link :href="route('seller.tickets.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                View Tickets
+                                                {{ $t('layout.view_tickets') }}
                                             </Link>
                                         </div>
                                     </div>
@@ -57,7 +57,7 @@
                                 <div class="relative group">
                                     <button class="flex items-center text-green-700 hover:text-green-800 px-3 py-2 rounded-md text-sm font-medium">
                                         <Settings class="mr-2" :size="20"/>
-                                        Configurations
+                                        {{ $t('layout.configurations') }}
                                         <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
@@ -65,22 +65,22 @@
                                     <div class="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 border border-slate-200 dark:border-slate-800 dark:bg-slate-900">
                                         <div class="py-1">
                                             <Link :href="route('admin.stations.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Stations
+                                                {{ $t('layout.stations') }}
                                             </Link>
                                             <Link :href="route('admin.routes.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Trajets
+                                                {{ $t('layout.routes') }}
                                             </Link>
                                             <Link :href="route('admin.vehicles.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Vehicles
+                                                {{ $t('layout.vehicles') }}
                                             </Link>
                                             <Link :href="route('admin.vehicle-types.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Vehicle Types
+                                                {{ $t('layout.vehicle_types') }}
                                             </Link>
                                             <Link :href="route('admin.trips.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Trips
+                                                {{ $t('layout.trips') }}
                                             </Link>
                                             <Link :href="route('admin.assignments.index')" class="block px-4 py-2 text-sm text-green-700 hover:bg-green-50">
-                                                Assignments
+                                                {{ $t('layout.assignments') }}
                                             </Link>
                                         </div>
                                     </div>
@@ -129,7 +129,7 @@
                                             :href="route('profile.edit')"
                                             class="text-green-700 hover:bg-green-50"
                                         >
-                                            Profile
+                                            {{ $t('layout.profile') }}
                                         </DropdownLink>
                                         <DropdownLink 
                                             :href="route('logout')" 
@@ -137,7 +137,7 @@
                                             as="button"
                                             class="text-green-700 hover:bg-green-50"
                                         >
-                                            Log Out
+                                            {{ $t('layout.logout') }}
                                         </DropdownLink>
                                     </template>
                                 </Dropdown>
@@ -193,24 +193,24 @@
                             :active="route().current('dashboard')"
                             class="text-green-700 hover:text-green-800 hover:bg-green-50"
                         >
-                            Dashboard
+                            {{ $t('layout.dashboard') }}
                         </ResponsiveNavLink>
                         
                         <!-- Mobile Ticketing Section -->
                         <div class="px-4 py-2">
                             <div class="text-sm font-medium text-green-700 mb-2 flex items-center">
                                 <Ticket class="mr-2" :size="20"/>
-                                Ticketing
+                                {{ $t('layout.ticketing') }}
                             </div>
                             <div class="ml-4 space-y-1">
                                 <ResponsiveNavLink :href="route('seller.dashboard')" class="text-green-700 hover:bg-green-50">
-                                    Sell Tickets
+                                    {{ $t('layout.sell_tickets') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.trips.index')" class="text-green-700 hover:bg-green-50">
-                                    Manage Trips
+                                    {{ $t('layout.manage_trips') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('seller.tickets.index')" class="text-green-700 hover:bg-green-50">
-                                    View Tickets
+                                    {{ $t('layout.view_tickets') }}
                                 </ResponsiveNavLink>
                             </div>
                         </div>
@@ -219,26 +219,26 @@
                         <div class="px-4 py-2">
                             <div class="text-sm font-medium text-green-700 mb-2 flex items-center">
                                 <Settings class="mr-2" :size="20"/>
-                                Configurations
+                                {{ $t('layout.configurations') }}
                             </div>
                             <div class="ml-4 space-y-1">
                                 <ResponsiveNavLink :href="route('admin.stations.index')" class="text-green-700 hover:bg-green-50">
-                                    Gares
+                                    {{ $t('layout.stations_mobile') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.routes.index')" class="text-green-700 hover:bg-green-50">
-                                    Routes
+                                    {{ $t('layout.routes_mobile') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.vehicles.index')" class="text-green-700 hover:bg-green-50">
-                                    Vehicles
+                                    {{ $t('layout.vehicles') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.vehicle-types.index')" class="text-green-700 hover:bg-green-50">
-                                    Vehicle Types
+                                    {{ $t('layout.vehicle_types') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.trips.index')" class="text-green-700 hover:bg-green-50">
-                                    Trips
+                                    {{ $t('layout.trips') }}
                                 </ResponsiveNavLink>
                                 <ResponsiveNavLink :href="route('admin.assignments.index')" class="text-green-700 hover:bg-green-50">
-                                    Assignments
+                                    {{ $t('layout.assignments') }}
                                 </ResponsiveNavLink>
                             </div>
                         </div>
@@ -260,7 +260,7 @@
                                 :href="route('profile.edit')"
                                 class="text-green-700 hover:bg-green-50"
                             >
-                                Profile
+                                {{ $t('layout.profile') }}
                             </ResponsiveNavLink>
                             <ResponsiveNavLink 
                                 :href="route('logout')" 
@@ -268,7 +268,7 @@
                                 as="button"
                                 class="text-green-700 hover:bg-green-50"
                             >
-                                Log Out
+                                {{ $t('layout.logout') }}
                             </ResponsiveNavLink>
                         </div>
                     </div>

@@ -1,0 +1,42 @@
+{
+  "composable": {
+    "export": {
+      "no_data_to_export": "No data to export",
+      "no_data_to_print": "No data to print",
+      "yes": "Yes",
+      "no": "No",
+      "list": "List",
+      "printed_on": "Printed on {date}",
+      "total": "Total: {count} item • Transport System | Total: {count} items • Transport System"
+    },
+    "trip_creation": {
+      "station_fallback": "Station",
+      "route_fallback": "Line"
+    },
+    "ticketing": {
+      "bluetooth_unavailable": "Bluetooth printer unavailable",
+      "ticket_printed_success": "Ticket printed successfully.",
+      "bluetooth_print_failed": "Bluetooth printing failed",
+      "browser_blocked_print": "The browser blocked the print window",
+      "printer_connected": "Printer connected: {name}",
+      "printer_connection_failed": "Failed to connect to the Bluetooth printer. Please try again.",
+      "allow_popups": "Please allow popups to print the ticket.",
+      "okohi_approved_cash": "🎁 Okohi privilege validated for Seat {seat}! Collect the remaining amount.",
+      "okohi_approved_cash_notification": "Seat {seat} - Okohi privilege validated (To collect)",
+      "okohi_confirmed_ticket": "🎁 Okohi privilege validated for Seat {seat}! Ticket issued successfully.",
+      "okohi_ticket_issued_notification": "Seat {seat} - Okohi ticket issued",
+      "okohi_request_expired": "Okohi request expired (Seat {seat}).",
+      "okohi_request_rejected": "Okohi request rejected (Seat {seat}).",
+      "seat_available_reason": "Seat available at your station",
+      "seatmap_load_error": "Unable to load the seat map.",
+      "seat_selection_incomplete": "The seat selection is incomplete.",
+      "only_seats_sellable": "Only {count} seat is sellable from this station. | Only {count} seats are sellable from this station.",
+      "name_min_length": "The name must contain at least 2 characters",
+      "invalid_phone": "Invalid phone number (9-15 digits)",
+      "ticket_creation_error": "Error while creating the ticket.",
+      "sale_registered": "Sale recorded. Printing is tracked separately.",
+      "okohi_payment_validated": "Okohi payment validated! Printing the ticket...",
+      "inspection_reason_direct": "Direct Inspection"
+    }
+  }
+}

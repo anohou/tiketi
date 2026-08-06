@@ -21,6 +21,7 @@ import {
   buildTripCreationDestinationOptions,
   buildTripCreationRouteOptions,
 } from '@/Support/tripCreationDestinations.js'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps({
     trips: Array,
@@ -32,6 +33,10 @@ const props = defineProps({
     canSelectTripOrigin: { type: Boolean, default: false },
     originStations: { type: Array, default: () => [] },
 })
+
+const { t, locale } = useI18n()
+const currentLocale = computed(() => (locale.value === 'en' ? 'en-GB' : 'fr-FR'))
+const formatNumber = (n) => Number(n || 0).toLocaleString(currentLocale.value)
 
 const showCreateTripModal = ref(false)
 const createTripForm = useForm({
@@ -84,8 +89,8 @@ const page = usePage()
 
 const updateClock = () => {
   const now = new Date()
-  currentTime.value = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  currentDate.value = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
+  currentTime.value = now.toLocaleTimeString(currentLocale.value, { hour: '2-digit', minute: '2-digit' })
+  currentDate.value = now.toLocaleDateString(currentLocale.value, { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase()
 }
 updateClock()
 
@@ -155,14 +160,14 @@ onUnmounted(() => {
 const isTripHighlighted = (tripId) => !!ticketingStore.tripHighlights?.[String(tripId)]
 
 const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('fr-FR', {
+    return new Date(dateString).toLocaleTimeString(currentLocale.value, {
         hour: '2-digit',
         minute: '2-digit'
     })
 }
 
 const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
+    return new Date(dateString).toLocaleDateString(currentLocale.value, {
         day: '2-digit',
         month: '2-digit'
     })
@@ -186,7 +191,7 @@ const parseRouteName = (trip) => {
   const originName = trip.origin_station?.name || trip.route?.origin_station?.name || '';
   const destName = trip.destination_station?.name || trip.route?.destination_station?.name || name;
   return {
-    origin: originName || 'Départ',
+    origin: originName || t('dashboards.seller.departure_fallback'),
     destination: destName
   };
 }
@@ -194,36 +199,36 @@ const parseRouteName = (trip) => {
 const getAirportStatus = (trip) => {
   if (trip.status === 'cancelled') {
     return { 
-      label: 'ANNULÉ', 
+      label: t('dashboards.seller.status_cancelled'), 
       color: 'text-rose-600 bg-rose-50 border border-rose-200 dark:text-rose-450 dark:bg-rose-950/30 dark:border-rose-900/50' 
     };
   }
   if (trip.status === 'delayed') {
     return { 
-      label: 'RETARDÉ', 
+      label: t('dashboards.seller.status_delayed'), 
       color: 'text-amber-605 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-800/50 animate-pulse' 
     };
   }
   if (trip.status === 'boarding') {
     return { 
-      label: 'EMBARQUEMENT', 
+      label: t('dashboards.seller.status_boarding'), 
       color: 'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-405 dark:bg-orange-950/30 dark:border-orange-850/50 font-black animate-pulse' 
     };
   }
   if (trip.status === 'departed' || trip.status === 'arrived') {
     return { 
-      label: 'PARTI', 
+      label: t('dashboards.seller.status_departed'), 
       color: 'text-slate-600 bg-slate-50 border border-slate-200 dark:text-slate-500 dark:bg-slate-900/40 dark:border-slate-800/50' 
     };
   }
   if (trip.available_seats <= 0) {
     return { 
-      label: 'COMPLET', 
+      label: t('dashboards.seller.status_full'), 
       color: 'text-red-600 bg-red-50 border border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50 font-bold' 
     };
   }
   return { 
-    label: 'À L\'HEURE', 
+    label: t('dashboards.seller.status_on_time'), 
     color: 'text-emerald-600 bg-emerald-50 border border-emerald-250 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800/50' 
   };
 }
@@ -272,19 +277,19 @@ const createTrip = () => {
           <div class="p-5 bg-emerald-50 dark:bg-emerald-950/40 rounded-full shadow-sm mb-6">
             <OfficeBuilding class="w-16 h-16 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h2 class="text-2xl font-black text-slate-900 dark:text-slate-100 mb-3">Aucune station assignée</h2>
+          <h2 class="text-2xl font-black text-slate-900 dark:text-slate-100 mb-3">{{ $t('dashboards.seller.no_station_assigned') }}</h2>
           <p class="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
-            Vous n'avez pas encore de station assignée. Vous ne pouvez pas vendre de billets tant qu'un superviseur ne vous a pas assigné à une station.
+            {{ $t('dashboards.seller.no_station_assigned_message') }}
           </p>
           <div class="space-y-3 w-full">
             <p class="text-sm text-slate-500 dark:text-slate-500">
-              Contactez votre superviseur pour être assigné à une station.
+              {{ $t('dashboards.seller.contact_supervisor') }}
             </p>
             <Link 
               :href="route('profile.edit')" 
               class="inline-flex items-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-colors"
             >
-              Voir mon profil
+              {{ $t('dashboards.seller.view_profile') }}
             </Link>
           </div>
         </div>
@@ -297,13 +302,13 @@ const createTrip = () => {
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div class="z-10">
               <div class="flex items-center gap-3">
-                <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Tableau de Bord</h1>
+                <h1 class="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">{{ $t('dashboards.seller.dashboard_title') }}</h1>
                 <div v-if="assignedStation" class="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-black rounded-full border border-emerald-100 dark:border-emerald-800 flex items-center gap-1.5 shadow-sm">
                     <OfficeBuilding :size="14" />
                     {{ assignedStation }}
                 </div>
               </div>
-              <p class="text-slate-500 dark:text-slate-450 font-medium">Gestion quotidienne de la billetterie et des départs</p>
+              <p class="text-slate-500 dark:text-slate-450 font-medium">{{ $t('dashboards.seller.dashboard_subtitle') }}</p>
             </div>
 
             <!-- Absolute Centered Clock on Desktop -->
@@ -324,7 +329,7 @@ const createTrip = () => {
                  class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex-shrink-0"
               >
                 <Plus :size="20" />
-                <span>Nouveau Voyage</span>
+                <span>{{ $t('dashboards.seller.new_trip') }}</span>
               </button>
             </div>
           </div>
@@ -339,25 +344,25 @@ const createTrip = () => {
                 </div>
                 <div>
                     <h2 class="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest flex items-center gap-2">
-                        Panneau d'affichage
-                        <span class="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/60 px-2 py-0.5 rounded tracking-normal">DEPARTS LIVE</span>
+                        {{ $t('dashboards.seller.departure_board') }}
+                        <span class="text-[9px] font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/60 px-2 py-0.5 rounded tracking-normal">{{ $t('dashboards.seller.departures_live') }}</span>
                     </h2>
-                    <p class="text-xs text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider mt-0.5">FLIGHT INFORMATION DISPLAY SYSTEM (FIDS)</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider mt-0.5">{{ $t('dashboards.seller.fids_subtitle') }}</p>
                 </div>
             </div>
             <Link :href="route('seller.ticketing')" class="w-full sm:w-auto text-center px-4 py-2 bg-slate-105 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 text-xs font-mono text-slate-700 dark:text-amber-400 font-bold rounded-xl uppercase tracking-wider transition-colors">
-                Voir tout
+                {{ $t('dashboards.seller.view_all') }}
             </Link>
         </div>
         
         <div>
           <div class="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-100 dark:border-slate-900 text-[10px] font-mono text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-             <div class="col-span-1">Heure</div>
-             <div class="col-span-2">Code Voyage</div>
-             <div class="col-span-4">Destination</div>
-             <div class="col-span-2">Véhicule</div>
-             <div class="col-span-1 text-center">Places</div>
-             <div class="col-span-2">Statut</div>
+             <div class="col-span-1">{{ $t('dashboards.seller.col_time') }}</div>
+             <div class="col-span-2">{{ $t('dashboards.seller.col_trip_code') }}</div>
+             <div class="col-span-4">{{ $t('dashboards.seller.col_destination') }}</div>
+             <div class="col-span-2">{{ $t('dashboards.seller.col_vehicle') }}</div>
+             <div class="col-span-1 text-center">{{ $t('dashboards.seller.col_seats') }}</div>
+             <div class="col-span-2">{{ $t('common.status') }}</div>
           </div>
 
           <!-- Trips List -->
@@ -377,7 +382,7 @@ const createTrip = () => {
                  <!-- CODE VOYAGE -->
                  <div class="col-span-2">
                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-305 text-[10px] font-black tracking-wider uppercase border border-emerald-100 dark:border-emerald-900/30">
-                     {{ trip.code || 'Code en attente' }}
+                     {{ trip.code || $t('dashboards.seller.code_pending') }}
                    </span>
                  </div>
                  <!-- DESTINATION -->
@@ -386,7 +391,7 @@ const createTrip = () => {
                        {{ parseRouteName(trip).destination }}
                     </span>
                     <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase mt-0.5 flex flex-wrap items-center gap-1">
-                       <span class="text-slate-400 font-normal">depuis</span>
+                       <span class="text-slate-400 font-normal">{{ $t('dashboards.seller.from') }}</span>
                        <span class="text-slate-600 dark:text-slate-300">{{ parseRouteName(trip).origin }}</span>
                     </span>
                  </div>
@@ -425,11 +430,11 @@ const createTrip = () => {
                          {{ parseRouteName(trip).destination }}
                        </span>
                        <span class="text-[9px] font-semibold text-slate-500 dark:text-slate-400 uppercase mt-0.5 flex flex-wrap items-center gap-1 leading-none">
-                         <span class="text-slate-400 font-normal">depuis</span>
+                         <span class="text-slate-400 font-normal">{{ $t('dashboards.seller.from') }}</span>
                          <span class="text-slate-600 dark:text-slate-350">{{ parseRouteName(trip).origin }}</span>
                        </span>
                        <span class="text-[9px] font-mono text-amber-600 dark:text-amber-500/80 uppercase mt-1 leading-none">
-                         {{ trip.code || 'Code en attente' }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
+                         {{ trip.code || $t('dashboards.seller.code_pending') }} • {{ trip.vehicle?.identifier || 'N/A' }} <span class="text-slate-455 dark:text-slate-605 font-sans lowercase">({{ trip.vehicle?.vehicle_type?.name }})</span>
                        </span>
                     </div>
                  </div>
@@ -440,9 +445,9 @@ const createTrip = () => {
                              :class="getAirportStatus(trip).color">
                          {{ getAirportStatus(trip).label }}
                        </span>
-                       <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                         <span class="font-bold text-slate-700 dark:text-slate-205">{{ trip.available_seats }}</span>/{{ trip.total_seats }} <span class="text-[9px] text-slate-455 dark:text-slate-605 font-sans">LIB</span>
-                       </span>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                          <span class="font-bold text-slate-700 dark:text-slate-205">{{ trip.available_seats }}</span>/{{ trip.total_seats }} <span class="text-[9px] text-slate-455 dark:text-slate-605 font-sans">{{ $t('dashboards.seller.seats_free_abbr') }}</span>
+                        </span>
                     </div>
                     <ChevronRight :size="18" class="text-slate-400 dark:text-slate-500" />
                  </div>
@@ -452,8 +457,8 @@ const createTrip = () => {
           
           <div v-else class="text-center py-16 bg-white dark:bg-slate-950 rounded-b-3xl border-t border-slate-150 dark:border-slate-900">
             <Bus :size="48" class="text-slate-300 dark:text-slate-850 mx-auto mb-4" />
-            <h3 class="text-base font-bold text-slate-400 dark:text-slate-550 uppercase tracking-widest">Aucun voyage actif</h3>
-            <p class="text-slate-500 dark:text-slate-600 text-xs max-w-xs mx-auto mt-1">Commencez par créer un nouveau voyage pour aujourd'hui.</p>
+            <h3 class="text-base font-bold text-slate-400 dark:text-slate-550 uppercase tracking-widest">{{ $t('dashboards.seller.no_active_trip') }}</h3>
+            <p class="text-slate-500 dark:text-slate-600 text-xs max-w-xs mx-auto mt-1">{{ $t('dashboards.seller.no_active_trip_hint') }}</p>
           </div>
         </div>
       </section>
@@ -464,7 +469,7 @@ const createTrip = () => {
         <section class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
             <div class="p-5 border-b border-slate-100 dark:border-slate-800 bg-emerald-50/50 dark:bg-slate-800/50 flex items-center gap-3">
                 <Cash :size="24" class="text-emerald-600" />
-                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200">Mes Ventes</h2>
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200">{{ $t('dashboards.seller.my_sales') }}</h2>
             </div>
             <div class="p-6 flex-1 flex flex-col items-center justify-center text-center space-y-4">
                 <div class="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/30 rounded-2xl flex items-center justify-center text-emerald-600 mb-2">
@@ -472,13 +477,13 @@ const createTrip = () => {
                 </div>
                 <div>
                     <div class="text-3xl font-black text-slate-900 dark:text-slate-100">
-                        {{ (todaySales || 0).toLocaleString('fr-FR') }} 
+                        {{ formatNumber(todaySales) }} 
                         <span class="text-lg font-bold text-slate-400 dark:text-slate-500 uppercase">FCFA</span>
                     </div>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">Total cumulé aujourd'hui</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ $t('dashboards.seller.today_total') }}</p>
                 </div>
                 <Link :href="route('seller.tickets.index')" class="w-full py-3 bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-center font-bold rounded-xl border border-slate-200 dark:border-slate-800 transition-colors">
-                    Détails des transactions
+                    {{ $t('dashboards.seller.transaction_details') }}
                 </Link>
             </div>
         </section>
@@ -487,36 +492,36 @@ const createTrip = () => {
         <section class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
             <div class="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center gap-3">
                 <MenuOpen :size="24" class="text-slate-600" />
-                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200">Autres Menus</h2>
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200">{{ $t('dashboards.seller.other_menus') }}</h2>
             </div>
             <div class="p-6 flex-1 grid grid-cols-2 gap-4">
                 <button class="flex flex-col items-start p-4 bg-slate-50 dark:bg-slate-950/40 hover:bg-emerald-50 dark:hover:bg-slate-900 hover:border-emerald-200 dark:hover:border-emerald-900/50 border border-transparent rounded-2xl transition-all group">
                     <div class="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-450 transition-colors">
                         <AccountGroup :size="20" />
                     </div>
-                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">Passagers</span>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500">Liste & manifeste</span>
+                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ $t('dashboards.seller.passengers') }}</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ $t('dashboards.seller.passengers_desc') }}</span>
                 </button>
                 <button class="flex flex-col items-start p-4 bg-slate-50 dark:bg-slate-950/40 hover:bg-emerald-50 dark:hover:bg-slate-900 hover:border-emerald-200 dark:hover:border-emerald-900/50 border border-transparent rounded-2xl transition-all group">
                     <div class="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-450 transition-colors">
                         <OfficeBuilding :size="20" />
                     </div>
-                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">Arrêts</span>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500">Gérer les stations</span>
+                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ $t('dashboards.seller.stops') }}</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ $t('dashboards.seller.stops_desc') }}</span>
                 </button>
                 <button class="flex flex-col items-start p-4 bg-slate-50 dark:bg-slate-950/40 hover:bg-emerald-50 dark:hover:bg-slate-900 hover:border-emerald-200 dark:hover:border-emerald-900/50 border border-transparent rounded-2xl transition-all group">
                     <div class="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-450 transition-colors">
                         <Clock :size="20" />
                     </div>
-                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">Horaires</span>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500">Plannings fixes</span>
+                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ $t('dashboards.seller.schedules') }}</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ $t('dashboards.seller.schedules_desc') }}</span>
                 </button>
                 <button class="flex flex-col items-start p-4 bg-slate-50 dark:bg-slate-950/40 hover:bg-emerald-50 dark:hover:bg-slate-900 hover:border-emerald-200 dark:hover:border-emerald-900/50 border border-transparent rounded-2xl transition-all group">
                     <div class="p-2 bg-white dark:bg-slate-900 rounded-lg shadow-sm mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-450 transition-colors">
                         <Bus :size="20" />
                     </div>
-                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">Flotte</span>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500">État des véhicules</span>
+                    <span class="font-bold text-slate-700 dark:text-slate-300 text-sm">{{ $t('dashboards.seller.fleet') }}</span>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500">{{ $t('dashboards.seller.fleet_desc') }}</span>
                 </button>
             </div>
         </section>
@@ -531,7 +536,7 @@ const createTrip = () => {
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Plus :size="24" class="text-emerald-600 dark:text-emerald-450" />
-            Nouveau Voyage
+            {{ $t('dashboards.seller.new_trip') }}
           </h2>
           <button @click="showCreateTripModal = false" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
             <Close :size="24" class="text-slate-400 dark:text-slate-500" />
@@ -540,15 +545,14 @@ const createTrip = () => {
 
         <form @submit.prevent="createTrip" class="space-y-4">
           <div>
-            <InputLabel value="Gare d'origine" />
+            <InputLabel :value="$t('dashboards.seller.origin_station')" />
             <select
               v-if="canSelectTripOrigin"
               v-model="createTripForm.origin_station_id"
               class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
               required
             >
-              <option value="">Sélectionnez une gare d'origine</option>
-              <option v-for="station in originStations" :key="station.id" :value="station.id">
+              <option value="">{{ $t('dashboards.seller.select_origin_station') }}</option>              <option v-for="station in originStations" :key="station.id" :value="station.id">
                 {{ station.name }}
               </option>
             </select>
@@ -559,14 +563,14 @@ const createTrip = () => {
           </div>
 
           <div>
-            <InputLabel for="route" value="Ligne" />
+            <InputLabel for="route" :value="$t('dashboards.seller.line')" />
             <select
                 id="route"
                 v-model="createTripForm.route_id"
                 class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
                 required
             >
-                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez une ligne</option>
+                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{{ $t('dashboards.seller.select_line') }}</option>
                 <option v-for="opt in availableRouteOptions" :key="opt.value" :value="opt.value" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                     {{ opt.label }}
                 </option>
@@ -575,7 +579,7 @@ const createTrip = () => {
           </div>
 
           <div>
-            <InputLabel for="destination" value="Gare de destination" />
+            <InputLabel for="destination" :value="$t('dashboards.seller.destination_station')" />
             <select
                 id="destination"
                 v-model="createTripForm.destination_station_id"
@@ -583,7 +587,7 @@ const createTrip = () => {
                 required
                 :disabled="!createTripForm.route_id"
             >
-                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez une destination</option>
+                <option value="" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{{ $t('dashboards.seller.select_destination') }}</option>
                 <option v-for="opt in availableDestinationOptions" :key="opt.value" :value="opt.value" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
                     {{ opt.label }}
                 </option>
@@ -592,23 +596,23 @@ const createTrip = () => {
           </div>
 
           <div>
-            <InputLabel for="vehicle" value="Véhicule" />
+            <InputLabel for="vehicle" :value="$t('dashboards.seller.vehicle')" />
             <select
                 id="vehicle"
                 v-model="createTripForm.vehicle_id"
                 class="mt-1 block w-full border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 focus:border-emerald-500 focus:ring-emerald-500 rounded-xl shadow-sm"
                 required
             >
-                <option value="" disabled class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Sélectionnez un véhicule</option>
+                <option value="" disabled class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{{ $t('dashboards.seller.select_vehicle') }}</option>
                 <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id" class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                    {{ vehicle.identifier }} ({{ vehicle.vehicle_type?.name }} - {{ vehicle.vehicle_type?.seat_count }} places)
+                    {{ vehicle.identifier }} ({{ vehicle.vehicle_type?.name }} - {{ vehicle.vehicle_type?.seat_count }} {{ $t('dashboards.seller.seat_places') }})
                 </option>
             </select>
             <InputError :message="createTripForm.errors.vehicle_id" class="mt-2" />
           </div>
 
           <div>
-            <InputLabel for="departure_at" value="Date et Heure de Départ" />
+            <InputLabel for="departure_at" :value="$t('dashboards.seller.departure_datetime')" />
             <TextInput
                 id="departure_at"
                 type="datetime-local"
@@ -625,14 +629,14 @@ const createTrip = () => {
                 @click="showCreateTripModal = false"
                 class="px-4 py-2 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
             >
-              Annuler
+              {{ $t('common.cancel') }}
             </button>
             <button
                 type="submit"
                 :disabled="createTripForm.processing"
                 class="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all disabled:opacity-50"
             >
-              Créer le Voyage
+              {{ $t('dashboards.seller.create_trip') }}
             </button>
           </div>
         </form>

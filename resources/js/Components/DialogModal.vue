@@ -41,7 +41,7 @@ const close = () => {
                 v-if="closeable"
                 @click="close"
                 class="absolute right-4 top-4 z-10 shrink-0 rounded-xl p-1.5 text-slate-400 transition-all hover:bg-slate-100 dark:hover:bg-slate-850 hover:text-slate-700 dark:hover:text-slate-200"
-                title="Fermer"
+                :title="$t('common.close')"
             >
                 <Close :size="20" />
             </button>

@@ -1,0 +1,33 @@
+{
+  "accountant": {
+    "title": "Financial Reports",
+    "subtitle": "Detailed analysis of sales and revenue",
+    "export_csv": "Export CSV",
+    "filters": "Filters",
+    "start_date": "Start date",
+    "end_date": "End date",
+    "station": "Station",
+    "all_stations": "All stations",
+    "seller": "Seller",
+    "all_sellers": "All sellers",
+    "apply_filters": "Apply filters",
+    "total_revenue": "Total Revenue",
+    "tickets_sold": "Tickets Sold",
+    "tickets_unit": "tickets",
+    "avg_price": "Average Price",
+    "avg_price_unit": "FCFA / ticket",
+    "revenue_by_seller": "Revenue by Seller",
+    "revenue_by_station": "Revenue by Station",
+    "tickets_count": "{count} ticket | {count} tickets",
+    "unknown": "Unknown",
+    "ticket_detail": "Ticket Details",
+    "col_ticket_number": "Ticket No.",
+    "col_route": "Route",
+    "col_journey": "Journey",
+    "col_seller": "Seller",
+    "col_amount": "Amount",
+    "seat_label": "Seat {number}",
+    "no_tickets_period": "No ticket found for this period",
+    "showing_results": "Showing {from} to {to} of {total} results"
+  }
+}

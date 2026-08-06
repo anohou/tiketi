@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
@@ -30,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Relation::morphMap([
+            'User' => \App\Models\User::class,
+            'CrewMember' => \App\Models\CrewMember::class,
+        ]);
+
         $this->loadMigrationsFrom(__DIR__.'/../../database/landlord_migrations');
 
         Vite::prefetch(concurrency: 3);
