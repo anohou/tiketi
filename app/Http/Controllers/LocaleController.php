@@ -23,10 +23,16 @@ class LocaleController extends Controller
         session(['locale' => $locale]);
 
         if ($user = $request->user()) {
-            $settings = $user->settings ?? [];
-            $settings['locale'] = $locale;
-            $user->settings = $settings;
-            $user->save();
+            // The CENTRAL (landlord) users table historically has no `settings`
+            // column, so persisting there used to throw a 500 on POST /locale.
+            // Guard the write and fall back to session-only persistence until
+            // the landlord migration adding the column has been applied.
+            if ($user->getConnection()->getSchemaBuilder()->hasColumn($user->getTable(), 'settings')) {
+                $settings = $user->settings ?? [];
+                $settings['locale'] = $locale;
+                $user->settings = $settings;
+                $user->save();
+            }
         }
 
         return back();
