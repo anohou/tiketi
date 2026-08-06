@@ -342,8 +342,6 @@ class OptimisationService
         return array_slice($result, 0, $maxResults);
     }
 
-
-
     /**
      * Précharge tous les index d'arrêts d'une route en une seule requête
      * Stocke le résultat en cache mémoire pour éviter les requêtes N+1

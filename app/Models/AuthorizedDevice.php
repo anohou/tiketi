@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class AuthorizedDevice extends Model
 {
@@ -64,7 +65,7 @@ class AuthorizedDevice extends Model
         return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 
-    public function requester(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    public function requester(): MorphTo
     {
         return $this->morphTo('requester', 'requested_by_type', 'requested_by_id');
     }

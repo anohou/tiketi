@@ -6,14 +6,15 @@ use App\Events\SeatMapUpdated;
 use App\Events\TidsUpdated;
 use App\Events\TripCreated;
 use App\Models\CrewMember;
+use App\Models\User;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
@@ -32,8 +33,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Relation::morphMap([
-            'User' => \App\Models\User::class,
-            'CrewMember' => \App\Models\CrewMember::class,
+            'User' => User::class,
+            'CrewMember' => CrewMember::class,
         ]);
 
         $this->loadMigrationsFrom(__DIR__.'/../../database/landlord_migrations');
