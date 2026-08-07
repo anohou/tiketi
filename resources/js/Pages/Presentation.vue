@@ -71,7 +71,7 @@ const loyalty = computed(() => tm('presentation.loyalty'));
 const why = computed(() => tm('presentation.why'));
 
 // Coordonnées de contact
-const CONTACT_EMAIL = 'contact@anohou.dev';
+const CONTACT_EMAIL = 'contact@tiketi.ci';
 const WHATSAPP_NUMBER = '2250719160119';
 const whatsappLink = computed(() => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(t('presentation.contact.wa_message'))}`);
 

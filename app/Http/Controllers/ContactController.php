@@ -12,7 +12,7 @@ class ContactController extends Controller
      * Adresse de réception des demandes de démonstration.
      * Peut être surchargée via la variable d'environnement MAIL_CONTACT_TO.
      */
-    public const CONTACT_TO = 'contact@anohou.dev';
+    public const CONTACT_TO = 'contact@tiketi.ci';
 
     /**
      * Envoie la demande de contact issue du formulaire public de présentation.

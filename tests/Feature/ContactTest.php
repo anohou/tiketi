@@ -24,7 +24,7 @@ class ContactTest extends TestCase
         $response = app(ContactController::class)->send($request);
 
         Mail::assertSent(ContactInquiry::class, function (ContactInquiry $mail) {
-            return $mail->hasTo('contact@anohou.dev')
+            return $mail->hasTo('contact@tiketi.ci')
                 && $mail->envelope()->subject === 'Contact from TIKETI'
                 && $mail->envelope()->replyTo[0]->address === 'client@exemple.ci'
                 && $mail->company === 'UTB Transports'
