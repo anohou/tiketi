@@ -3,12 +3,14 @@
     "panel": {
       "contextual": "Aide contextuelle",
       "for_role": "Pour {role}",
-      "open_center": "Ouvrir le centre d'aide"
+      "open_center": "Ouvrir la documentation"
     },
     "screenshot": {
       "preview": "Aperçu"
     },
     "index": {
+      "title": "Documentation",
+      "user_documentation": "Documentation utilisateur",
       "guide": "Guide TIKETI",
       "journey": "Parcours {role}",
       "learn_title": "Apprenez à votre rythme",

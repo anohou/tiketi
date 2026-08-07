@@ -57,6 +57,134 @@ const sharedGettingStarted = {
 };
 
 const helpTopics = [
+  {
+    id: 'initial-setup',
+    category: 'Configuration initiale',
+    title: 'Configuration initiale',
+    description: 'La checklist indispensable pour que les vendeurs puissent créer des voyages et vendre des tickets.',
+    audience: ['admin', 'supervisor'],
+    image: '/images/help/help-initial-setup.png',
+    fullWidthImage: true,
+    sections: [
+      {
+        title: 'La checklist des prérequis',
+        body: 'Avant la première vente, sept blocs doivent être en place dans TIKETI. Chaque bloc s’appuie sur le précédent : cochez-les dans l’ordre, puis faites la vérification finale avant d’ouvrir les ventes. Seul le bloc 8 (connexion OKOHI pour la fidélité) est optionnel.',
+        steps: [
+          'Créez les gares et destinations.',
+          'Créez les trajets et l’ordre de leurs arrêts.',
+          'Ajoutez les tarifs entre les arrêts.',
+          'Créez les types de véhicules avec leur plan de sièges.',
+          'Créez les véhicules.',
+          'Créez les vendeurs et affectez-les à leurs gares.',
+          'Personnalisez les paramètres des tickets (contenu imprimé et QR code).',
+        ],
+      },
+      {
+        title: '1. Gares et destinations',
+        body: 'Une gare est le point physique de départ ou d’arrivée (le guichet). Une destination organise les lieux desservis. Les vendeurs seront rattachés à une ou plusieurs gares, et chaque trajet relie deux gares.',
+        steps: [
+          'Ouvrez Paramétrage puis Gares.',
+          'Créez la gare : nom, ville et code (ex. ABJ).',
+          'Laissez la gare active.',
+          'Créez les destinations dans l’écran Destinations.',
+          'Enregistrez. Une gare doit exister avant de créer un trajet ou un vendeur.',
+        ],
+      },
+      {
+        title: '2. Trajets et arrêts',
+        body: 'Un trajet relie une gare d’origine à une gare de destination et passe par des arrêts ordonnés. L’ordre des arrêts détermine les segments de vente et la réutilisation des places entre deux passagers.',
+        steps: [
+          'Ouvrez Paramétrage puis Trajets.',
+          'Créez le trajet : origine, destination et durée estimée.',
+          'Ajoutez les arrêts dans l’ordre réel de passage du véhicule.',
+          'Vérifiez que l’origine et la destination terminale sont correctes.',
+          'Enregistrez avant de créer les voyages.',
+        ],
+      },
+      {
+        title: '3. Tarifs',
+        body: 'Un tarif fixe le prix d’un segment entre deux arrêts d’un trajet. Sans tarif actif entre le départ et la destination, la vente est bloquée avec le message : « Aucun tarif actif trouvé entre le point de départ et la destination finale. »',
+        steps: [
+          'Ouvrez Paramétrage puis Tarifs.',
+          'Créez un tarif pour le trajet concerné.',
+          'Choisissez l’arrêt de départ et l’arrêt d’arrivée.',
+          'Renseignez le montant en FCFA.',
+          'Activez le sens bidirectionnel uniquement si le prix est identique dans les deux sens.',
+          'Répétez pour chaque segment que vous souhaitez vendre.',
+        ],
+      },
+      {
+        title: '4. Types de véhicules',
+        body: 'Le type de véhicule porte le plan de sièges : capacité, disposition (2+2, 1+2), portes et dernière rangée. La billetterie utilise ce plan pour proposer et vendre les places.',
+        steps: [
+          'Ouvrez Paramétrage puis Types de Véhicules.',
+          'Cliquez sur Nouveau Type.',
+          'Renseignez le nom et la capacité.',
+          'Configurez la disposition des sièges, les portes et la dernière rangée.',
+          'Vérifiez l’aperçu du plan puis enregistrez.',
+        ],
+      },
+      {
+        title: '5. Véhicules',
+        body: 'Le véhicule est l’unité opérationnelle affectée à un voyage. Il hérite du plan de sièges de son type. Un voyage sans véhicule ne peut pas vendre de places.',
+        steps: [
+          'Ouvrez Paramétrage puis Véhicules.',
+          'Créez le véhicule : numéro ou immatriculation, fabricant.',
+          'Choisissez le type de véhicule qui porte le plan de sièges.',
+          'Vérifiez la capacité affichée.',
+          'Laissez le véhicule actif.',
+        ],
+      },
+      {
+        title: '6. Utilisateurs vendeurs et affectations',
+        body: 'Un vendeur voit uniquement les routes et gares de ses affectations. Sans affectation active, il ne peut ni voir sa gare ni vendre : « Vous n’êtes pas autorisé à vendre des tickets au départ de cette station. »',
+        steps: [
+          'Ouvrez Paramétrage puis Utilisateurs.',
+          'Créez le compte du vendeur avec le rôle Vendeur.',
+          'Ouvrez Affectations.',
+          'Associez le vendeur à sa ou ses gares.',
+          'Vérifiez que l’affectation est active.',
+          'Répétez pour chaque vendeur.',
+        ],
+      },
+      {
+        title: '7. Paramètres des tickets',
+        body: 'Ces réglages personnalisent le contenu imprimé : nom de l’entreprise, téléphones, libellé CC, messages de pied de page et message bagages. Ils pilotent aussi le QR code du ticket. À faire avant d’imprimer les premiers billets : chaque ticket vendu porte ce contenu.',
+        steps: [
+          'Ouvrez Paramétrage puis Paramètres des tickets.',
+          'Renseignez le nom de l’entreprise et les numéros de téléphone.',
+          'Renseignez le libellé CC (la ligne CC disparaît du ticket s’il est vide).',
+          'Saisissez les messages de pied de page et le message bagages.',
+          'Vérifiez l’aperçu du ticket puis enregistrez.',
+        ],
+      },
+      {
+        title: '8. Connexion OKOHI pour la fidélité (optionnel)',
+        body: 'OKOHI est le système de fidélité connecté à TIKETI. Quand l’intégration est activée, le QR imprimé sur le ticket devient une URL de scan OKOHI : le client scanne avec l’application OKOHI et cumule des points ou une visite. Non obligatoire pour vendre, mais important si la compagnie veut fidéliser ses clients. Sans cette connexion, le QR TIKETI standard reste imprimé.',
+        steps: [
+          'Ouvrez Paramétrage puis Fidélisation (Okohi) ou Paramètres des tickets.',
+          'Activez la fidélité OKOHI.',
+          'Renseignez les champs fournis par OKOHI : hôte, company ID, type de fidélité et clé d’intégration.',
+          'Copiez l’URL de vérification affichée dans TIKETI.',
+          'Collez cette URL dans l’espace propriétaire OKOHI.',
+          'Vérifiez que le QR imprimé contient l’URL de scan OKOHI sur un ticket de test.',
+        ],
+      },
+      {
+        title: 'Vérification finale avant la première vente',
+        body: 'Une fois la checklist complétée, parcourez le circuit complet avec un vendeur avant d’ouvrir les ventes au public.',
+        steps: [
+          'Connectez-vous avec le compte vendeur.',
+          'Vérifiez que sa gare apparaît dans son espace.',
+          'Créez un voyage sur un trajet : le véhicule doit être disponible.',
+          'Ouvrez la billetterie et sélectionnez le voyage.',
+          'Vérifiez que le tarif s’affiche entre deux gares du trajet.',
+          'Vendez un ticket de test et imprimez-le.',
+          'Contrôlez que le ticket imprimé porte le contenu configuré (nom de l’entreprise, pied de page, QR code).',
+        ],
+      },
+    ],
+  },
   sharedGettingStarted,
   {
     id: 'contextual-help',
@@ -1375,6 +1503,7 @@ export const helpRoleLabels = {
 };
 
 const topicGuidance = {
+  'initial-setup': { level: 'essential', duration: 12, outcome: 'Vous saurez préparer TIKETI pour que les vendeurs puissent créer des voyages et vendre des tickets.' },
   'getting-started': { level: 'essential', duration: 5, outcome: 'Vous saurez vous repérer et identifier les modules utiles à votre rôle.' },
   'contextual-help': { level: 'essential', duration: 2, outcome: 'Vous saurez obtenir une réponse sans quitter votre écran de travail.' },
   'interface-flags': { level: 'independent', duration: 6, outcome: 'Vous saurez interpréter les couleurs, badges et états importants.' },
@@ -1503,7 +1632,7 @@ export function findHelpTopic({ routeName, path, role }) {
 
   return bestMatch(availableTopics.filter((topic) => topic.routes?.some((route) => route === routeName)))
     || bestMatch(availableTopics.filter((topic) => topic.pathPrefixes?.some((prefix) => path?.startsWith(prefix))))
-    || enrichTopic(helpTopics[0], role, context);
+    || enrichTopic(helpTopics.find((topic) => ! topic.audience || topic.audience.includes(role)) || helpTopics[0], role, context);
 }
 
 export function getAllHelpTopics() {

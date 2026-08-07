@@ -155,7 +155,7 @@ const submitContact = () => {
             </a>
           </div>
           <p class="mt-6 text-sm font-semibold text-slate-400 dark:text-slate-500">
-            {{ t('presentation.hero.doc_hint') }} <Link :href="$page.props.isTenant ? '/help' : '/aide'" class="text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400">{{ t('presentation.hero.doc_link') }}</Link>
+            {{ t('presentation.hero.doc_hint') }} <Link :href="'/documentation'" class="text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400">{{ t('presentation.hero.doc_link') }}</Link>
           </p>
         </div>
 
@@ -608,7 +608,7 @@ const submitContact = () => {
                 {{ t('presentation.contact.cta_whatsapp') }}
               </a>
               <Link
-                :href="$page.props.isTenant ? '/help' : '/aide'"
+                :href="'/documentation'"
                 class="inline-flex items-center justify-center gap-2 rounded-full border border-slate-600 px-6 py-3.5 text-sm font-black text-slate-200 transition hover:border-emerald-500 hover:text-emerald-400"
               >
                 {{ t('presentation.contact.cta_doc') }}
@@ -663,7 +663,7 @@ const submitContact = () => {
         </div>
         <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold">
           <a href="#fonctionnalites" class="transition hover:text-emerald-400">{{ t('presentation.footer.features') }}</a>
-          <Link :href="$page.props.isTenant ? '/help' : '/aide'" class="transition hover:text-emerald-400">{{ t('presentation.footer.doc') }}</Link>
+          <Link :href="'/documentation'" class="transition hover:text-emerald-400">{{ t('presentation.footer.doc') }}</Link>
           <a href="#contact" class="transition hover:text-emerald-400">{{ t('presentation.footer.contact') }}</a>
         </div>
         <p class="text-xs text-slate-500">&copy; {{ new Date().getFullYear() }} TIKETI. {{ t('presentation.footer.rights') }}</p>

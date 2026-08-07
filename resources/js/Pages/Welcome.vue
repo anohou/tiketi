@@ -181,7 +181,7 @@ const submit = () => {
                     <a href="#tiketi-control" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">Tiketi Control</a>
                     <a href="#loyalty" class="text-sm font-semibold text-gray-700 transition hover:text-indigo-600 dark:text-gray-200 dark:hover:text-indigo-400">{{ $t('welcome.nav.loyalty') }}</a>
                     <Link
-                        :href="$page.props.isTenant ? '/help' : '/aide'"
+                        :href="'/documentation'"
                         class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 transition hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
                     >
                         {{ $t('welcome.nav.documentation') }}
@@ -741,7 +741,7 @@ const submit = () => {
                         <p class="text-sm leading-6 text-gray-600 dark:text-gray-400">La solution complète pour la gestion de vos billetteries et de votre parc de transport.</p>
                         <div class="flex flex-wrap gap-x-6 gap-y-3">
                             <Link
-                                :href="$page.props.isTenant ? '/help' : '/aide'"
+                                :href="'/documentation'"
                                 class="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600 transition hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
                             >
                                 Documentation utilisateur

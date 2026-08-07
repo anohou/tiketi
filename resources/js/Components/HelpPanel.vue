@@ -10,6 +10,9 @@ import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import HelpScreenshot from '@/Components/HelpScreenshot.vue';
 import { getHelpTopicsForRole } from '@/Support/helpContent.js';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = defineProps({
   show: Boolean,
@@ -28,7 +31,7 @@ watch(() => props.topic, (topic) => {
   activeTopic.value = topic;
 });
 
-// Agrandissement du panneau (sans navigation vers la page d'aide globale)
+// Agrandissement du panneau (sans navigation vers la page de documentation globale)
 const expanded = ref(false);
 const toggleExpanded = () => {
   expanded.value = !expanded.value;
@@ -188,16 +191,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         </div>
 
         <Link
-          :href="route('help.index', { topic: 'interface-flags' })"
+          :href="route('documentation.index', { topic: 'interface-flags' })"
           class="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
           @click="close"
         >
           <HelpCircleOutline :size="18" />
           Drapeaux, badges et indicateurs
         </Link>
-        <Link :href="route('help.index', { topic: activeTopic?.id })" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 dark:shadow-black/20" @click="close">
+        <Link :href="route('documentation.index', { topic: activeTopic?.id })" class="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-emerald-100 hover:bg-emerald-700 dark:shadow-black/20" @click="close">
           <OpenInNew :size="18" />
-          Ouvrir le centre d’aide
+          {{ t('help.panel.open_center') }}
         </Link>
       </div>
     </aside>

@@ -29,7 +29,7 @@ onMounted(() => {
                 <div class="flex items-center gap-2">
                     <!-- Accès à la documentation avant connexion -->
                     <Link
-                        :href="$page.props.isTenant ? '/help' : '/aide'"
+                        :href="'/documentation'"
                         class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-emerald-300 dark:hover:border-emerald-600"
                         :title="'Documentation'"
                     >

@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\Landlord\TenantController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,15 +13,9 @@ use Inertia\Inertia;
 |
 */
 
-// =========================================
-// PUBLIC DOCUMENTATION (avant connexion)
-// =========================================
-// Documentation utilisateur publique accessible sur le domaine central,
-// sans authentification : utile pour montrer la plateforme à un futur client
-// ou à un utilisateur avant qu'il ne se connecte. (L'URL /help fonctionne
-// aussi côté central via la route publique de web.php.)
-Route::get('/aide', fn () => Inertia::render('Help/Index', ['public' => true]))
-    ->name('public.help');
+// La documentation publique est servie par la route UNIQUE /documentation
+// de routes/web.php (elle fonctionne sur le tenant ET le domaine central).
+// L'ancienne route /aide a été supprimée : un seul point d'entrée.
 
 // Central admin routes - manage tenants
 Route::middleware(['web', 'auth'])->prefix('landlord')->name('landlord.')->group(function () {

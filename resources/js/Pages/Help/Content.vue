@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import HelpScreenshot from '@/Components/HelpScreenshot.vue';
 import {
   getHelpTopicsForRole,
@@ -28,6 +29,8 @@ const props = defineProps({
 
 const page = usePage();
 const user = page.props.auth.user || null;
+
+const { t } = useI18n();
 
 // Rôles proposés aux visiteurs de la documentation publique
 const publicRoles = [
@@ -195,7 +198,7 @@ watch(storageKey, () => {
           <!-- Titre concis -->
           <h1 class="flex min-w-0 items-center gap-2 truncate text-base font-black tracking-tight text-slate-900 dark:text-white sm:text-lg">
             <BookOpenPageVariant :size="22" class="shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <span class="truncate">Documentation &amp; Aide</span>
+            <span class="truncate">{{ t('help.index.title') }}</span>
           </h1>
 
           <div class="ml-auto flex shrink-0 items-center gap-2">
@@ -405,15 +408,41 @@ watch(storageKey, () => {
               </p>
             </div>
 
-            <!-- Capture d'écran avec zoom (lightbox) -->
+            <!-- Capture d'écran avec zoom (lightbox) pour mode latéral -->
             <div
-              v-if="selectedTopic.image"
+              v-if="selectedTopic.image && !selectedTopic.fullWidthImage"
               class="relative w-full shrink-0 cursor-zoom-in xl:w-[320px]"
               @click="openLightbox(selectedTopic.image)"
             >
               <HelpScreenshot :src="selectedTopic.image" :title="selectedTopic.title" />
               <span class="absolute bottom-3 right-3 grid h-8 w-8 place-items-center rounded-full bg-emerald-600 text-white shadow-lg">
                 <ZoomIn :size="18" />
+              </span>
+            </div>
+          </div>
+
+          <!-- Capture / Schéma Grand Format (Plein Largeur) -->
+          <div
+            v-if="selectedTopic.image && selectedTopic.fullWidthImage"
+            class="group relative mt-5 w-full cursor-zoom-in overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-900"
+            @click="openLightbox(selectedTopic.image)"
+          >
+            <div class="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-800">
+              <span class="h-2.5 w-2.5 rounded-full bg-rose-400"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+              <span class="h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+              <span class="ml-2 truncate text-[11px] font-bold text-slate-500 dark:text-slate-300">{{ selectedTopic.title }}</span>
+            </div>
+            <div class="flex items-center justify-center p-2 bg-white dark:bg-slate-900">
+              <img
+                :src="selectedTopic.image"
+                :alt="selectedTopic.title"
+                class="w-full max-h-[460px] object-contain rounded-xl"
+              />
+            </div>
+            <div class="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/10 pointer-events-none">
+              <span class="grid h-10 w-10 place-items-center rounded-full bg-emerald-600/90 text-white shadow-lg opacity-0 transition group-hover:opacity-100">
+                <ZoomIn :size="22" />
               </span>
             </div>
           </div>

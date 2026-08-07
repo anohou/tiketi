@@ -85,15 +85,16 @@ Route::get('/tids', [TicketingController::class, 'tids'])->name('tids');
 Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
 // =========================================
-// PUBLIC HELP - accessible avant connexion
+// PUBLIC DOCUMENTATION - accessible avant connexion
 // =========================================
 // Documentation utilisateur publique (tenant et domaine central) : aucune
 // authentification requise. Les visiteurs voient tous les guides avec un
 // sélecteur de rôle ; les utilisateurs connectés retrouvent leur parcours
 // personnalisé. Sur le domaine central, la page reste en mode public.
-Route::get('/help', fn () => Inertia::render('Help/Index', [
+// Route UNIQUE : l'ancienne route landlord /aide a été supprimée.
+Route::get('/documentation', fn () => Inertia::render('Help/Index', [
     'public' => ! request()->user() || ! (function_exists('tenancy') && tenancy()->initialized),
-]))->name('help.index');
+]))->name('documentation.index');
 
 // Page publique de présentation commerciale (transporteurs professionnels),
 // accessible sur le tenant et le domaine central, sans authentification.

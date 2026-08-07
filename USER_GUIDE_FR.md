@@ -20,9 +20,22 @@ Bienvenue sur **TIKETI**, la plateforme tout-en-un pour la gestion de votre bill
 
 ## Introduction
 
-En tant qu'administrateur de votre compagnie sur TIKETI, vous avez le contrôle total sur votre infrastructure numérique. Votre espace est isolé et sécurisé. Avant d'ouvrir votre premier guichet, vous devez configurer les éléments structurels de votre activité.
+En tant qu'administrateur de votre compagnie sur TIKETI, vous avez le contrôle total sur votre infrastructure numérique. Votre espace est isolé et sécurisé. Avant d'ouvrir votre premier guichet, vous devez configurer les éléments structurels de votre activité dans l'ordre préconisé ci-dessous.
+
+![Schéma de Configuration Initiale TIKETI](docs/images/configuration_initiale_tiketi.png)
+
+```mermaid
+graph LR
+    A["1. Identité & Tickets"] --> B["2. Gares & Stations"]
+    B --> C["3. Flotte & Véhicules"]
+    C --> D["4. Lignes & Escales"]
+    D --> E["5. Grille Tarifaire"]
+    E --> F["6. Planification Départs"]
+    F --> G["7. Vendeurs & Guichets"]
+```
 
 ---
+
 
 ## Étape 1 : Identité & Paramètres Ticket
 *Menu : Paramètres > Paramètres Ticket*

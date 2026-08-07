@@ -1,8 +1,10 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import { useI18n } from 'vue-i18n';
 import { useTheme } from '@/Composables/useTheme.js';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
+import LocaleSwitcher from '@/Components/LocaleSwitcher.vue';
 import HelpContent from './Content.vue';
 
 defineProps({
@@ -12,6 +14,7 @@ defineProps({
   },
 });
 
+const { t } = useI18n();
 const { isDark } = useTheme();
 </script>
 
@@ -27,10 +30,11 @@ const { isDark } = useTheme();
             class="h-10 w-auto object-contain"
           />
           <span class="hidden text-xs font-black uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400 sm:block">
-            Documentation utilisateur
+            {{ t('help.index.user_documentation') }}
           </span>
         </div>
         <div class="flex shrink-0 items-center gap-2">
+          <LocaleSwitcher />
           <ThemeToggle />
           <Link
             :href="route('login')"
