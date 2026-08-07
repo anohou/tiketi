@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\TenantDomainPolicy;
 use Closure;
 use Illuminate\Http\Request;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
@@ -48,7 +49,7 @@ class UniversalTenancy extends InitializeTenancyByDomain
             return $next($request);
         }
 
-        if (in_array($host, $centralDomains)) {
+        if (in_array($host, $centralDomains) || TenantDomainPolicy::isReservedTiketiDomain($host)) {
             return $next($request);
         }
 

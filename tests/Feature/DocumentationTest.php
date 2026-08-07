@@ -38,4 +38,11 @@ class DocumentationTest extends TestCase
     {
         $this->get('/aide')->assertNotFound();
     }
+
+    public function test_documentation_route_renders_on_tiketi_ci_domain(): void
+    {
+        $response = $this->get('https://tiketi.ci/documentation');
+
+        $response->assertOk();
+    }
 }
