@@ -38,11 +38,23 @@ class TripController extends Controller
             ->where('departure_at', '>=', now())
             ->upcomingFirst();
 
-        if ($user && $user->role === 'seller') {
+        if ($user && in_array($user->role, ['seller', 'supervisor'], true)) {
             $query->whereIn('route_id', $user->accessibleRoutesQuery()->pluck('id'));
         }
 
-        return $query->get();
+        $trips = $query->get();
+
+        if ($user && $user->role !== 'admin') {
+            $assignedStationIds = $user->getActiveStationIds();
+            $segmentService = app(TripSegmentService::class);
+            $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
+                $servedStationIds = array_keys($segmentService->stationIndices($trip));
+
+                return ! empty(array_intersect($assignedStationIds, $servedStationIds));
+            })->values();
+        }
+
+        return $trips;
     }
 
     public function byRouteAndDate(string $routeId, string $date)

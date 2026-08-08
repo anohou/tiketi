@@ -139,9 +139,18 @@ const fetchSeatMap = async (tripId) => {
 };
 
 const getAssignedStationIds = () => {
-    const assignments = page.props.auth.user?.station_assignments || [];
+    const idsFromProps = page.props.assignedStationIds || [];
+    if (idsFromProps.length > 0) {
+        return idsFromProps.map(id => String(id));
+    }
+    const stationObjects = page.props.assignedStations || [];
+    if (stationObjects.length > 0) {
+        return stationObjects.map(s => String(s.id));
+    }
+    const assignments = page.props.auth.user?.station_assignments || page.props.auth.user?.stationAssignments || [];
     return [...new Set(assignments
-        .map(assignment => assignment.station_id)
+        .filter(a => a.active !== false)
+        .map(assignment => assignment.station_id || assignment.station?.id)
         .filter(Boolean)
         .map(stationId => String(stationId)))];
 };
@@ -317,6 +326,28 @@ const getSalesControlTitle = (trip) => {
         : 'Ventes simultanées désactivées jusqu’au départ';
 };
 
+const sortTripsChronologically = (tripsList) => {
+    const now = Date.now();
+    return [...tripsList].sort((a, b) => {
+        const aTime = new Date(a.departure_at || 0).getTime();
+        const bTime = new Date(b.departure_at || 0).getTime();
+        const aPast = aTime < now;
+        const bPast = bTime < now;
+        if (aPast !== bPast) return aPast ? 1 : -1;
+        return aTime - bTime;
+    });
+};
+
+const applyRealtimeTripCreated = (e = {}) => {
+    if (!e.trip?.id) return;
+
+    if (!trips.value.some(t => isSameTripId(t.id, e.trip.id))) {
+        trips.value = sortTripsChronologically([...trips.value, e.trip]);
+    }
+
+    ticketingStore.pulseTrip(e.trip.id, { action: 'trip.created', duration: 30000 });
+};
+
 onMounted(() => {
     fetchTrips();
 
@@ -327,21 +358,13 @@ onMounted(() => {
         stationIds.forEach((stationId) => {
             echo.private(`station.${stationId}`)
                 .listen('.SeatMapUpdated', applyRealtimeSeatUpdate)
-                .listen('.TripCreated', (e) => {
-                    if (e.trip?.id) {
-                        ticketingStore.pulseTrip(e.trip.id, { action: 'trip.created' });
-                    }
-                });
+                .listen('.TripCreated', applyRealtimeTripCreated);
             realtimeChannels.push(`station.${stationId}`);
         });
 
         echo.private('network.global')
             .listen('.SeatMapUpdated', applyRealtimeSeatUpdate)
-            .listen('.TripCreated', (e) => {
-                if (e.trip?.id) {
-                    ticketingStore.pulseTrip(e.trip.id, { action: 'trip.created' });
-                }
-            });
+            .listen('.TripCreated', applyRealtimeTripCreated);
         realtimeChannels.push('network.global');
     }
 
@@ -949,9 +972,11 @@ const getOccupancyRate = (available, total) => {
                 :class="[
                   selectedTripId === trip.id
                     ? 'border-emerald-500 shadow-lg'
-                    : isTripHighlighted(trip.id)
-                      ? 'border-amber-400 shadow-xl shadow-amber-200/60 ring-2 ring-amber-200 dark:ring-amber-900/40 dark:shadow-amber-950/20'
-                      : 'border-transparent bg-slate-50 hover:border-emerald-200 hover:bg-white hover:shadow-md dark:bg-slate-900 dark:hover:border-emerald-800 dark:hover:bg-slate-800'
+                    : ticketingStore.tripHighlights?.[trip.id]?.action === 'trip.created'
+                      ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/30 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-400/50 animate-pulse'
+                      : isTripHighlighted(trip.id)
+                        ? 'border-amber-400 shadow-xl shadow-amber-200/60 ring-2 ring-amber-200 dark:ring-amber-900/40 dark:shadow-amber-950/20'
+                        : 'border-transparent bg-slate-50 hover:border-emerald-200 hover:bg-white hover:shadow-md dark:bg-slate-900 dark:hover:border-emerald-800 dark:hover:bg-slate-800'
                 ]"
             >
                 <!-- Trip Summary Header -->
@@ -959,7 +984,7 @@ const getOccupancyRate = (available, total) => {
                     class="p-3 cursor-pointer"
                     :class="[
                       selectedTripId === trip.id ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : '',
-                      isTripHighlighted(trip.id) ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''
+                      ticketingStore.tripHighlights?.[trip.id]?.action === 'trip.created' ? 'bg-emerald-50/70 dark:bg-emerald-950/20' : isTripHighlighted(trip.id) ? 'bg-amber-50/70 dark:bg-amber-950/10' : ''
                     ]"
                 >
                     <div class="flex items-center gap-2 mb-1">
@@ -972,7 +997,8 @@ const getOccupancyRate = (available, total) => {
                             <LockOpen v-if="areDownstreamSalesActive(trip)" :size="18" aria-hidden="true" />
                             <Lock v-else :size="18" aria-hidden="true" />
                         </span>
-                        <span v-if="isTripHighlighted(trip.id)" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span v-if="ticketingStore.tripHighlights?.[trip.id]?.action === 'trip.created'" class="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[8px] font-black uppercase text-white shadow-sm shadow-emerald-500/40 animate-pulse">✨ Nouveau</span>
+                        <span v-else-if="isTripHighlighted(trip.id)" class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                         <span v-if="selectedTripId === trip.id" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                         <button
                             type="button"

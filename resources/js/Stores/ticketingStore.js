@@ -60,11 +60,14 @@ export const ticketingStore = reactive({
         if (!tripId) return;
 
         const key = String(tripId);
+        const duration = payload.duration || (payload.action === 'trip.created' ? 30000 : 4000);
+
         this.tripHighlights = {
             ...this.tripHighlights,
             [key]: {
                 ...payload,
                 ts: Date.now(),
+                expiresAt: Date.now() + duration,
             },
         };
 
@@ -77,7 +80,7 @@ export const ticketingStore = reactive({
             delete nextHighlights[key];
             this.tripHighlights = nextHighlights;
             delete this._tripHighlightTimers[key];
-        }, 4000);
+        }, duration);
     },
 
     clearSelection() {

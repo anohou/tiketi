@@ -18,10 +18,28 @@ class SellerDashboardController extends Controller
         $user = request()->user();
 
         if ($user->role === 'admin' || $user->role === 'supervisor') {
-            $trips = Trip::with(['route', 'vehicle.vehicleType'])
-                ->upcomingFirst()
-                ->limit(10)
-                ->get();
+            $tripsQuery = Trip::with(['route', 'vehicle.vehicleType'])
+                ->upcomingFirst();
+
+            if ($user->role === 'supervisor') {
+                $assignedRouteIds = $user->accessibleRoutesQuery()->pluck('id')->toArray();
+                $tripsQuery->whereIn('route_id', $assignedRouteIds);
+            }
+
+            $trips = $tripsQuery->get();
+
+            if ($user->role !== 'admin') {
+                $assignedStationIds = $user->getActiveStationIds();
+                $segmentService = app(\App\Services\TripSegmentService::class);
+                $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
+                    $servedStationIds = array_keys($segmentService->stationIndices($trip));
+
+                    return ! empty(array_intersect($assignedStationIds, $servedStationIds));
+                })->values();
+            }
+
+            $trips = $trips->take(10);
+
             $routes = BusRoute::with(['originStation', 'destinationStation', 'routeStopOrders.station'])->get();
             if ($user->role === 'supervisor') {
                 $routes = $user->accessibleRoutesQuery()
@@ -72,8 +90,18 @@ class SellerDashboardController extends Controller
                     });
                 })
                 ->upcomingFirst()
-                ->limit(10)
                 ->get();
+
+            if ($user->role !== 'admin') {
+                $segmentService = app(\App\Services\TripSegmentService::class);
+                $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
+                    $servedStationIds = array_keys($segmentService->stationIndices($trip));
+
+                    return ! empty(array_intersect($assignedStationIds, $servedStationIds));
+                })->values();
+            }
+
+            $trips = $trips->take(10);
 
             $hasActiveAssignment = count($assignedStationIds) > 0;
             $assignedStation = $hasActiveAssignment

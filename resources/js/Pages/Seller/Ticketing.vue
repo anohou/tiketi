@@ -1182,6 +1182,8 @@ onBeforeUnmount(() => {
                          'relative rounded-2xl cursor-pointer transition-all duration-300 border-2 overflow-visible focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
                          selectedTripId === trip.id
                            ? 'bg-white border-emerald-500 dark:bg-slate-900 dark:border-emerald-700 shadow-md'
+                           : ticketingStore.tripHighlights?.[trip.id]?.action === 'trip.created'
+                             ? 'bg-emerald-50/90 border-emerald-500 dark:bg-emerald-950/30 dark:border-emerald-600 shadow-xl shadow-emerald-500/20 ring-2 ring-emerald-400/50 animate-pulse'
                            : ticketingStore.tripHighlights?.[trip.id]
                              ? 'bg-amber-50 border-amber-400 dark:bg-amber-950/20 dark:border-amber-800 shadow-lg shadow-amber-200/30 dark:shadow-amber-950/20'
                            : 'bg-white border-slate-200 dark:bg-slate-900 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-800 hover:shadow-sm',
@@ -1223,6 +1225,12 @@ onBeforeUnmount(() => {
                              {{ $t('ticketing.dashboard.departure') }} {{ parseRouteName(trip).origin }}
                            </p>
                            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                             <span
+                               v-if="ticketingStore.tripHighlights?.[trip.id]?.action === 'trip.created'"
+                               class="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black uppercase text-white shadow-sm shadow-emerald-500/40 animate-pulse"
+                             >
+                               ✨ Nouveau
+                             </span>
                              <span :class="['rounded-full px-2 py-0.5 text-[9px] font-black uppercase', getTripStationStatusClass(trip)]">
                                {{ getTripStationStatusLabel(trip) }}
                              </span>

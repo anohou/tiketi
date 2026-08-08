@@ -199,6 +199,16 @@ class TicketingController extends Controller
         // Apply pagination if history is requested
         if ($showHistory) {
             $paginated = $finalQuery->paginate(15)->withQueryString();
+            if (! $isAdmin) {
+                $segmentService = app(TripSegmentService::class);
+                $filteredCollection = $paginated->getCollection()->filter(function ($trip) use ($assignedStationIds, $segmentService) {
+                    $servedStationIds = array_keys($segmentService->stationIndices($trip));
+
+                    return ! empty(array_intersect($assignedStationIds, $servedStationIds));
+                })->values();
+                $paginated->setCollection($filteredCollection);
+            }
+
             $paginated->getCollection()->each(function ($trip) {
                 $hasAssigned = $trip->assignedConnections->isNotEmpty();
                 $indices = app(TripSegmentService::class)->stationIndices($trip);
@@ -223,6 +233,15 @@ class TicketingController extends Controller
 
         $trips = $finalQuery->get();
 
+        if (! $isAdmin) {
+            $segmentService = app(TripSegmentService::class);
+            $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
+                $servedStationIds = array_keys($segmentService->stationIndices($trip));
+
+                return ! empty(array_intersect($assignedStationIds, $servedStationIds));
+            })->values();
+        }
+
         // If a specific trip was requested and it's not in the list, fetch and add it
         if ($selectedTripId && ! $trips->contains('id', $selectedTripId)) {
             $requestedTrip = Trip::withCount('tripSeatOccupancies as occupied_seats')
@@ -237,8 +256,16 @@ class TicketingController extends Controller
                 ]))
                 ->find($selectedTripId);
 
-            if ($requestedTrip && ($isAdmin || in_array($requestedTrip->route_id, $assignedRouteIds ?? [], true))) {
-                $trips->push($requestedTrip);
+            if ($requestedTrip) {
+                $servedStationIds = array_keys(app(TripSegmentService::class)->stationIndices($requestedTrip));
+                $hasAccess = $isAdmin || (
+                    in_array($requestedTrip->route_id, $assignedRouteIds ?? [], true)
+                    && ! empty(array_intersect($assignedStationIds, $servedStationIds))
+                );
+
+                if ($hasAccess) {
+                    $trips->push($requestedTrip);
+                }
             }
         }
 

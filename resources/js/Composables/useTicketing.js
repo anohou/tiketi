@@ -369,9 +369,14 @@ export function useTicketing(props, options = {}) {
   };
 
   const extractAssignedStationIds = () => {
-    const assignments = page.props.auth.user?.station_assignments || [];
+    const idsFromProps = assignedStationIds.value;
+    if (idsFromProps && idsFromProps.length > 0) {
+      return idsFromProps;
+    }
+    const assignments = page.props.auth.user?.station_assignments || page.props.auth.user?.stationAssignments || [];
     return [...new Set(assignments
-      .map(assignment => assignment.station_id)
+      .filter(a => a.active !== false)
+      .map(assignment => assignment.station_id || assignment.station?.id)
       .filter(Boolean)
       .map(stationId => String(stationId)))];
   };
@@ -410,17 +415,44 @@ export function useTicketing(props, options = {}) {
     });
   };
 
+  const sortTripsChronologically = (tripsList) => {
+    const now = Date.now();
+    return [...tripsList].sort((a, b) => {
+      const aTime = new Date(a.departure_at || 0).getTime();
+      const bTime = new Date(b.departure_at || 0).getTime();
+      const aPast = aTime < now;
+      const bPast = bTime < now;
+      if (aPast !== bPast) return aPast ? 1 : -1;
+      return aTime - bTime;
+    });
+  };
+
   const applyRealtimeTripCreated = (e = {}) => {
     if (hasRecentlyProcessedRealtimeEvent({ ...e, action: 'trip.created' })) return;
 
     if (!e.trip?.id) return;
 
-    if (!trips.value.find(t => t.id === e.trip.id)) {
-      trips.value.unshift(e.trip);
+    const userRole = page.props.auth.user?.role;
+    if (userRole !== 'admin') {
+      const sellerStationIds = assignedStationIds.value;
+      if (sellerStationIds.length > 0) {
+        const tripStationIndices = buildTripStationIndices(e.trip);
+        const servedStationIds = Object.keys(tripStationIndices);
+        const originId = e.trip.origin_station_id || e.trip.route?.origin_station_id;
+        const destId = e.trip.destination_station_id || e.trip.route?.destination_station_id;
+        const allTripStations = [...new Set([...servedStationIds, originId, destId].filter(Boolean).map(String))];
+        const servesSeller = sellerStationIds.some(id => allTripStations.includes(String(id)));
+        if (!servesSeller) return;
+      }
+    }
+
+    if (!trips.value.some(t => isSameTripId(t.id, e.trip.id))) {
+      trips.value = sortTripsChronologically([...trips.value, e.trip]);
     }
 
     ticketingStore.pulseTrip(e.trip.id, {
       action: 'trip.created',
+      duration: 30000,
       sourceStationId: e.source_station_id || null,
     });
   };
@@ -1532,6 +1564,9 @@ export function useTicketing(props, options = {}) {
     selectedFare.value = fare;
     showDestinationModal.value = false;
     seatSelectionMode.value = false;
+    if (selectedSeatNumber.value !== null) {
+      openPassengerModal();
+    }
   };
 
   const initiateBookingFlow = (seatNumber) => {

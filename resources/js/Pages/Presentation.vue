@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
-import { Link, router } from '@inertiajs/vue3';
+import { Link, router, usePage } from '@inertiajs/vue3';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from '@/Composables/useTheme.js';
 import ThemeToggle from '@/Components/ThemeToggle.vue';
@@ -22,8 +22,16 @@ import Timer from 'vue-material-design-icons/Timer.vue';
 import TrendingUp from 'vue-material-design-icons/TrendingUp.vue';
 import ShieldCheck from 'vue-material-design-icons/ShieldCheck.vue';
 
-const { t, tm } = useI18n();
+const { t, tm, locale } = useI18n();
+const page = usePage();
 const { isDark } = useTheme();
+
+const heroIllustration = computed(() => {
+  const currentLang = (locale.value || page.props.locale || 'fr').toLowerCase();
+  return currentLang.startsWith('en')
+    ? '/images/bus-hero-illustration-en.png'
+    : '/images/bus-hero-illustration-fr.png';
+});
 
 const navItems = computed(() => [
   { href: '#fonctionnalites', label: t('presentation.nav.features') },
@@ -126,41 +134,87 @@ const submitContact = () => {
     </header>
 
     <!-- ============ HERO ============ -->
-    <section class="relative overflow-hidden">
+    <section class="relative overflow-hidden pt-10 pb-16 lg:pt-16 lg:pb-24">
       <div class="pointer-events-none absolute inset-0">
         <div class="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-500/10"></div>
-        <div class="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-slate-200/50 blur-3xl dark:bg-slate-700/20"></div>
+        <div class="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-teal-200/40 blur-3xl dark:bg-teal-500/10"></div>
       </div>
 
-      <div class="relative mx-auto max-w-7xl px-4 pb-16 pt-14 sm:px-6 lg:px-8 lg:pb-24 lg:pt-20">
-        <div class="mx-auto max-w-3xl text-center">
-          <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <MapMarkerRadius :size="14" />
-            {{ t('presentation.hero.badge') }}
-          </span>
-          <h1 class="mt-6 text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-5xl lg:text-6xl">
-            {{ t('presentation.hero.title_1') }}
-            <span class="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">{{ t('presentation.hero.title_2') }}</span>
-            {{ t('presentation.hero.title_3') }}
-          </h1>
-          <p class="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300">
-            {{ t('presentation.hero.subtitle') }}
-          </p>
-          <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <a href="#contact" class="w-full rounded-full bg-emerald-600 px-8 py-4 text-base font-black text-white shadow-xl shadow-emerald-500/25 transition hover:-translate-y-0.5 hover:bg-emerald-700 sm:w-auto">
-              {{ t('presentation.hero.cta_demo') }}
-            </a>
-            <a href="#fonctionnalites" class="w-full rounded-full border border-slate-300 bg-white px-8 py-4 text-base font-black text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:w-auto">
-              {{ t('presentation.hero.cta_features') }}
-            </a>
+      <div class="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="grid items-center gap-12 lg:grid-cols-12">
+          <!-- Texte à gauche -->
+          <div class="text-center lg:col-span-6 lg:text-left">
+            <span class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <MapMarkerRadius :size="14" />
+              {{ t('presentation.hero.badge') }}
+            </span>
+            <h1 class="mt-6 text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-5xl lg:text-5xl">
+              {{ t('presentation.hero.title_1') }}
+              <span class="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">{{ t('presentation.hero.title_2') }}</span>
+              {{ t('presentation.hero.title_3') }}
+            </h1>
+            <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-600 dark:text-slate-300 lg:mx-0">
+              {{ t('presentation.hero.subtitle') }}
+            </p>
+            <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+              <a href="#contact" class="w-full rounded-full bg-emerald-600 px-8 py-4 text-base font-black text-white shadow-xl shadow-emerald-500/25 transition hover:-translate-y-0.5 hover:bg-emerald-700 sm:w-auto">
+                {{ t('presentation.hero.cta_demo') }}
+              </a>
+              <a href="#fonctionnalites" class="w-full rounded-full border border-slate-300 bg-white px-8 py-4 text-base font-black text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:w-auto">
+                {{ t('presentation.hero.cta_features') }}
+              </a>
+            </div>
+            <p class="mt-6 text-sm font-semibold text-slate-400 dark:text-slate-500">
+              {{ t('presentation.hero.doc_hint') }} <Link :href="'/documentation'" class="text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400">{{ t('presentation.hero.doc_link') }}</Link>
+            </p>
           </div>
-          <p class="mt-6 text-sm font-semibold text-slate-400 dark:text-slate-500">
-            {{ t('presentation.hero.doc_hint') }} <Link :href="'/documentation'" class="text-emerald-600 underline-offset-2 hover:underline dark:text-emerald-400">{{ t('presentation.hero.doc_link') }}</Link>
-          </p>
+
+          <!-- Visual / Illustration Bus à droite -->
+          <div class="relative lg:col-span-6">
+            <div class="relative mx-auto max-w-lg lg:max-w-none">
+              <!-- Halo lumineux d'arrière-plan -->
+              <div class="absolute -inset-4 rounded-3xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 blur-2xl dark:from-emerald-500/10 dark:to-teal-500/10"></div>
+
+              <!-- Carte principale de l'illustration -->
+              <div class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/80 p-3 shadow-2xl backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
+                <img 
+                  :src="heroIllustration" 
+                  alt="TIKETI — Illustration transport bus & billetterie interurbaine" 
+                  class="h-auto w-full rounded-2xl object-cover transition-transform duration-500 hover:scale-[1.02]" 
+                />
+              </div>
+
+              <!-- Badge flottant 1: Vente & Billet -->
+              <div class="absolute -left-4 top-6 hidden rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:flex items-center gap-3">
+                <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  <TicketConfirmation :size="22" />
+                </span>
+                <div>
+                  <div class="text-xs font-black text-slate-900 dark:text-white">{{ t('presentation.hero.badge_sale_title') }}</div>
+                  <div class="text-[11px] font-semibold text-slate-400">{{ t('presentation.hero.badge_sale_sub') }}</div>
+                </div>
+              </div>
+
+              <!-- Badge flottant 2: Validation QR Code -->
+              <div class="absolute -right-4 bottom-6 hidden rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:flex items-center gap-3">
+                <span class="grid h-10 w-10 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+                  <Qrcode :size="22" />
+                </span>
+                <div>
+                  <div class="text-xs font-black text-slate-900 dark:text-white">{{ t('presentation.hero.badge_qr_title') }}</div>
+                  <div class="text-[11px] font-semibold text-slate-400">{{ t('presentation.hero.badge_qr_sub') }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Visuel principal -->
-        <div class="relative mx-auto mt-16 max-w-5xl">
+        <!-- Aperçu de l'interface guichet de vente -->
+        <div class="relative mx-auto mt-20 max-w-5xl">
+          <div class="mb-4 text-center">
+            <span class="text-xs font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Interface Opérationnelle</span>
+            <h3 class="mt-1 text-2xl font-black text-slate-900 dark:text-white">Un guichet de vente ultra-rapide et intuitif</h3>
+          </div>
           <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/10 dark:border-slate-700 dark:bg-slate-900">
             <div class="flex items-center gap-1.5 border-b border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800">
               <span class="h-3 w-3 rounded-full bg-rose-300"></span>
@@ -168,31 +222,7 @@ const submitContact = () => {
               <span class="h-3 w-3 rounded-full bg-emerald-300"></span>
               <span class="ml-3 truncate text-xs font-bold text-slate-400">{{ t('presentation.hero.mockup_label') }}</span>
             </div>
-            <img src="/images/help/help-seller-ticketing.png" alt="TIKETI — Billetterie" class="w-full" />
-          </div>
-
-          <!-- Badges flottants -->
-          <div class="absolute -left-4 top-8 hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xl dark:border-slate-700 dark:bg-slate-900 lg:block">
-            <div class="flex items-center gap-2">
-              <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <TicketConfirmation :size="20" />
-              </span>
-              <div>
-                <div class="text-sm font-black">{{ t('presentation.hero.badge_sale_title') }}</div>
-                <div class="text-xs font-semibold text-slate-400">{{ t('presentation.hero.badge_sale_sub') }}</div>
-              </div>
-            </div>
-          </div>
-          <div class="absolute -right-4 bottom-10 hidden rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xl dark:border-slate-700 dark:bg-slate-900 lg:block">
-            <div class="flex items-center gap-2">
-              <span class="grid h-9 w-9 place-items-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <Qrcode :size="20" />
-              </span>
-              <div>
-                <div class="text-sm font-black">{{ t('presentation.hero.badge_qr_title') }}</div>
-                <div class="text-xs font-semibold text-slate-400">{{ t('presentation.hero.badge_qr_sub') }}</div>
-              </div>
-            </div>
+            <img src="/images/help/help-seller-ticketing.png" alt="TIKETI — Guichet de vente" class="w-full" />
           </div>
         </div>
       </div>

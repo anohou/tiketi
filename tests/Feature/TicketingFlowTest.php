@@ -3381,6 +3381,69 @@ class TicketingFlowTest extends TestCase
         $this->assertNotNull($assigned->first()->seat_number);
     }
 
+    public function test_seller_only_sees_trips_serving_their_assigned_stations(): void
+    {
+        $stationA = Station::create(['name' => 'Gare A', 'code' => 'SA', 'city' => 'A', 'active' => true]);
+        $stationB = Station::create(['name' => 'Gare B', 'code' => 'SB', 'city' => 'B', 'active' => true]);
+        $stationC = Station::create(['name' => 'Gare C', 'code' => 'SC', 'city' => 'C', 'active' => true]);
+        $stationD = Station::create(['name' => 'Gare D', 'code' => 'SD', 'city' => 'D', 'active' => true]);
+        $stationE = Station::create(['name' => 'Gare E', 'code' => 'SE', 'city' => 'E', 'active' => true]);
+
+        $route = Route::create([
+            'name' => 'A - B - C - D - E',
+            'origin_station_id' => $stationA->id,
+            'destination_station_id' => $stationE->id,
+            'active' => true,
+        ]);
+
+        foreach ([$stationA, $stationB, $stationC, $stationD, $stationE] as $idx => $st) {
+            RouteStopOrder::create([
+                'route_id' => $route->id,
+                'station_id' => $st->id,
+                'stop_index' => $idx,
+            ]);
+        }
+
+        // Seller at station C creates a trip from C to E
+        $tripCE = Trip::create([
+            'route_id' => $route->id,
+            'origin_station_id' => $stationC->id,
+            'destination_station_id' => $stationE->id,
+            'departure_at' => now()->addHours(2),
+            'status' => 'scheduled',
+        ]);
+
+        // Create seller A and seller C
+        $sellerA = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create(['user_id' => $sellerA->id, 'station_id' => $stationA->id, 'active' => true]);
+
+        $sellerC = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create(['user_id' => $sellerC->id, 'station_id' => $stationC->id, 'active' => true]);
+
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
+
+        // Seller A should NOT see trip C -> E
+        $this->actingAs($sellerA)->get(route('seller.ticketing'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Seller/Ticketing')
+                ->where('trips', fn ($trips) => collect($trips)->pluck('id')->doesntContain($tripCE->id)));
+
+        // Seller C SHOULD see trip C -> E
+        $this->actingAs($sellerC)->get(route('seller.ticketing'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Seller/Ticketing')
+                ->where('trips', fn ($trips) => collect($trips)->pluck('id')->contains($tripCE->id)));
+
+        // Admin SHOULD see trip C -> E
+        $this->actingAs($admin)->get(route('seller.ticketing'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Seller/Ticketing')
+                ->where('trips', fn ($trips) => collect($trips)->pluck('id')->contains($tripCE->id)));
+    }
+
     private function ticketingFixture(string $bookingType = 'seat_assignment', bool $reversed = false): array
     {
         $admin = User::factory()->create([

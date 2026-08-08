@@ -108,10 +108,10 @@ const isDestinationMode = computed(() => props.mode === 'destination' && !okohiR
 const quantityLimit = computed(() => {
   const stationLimit = Math.max(0, Math.min(10, Number(props.maxSellableQuantity) || 0));
 
-  // In the destination-first flow, a seat has already been selected by the
-  // suggestion engine. A transient/segment-specific station limit of zero
-  // must not disable the sale of that selected seat.
-  if (!props.seatFirstFlow && props.selectedSeatNumber !== null) {
+  // If a seat has already been selected by the user or suggestion engine,
+  // a transient/segment-specific station limit of zero must not disable
+  // the sale of that selected seat.
+  if (props.selectedSeatNumber !== null) {
     return Math.max(1, stationLimit);
   }
 
