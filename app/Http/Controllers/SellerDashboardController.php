@@ -8,6 +8,7 @@ use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
 use App\Models\Vehicle;
+use App\Services\TripSegmentService;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -30,7 +31,7 @@ class SellerDashboardController extends Controller
 
             if ($user->role !== 'admin') {
                 $assignedStationIds = $user->getActiveStationIds();
-                $segmentService = app(\App\Services\TripSegmentService::class);
+                $segmentService = app(TripSegmentService::class);
                 $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
                     $servedStationIds = array_keys($segmentService->stationIndices($trip));
 
@@ -93,7 +94,7 @@ class SellerDashboardController extends Controller
                 ->get();
 
             if ($user->role !== 'admin') {
-                $segmentService = app(\App\Services\TripSegmentService::class);
+                $segmentService = app(TripSegmentService::class);
                 $trips = $trips->filter(function ($trip) use ($assignedStationIds, $segmentService) {
                     $servedStationIds = array_keys($segmentService->stationIndices($trip));
 
