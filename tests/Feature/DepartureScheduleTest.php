@@ -13,26 +13,25 @@ use App\Models\Route;
 use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\AssignRealVehicleToTrip;
 use App\Services\AuthorizePlannedCapacitySales;
 use App\Services\DepartureScheduleCalendar;
-use App\Services\DeferredSeatAllocator;
 use App\Services\MaterializeScheduledTrips;
-use App\Services\ResolvePlanningVehicle;
 use App\Services\TripCapacityService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
 class DepartureScheduleTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -228,7 +227,7 @@ class DepartureScheduleTest extends TestCase
             'valid_from' => '2026-08-11',
             'sales_control' => 'closed',
         ]);
-        $admin = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $this->actingAs($admin)
             ->put(route('admin.departure-schedules.update', $schedule->id), [
@@ -268,7 +267,7 @@ class DepartureScheduleTest extends TestCase
         $route = $this->makeRoute($station, $destination);
         $type = $this->makeVehicleType();
         $this->makeSchedule($station, $route, $type);
-        $admin = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $this->actingAs($admin)
             ->get(route('admin.departure-schedules.index'))
@@ -429,7 +428,7 @@ class DepartureScheduleTest extends TestCase
         $this->assertSame('planned_capacity_not_authorized', $decision->reasonCode);
 
         // Report explicite : devient vendable.
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Car indisponible ce matin');
 
         $trip->refresh();
@@ -456,7 +455,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $this->expectException(TicketingRuleViolation::class);
         app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Test');
@@ -480,7 +479,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Test');
 
         // Ventes quantity_only : 10 billets sans siège.
@@ -524,7 +523,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Test');
 
         // 10 ventes quantity_only sans siège.
@@ -556,7 +555,7 @@ class DepartureScheduleTest extends TestCase
 
         // Les 10 billets ont maintenant un siège confirmé + une occupation.
         $this->assertSame(10, Ticket::where('trip_id', $trip->id)->whereNotNull('seat_number')->count());
-        $this->assertSame(10, \App\Models\TripSeatOccupancy::where('trip_id', $trip->id)->count());
+        $this->assertSame(10, TripSeatOccupancy::where('trip_id', $trip->id)->count());
 
         // Les sièges attribués sont uniques.
         $seatNumbers = Ticket::where('trip_id', $trip->id)->pluck('seat_number')->sort()->values();
@@ -573,7 +572,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         // Refus d'affecter un autre véhicule technique comme car réel.
         $placeholder = $this->makeVehicle($type, 'PLAN-BUS-99', true);
@@ -654,7 +653,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         // Famille de 3 personnes (même téléphone).
         for ($i = 0; $i < 3; $i++) {
@@ -699,7 +698,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
 
-        $admin = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $this->actingAs($admin)
             ->get(route('seller.departure-board.index', $station->id))
@@ -724,7 +723,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $admin = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $this->actingAs($admin)
             ->post(route('seller.departure-board.defer-vehicle-assignment', $trip->id), [])
@@ -757,7 +756,7 @@ class DepartureScheduleTest extends TestCase
 
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
-        $admin = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $admin = User::factory()->create(['role' => 'admin', 'active' => true]);
         $placeholder = $this->makeVehicle($type, 'PLAN-BUS-X', true);
 
         $this->actingAs($admin)

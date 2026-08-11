@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\VehiclePoolRelocationService;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -46,7 +47,7 @@ class Vehicle extends Model
 
         static::updated(function (self $model): void {
             if ($model->wasChanged('active') && ! $model->active) {
-                app(\App\Services\VehiclePoolRelocationService::class)->returnToGeneralPool($model);
+                app(VehiclePoolRelocationService::class)->returnToGeneralPool($model);
             }
         });
     }

@@ -3,9 +3,9 @@
 namespace App\Services;
 
 use App\Models\Ticket;
+use App\Models\TicketCompensation;
 use App\Models\TicketJourney;
 use App\Models\Trip;
-use Illuminate\Support\Collection;
 
 /**
  * Résolution d'un scan (QR ou numéro de ticket) vers le bon droit de voyage
@@ -287,7 +287,7 @@ final class ResolveScannedJourney
 
     private function isRefunded(Ticket $ticket): bool
     {
-        return \App\Models\TicketCompensation::where('ticket_id', $ticket->id)
+        return TicketCompensation::where('ticket_id', $ticket->id)
             ->where('compensation_type', 'refund')
             ->where('status', 'executed')
             ->exists();

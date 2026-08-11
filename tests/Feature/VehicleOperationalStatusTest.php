@@ -6,7 +6,6 @@ use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
-use App\Models\StationVehicleAssignment;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -19,8 +18,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class VehicleOperationalStatusTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

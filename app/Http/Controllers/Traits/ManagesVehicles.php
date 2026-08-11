@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Traits;
 
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 trait ManagesVehicles
 {
@@ -22,7 +23,7 @@ trait ManagesVehicles
         // Un véhicule technique de planification ne peut jamais être rendu
         // actif manuellement : il resterait invisible dans la flotte exploitable.
         if ($vehicle?->isPlanningPlaceholder() && ($data['active'] ?? false)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'active' => 'Un véhicule technique de planification ne peut pas être activé comme car réel.',
             ]);
         }
@@ -50,7 +51,7 @@ trait ManagesVehicles
         // pas être supprimé : le voyage conserverait une référence invalide.
         if ($vehicle->isPlanningPlaceholder()
             && $vehicle->trips()->whereIn('status', ['scheduled', 'boarding', 'delayed'])->exists()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'vehicle_id' => 'Ce véhicule technique est référencé par des voyages en attente d’un car réel. Supprimez ou remplacez ces voyages avant de le supprimer.',
             ]);
         }

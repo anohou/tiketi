@@ -6,6 +6,7 @@ use App\Models\OkohiTicketOutbox;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\TicketSetting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -67,7 +68,7 @@ final class OkohiTicketPublisher
         // SEULE transaction. Le verrou porte sur la ligne TICKET (qui existe
         // toujours) — le verrouillage fonctionne donc même lorsqu'aucune
         // entrée d'outbox n'existe encore pour ce billet.
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($ticket, $externalTicketId, $operation, $settings) {
+        return DB::transaction(function () use ($ticket, $externalTicketId, $operation, $settings) {
             $lockedTicket = Ticket::whereKey($ticket->getKey())->lockForUpdate()->firstOrFail();
 
             $version = $this->nextVersion($lockedTicket, $externalTicketId, $operation);

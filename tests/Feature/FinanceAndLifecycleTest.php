@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Domain\Ticketing\BoardTicketJourney;
 use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Domain\Trips\TripStateMachine;
+use App\Models\CrewMember;
 use App\Models\DepartureSchedule;
 use App\Models\OkohiTicketOutbox;
 use App\Models\OperationalSetting;
@@ -14,6 +15,7 @@ use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
 use App\Models\TicketJourney;
+use App\Models\TicketJourneyAssignment;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
@@ -22,14 +24,14 @@ use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\ChangeReturnPreference;
 use App\Services\ExtendReturnJourney;
+use App\Services\OkohiTicketPublisher;
 use App\Services\ReleaseTripReturns;
+use App\Services\ResolveScannedJourney;
 use App\Services\ReturnJourneyAllocator;
 use App\Services\ReturnQuotaService;
-use App\Services\ResolveScannedJourney;
 use App\Services\RoundTripRevenueService;
-use App\Services\OkohiTicketPublisher;
-use App\Services\TicketCompensationService;
 use App\Services\SellRoundTripTicket;
+use App\Services\TicketCompensationService;
 use App\Services\TicketRefundService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -39,8 +41,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class FinanceAndLifecycleTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -245,7 +247,7 @@ class FinanceAndLifecycleTest extends TestCase
         $history = $return->assignments()->where('reason', 'trip_cancelled')->first();
         $this->assertNotNull($history);
         $this->assertSame($returnTrip->id, $history->previous_trip_id);
-        $this->assertSame(\App\Models\TicketJourneyAssignment::MODE_AUTOMATIC, $history->mode);
+        $this->assertSame(TicketJourneyAssignment::MODE_AUTOMATIC, $history->mode);
     }
 
     public function test_release_trip_returns_is_idempotent(): void
@@ -613,12 +615,12 @@ class FinanceAndLifecycleTest extends TestCase
         $this->assertSame('refunded', $outbox->payload['status']['ticket']);
     }
 
-    private function makeCrewMember(): \App\Models\CrewMember
+    private function makeCrewMember(): CrewMember
     {
         static $i = 0;
         $i++;
 
-        return \App\Models\CrewMember::create([
+        return CrewMember::create([
             'name' => 'Contrôle E'.$i,
             'phone' => '22507000000'.$i,
             'role' => 'driver',

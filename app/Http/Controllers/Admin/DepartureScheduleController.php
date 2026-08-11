@@ -13,6 +13,7 @@ use App\Models\VehicleType;
 use App\Services\DepartureScheduleCalendar;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DepartureScheduleController extends Controller
@@ -223,7 +224,7 @@ class DepartureScheduleController extends Controller
 
         if ($policy === DepartureSchedule::POLICY_ALLOW_PLANNED_CAPACITY
             && ($data['planned_capacity'] ?? null) === null) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'planned_capacity' => 'La vente sur capacité planifiée exige une capacité prévisionnelle positive.',
             ]);
         }
@@ -231,14 +232,14 @@ class DepartureScheduleController extends Controller
         if ($data['confirmed_return_quota'] !== null
             && $data['planned_capacity'] !== null
             && $data['confirmed_return_quota'] > $data['planned_capacity']) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'confirmed_return_quota' => 'Le quota de billets prioritaires ne peut pas dépasser la capacité prévisionnelle.',
             ]);
         }
 
         // La gare propriétaire du programme doit être l'origine.
         if ($data['station_id'] !== $data['origin_station_id']) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'station_id' => 'La gare du programme doit correspondre à la gare d’origine du départ.',
             ]);
         }
@@ -255,7 +256,7 @@ class DepartureScheduleController extends Controller
 
         foreach (['origin_station_id', 'destination_station_id'] as $field) {
             if (! in_array($data[$field], $routeStationIds, true)) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     $field => 'Cette gare n’appartient pas au trajet sélectionné.',
                 ]);
             }
@@ -280,7 +281,7 @@ class DepartureScheduleController extends Controller
             ->exists();
 
         if ($duplicate) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'departure_time' => 'Un programme actif existe déjà pour ce trajet, cet horaire et cette période.',
             ]);
         }

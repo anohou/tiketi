@@ -8,7 +8,6 @@ use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\StationVehicleAssignment;
 use App\Models\Trip;
-use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\TripTimingService;
@@ -20,8 +19,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class AutomaticVehiclePoolRelocationTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

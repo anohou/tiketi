@@ -14,7 +14,6 @@ use App\Services\AuthorizePlannedCapacitySales;
 use App\Services\TripCapacityService;
 use App\Services\VehiclePoolService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 /**

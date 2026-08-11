@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Domain\Ticketing\TicketingRuleViolation;
-use App\Models\DepartureSchedule;
 use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
@@ -11,11 +10,10 @@ use App\Models\Station;
 use App\Models\StationVehicleAssignment;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\AssignRealVehicleToTrip;
-use App\Services\MaterializeScheduledTrips;
-use App\Services\ResolvePlanningVehicle;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -27,8 +25,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
  */
 class VehiclePoolEnforcementTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -269,7 +267,7 @@ class VehiclePoolEnforcementTest extends TestCase
         ]);
 
         $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
-        \App\Models\UserStationAssignment::create([
+        UserStationAssignment::create([
             'user_id' => $seller->id,
             'station_id' => $a->id,
             'active' => true,

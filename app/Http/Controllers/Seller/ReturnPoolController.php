@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Seller;
 
+use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Http\Controllers\Controller;
 use App\Models\Station;
 use App\Models\TicketJourney;
 use App\Models\Trip;
+use App\Services\ChangeReturnPreference;
+use App\Services\ReturnEngagementReportService;
 use App\Services\ReturnJourneyAllocator;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -69,7 +72,7 @@ class ReturnPoolController extends Controller
         ]);
     }
 
-    public function report(Request $request, \App\Services\ReturnEngagementReportService $service)
+    public function report(Request $request, ReturnEngagementReportService $service)
     {
         $stationId = $request->filled('station_id') ? $request->string('station_id')->toString() : null;
 
@@ -93,7 +96,7 @@ class ReturnPoolController extends Controller
 
         try {
             $journey = $allocator->assign($journey, $trip, $validated['seat_number'] ?? null, $request->user());
-        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+        } catch (TicketingRuleViolation $e) {
             return response()->json(['message' => $e->getMessage()], $e->httpStatus);
         }
 
@@ -108,7 +111,7 @@ class ReturnPoolController extends Controller
 
         try {
             $journey = $allocator->unassign($journey, $request->user(), $validated['reason'] ?? null);
-        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+        } catch (TicketingRuleViolation $e) {
             return response()->json(['message' => $e->getMessage()], $e->httpStatus);
         }
 
@@ -126,7 +129,7 @@ class ReturnPoolController extends Controller
         ]);
 
         try {
-            $journey = app(\App\Services\ChangeReturnPreference::class)->change(
+            $journey = app(ChangeReturnPreference::class)->change(
                 $journey,
                 $request->user(),
                 [
@@ -135,7 +138,7 @@ class ReturnPoolController extends Controller
                     'departure_schedule_id' => $validated['departure_schedule_id'] ?? null,
                 ],
             );
-        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+        } catch (TicketingRuleViolation $e) {
             return response()->json(['message' => $e->getMessage()], $e->httpStatus);
         }
 

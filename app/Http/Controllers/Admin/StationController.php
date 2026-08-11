@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\DepartureSchedule;
 use App\Models\Destination;
 use App\Models\Route as BusRoute;
 use App\Models\Station;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Models\VehicleType;
+use App\Services\VehicleOperationalStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Inertia\Inertia;
@@ -43,19 +46,19 @@ class StationController extends Controller
             'stations:id,name,code,city,settings,destination_id',
         ])->orderBy('name')->get(['id', 'name', 'settings']);
 
-        $service = app(\App\Services\VehicleOperationalStatusService::class);
-        $vehicles = \App\Models\Vehicle::with(['vehicleType', 'currentStationAssignment.station'])
+        $service = app(VehicleOperationalStatusService::class);
+        $vehicles = Vehicle::with(['vehicleType', 'currentStationAssignment.station'])
             ->where('active', true)
             ->where('is_placeholder', false)
             ->orderBy('identifier')
             ->get();
 
         $operationalMap = $service->mapForVehicles($vehicles);
-        $vehicles->each(function (\App\Models\Vehicle $v) use ($operationalMap) {
+        $vehicles->each(function (Vehicle $v) use ($operationalMap) {
             $v->setAttribute('operational', $operationalMap[$v->id] ?? null);
         });
 
-        $departureSchedules = \App\Models\DepartureSchedule::with([
+        $departureSchedules = DepartureSchedule::with([
             'route.originStation',
             'route.destinationStation',
             'originStation:id,name',

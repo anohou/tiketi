@@ -7,6 +7,7 @@ use App\Http\Controllers\Traits\ManagesVehicles;
 use App\Models\CrewMember;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
+use App\Services\VehicleOperationalStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -31,7 +32,7 @@ class VehicleController extends Controller
             ->orderBy('identifier')
             ->paginate(50);
 
-        $service = app(\App\Services\VehicleOperationalStatusService::class);
+        $service = app(VehicleOperationalStatusService::class);
         $operationalMap = $service->mapForVehicles($vehicles->getCollection());
 
         $vehicles->through(function (Vehicle $vehicle) use ($operationalMap, $service) {
@@ -44,6 +45,7 @@ class VehicleController extends Controller
             $vehicles->setCollection(
                 $vehicles->getCollection()->filter(function (Vehicle $vehicle) use ($statusFilter) {
                     $op = $vehicle->getAttribute('operational');
+
                     return ($op['status'] ?? 'available') === $statusFilter;
                 })->values()
             );

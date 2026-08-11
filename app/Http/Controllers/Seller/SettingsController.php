@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use App\Models\VehicleCrewAssignment;
+use App\Services\VehicleOperationalStatusService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
@@ -180,7 +181,7 @@ class SettingsController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $service = app(\App\Services\VehicleOperationalStatusService::class);
+        $service = app(VehicleOperationalStatusService::class);
         $operationalMap = $service->mapForVehicles($assignments->getCollection()->pluck('vehicle')->filter());
 
         $assignments->through(function (StationVehicleAssignment $assignment) use ($operationalMap, $service) {

@@ -27,8 +27,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class ReturnPoolTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {

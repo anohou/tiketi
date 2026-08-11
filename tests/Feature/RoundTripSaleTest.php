@@ -15,18 +15,18 @@ use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
+use App\Services\AuthorizePlannedCapacitySales;
 use App\Services\MaterializeScheduledTrips;
 use App\Services\SellRoundTripTicket;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
 class RoundTripSaleTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -293,7 +293,7 @@ class RoundTripSaleTest extends TestCase
         $user = $this->makeUser();
 
         // Report explicite du car.
-        app(\App\Services\AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Car indisponible');
+        app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Car indisponible');
 
         $result = app(SellRoundTripTicket::class)->sell($this->baseSale($trip, $a, $b, [
             'seat_number' => null,

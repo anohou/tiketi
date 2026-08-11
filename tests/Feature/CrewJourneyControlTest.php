@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Ticketing\BoardTicketJourney;
 use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Models\CrewMember;
 use App\Models\OperationalSetting;
@@ -11,24 +12,26 @@ use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
-use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleCrewAssignment;
 use App\Models\VehicleType;
 use App\Services\ResolveScannedJourney;
 use App\Services\ReturnJourneyAllocator;
 use App\Services\SellRoundTripTicket;
+use App\Services\TicketRefundService;
+use App\Services\TripManifestService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Sanctum\Sanctum;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
 class CrewJourneyControlTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -91,7 +94,7 @@ class CrewJourneyControlTest extends TestCase
             'active' => true,
         ]);
         foreach ($trips as $t) {
-            \App\Models\VehicleCrewAssignment::create([
+            VehicleCrewAssignment::create([
                 'vehicle_id' => $t->vehicle_id,
                 'crew_member_id' => $crew->id,
                 'role' => 'driver',
@@ -222,8 +225,8 @@ class CrewJourneyControlTest extends TestCase
         app(ReturnJourneyAllocator::class)->assign($return, $returnTrip, 5, $this->makeUser());
 
         // Embarquement de l'aller.
-        $actor = \App\Models\CrewMember::create(['name' => 'C', 'phone' => '+2250700000001', 'role' => 'driver', 'active' => true]);
-        app(\App\Domain\Ticketing\BoardTicketJourney::class)->execute($actor, $outboundTrip, $result['outbound']);
+        $actor = CrewMember::create(['name' => 'C', 'phone' => '+2250700000001', 'role' => 'driver', 'active' => true]);
+        app(BoardTicketJourney::class)->execute($actor, $outboundTrip, $result['outbound']);
 
         $outbound = $result['outbound']->fresh();
         $this->assertSame(TicketJourney::STATUS_BOARDED, $outbound->status);
@@ -242,11 +245,11 @@ class CrewJourneyControlTest extends TestCase
         $trip = $this->makeTrip($a, $b, 'CREW-OUT5');
         $result = $this->sellRoundTrip($trip, $a, $b, ['journey_type' => Ticket::JOURNEY_TYPE_ONE_WAY, 'seat_number' => 3]);
 
-        $actor = \App\Models\CrewMember::create(['name' => 'C2', 'phone' => '+2250700000002', 'role' => 'driver', 'active' => true]);
-        app(\App\Domain\Ticketing\BoardTicketJourney::class)->execute($actor, $trip, $result['outbound']);
+        $actor = CrewMember::create(['name' => 'C2', 'phone' => '+2250700000002', 'role' => 'driver', 'active' => true]);
+        app(BoardTicketJourney::class)->execute($actor, $trip, $result['outbound']);
 
         try {
-            app(\App\Domain\Ticketing\BoardTicketJourney::class)->execute($actor, $trip, $result['outbound']);
+            app(BoardTicketJourney::class)->execute($actor, $trip, $result['outbound']);
             $this->fail('Le second embarquement du même droit doit être refusé.');
         } catch (TicketingRuleViolation $e) {
             $this->assertSame('already_boarded', $e->reasonCode);
@@ -261,10 +264,10 @@ class CrewJourneyControlTest extends TestCase
         $otherTrip = $this->makeTrip($a, $b, 'CREW-OUT6B');
         $result = $this->sellRoundTrip($trip, $a, $b, ['journey_type' => Ticket::JOURNEY_TYPE_ONE_WAY, 'seat_number' => 4]);
 
-        $actor = \App\Models\CrewMember::create(['name' => 'C3', 'phone' => '+2250700000003', 'role' => 'driver', 'active' => true]);
+        $actor = CrewMember::create(['name' => 'C3', 'phone' => '+2250700000003', 'role' => 'driver', 'active' => true]);
 
         try {
-            app(\App\Domain\Ticketing\BoardTicketJourney::class)->execute($actor, $otherTrip, $result['outbound']);
+            app(BoardTicketJourney::class)->execute($actor, $otherTrip, $result['outbound']);
             $this->fail('L’embarquement sur un autre voyage doit être refusé.');
         } catch (TicketingRuleViolation $e) {
             $this->assertSame('wrong_trip', $e->reasonCode);
@@ -363,9 +366,9 @@ class CrewJourneyControlTest extends TestCase
             'valid_until' => CarbonImmutable::now()->subDay(),
         ]);
 
-        $resolved = app(\App\Services\ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $returnTrip);
+        $resolved = app(ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $returnTrip);
 
-        $this->assertSame(\App\Services\ResolveScannedJourney::RETURN_EXPIRED, $resolved['code']);
+        $this->assertSame(ResolveScannedJourney::RETURN_EXPIRED, $resolved['code']);
     }
 
     public function test_resolve_reports_refunded_return(): void
@@ -373,13 +376,13 @@ class CrewJourneyControlTest extends TestCase
         [$ticket, $return, $trip, $user] = $this->makeResolveFixture();
 
         // Remboursement partiel du retour (écriture compensatoire).
-        app(\App\Services\TicketRefundService::class)->refundReturn($ticket, $user, 'Test');
+        app(TicketRefundService::class)->refundReturn($ticket, $user, 'Test');
 
         // Voyage RETOUR B → A sur lequel le client présente son QR.
         $returnTrip = $this->makeTrip($this->makeStation('Gare R2', 'R2'), $this->makeStation('Gare R3', 'R3'), 'CREW-RET-TRIP2');
-        $resolved = app(\App\Services\ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $returnTrip);
+        $resolved = app(ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $returnTrip);
 
-        $this->assertSame(\App\Services\ResolveScannedJourney::RETURN_REFUNDED, $resolved['code']);
+        $this->assertSame(ResolveScannedJourney::RETURN_REFUNDED, $resolved['code']);
     }
 
     public function test_resolve_reports_completed_journey(): void
@@ -387,9 +390,9 @@ class CrewJourneyControlTest extends TestCase
         [$ticket, $return, $trip, $user] = $this->makeResolveFixture();
         $ticket->outboundJourney->update(['status' => TicketJourney::STATUS_COMPLETED]);
 
-        $resolved = app(\App\Services\ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $trip);
+        $resolved = app(ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $trip);
 
-        $this->assertSame(\App\Services\ResolveScannedJourney::JOURNEY_COMPLETED, $resolved['code']);
+        $this->assertSame(ResolveScannedJourney::JOURNEY_COMPLETED, $resolved['code']);
     }
 
     public function test_resolve_reports_cancelled_ticket(): void
@@ -397,9 +400,9 @@ class CrewJourneyControlTest extends TestCase
         [$ticket, $return, $trip, $user] = $this->makeResolveFixture();
         $ticket->update(['status' => 'cancelled']);
 
-        $resolved = app(\App\Services\ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $trip);
+        $resolved = app(ResolveScannedJourney::class)->resolve($ticket->qrPayloadString(), $trip);
 
-        $this->assertSame(\App\Services\ResolveScannedJourney::TICKET_CANCELLED, $resolved['code']);
+        $this->assertSame(ResolveScannedJourney::TICKET_CANCELLED, $resolved['code']);
     }
 
     public function test_resolve_outbound_scan_does_not_consume_return(): void
@@ -413,7 +416,7 @@ class CrewJourneyControlTest extends TestCase
             'role' => 'driver',
             'active' => true,
         ]);
-        app(\App\Domain\Ticketing\BoardTicketJourney::class)->execute(
+        app(BoardTicketJourney::class)->execute(
             $crew,
             $trip,
             $ticket->outboundJourney,
@@ -437,7 +440,7 @@ class CrewJourneyControlTest extends TestCase
         $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $result = $this->sellRoundTrip($outboundTrip, $a, $b, ['return_mode' => TicketJourney::SELECTION_OPEN]);
-        $assignedReturn = app(\App\Services\ReturnJourneyAllocator::class)->assign($result['return'], $returnTrip, null, $user);
+        $assignedReturn = app(ReturnJourneyAllocator::class)->assign($result['return'], $returnTrip, null, $user);
 
         // Le billet racine reste associé à l'ALLER (tickets.trip_id = aller),
         // mais le droit retour est affecté au voyage RETOUR.
@@ -445,7 +448,7 @@ class CrewJourneyControlTest extends TestCase
         $this->assertSame($returnTrip->id, $assignedReturn->trip_id);
 
         // Manifeste du voyage RETOUR : le droit retour y figure.
-        $manifest = app(\App\Services\TripManifestService::class)->forTrip($returnTrip);
+        $manifest = app(TripManifestService::class)->forTrip($returnTrip);
         $this->assertCount(1, $manifest);
         $this->assertSame(TicketJourney::DIRECTION_RETURN, $manifest->first()['direction']);
         $this->assertSame($assignedReturn->id, $manifest->first()['journey_id']);
@@ -461,7 +464,7 @@ class CrewJourneyControlTest extends TestCase
         $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $result = $this->sellRoundTrip($outboundTrip, $a, $b, ['return_mode' => TicketJourney::SELECTION_OPEN]);
-        app(\App\Services\ReturnJourneyAllocator::class)->assign($result['return'], $returnTrip, null, $user);
+        app(ReturnJourneyAllocator::class)->assign($result['return'], $returnTrip, null, $user);
 
         // Le cache du voyage RETOUR doit contenir le billet (via son droit
         // retour), même si le billet racine pointe vers l'aller.
@@ -497,7 +500,7 @@ class CrewJourneyControlTest extends TestCase
         // Le retour doit être affecté au voyage avant l'embarquement.
         $returnTrip = $this->makeTrip($b, $a, 'CREW-SYNC-RET');
         $user2 = User::factory()->create(['role' => 'admin', 'active' => true]);
-        app(\App\Services\ReturnJourneyAllocator::class)->assign($journey, $returnTrip, null, $user2);
+        app(ReturnJourneyAllocator::class)->assign($journey, $returnTrip, null, $user2);
 
         // Le crew doit être autorisé sur le véhicule du voyage retour.
         $token = $this->makeCrewUser($trip, $returnTrip);
@@ -506,7 +509,7 @@ class CrewJourneyControlTest extends TestCase
         $this->withHeader('Authorization', 'Bearer '.$token)
             ->postJson("/api/crew/trips/{$returnTrip->id}/tickets/sync", [
                 'boardings' => [[
-                    'client_action_id' => (string) \Illuminate\Support\Str::uuid(),
+                    'client_action_id' => (string) Str::uuid(),
                     'ticket_journey_id' => $journey->id,
                     'boarded_at' => now()->toIso8601String(),
                 ]],

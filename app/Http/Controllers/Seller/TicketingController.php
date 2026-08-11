@@ -8,6 +8,8 @@ use App\Domain\Trips\TripStateMachine;
 use App\Domain\Trips\TripStatus;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\DepartureSchedule;
+use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
@@ -91,10 +93,10 @@ class TicketingController extends Controller
             // données aller-retour (remise globale, programmes de retour).
             'roundTripSalesEnabled' => $roundTripEnabled,
             'roundTripDiscountAmount' => $roundTripEnabled
-                ? \App\Models\OperationalSetting::current()->roundTripDiscountAmount()
+                ? OperationalSetting::current()->roundTripDiscountAmount()
                 : 0,
             'returnSchedules' => $roundTripEnabled
-                ? \App\Models\DepartureSchedule::with(['originStation', 'destinationStation'])
+                ? DepartureSchedule::with(['originStation', 'destinationStation'])
                     ->where('active', true)
                     ->orderBy('departure_time')
                     ->get()

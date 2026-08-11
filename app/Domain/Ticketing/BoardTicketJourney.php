@@ -3,8 +3,12 @@
 namespace App\Domain\Ticketing;
 
 use App\Models\CrewMember;
+use App\Models\OkohiTicketOutbox;
+use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
+use App\Services\OkohiTicketPublisher;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -31,7 +35,7 @@ final class BoardTicketJourney
             // Point E : le BILLET PARENT doit exister et permettre l'embarquement.
             // Un billet remboursé (complet) ou annulé ne peut jamais embarquer,
             // même si le droit semble encore actif.
-            $parentTicket = \App\Models\Ticket::whereKey($locked->ticket_id)->first();
+            $parentTicket = Ticket::whereKey($locked->ticket_id)->first();
             if (! $parentTicket) {
                 throw new TicketingRuleViolation(
                     'ticket_not_found',
@@ -91,7 +95,7 @@ final class BoardTicketJourney
 
             // Verrouille l'occupation du siège si une place confirmée existe.
             if ($locked->seat_number !== null) {
-                $occupancy = \App\Models\TripSeatOccupancy::where('trip_id', $trip->id)
+                $occupancy = TripSeatOccupancy::where('trip_id', $trip->id)
                     ->where('seat_number', $locked->seat_number)
                     ->where('ticket_id', $locked->ticket_id)
                     ->lockForUpdate()
@@ -114,9 +118,9 @@ final class BoardTicketJourney
 
             // Synchronisation Okohi : embarquement (en file, non bloquante).
             try {
-                app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                app(OkohiTicketPublisher::class)->enqueue(
                     $locked->ticket,
-                    \App\Models\OkohiTicketOutbox::OPERATION_UPDATE,
+                    OkohiTicketOutbox::OPERATION_UPDATE,
                 );
             } catch (\Throwable $e) {
                 // Ne jamais faire échouer l'embarquement à cause de la file.

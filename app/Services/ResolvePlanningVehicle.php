@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Vehicle;
 use App\Models\VehicleType;
-use Illuminate\Support\Str;
 
 /**
  * Fournit ou crée le véhicule technique de planification associé à un type

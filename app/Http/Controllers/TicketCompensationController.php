@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
 use App\Services\TicketCompensationService;
@@ -69,7 +70,7 @@ class TicketCompensationController extends Controller
                 $data['reason'],
                 isset($data['amount']) ? (int) $data['amount'] : null,
             );
-        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+        } catch (TicketingRuleViolation $e) {
             return response()->json(['message' => $e->getMessage()], $e->httpStatus);
         }
 

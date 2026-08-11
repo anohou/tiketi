@@ -6,7 +6,6 @@ use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class BackfillTicketJourneys extends Command
@@ -86,6 +85,7 @@ class BackfillTicketJourneys extends Command
             // 2. Créer le droit aller manquant.
             if ($ticket->outboundJourney) {
                 $skipped++;
+
                 continue;
             }
 

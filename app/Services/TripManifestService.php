@@ -92,7 +92,7 @@ final class TripManifestService
                     'boarded' => $ticket->boarded_at !== null,
                     'from_station' => $ticket->fromStation?->name,
                     'to_station' => $ticket->toStation?->name,
-                    ];
+                ];
             });
 
         return $manifest

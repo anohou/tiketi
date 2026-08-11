@@ -42,7 +42,7 @@ final class DeferredSeatAllocator
     public function __construct(private readonly TripSegmentService $segments) {}
 
     /**
-     * @throws \App\Domain\Ticketing\TicketingRuleViolation si la capacité est insuffisante
+     * @throws TicketingRuleViolation si la capacité est insuffisante
      */
     public function allocate(Trip $trip): array
     {

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Domain\Ticketing\TripSalesPolicy;
 use App\Events\SeatMapUpdated;
 use App\Http\Controllers\Controller;
 use App\Jobs\CancelOrReverseOkohiClaimJob;
+use App\Models\OkohiTicketOutbox;
 use App\Models\Route;
 use App\Models\Ticket;
 use App\Models\TicketConnection;
@@ -14,6 +16,8 @@ use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Models\User;
+use App\Services\OkohiCustomerVerifier;
+use App\Services\OkohiTicketPublisher;
 use App\Services\OptimisationService;
 use App\Services\RoundTripFareCalculator;
 use App\Services\SellRoundTripTicket;
@@ -88,9 +92,9 @@ class TicketController extends Controller
             // Normalisation : trim + strtoupper avant toute vérification.
             $normalizedCustomerNumber = strtoupper(trim($validated['okohi_customer_number']));
 
-            $verification = app(\App\Services\OkohiCustomerVerifier::class)->verify(
+            $verification = app(OkohiCustomerVerifier::class)->verify(
                 $normalizedCustomerNumber,
-                \App\Models\TicketSetting::getSettings(),
+                TicketSetting::getSettings(),
             );
 
             if ($verification['verified']) {
@@ -410,9 +414,9 @@ class TicketController extends Controller
             // un billet avec client identifié est rattaché au portefeuille.
             foreach ($tickets as $soldTicket) {
                 try {
-                    app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                    app(OkohiTicketPublisher::class)->enqueue(
                         $soldTicket->fresh(),
-                        \App\Models\OkohiTicketOutbox::OPERATION_CREATE,
+                        OkohiTicketOutbox::OPERATION_CREATE,
                     );
                 } catch (\Exception $e) {
                     Log::warning('Échec mise en file Okohi (vente legacy): '.$e->getMessage());
@@ -575,7 +579,7 @@ class TicketController extends Controller
             }
 
             DB::commit();
-        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+        } catch (TicketingRuleViolation $e) {
             DB::rollBack();
 
             return $this->errorResponse($request, $e->getMessage(), $e->httpStatus);
@@ -692,9 +696,9 @@ class TicketController extends Controller
 
             // Publication du changement d'état vers Okohi (en file, non bloquant).
             try {
-                app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                app(OkohiTicketPublisher::class)->enqueue(
                     $ticket->fresh(),
-                    \App\Models\OkohiTicketOutbox::OPERATION_UPDATE,
+                    OkohiTicketOutbox::OPERATION_UPDATE,
                 );
             } catch (\Exception $e) {
                 Log::warning('Échec mise en file Okohi (annulation): '.$e->getMessage());

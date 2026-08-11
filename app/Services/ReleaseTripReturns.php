@@ -6,6 +6,7 @@ use App\Models\OkohiTicketOutbox;
 use App\Models\TicketJourney;
 use App\Models\TicketJourneyAssignment;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -38,7 +39,7 @@ final class ReleaseTripReturns
                 $oldSeat = $journey->seat_number;
 
                 if ($oldSeat !== null) {
-                    \App\Models\TripSeatOccupancy::where('trip_id', $trip->id)
+                    TripSeatOccupancy::where('trip_id', $trip->id)
                         ->where('seat_number', $oldSeat)
                         ->where('ticket_id', $journey->ticket_id)
                         ->delete();

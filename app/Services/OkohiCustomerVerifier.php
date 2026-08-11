@@ -23,11 +23,11 @@ final class OkohiCustomerVerifier
      * Vérifie un client Okohi.
      *
      * @return array{verified: bool, canonical_number: string|null, error: string|null}
-     *         verified=false + error='unreachable' → panne Okohi (vente possible,
-     *         billet non rattaché) ;
-     *         verified=false + error='not_found' → numéro inexistant (vente possible,
-     *         billet non rattaché, avertissement) ;
-     *         verified=true → numéro canonique d'Okohi.
+     *                                                                                  verified=false + error='unreachable' → panne Okohi (vente possible,
+     *                                                                                  billet non rattaché) ;
+     *                                                                                  verified=false + error='not_found' → numéro inexistant (vente possible,
+     *                                                                                  billet non rattaché, avertissement) ;
+     *                                                                                  verified=true → numéro canonique d'Okohi.
      */
     public function verify(string $customerNumber, TicketSetting $settings): array
     {

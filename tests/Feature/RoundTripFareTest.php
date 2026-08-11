@@ -8,6 +8,7 @@ use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\RoundTripFareCalculator;
@@ -20,8 +21,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class RoundTripFareTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -143,7 +144,7 @@ class RoundTripFareTest extends TestCase
             'status' => 'scheduled',
             'operational_ready' => true,
         ]);
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $ticket = Ticket::create([
             'ticket_number' => 'TKT-TOKEN-001',
@@ -179,7 +180,7 @@ class RoundTripFareTest extends TestCase
             'status' => 'scheduled',
             'operational_ready' => true,
         ]);
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $ticket = Ticket::create([
             'ticket_number' => 'TKT-LEGACY-01',
@@ -228,7 +229,7 @@ class RoundTripFareTest extends TestCase
             'status' => 'scheduled',
             'operational_ready' => true,
         ]);
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         // Billet « ancien » sans jeton ni droit (simule l'avant-migration).
         $ticket = Ticket::create([
@@ -280,7 +281,7 @@ class RoundTripFareTest extends TestCase
             'status' => 'scheduled',
             'operational_ready' => true,
         ]);
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         Ticket::create([
             'ticket_number' => 'TKT-IDEMP-01',
@@ -321,7 +322,7 @@ class RoundTripFareTest extends TestCase
             'status' => 'scheduled',
             'operational_ready' => true,
         ]);
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $ticket = Ticket::create([
             'ticket_number' => 'TKT-RECON-01',

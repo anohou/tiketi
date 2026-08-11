@@ -3,18 +3,16 @@
 namespace Tests\Feature;
 
 use App\Domain\Ticketing\DeferredSeatAllocator;
-use App\Models\DepartureSchedule;
 use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
-use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
-use App\Services\AuthorizePlannedCapacitySales;
 use App\Services\ReturnJourneyAllocator;
 use App\Services\SellRoundTripTicket;
 use Carbon\CarbonImmutable;
@@ -28,8 +26,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
  */
 class ReturnDoesNotOverwriteOutboundTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -84,7 +82,7 @@ class ReturnDoesNotOverwriteOutboundTest extends TestCase
 
     private function sellRoundTrip(Trip $trip, Station $a, Station $b, array $overrides = []): array
     {
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
 
         $base = [
             'trip' => $trip,
@@ -132,7 +130,7 @@ class ReturnDoesNotOverwriteOutboundTest extends TestCase
         $this->assertSame($outboundTrip->vehicle_id, $outboundVehicle);
 
         // 2. Affectation du retour au voyage retour, puis allocation.
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(ReturnJourneyAllocator::class)->assign($return, $returnTrip, null, $user);
         app(DeferredSeatAllocator::class)->allocate($returnTrip);
 
@@ -168,7 +166,7 @@ class ReturnDoesNotOverwriteOutboundTest extends TestCase
         ]);
         $return = $result['return'];
 
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(ReturnJourneyAllocator::class)->assign($return, $returnTrip, null, $user);
 
         // Double allocation du retour : idempotent.
@@ -199,7 +197,7 @@ class ReturnDoesNotOverwriteOutboundTest extends TestCase
         ]);
         $return = $result['return'];
 
-        $user = \App\Models\User::factory()->create(['role' => 'admin', 'active' => true]);
+        $user = User::factory()->create(['role' => 'admin', 'active' => true]);
         app(ReturnJourneyAllocator::class)->assign($return, $returnTrip, null, $user);
         app(DeferredSeatAllocator::class)->allocate($returnTrip);
 

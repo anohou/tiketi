@@ -25,6 +25,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class CrewTicketController extends Controller
@@ -473,7 +474,7 @@ class CrewTicketController extends Controller
                         // Schéma v3 : embarquement par DROIT DE VOYAGE (§6.2),
                         // repli legacy par ticket_id.
                         if (! empty($boarding['ticket_journey_id'])) {
-                            $journey = \App\Models\TicketJourney::find($boarding['ticket_journey_id']);
+                            $journey = TicketJourney::find($boarding['ticket_journey_id']);
                             if (! $journey) {
                                 return ['ok' => false, 'result' => [
                                     'client_action_id' => $boarding['client_action_id'],
@@ -550,7 +551,7 @@ class CrewTicketController extends Controller
                     'code' => 'temporary_sync_error',
                     'message' => 'Action non enregistrée, une nouvelle tentative est possible.',
                 ];
-                \Illuminate\Support\Facades\Log::error('offline_sync_boarding_exception', [
+                Log::error('offline_sync_boarding_exception', [
                     'message' => $exception->getMessage(),
                     'trace' => substr($exception->getTraceAsString(), 0, 500),
                 ]);

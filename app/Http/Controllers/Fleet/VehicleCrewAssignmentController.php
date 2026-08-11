@@ -100,7 +100,7 @@ class VehicleCrewAssignmentController extends Controller
             return back()->withErrors([
                 'crew_member_id' => "Ce membre d'équipage est un "
                     .($crewMember->role === 'driver' ? 'chauffeur' : 'assistant')
-                    .", pas un "
+                    .', pas un '
                     .($data['role'] === 'driver' ? 'chauffeur' : 'assistant').'.',
             ]);
         }

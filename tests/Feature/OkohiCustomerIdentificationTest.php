@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\OkohiTicketOutbox;
 use App\Models\OperationalSetting;
+use App\Models\Route;
+use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\TicketSetting;
@@ -14,6 +16,7 @@ use App\Models\VehicleType;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
@@ -23,8 +26,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
  */
 class OkohiCustomerIdentificationTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -77,8 +80,8 @@ class OkohiCustomerIdentificationTest extends TestCase
     {
         static $counter = 0;
         $counter++;
-        $route = \App\Models\Route::create(['origin_station_id' => $a->id, 'destination_station_id' => $b->id, 'name' => "{$a->name}→{$b->name}", 'active' => true]);
-        \App\Models\RouteFare::create(['from_station_id' => $a->id, 'to_station_id' => $b->id, 'amount' => 3000, 'is_bidirectional' => true, 'active' => true]);
+        $route = Route::create(['origin_station_id' => $a->id, 'destination_station_id' => $b->id, 'name' => "{$a->name}→{$b->name}", 'active' => true]);
+        RouteFare::create(['from_station_id' => $a->id, 'to_station_id' => $b->id, 'amount' => 3000, 'is_bidirectional' => true, 'active' => true]);
         $type = VehicleType::create(['name' => 'Type '.$counter, 'seat_count' => 50, 'active' => true]);
         $vehicle = Vehicle::create(['identifier' => $identifier, 'vehicle_type_id' => $type->id, 'seat_count' => 50, 'active' => true]);
 
@@ -94,7 +97,7 @@ class OkohiCustomerIdentificationTest extends TestCase
         ]);
     }
 
-    private function httpSale(Trip $trip, Station $a, Station $b, array $overrides = []): \Illuminate\Testing\TestResponse
+    private function httpSale(Trip $trip, Station $a, Station $b, array $overrides = []): TestResponse
     {
         $seller = User::factory()->create(['role' => 'admin', 'active' => true]);
 

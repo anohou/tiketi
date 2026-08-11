@@ -13,22 +13,27 @@ use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\TicketSetting;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
 use App\Models\User;
+use App\Models\UserStationAssignment;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\ExpireReturnJourneys;
+use App\Services\ReturnJourneyAllocator;
 use App\Services\SellRoundTripTicket;
 use App\Services\ValidateFixedScheduleReturn;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
 class CrossCuttingFixesTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -300,7 +305,7 @@ class CrossCuttingFixesTest extends TestCase
         // Trois valeurs identiques : impression, payload Okohi, scan.
         $this->assertSame('TIKETI2|'.$ticket->public_token, $ticket->printableQrValue());
         $this->assertSame('TIKETI2|'.$ticket->public_token, $ticket->qrPayloadString());
-        $this->assertSame('TIKETI2|'.$ticket->public_token, \App\Models\Ticket::resolveFromQrValue('TIKETI2|'.$ticket->public_token)->qrPayloadString());
+        $this->assertSame('TIKETI2|'.$ticket->public_token, Ticket::resolveFromQrValue('TIKETI2|'.$ticket->public_token)->qrPayloadString());
     }
 
     // =============================================================
@@ -335,7 +340,7 @@ class CrossCuttingFixesTest extends TestCase
         // La contrainte unique (ticket_id, direction) empêche un second outbound.
         try {
             DB::table('ticket_journeys')->insert([
-                'id' => (string) \Illuminate\Support\Str::uuid(),
+                'id' => (string) Str::uuid(),
                 'ticket_id' => $result['ticket']->id,
                 'direction' => TicketJourney::DIRECTION_OUTBOUND,
                 'from_station_id' => $a->id,
@@ -346,7 +351,7 @@ class CrossCuttingFixesTest extends TestCase
                 'updated_at' => now(),
             ]);
             $this->fail('Un second droit outbound doit être refusé par la contrainte.');
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             $this->assertTrue(true);
         }
 
@@ -386,7 +391,7 @@ class CrossCuttingFixesTest extends TestCase
         ]);
         $return = $result['return'];
 
-        app(\App\Services\ReturnJourneyAllocator::class)->assign($return, $returnTrip, 7, $user);
+        app(ReturnJourneyAllocator::class)->assign($return, $returnTrip, 7, $user);
 
         // Expire le retour.
         $return->update(['valid_until' => CarbonImmutable::now()->subDay()]);
@@ -398,7 +403,7 @@ class CrossCuttingFixesTest extends TestCase
         $this->assertSame(TicketJourney::STATUS_EXPIRED, $return->status);
         $this->assertNull($return->trip_id, 'L’affectation est libérée.');
         $this->assertNull($return->seat_number);
-        $this->assertSame(0, \App\Models\TripSeatOccupancy::where('trip_id', $returnTrip->id)->count(), 'Le siège est libéré.');
+        $this->assertSame(0, TripSeatOccupancy::where('trip_id', $returnTrip->id)->count(), 'Le siège est libéré.');
 
         // Historique conservé.
         $this->assertNotNull($return->assignments()->where('reason', 'expired')->first());
@@ -441,7 +446,7 @@ class CrossCuttingFixesTest extends TestCase
         // Un vendeur affecté à une AUTRE gare (C) ne peut pas affecter ce retour.
         $c = $this->makeStation('Gare C', 'C');
         $otherSeller = User::factory()->create(['role' => 'seller', 'active' => true]);
-        \App\Models\UserStationAssignment::create([
+        UserStationAssignment::create([
             'user_id' => $otherSeller->id,
             'station_id' => $c->id,
             'active' => true,

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
@@ -84,6 +85,7 @@ final class TripCapacityService
 
                 if ($ticketStart === null || $ticketEnd === null) {
                     $count++;
+
                     continue;
                 }
 
@@ -122,7 +124,7 @@ final class TripCapacityService
     /**
      * Réserve atomiquement N unités de capacité, dans la limite disponible.
      *
-     * @throws \App\Domain\Ticketing\TicketingRuleViolation si la capacité est insuffisante
+     * @throws TicketingRuleViolation si la capacité est insuffisante
      */
     public function reserveUnits(Trip $trip, int $units, ?string $fromStationId = null, ?string $toStationId = null): void
     {
@@ -130,7 +132,7 @@ final class TripCapacityService
             return;
         }
 
-        $available = DB::transaction(function () use ($trip, $units, $fromStationId, $toStationId) {
+        $available = DB::transaction(function () use ($trip, $fromStationId, $toStationId) {
             // Verrouille le voyage pour sérialiser les réservations concurrentes
             // (dernière place disponible).
             $locked = Trip::whereKey($trip->getKey())->lockForUpdate()->first();
@@ -143,7 +145,7 @@ final class TripCapacityService
         });
 
         if ($available < $units) {
-            throw new \App\Domain\Ticketing\TicketingRuleViolation(
+            throw new TicketingRuleViolation(
                 'capacity_exhausted',
                 'La capacité restante de ce voyage est insuffisante pour cette demande.',
                 422

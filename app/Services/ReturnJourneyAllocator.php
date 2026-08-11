@@ -1,12 +1,13 @@
 <?php
 
 namespace App\Services;
+
 use App\Domain\Ticketing\TicketingRuleViolation;
-use App\Models\DepartureSchedule;
 use App\Models\OkohiTicketOutbox;
 use App\Models\TicketJourney;
 use App\Models\TicketJourneyAssignment;
 use App\Models\Trip;
+use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -104,7 +105,7 @@ final class ReturnJourneyAllocator
 
             // Capacité : une place précise consomme l'occupation, sinon une unité.
             if ($seatNumber !== null) {
-                $occupied = \App\Models\TripSeatOccupancy::where('trip_id', $trip->id)
+                $occupied = TripSeatOccupancy::where('trip_id', $trip->id)
                     ->where('seat_number', $seatNumber)
                     ->exists();
                 if ($occupied) {
@@ -118,13 +119,13 @@ final class ReturnJourneyAllocator
 
             // Libère une éventuelle ancienne occupation, puis crée la nouvelle.
             if ($oldSeat !== null && $oldTripId !== null) {
-                \App\Models\TripSeatOccupancy::where('trip_id', $oldTripId)
+                TripSeatOccupancy::where('trip_id', $oldTripId)
                     ->where('seat_number', $oldSeat)
                     ->where('ticket_id', $locked->ticket_id)
                     ->delete();
             }
             if ($seatNumber !== null) {
-                \App\Models\TripSeatOccupancy::create([
+                TripSeatOccupancy::create([
                     'trip_id' => $trip->id,
                     'seat_number' => $seatNumber,
                     'ticket_id' => $locked->ticket_id,
@@ -189,7 +190,7 @@ final class ReturnJourneyAllocator
 
             // Libère l'occupation physique éventuelle.
             if ($oldSeat !== null && $oldTripId !== null) {
-                \App\Models\TripSeatOccupancy::where('trip_id', $oldTripId)
+                TripSeatOccupancy::where('trip_id', $oldTripId)
                     ->where('seat_number', $oldSeat)
                     ->where('ticket_id', $locked->ticket_id)
                     ->delete();

@@ -9,7 +9,6 @@ use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
-use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -59,7 +58,6 @@ final class SellRoundTripTicket
      *     okohi_reward_id: string|null,
      *     okohi_transaction_id: string|null,
      * }  $sale
-     *
      * @return array{ticket: Ticket, outbound: TicketJourney, return: TicketJourney|null}
      */
     public function sell(array $sale): array
@@ -127,7 +125,7 @@ final class SellRoundTripTicket
             ? now()->addDays($fare['default_validity_days'])->endOfDay()
             : null;
 
-        return DB::transaction(function () use ($sale, $trip, $isRoundTrip, $fare, $amountToCollect, $discount, $normalTotal, $returnValidUntil) {
+        return DB::transaction(function () use ($sale, $trip, $isRoundTrip, $amountToCollect, $discount, $normalTotal, $returnValidUntil) {
             // Sérialise la vente au niveau du voyage (dernière place).
             Trip::whereKey($trip->getKey())->lockForUpdate()->firstOrFail();
 

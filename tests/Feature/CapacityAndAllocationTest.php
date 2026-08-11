@@ -11,12 +11,14 @@ use App\Models\RouteFare;
 use App\Models\Station;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
+use App\Models\TicketJourneyAssignment;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
 use App\Services\AssignRealVehicleToTrip;
+use App\Services\AuthorizePlannedCapacitySales;
 use App\Services\MaterializeScheduledTrips;
 use App\Services\ReturnJourneyAllocator;
 use App\Services\SellRoundTripTicket;
@@ -28,8 +30,8 @@ use Tests\Traits\InteractsWithTenantTicketing;
 
 class CapacityAndAllocationTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -120,7 +122,7 @@ class CapacityAndAllocationTest extends TestCase
         app(MaterializeScheduledTrips::class)->materialize();
         $trip = Trip::first();
         $user = $this->makeUser();
-        app(\App\Services\AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Test');
+        app(AuthorizePlannedCapacitySales::class)->authorize($trip, $user, 'Test');
 
         return $trip;
     }
@@ -430,6 +432,6 @@ class CapacityAndAllocationTest extends TestCase
         $this->assertSame($before['vehicle_id'], $after['vehicle_id']);
         $this->assertFalse($trip->fresh()->isOperationalReady());
         $this->assertSame(0, TripSeatOccupancy::where('trip_id', $trip->id)->count());
-        $this->assertSame(0, \App\Models\TicketJourneyAssignment::where('new_trip_id', $trip->id)->count());
+        $this->assertSame(0, TicketJourneyAssignment::where('new_trip_id', $trip->id)->count());
     }
 }

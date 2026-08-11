@@ -2,6 +2,7 @@
 
 namespace Tests\Traits;
 
+use App\Models\OperationalSetting;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
@@ -306,7 +307,7 @@ trait InteractsWithTenantTicketing
 
         // Remise globale aller-retour (montant fixe en FCFA), stockée dans les
         // réglages d'exploitation.
-        $settings = \App\Models\OperationalSetting::current();
+        $settings = OperationalSetting::current();
         if ($settings->roundTripDiscountAmount() === 0) {
             $settings->setRoundTripDiscountAmount(0);
         }
@@ -524,6 +525,6 @@ trait InteractsWithTenantTicketing
      */
     protected function setRoundTripDiscount(int $amount): void
     {
-        \App\Models\OperationalSetting::current()->setRoundTripDiscountAmount($amount);
+        OperationalSetting::current()->setRoundTripDiscountAmount($amount);
     }
 }

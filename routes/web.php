@@ -2,8 +2,8 @@
 
 use App\Http\Controllers\Accountant\ReportsController;
 use App\Http\Controllers\Admin\AuthorizedDeviceController;
-use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\DepartureScheduleController;
+use App\Http\Controllers\Admin\DestinationController;
 use App\Http\Controllers\Admin\LoyaltySettingController;
 use App\Http\Controllers\Admin\OkohiConnectController;
 use App\Http\Controllers\Admin\OkohiRewardController;
@@ -34,6 +34,7 @@ use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\DepartureBoardController;
 use App\Http\Controllers\Seller\OkohiRewardRequestController;
+use App\Http\Controllers\Seller\ReturnOccurrencesController;
 use App\Http\Controllers\Seller\ReturnPoolController;
 use App\Http\Controllers\Seller\SettingsController as SellerSettingsController;
 use App\Http\Controllers\Seller\TicketController;
@@ -205,7 +206,7 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 
         // Point 4 : occurrences de retour exploitables (calendrier vendeur).
-        Route::get('/departure-schedules/{schedule}/return-occurrences', App\Http\Controllers\Seller\ReturnOccurrencesController::class)
+        Route::get('/departure-schedules/{schedule}/return-occurrences', ReturnOccurrencesController::class)
             ->name('departure-schedules.return-occurrences');
 
         // API-like endpoints for ticketing

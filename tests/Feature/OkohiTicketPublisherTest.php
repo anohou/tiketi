@@ -7,7 +7,6 @@ use App\Models\OperationalSetting;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
-use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketJourney;
 use App\Models\TicketSetting;
@@ -19,15 +18,15 @@ use App\Services\OkohiTicketPublisher;
 use App\Services\SellRoundTripTicket;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 use Tests\Traits\InteractsWithTenantTicketing;
 
 class OkohiTicketPublisherTest extends TestCase
 {
-    use RefreshDatabase;
     use InteractsWithTenantTicketing;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -418,8 +417,8 @@ class OkohiTicketPublisherTest extends TestCase
         // de la connexion ; sous PostgreSQL, lockForUpdate garantit la même
         // propriété). Chaque enqueue verrouille la ligne ticket, calcule la
         // version et insère DANS LA MÊME transaction.
-        $first = \Illuminate\Support\Facades\DB::transaction(fn () => app(OkohiTicketPublisher::class)->enqueue($ticket, OkohiTicketOutbox::OPERATION_UPDATE));
-        $second = \Illuminate\Support\Facades\DB::transaction(fn () => app(OkohiTicketPublisher::class)->enqueue($ticket, OkohiTicketOutbox::OPERATION_UPDATE));
+        $first = DB::transaction(fn () => app(OkohiTicketPublisher::class)->enqueue($ticket, OkohiTicketOutbox::OPERATION_UPDATE));
+        $second = DB::transaction(fn () => app(OkohiTicketPublisher::class)->enqueue($ticket, OkohiTicketOutbox::OPERATION_UPDATE));
 
         $versions = OkohiTicketOutbox::where('ticket_id', $ticket->id)
             ->orderBy('version')

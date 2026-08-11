@@ -46,7 +46,7 @@ final class ExtendReturnJourney
             if ($newValidUntil->gt($maxDate)) {
                 throw new TicketingRuleViolation(
                     'prolongation_too_long',
-                    "La prolongation ne peut pas dépasser ".self::MAX_PROLONGATION_DAYS." jours.",
+                    'La prolongation ne peut pas dépasser '.self::MAX_PROLONGATION_DAYS.' jours.',
                     422,
                 );
             }

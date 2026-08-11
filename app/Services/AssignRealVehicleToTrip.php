@@ -4,11 +4,10 @@ namespace App\Services;
 
 use App\Domain\Ticketing\DeferredSeatAllocator;
 use App\Domain\Ticketing\TicketingRuleViolation;
-use App\Models\Ticket;
+use App\Events\SeatMapUpdated;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Events\SeatMapUpdated;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

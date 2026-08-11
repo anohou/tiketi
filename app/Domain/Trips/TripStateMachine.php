@@ -5,6 +5,7 @@ namespace App\Domain\Trips;
 use App\Models\CrewMember;
 use App\Models\Trip;
 use App\Models\User;
+use App\Services\ReleaseTripReturns;
 use App\Services\TripTimingService;
 use Illuminate\Support\Facades\DB;
 
@@ -62,7 +63,7 @@ final class TripStateMachine
                 'cancelled' => tap($this->timing->markCancelled($locked), function (Trip $trip) {
                     // §11 : les retours affectés à ce voyage reviennent dans le pool
                     // avec priorité (libération des places, historique, Okohi).
-                    app(\App\Services\ReleaseTripReturns::class)->release($trip);
+                    app(ReleaseTripReturns::class)->release($trip);
                 }),
                 default => tap($locked, function (Trip $model) use ($target) {
                     $model->status = $target;

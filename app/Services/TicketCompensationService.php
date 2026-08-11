@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\CancelOrReverseOkohiClaimJob;
+use App\Models\OkohiTicketOutbox;
 use App\Models\OperationalSetting;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
@@ -131,7 +132,7 @@ class TicketCompensationService
                 ]);
 
                 // Historique d'affectation conservé : on consigne le retrait.
-                \App\Models\TicketJourneyAssignment::create([
+                TicketJourneyAssignment::create([
                     'ticket_journey_id' => $journey->id,
                     'previous_trip_id' => $journey->trip_id,
                     'new_trip_id' => null,
@@ -152,13 +153,13 @@ class TicketCompensationService
         // (jamais bloquante pour le remboursement).
         DB::afterCommit(function () use ($ticket) {
             try {
-                app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                app(OkohiTicketPublisher::class)->enqueue(
                     $ticket,
-                    \App\Models\OkohiTicketOutbox::OPERATION_UPDATE,
+                    OkohiTicketOutbox::OPERATION_UPDATE,
                 );
             } catch (\Throwable $e) {
                 // La file Okohi ne doit jamais faire échouer un remboursement.
-                \Illuminate\Support\Facades\Log::warning('Okohi enqueue échoué après remboursement', ['ticket' => $ticket->id]);
+                Log::warning('Okohi enqueue échoué après remboursement', ['ticket' => $ticket->id]);
             }
         });
 
