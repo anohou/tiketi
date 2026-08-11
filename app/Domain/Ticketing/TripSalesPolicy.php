@@ -6,10 +6,13 @@ use App\Models\CrewMember;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\User;
+use App\Services\TripCapacityService;
 use App\Services\TripStationProgression;
 
 final class TripSalesPolicy
 {
+    public function __construct(private readonly EvaluateTripSalesReadiness $readiness) {}
+
     /** @param array<int, int> $requestedSeats */
     public function evaluate(User|CrewMember|null $actor, Trip $trip, string $fromStationId, string $toStationId, string $channel, array $requestedSeats): SalesDecision
     {
@@ -25,6 +28,34 @@ final class TripSalesPolicy
         }
         if ($fromStationId === $toStationId) {
             return SalesDecision::deny('invalid_segment', 'La gare de départ et la destination doivent être différentes.');
+        }
+
+        // Barrière véhicule : un voyage sans car réel n'est vendable que selon
+        // la politique de capacité planifiée ET après le report explicite.
+        if ($trip->isAwaitingRealVehicle()) {
+            $ready = $this->readiness->evaluate($trip);
+
+            if (! $ready->allowed) {
+                return $ready;
+            }
+
+            // Politique allow_planned_capacity : vente en quantité, sans siège.
+            if ($trip->allowsPlannedCapacitySales()) {
+                if ($channel === 'crew') {
+                    return SalesDecision::deny('planned_capacity_crew_forbidden', 'La vente à bord exige un car réel affecté.');
+                }
+
+                $capacityLeft = app(TripCapacityService::class)->remainingCapacity($trip);
+                if ($capacityLeft <= 0) {
+                    return SalesDecision::deny('planned_capacity_exhausted', 'La capacité planifiée de ce voyage est épuisée sans car réel affecté.');
+                }
+
+                if (count($requestedSeats) > $capacityLeft) {
+                    return SalesDecision::deny('planned_capacity_exhausted', 'La capacité planifiée restante est insuffisante pour cette demande.');
+                }
+
+                return SalesDecision::allow();
+            }
         }
 
         $seats = array_map('intval', $requestedSeats);

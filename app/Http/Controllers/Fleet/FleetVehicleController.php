@@ -8,6 +8,7 @@ use App\Models\CrewMember;
 use App\Models\UserVehicleAssignment;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
+use App\Services\VehicleOperationalStatusService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -24,6 +25,7 @@ class FleetVehicleController extends Controller
             'trips.route',
             'managers:id,name,email,role',
             'currentCrew.crewMember',
+            'currentStationAssignment.station',
         ])
             ->withCount('trips')
             ->orderBy('identifier');
@@ -36,6 +38,27 @@ class FleetVehicleController extends Controller
 
         $vehicles = $query->paginate(50);
 
+        $service = app(VehicleOperationalStatusService::class);
+
+        $operationalMap = $service->mapForVehicles($vehicles->getCollection());
+
+        $vehicles->through(function (Vehicle $vehicle) use ($operationalMap, $service) {
+            $vehicle->setAttribute('operational', $operationalMap[$vehicle->id] ?? $service->forVehicle($vehicle));
+
+            return $vehicle;
+        });
+
+        $fleetQuery = Vehicle::query()->where('is_placeholder', false);
+        if ($user && $user->role === 'fleet_manager') {
+            $fleetQuery->whereHas('managers', function ($q) use ($user) {
+                $q->where('users.id', $user->id);
+            });
+        }
+
+        $operationalSummary = $service->summaryForVehicles(
+            $fleetQuery->get(['id', 'active', 'inactive_reason'])
+        );
+
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
 
         $crewMembers = CrewMember::where('active', true)
@@ -46,6 +69,7 @@ class FleetVehicleController extends Controller
             'vehicles' => $vehicles,
             'vehicleTypes' => $vehicleTypes,
             'crewMembers' => $crewMembers,
+            'operationalSummary' => $operationalSummary,
         ]);
     }
 

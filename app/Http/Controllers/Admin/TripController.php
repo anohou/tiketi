@@ -87,6 +87,7 @@ class TripController extends Controller
             'routes' => $routes,
             'vehicles' => $vehicles,
             'stations' => $stations,
+            'departureProgramsEnabled' => tenancy()->tenant?->departureProgramsEnabled(),
             'replicableTrips' => Trip::where('is_replicable', true)
                 ->get(['id', 'route_id', 'origin_station_id', 'destination_station_id', 'departure_at', 'allows_open_connections', 'automatic_connection_allocation', 'code'])
                 ->map(function ($trip) {

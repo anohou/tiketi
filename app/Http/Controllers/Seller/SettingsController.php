@@ -52,6 +52,10 @@ class SettingsController extends Controller
                 'phone' => $isTenant ? tenant('phone') : null,
                 'logo_url' => $isTenant ? tenant('logo_url') : null,
             ],
+            'featureFlags' => [
+                'departure_programs' => $isTenant && tenant()->departureProgramsEnabled(),
+                'round_trip_sales' => $isTenant && tenant()->roundTripSalesEnabled(),
+            ],
             'stats' => $this->settingsStats(auth()->user()),
             'permissions' => $this->readOnlyPermissions(),
             'hideTripSidebar' => true,
@@ -176,6 +180,28 @@ class SettingsController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $service = app(\App\Services\VehicleOperationalStatusService::class);
+        $operationalMap = $service->mapForVehicles($assignments->getCollection()->pluck('vehicle')->filter());
+
+        $assignments->through(function (StationVehicleAssignment $assignment) use ($operationalMap, $service) {
+            $op = $operationalMap[$assignment->vehicle_id]
+                ?? ($assignment->vehicle ? $service->forVehicle($assignment->vehicle) : null);
+
+            $assignment->setAttribute('operational', $op);
+            if ($assignment->vehicle) {
+                $assignment->vehicle->setAttribute('operational', $op);
+            }
+
+            return $assignment;
+        });
+
+        $operationalSummary = $service->summaryForVehicles(
+            Vehicle::whereHas('stationAssignments', fn (Builder $query) => $query
+                ->whereIn('station_id', $stationIds)
+                ->activeOn()
+            )->get(['id', 'active', 'inactive_reason'])
+        );
+
         $vehicles = Vehicle::whereHas('stationAssignments', fn (Builder $query) => $query
             ->whereIn('station_id', $stationIds)
             ->activeOn())
@@ -188,6 +214,7 @@ class SettingsController extends Controller
             'assignments' => $assignments,
             'stations' => $stations,
             'vehicles' => $vehicles,
+            'operationalSummary' => $operationalSummary,
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'station_id' => $filters['station_id'] ?? '',
@@ -206,6 +233,9 @@ class SettingsController extends Controller
         $stationIds = auth()->user()->getActiveStationIds();
 
         $users = User::with(['stationAssignments.station'])
+            ->withCount('soldTickets as sales_count')
+            ->withSum('soldTickets as sales_total', 'amount_collected')
+            ->withMax('soldTickets as last_sale_at', 'created_at')
             ->whereIn('role', ['seller', 'supervisor'])
             ->whereHas('stationAssignments', fn (Builder $query) => $query
                 ->whereIn('station_id', $stationIds)

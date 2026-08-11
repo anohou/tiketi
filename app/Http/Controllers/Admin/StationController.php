@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Destination;
+use App\Models\Route as BusRoute;
 use App\Models\Station;
+use App\Models\User;
+use App\Models\VehicleType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Inertia\Inertia;
@@ -16,6 +19,7 @@ class StationController extends Controller
         $query = Station::with([
             'destination', // Eager load destination
             'userAssignments.user',
+            'vehicleAssignments.vehicle.vehicleType',
             'routeStopOrders.route.originStation',
             'routeStopOrders.route.destinationStation',
             'routeStopOrders.route.routeStopOrders.station',
@@ -26,7 +30,7 @@ class StationController extends Controller
             'destinationRoutes.originStation',
             'destinationRoutes.destinationStation',
             'destinationRoutes.routeStopOrders.station',
-        ])->withCount(['userAssignments']);
+        ])->withCount(['userAssignments', 'vehicleAssignments']);
 
         if (auth()->user()->role === 'supervisor') {
             $query->whereIn('id', auth()->user()->getActiveStationIds());
@@ -39,9 +43,42 @@ class StationController extends Controller
             'stations:id,name,code,city,settings,destination_id',
         ])->orderBy('name')->get(['id', 'name', 'settings']);
 
+        $service = app(\App\Services\VehicleOperationalStatusService::class);
+        $vehicles = \App\Models\Vehicle::with(['vehicleType', 'currentStationAssignment.station'])
+            ->where('active', true)
+            ->where('is_placeholder', false)
+            ->orderBy('identifier')
+            ->get();
+
+        $operationalMap = $service->mapForVehicles($vehicles);
+        $vehicles->each(function (\App\Models\Vehicle $v) use ($operationalMap) {
+            $v->setAttribute('operational', $operationalMap[$v->id] ?? null);
+        });
+
+        $departureSchedules = \App\Models\DepartureSchedule::with([
+            'route.originStation',
+            'route.destinationStation',
+            'originStation:id,name',
+            'destinationStation:id,name',
+        ])
+            ->orderBy('departure_time')
+            ->get();
+
         return Inertia::render('Admin/Stations/Index', [
             'stations' => $stations,
+            'stationOptions' => Station::where('active', true)->orderBy('name')->get(['id', 'name', 'city', 'destination_id']),
             'destinations' => $destinations,
+            'vehicles' => $vehicles,
+            'departureSchedules' => $departureSchedules,
+            'routeOptions' => BusRoute::where('active', true)
+                ->with(['originStation:id,name', 'destinationStation:id,name', 'routeStopOrders.station:id,name'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'origin_station_id', 'destination_station_id']),
+            'vehicleTypes' => VehicleType::where('active', true)->orderBy('name')->get(['id', 'name', 'seat_count']),
+            'sellerOptions' => User::where('active', true)
+                ->where('role', 'seller')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
         ]);
     }
 

@@ -5,12 +5,19 @@ import SettingsMenu from '@/Components/SettingsMenu.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import GpsMapPicker from '@/Components/GpsMapPicker.vue';
 import StationFormModal from '@/Components/StationFormModal.vue';
+import DepartureScheduleFormModal from '@/Components/DepartureScheduleFormModal.vue';
 import DialogModal from '@/Components/DialogModal.vue';
+import AccordionSection from '@/Components/UI/AccordionSection.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import ConfirmationModal from '@/Components/ConfirmationModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import InputError from '@/Components/InputError.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import TextInput from '@/Components/TextInput.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import EmptyState from '@/Components/EmptyState.vue';
 import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue';
@@ -24,6 +31,10 @@ import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Routes from 'vue-material-design-icons/Routes.vue';
 import Account from 'vue-material-design-icons/Account.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
+import Bus from 'vue-material-design-icons/Bus.vue';
+import BusClock from 'vue-material-design-icons/BusClock.vue';
+import CalendarClock from 'vue-material-design-icons/CalendarClock.vue';
+import { Link } from '@inertiajs/vue3';
 import { FULL_PERMISSIONS } from '@/Support/permissions.js';
 
 const { exportToExcel, printList } = useExportPrint();
@@ -35,6 +46,30 @@ const props = defineProps({
   },
   destinations: {
     type: Array, // Passed from controller
+    default: () => []
+  },
+  vehicles: {
+    type: Array,
+    default: () => []
+  },
+  departureSchedules: {
+    type: Array,
+    default: () => []
+  },
+  stationOptions: {
+    type: Array,
+    default: () => []
+  },
+  routeOptions: {
+    type: Array,
+    default: () => []
+  },
+  vehicleTypes: {
+    type: Array,
+    default: () => []
+  },
+  sellerOptions: {
+    type: Array,
     default: () => []
   },
   permissions: {
@@ -54,9 +89,71 @@ const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
-const activeTab = ref('destinations');
 const showRouteDiagramModal = ref(false);
 const selectedRouteDiagram = ref(null);
+const showQuickRouteModal = ref(false);
+const showQuickScheduleModal = ref(false);
+const showQuickSellerModal = ref(false);
+const showQuickVehicleModal = ref(false);
+const quickProcessing = ref(false);
+const quickErrors = ref({});
+
+const quickRouteForm = ref({
+  name: '',
+  origin_destination_id: '',
+  target_destination_id: '',
+  estimated_duration_minutes: 120,
+  automatic_connection_allocation: null,
+  active: true,
+});
+
+const quickScheduleForm = ref({
+  station_id: '',
+  route_id: '',
+  origin_station_id: '',
+  destination_station_id: '',
+  departure_time: '08:00',
+  days_of_week: [1, 2, 3, 4, 5],
+  valid_from: new Date().toISOString().slice(0, 10),
+  valid_until: '',
+  timezone: 'Africa/Abidjan',
+  planned_capacity: '',
+  confirmed_return_quota: '',
+  default_vehicle_type_id: '',
+  vehicle_assignment_policy: '',
+  booking_type: 'seat_assignment',
+  sales_control: 'closed',
+  allows_open_connections: true,
+  automatic_connection_allocation: false,
+  active: true,
+});
+
+const quickSellerForm = ref({ user_id: '' });
+const quickVehicleForm = ref({
+  vehicle_id: '',
+  permanent: true,
+  valid_from: new Date().toISOString().slice(0, 10),
+  valid_until: new Date().toISOString().slice(0, 10),
+  active: true,
+  notes: '',
+});
+
+// Accordéons : tous pliés par défaut pour permettre de voir l'ensemble des sous-menus au premier coup d'œil
+const showDestinations = ref(false);
+const showRoutes = ref(false);
+const showSchedules = ref(false);
+const showSellers = ref(false);
+const showAssignedVehicles = ref(false);
+const showCurrentPool = ref(false);
+
+const resetAccordions = () => {
+  showDestinations.value = false;
+  showRoutes.value = false;
+  showSchedules.value = false;
+  showSellers.value = false;
+  showAssignedVehicles.value = false;
+  showCurrentPool.value = false;
+};
 
 const form = ref({
   code: '',
@@ -131,12 +228,229 @@ const selectedDestinationStations = computed(() => {
     }));
 });
 
-// Tabs configuration - only related tables, not details
-const tabs = [
-  { id: 'destinations', label: 'Destinations', icon: MapMarkerRadius },
-  { id: 'routes', label: 'Trajets', icon: Routes },
-  { id: 'sellers', label: 'Vendeurs', icon: Account, countKey: 'user_assignments_count' },
-];
+const statusConfig = {
+  in_transit: { label: 'En voyage', badge: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', dot: 'bg-purple-500' },
+  scheduled: { label: 'Programmé', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', dot: 'bg-blue-500' },
+  available: { label: 'Disponible', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  inactive: { label: 'En panne', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300', dot: 'bg-rose-500' },
+};
+
+const stationDepartureSchedules = computed(() => {
+  if (!selectedStation.value) return [];
+  const stationId = selectedStation.value.id;
+  return (props.departureSchedules || []).filter((s) => s.station_id === stationId);
+});
+
+const availableSellerOptions = computed(() => {
+  const assignedIds = new Set((selectedStation.value?.user_assignments || [])
+    .map((assignment) => assignment.user_id || assignment.user?.id));
+
+  return props.sellerOptions.filter((seller) => !assignedIds.has(seller.id));
+});
+
+const quickScheduleRouteOptions = computed(() => {
+  const stationRouteIds = new Set(allRoutes.value.map((routeItem) => routeItem.id));
+  return props.routeOptions.filter((routeItem) => stationRouteIds.has(routeItem.id));
+});
+
+const quickScheduleDestinationOptions = computed(() => {
+  const selectedRoute = props.routeOptions.find((item) => item.id === quickScheduleForm.value.route_id);
+  if (!selectedRoute) return props.stationOptions.filter((station) => station.id !== selectedStation.value?.id);
+
+  const candidates = [
+    selectedRoute.origin_station,
+    selectedRoute.originStation,
+    selectedRoute.destination_station,
+    selectedRoute.destinationStation,
+    ...(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).map((order) => order.station),
+  ].filter(Boolean);
+  const unique = new Map(candidates.map((station) => [station.id, station]));
+
+  return [...unique.values()].filter((station) => station.id !== selectedStation.value?.id);
+});
+
+const closeQuickModal = (modal) => {
+  modal.value = false;
+  quickProcessing.value = false;
+  quickErrors.value = {};
+};
+
+const closeQuickRoute = () => closeQuickModal(showQuickRouteModal);
+const closeQuickSchedule = () => closeQuickModal(showQuickScheduleModal);
+const closeQuickSeller = () => closeQuickModal(showQuickSellerModal);
+const closeQuickVehicle = () => closeQuickModal(showQuickVehicleModal);
+
+const openQuickRouteModal = () => {
+  if (!selectedStation.value) return;
+  quickRouteForm.value = {
+    name: '',
+    origin_destination_id: selectedStation.value.destination_id || '',
+    target_destination_id: '',
+    estimated_duration_minutes: 120,
+    automatic_connection_allocation: null,
+    active: true,
+  };
+  quickErrors.value = {};
+  showQuickRouteModal.value = true;
+};
+
+const submitQuickRoute = () => {
+  quickProcessing.value = true;
+  quickErrors.value = {};
+  router.post(route('admin.routes.store'), quickRouteForm.value, {
+    preserveScroll: true,
+    onSuccess: () => {
+      closeQuickModal(showQuickRouteModal);
+      toastStore.success('Trajet créé avec succès.');
+    },
+    onError: (validationErrors) => {
+      quickErrors.value = validationErrors;
+      quickProcessing.value = false;
+    },
+    onFinish: () => { quickProcessing.value = false; },
+  });
+};
+
+const openQuickScheduleModal = () => {
+  if (!selectedStation.value) return;
+  quickScheduleForm.value = {
+    station_id: selectedStation.value.id,
+    route_id: '',
+    origin_station_id: selectedStation.value.id,
+    destination_station_id: '',
+    departure_time: '08:00',
+    days_of_week: [1, 2, 3, 4, 5],
+    valid_from: new Date().toISOString().slice(0, 10),
+    valid_until: '',
+    timezone: 'Africa/Abidjan',
+    planned_capacity: '',
+    confirmed_return_quota: '',
+    default_vehicle_type_id: '',
+    vehicle_assignment_policy: '',
+    booking_type: 'seat_assignment',
+    sales_control: 'closed',
+    allows_open_connections: true,
+    automatic_connection_allocation: false,
+    active: true,
+  };
+  quickErrors.value = {};
+  showQuickScheduleModal.value = true;
+};
+
+const submitQuickSchedule = () => {
+  quickProcessing.value = true;
+  quickErrors.value = {};
+  const payload = {
+    ...quickScheduleForm.value,
+    planned_capacity: quickScheduleForm.value.planned_capacity === '' ? null : Number(quickScheduleForm.value.planned_capacity),
+    confirmed_return_quota: quickScheduleForm.value.confirmed_return_quota === '' ? null : Number(quickScheduleForm.value.confirmed_return_quota),
+    vehicle_assignment_policy: quickScheduleForm.value.vehicle_assignment_policy || null,
+    valid_until: quickScheduleForm.value.valid_until || null,
+  };
+
+  router.post(route('admin.departure-schedules.store'), payload, {
+    preserveScroll: true,
+    onSuccess: () => {
+      closeQuickModal(showQuickScheduleModal);
+      toastStore.success('Programme de départ créé.');
+    },
+    onError: (validationErrors) => {
+      quickErrors.value = validationErrors;
+      quickProcessing.value = false;
+    },
+    onFinish: () => { quickProcessing.value = false; },
+  });
+};
+
+const openQuickSellerModal = () => {
+  quickSellerForm.value = { user_id: '' };
+  quickErrors.value = {};
+  showQuickSellerModal.value = true;
+};
+
+const submitQuickSeller = () => {
+  if (!selectedStation.value) return;
+  quickProcessing.value = true;
+  quickErrors.value = {};
+  router.post(route('admin.assignments.store'), {
+    user_id: quickSellerForm.value.user_id,
+    station_id: selectedStation.value.id,
+    active: true,
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      closeQuickModal(showQuickSellerModal);
+      toastStore.success('Vendeur affecté à la gare.');
+    },
+    onError: (validationErrors) => {
+      quickErrors.value = validationErrors;
+      quickProcessing.value = false;
+    },
+    onFinish: () => { quickProcessing.value = false; },
+  });
+};
+
+const openQuickVehicleModal = () => {
+  quickVehicleForm.value = {
+    vehicle_id: '',
+    permanent: true,
+    valid_from: new Date().toISOString().slice(0, 10),
+    valid_until: new Date().toISOString().slice(0, 10),
+    active: true,
+    notes: '',
+  };
+  quickErrors.value = {};
+  showQuickVehicleModal.value = true;
+};
+
+const submitQuickVehicle = () => {
+  if (!selectedStation.value) return;
+  quickProcessing.value = true;
+  quickErrors.value = {};
+  router.post(route('fleet.station-vehicle-assignments.store'), {
+    ...quickVehicleForm.value,
+    station_id: selectedStation.value.id,
+  }, {
+    preserveScroll: true,
+    preserveState: true,
+    errorBag: 'vehicleAssignment',
+    onSuccess: (page) => {
+      const pageErrors = page?.props?.errors || {};
+      const returnedErrors = pageErrors.vehicleAssignment || pageErrors;
+      if (Object.keys(returnedErrors).length > 0) {
+        quickErrors.value = returnedErrors;
+        showQuickVehicleModal.value = true;
+        toastStore.error(returnedErrors.vehicle_id || 'Impossible d’affecter ce véhicule à la gare.');
+        return;
+      }
+      closeQuickModal(showQuickVehicleModal);
+      toastStore.success('Véhicule ajouté au pool de la gare.');
+    },
+    onError: (validationErrors) => {
+      quickErrors.value = validationErrors;
+      showQuickVehicleModal.value = true;
+      quickProcessing.value = false;
+      toastStore.error(validationErrors.vehicle_id || 'Impossible d’affecter ce véhicule à la gare.');
+    },
+    onFinish: () => { quickProcessing.value = false; },
+  });
+};
+
+const assignedVehicles = computed(() => {
+  if (!selectedStation.value) return [];
+  const stationId = selectedStation.value.id;
+  return (props.vehicles || []).filter((v) => v.current_station_assignment?.station_id === stationId);
+});
+
+const currentPoolVehicles = computed(() => {
+  if (!selectedStation.value) return [];
+  const stationId = selectedStation.value.id;
+  return (props.vehicles || []).filter((v) => {
+    const currLocId = v.operational?.current_location?.id;
+    const homeStationId = v.current_station_assignment?.station_id;
+    return currLocId === stationId || (!currLocId && homeStationId === stationId);
+  });
+});
 
 // Computed
 const filteredStations = computed(() => {
@@ -304,9 +618,10 @@ watch(() => props.stations, (newStations) => {
   }
 }, { deep: true });
 
-// Reset tab when selecting new station
-watch(selectedStation, () => {
-  activeTab.value = 'destinations';
+// Reset accordions only when switching to another station, not when an
+// inline create refreshes the selected station's data.
+watch(() => selectedStation.value?.id, () => {
+  resetAccordions();
   closeRouteDiagramModal();
 });
 
@@ -318,25 +633,6 @@ const isSelected = (station) => {
 
 const selectStation = (station) => {
   selectedStation.value = station;
-};
-
-const getTabCount = (tab) => {
-  if (!selectedStation.value) return null;
-  
-  if (tab.id === 'destinations') {
-    return servedDestinations.value.length;
-  }
-
-  if (tab.id === 'routes') {
-    return allRoutes.value.length;
-  }
-  
-  // Handle backend counts
-  if (tab.countKey) {
-    return selectedStation.value[tab.countKey] || 0;
-  }
-  
-  return null;
 };
 
 const openRouteDiagramModal = (route) => {
@@ -570,8 +866,8 @@ const handlePrint = () => {
                 >
                   <div class="flex justify-between items-start">
                     <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2">
-                        <h3 :class="['font-semibold truncate', isSelected(station) ? 'text-green-800' : 'text-slate-800 dark:text-slate-200']">{{ station.name }}</h3>
+                      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <h3 :class="['basis-full whitespace-normal break-words font-semibold leading-snug', isSelected(station) ? 'text-green-800' : 'text-slate-800 dark:text-slate-200']">{{ station.name }}</h3>
                         <MapMarkerRadius
                           v-if="hasValidCoordinates(station)"
                           class="text-emerald-500 dark:text-emerald-400 shrink-0"
@@ -608,15 +904,14 @@ const handlePrint = () => {
 
         <!-- Right Column - Workspace -->
         <div class="col-span-12 md:col-span-6 h-full overflow-y-auto custom-scrollbar pb-20">
-          <div class="space-y-4">
-          <div v-if="selectedStation" class="space-y-4">
+          <div class="space-y-3">
+          <div v-if="selectedStation" class="space-y-3">
             <!-- Details Card (always visible) -->
             <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-4">
-              <div class="flex justify-between items-start mb-4">
+              <div class="flex justify-between items-start mb-3 gap-3">
                 <div class="min-w-0">
-              <div class="flex items-center gap-3 flex-wrap">
+                  <div class="flex items-center gap-2 flex-wrap">
                     <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-200 truncate">{{ selectedStation.name }}</h2>
-                    <span v-if="selectedStation.code" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-extrabold rounded-md uppercase tracking-wider shrink-0 border border-slate-200 dark:border-slate-700">{{ selectedStation.code }}</span>
                     <span
                       :class="[
                         'px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
@@ -626,7 +921,6 @@ const handlePrint = () => {
                       {{ selectedStation.can_sell_tickets !== false ? 'Vend billets' : 'Simple arrêt' }}
                     </span>
                   </div>
-                  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ selectedStation.city }}</p>
                 </div>
                 <div class="flex gap-2">
                   <div class="flex items-center gap-2">
@@ -652,158 +946,262 @@ const handlePrint = () => {
               </div>
               
               <!-- Details Grid -->
-              <div class="grid grid-cols-12 gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/50 dark:border-slate-800/50">
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">VILLE</span>
-                  <div class="text-lg font-medium text-slate-900 dark:text-slate-100">{{ selectedStation.destination?.name || 'Non liée' }}</div>
+              <div class="grid grid-cols-1 gap-x-4 gap-y-3 border-t border-slate-100 pt-3 dark:border-slate-800/50 sm:grid-cols-3">
+                <div>
+                  <span class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">VILLE</span>
+                  <div class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ selectedStation.destination?.name || 'Non liée' }}</div>
                 </div>
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">CODE</span>
-                  <div class="text-lg font-medium text-slate-900 dark:text-slate-100">{{ selectedStation.code }}</div>
+                <div>
+                  <span class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">CODE</span>
+                  <div class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ selectedStation.code || '—' }}</div>
                 </div>
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">VENTE</span>
-                  <div class="text-lg font-medium text-slate-900 dark:text-slate-100">
-                    {{ selectedStation.can_sell_tickets !== false ? 'Peut vendre' : 'Ne vend pas' }}
-                  </div>
+                <div>
+                  <span class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">QUARTIER / NOM PRÉCIS</span>
+                  <div class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ selectedStation.city || '—' }}</div>
                 </div>
-                <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">QUARTIER / NOM PRÉCIS</span>
-                  <div class="text-lg font-medium text-slate-900 dark:text-slate-100">{{ selectedStation.city }}</div>
-                </div>
-                <div class="col-span-12">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-1">ADRESSE</span>
-                  <div class="text-base text-slate-700 dark:text-slate-300 dark:text-slate-300">{{ selectedStation.address || 'Non renseignée' }}</div>
+                <div class="sm:col-span-3">
+                  <span class="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">ADRESSE</span>
+                  <div class="text-sm text-slate-700 dark:text-slate-300">{{ selectedStation.address || 'Non renseignée' }}</div>
                 </div>
               </div>
             </div>
 
-            <!-- Related Tables Tabs -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-              <!-- Tab Headers -->
-              <div class="flex border-b border-slate-200 overflow-x-auto">
-                <button
-                  v-for="tab in tabs"
-                  :key="tab.id"
-                  @click="activeTab = tab.id"
-                  :class="[
-                    'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-                    activeTab === tab.id
-                      ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50'
-                      : 'border-transparent text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:text-slate-300 hover:bg-slate-50'
-                  ]"
-                >
-                  <component :is="tab.icon" class="h-4 w-4" />
-                  {{ tab.label }}
-                  <span 
-                    v-if="getTabCount(tab) !== null"
-                    :class="[
-                      'px-1.5 py-0.5 rounded-full text-[10px] font-bold',
-                      activeTab === tab.id ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-600 dark:text-slate-350 dark:text-slate-350'
-                    ]"
+            <!-- Sections liées : 5 accordéons verticaux (harmonisation plateforme) -->
+            <div class="space-y-3">
+              <!-- 1. Destinations desservies -->
+              <AccordionSection
+                v-model:open="showDestinations"
+                :icon="OfficeBuilding"
+                title="Destinations desservies"
+                :count="servedDestinations.length"
+              >
+                <div v-if="servedDestinations.length === 0" class="text-center py-6 text-slate-400">
+                  Aucune destination déduite à partir des trajets pour cette station
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="dest in servedDestinations"
+                    :key="dest.id"
+                    class="flex items-center p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
                   >
-                    {{ getTabCount(tab) }}
-                  </span>
-                </button>
-              </div>
-
-              <!-- Tab Content -->
-              <div class="p-4">
-                <!-- Destinations Tab -->
-                <div v-if="activeTab === 'destinations'">
-                  <div v-if="servedDestinations.length === 0" class="text-center py-6 text-slate-400">
-                    Aucune destination déduite à partir des trajets pour cette station
-                  </div>
-                  <div v-else class="space-y-2">
-                    <div 
-                      v-for="dest in servedDestinations" 
-                      :key="dest.id"
-                      class="flex items-center p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
-                    >
-                      <OfficeBuilding class="h-6 w-6 text-emerald-500 mr-3" />
-                      <div>
-                        <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ dest.name }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ dest.city }}</p>
-                      </div>
+                    <OfficeBuilding class="h-6 w-6 text-emerald-500 mr-3 shrink-0" />
+                    <div class="min-w-0">
+                      <p class="font-medium text-slate-800 dark:text-slate-200 truncate">{{ dest.name }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{ dest.city }}</p>
                     </div>
                   </div>
                 </div>
+              </AccordionSection>
 
-                <!-- Sellers Tab -->
-                <div v-else-if="activeTab === 'sellers'">
-                  <div v-if="!selectedStation.user_assignments?.length" class="text-center py-6 text-slate-400">
-                    Aucun vendeur affecté à cette station
-                  </div>
-                  <div v-else class="space-y-2">
-                    <div 
-                      v-for="assignment in selectedStation.user_assignments" 
-                      :key="assignment.id"
-                      class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
-                    >
-                      <div class="flex items-center gap-3">
-                        <Account class="h-8 w-8 text-emerald-500" />
-                        <div>
-                          <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.user?.name }}</p>
-                          <p class="text-xs text-slate-500 dark:text-slate-400">{{ assignment.user?.email }}</p>
-                        </div>
+              <!-- 2. Trajets passant par cette gare -->
+              <AccordionSection
+                v-model:open="showRoutes"
+                :icon="Routes"
+                title="Trajets passant par cette gare"
+                :count="allRoutes.length"
+                :can-add="permissions.canCreate"
+                add-tooltip="Créer un nouveau trajet"
+                @add="openQuickRouteModal"
+              >
+                <div v-if="allRoutes.length === 0" class="text-center py-6 text-slate-400">
+                  Aucune route ne passe par cette gare
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="route in allRoutes"
+                    :key="route.id"
+                    class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-900"
+                    @click="openRouteDiagramModal(route)"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <Routes class="h-6 w-6 text-emerald-500 shrink-0" />
+                      <div class="min-w-0">
+                        <p class="font-medium text-slate-800 dark:text-slate-200 truncate">{{ route.name }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {{ route.origin }} → {{ route.destination }}
+                        </p>
                       </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
                       <span :class="[
                         'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                        assignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        route.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                       ]">
-                        {{ assignment.active ? 'Actif' : 'Inactif' }}
+                        {{ route.active ? 'Active' : 'Inactive' }}
+                      </span>
+                      <span class="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                        Voir schéma
                       </span>
                     </div>
                   </div>
                 </div>
+              </AccordionSection>
 
-                <!-- Routes Tab -->
-                <div v-else-if="activeTab === 'routes'">
-                  <div v-if="allRoutes.length === 0" class="text-center py-6 text-slate-400">
-                    Aucune route ne passe par cette gare
-                  </div>
-                  <div v-else class="space-y-2">
-                    <div 
-                      v-for="route in allRoutes" 
-                      :key="route.id"
-                      class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-900"
-                      @click="openRouteDiagramModal(route)"
+              <!-- 3. Programmes de départ -->
+              <AccordionSection
+                v-model:open="showSchedules"
+                :icon="CalendarClock"
+                title="Programmes de départ"
+                :count="stationDepartureSchedules.length"
+                :can-add="permissions.canCreate"
+                add-tooltip="Créer un programme pour cette gare"
+                @add="openQuickScheduleModal"
+              >
+                <div v-if="stationDepartureSchedules.length === 0" class="text-center py-6 text-slate-400">
+                  Aucun programme de départ configuré pour cette gare
+                  <button v-if="permissions.canCreate" type="button" @click="openQuickScheduleModal" class="block mx-auto mt-2 text-xs font-bold text-emerald-600 hover:underline">
+                    + Ajouter le premier programme
+                  </button>
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="schedule in stationDepartureSchedules"
+                    :key="schedule.id"
+                    class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <CalendarClock class="h-6 w-6 text-emerald-500 shrink-0" />
+                      <div class="min-w-0">
+                        <p class="font-bold text-slate-900 dark:text-slate-100 truncate">
+                          {{ schedule.departure_time?.slice(0, 5) }} — {{ schedule.origin_station?.name || selectedStation?.name || 'Gare de départ' }} → {{ schedule.destination_station?.name || 'Gare de destination' }}
+                        </p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          Capacité : {{ schedule.planned_capacity ? schedule.planned_capacity + ' places' : '—' }}
+                        </p>
+                      </div>
+                    </div>
+                    <Link
+                      :href="route('admin.departure-schedules.index', { station_id: selectedStation.id })"
+                      class="text-xs font-bold text-emerald-700 hover:underline dark:text-emerald-300 shrink-0"
                     >
-                      <div class="flex items-center gap-3">
-                        <Routes class="h-6 w-6 text-emerald-500" />
-                        <div>
-                          <p class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ route.name }}</p>
-                          <p class="text-xs text-slate-500 dark:text-slate-400">
-                            {{ route.origin }} → {{ route.destination }}
-                          </p>
-                        </div>
+                      Gérer →
+                    </Link>
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <!-- 4. Vendeurs affectés -->
+              <AccordionSection
+                v-model:open="showSellers"
+                :icon="Account"
+                title="Vendeurs affectés"
+                :count="(selectedStation.user_assignments || []).length"
+                :can-add="permissions.canCreate"
+                add-tooltip="Affecter un vendeur à cette gare"
+                @add="openQuickSellerModal"
+              >
+                <div v-if="!selectedStation.user_assignments?.length" class="text-center py-6 text-slate-400">
+                  Aucun vendeur affecté à cette station
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="assignment in selectedStation.user_assignments"
+                    :key="assignment.id"
+                    class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <Account class="h-8 w-8 text-emerald-500 shrink-0" />
+                      <div class="min-w-0">
+                        <p class="font-medium text-slate-800 dark:text-slate-200 truncate">{{ assignment.user?.name }}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">{{ assignment.user?.email }}</p>
                       </div>
-                      <div class="flex items-center gap-2">
-                        <span :class="[
-                          'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                          route.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                        ]">
-                          {{ route.active ? 'Active' : 'Inactive' }}
-                        </span>
-                        <span class="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                          Voir schéma
-                        </span>
+                    </div>
+                    <span :class="[
+                      'px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0',
+                      assignment.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    ]">
+                      {{ assignment.active ? 'Actif' : 'Inactif' }}
+                    </span>
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <!-- 5. Cars rattachés - Gare d'attache -->
+              <AccordionSection
+                v-model:open="showAssignedVehicles"
+                :icon="Bus"
+                title="Cars rattachés - Gare d'attache"
+                :count="assignedVehicles.length"
+                :can-add="permissions.canCreate"
+                add-tooltip="Affecter un véhicule à cette gare"
+                @add="openQuickVehicleModal"
+              >
+                <div v-if="assignedVehicles.length === 0" class="text-center py-6 text-slate-400">
+                  Aucun car rattaché à cette gare d'attache
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="vehicle in assignedVehicles"
+                    :key="vehicle.id"
+                    class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <Bus class="h-7 w-7 text-emerald-600 shrink-0" />
+                      <div class="min-w-0">
+                        <p class="font-bold text-slate-900 dark:text-slate-100 truncate">{{ vehicle.identifier }} <span class="text-xs font-normal text-slate-500">({{ vehicle.maker || 'Toyota' }})</span></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ vehicle.vehicle_type?.name }} · {{ vehicle.seat_count }} places</p>
                       </div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0">
+                      Gare d'attache
+                    </span>
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <!-- 5. Pool actuel en gare - Cars disponibles -->
+              <AccordionSection
+                v-model:open="showCurrentPool"
+                :icon="BusClock"
+                title="Pool actuel en gare - Cars disponibles"
+                :count="currentPoolVehicles.length"
+              >
+                <div v-if="currentPoolVehicles.length === 0" class="text-center py-6 text-slate-400">
+                  Aucun car présent dans le pool actuel de cette gare
+                </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="vehicle in currentPoolVehicles"
+                    :key="vehicle.id"
+                    class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950 rounded-lg"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <BusClock class="h-7 w-7 text-blue-600 shrink-0" />
+                      <div class="min-w-0">
+                        <p class="font-bold text-slate-900 dark:text-slate-100 truncate">{{ vehicle.identifier }} <span class="text-xs font-normal text-slate-500">({{ vehicle.maker || 'Toyota' }})</span></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">
+                          {{ vehicle.vehicle_type?.name }} · {{ vehicle.seat_count }} places
+                          <template v-if="vehicle.operational?.current_location">
+                            · 📍 {{ vehicle.operational.current_location.name }}
+                          </template>
+                        </p>
+                      </div>
+                    </div>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                      <span :class="statusConfig[vehicle.operational?.status]?.badge || statusConfig.available.badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-black">
+                        {{ statusConfig[vehicle.operational?.status]?.label || 'Disponible' }}
+                      </span>
+                      <span v-if="vehicle.current_station_assignment?.station_id === selectedStation.id" class="text-[10px] text-slate-400 font-semibold">
+                        (Gare d'attache)
+                      </span>
+                      <span v-else class="text-[10px] text-blue-600 font-semibold">
+                        (Arrivé sur voyage)
+                      </span>
                     </div>
                   </div>
                 </div>
-              </div>
+              </AccordionSection>
             </div>
           </div>
 
-          <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+          <div v-else class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm p-4">
             <div class="flex items-center justify-between gap-3 mb-3">
               <div>
-                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-200">
-                  Carte des gares
+                <h2 class="text-lg font-bold text-slate-800 dark:text-slate-200">
+                  Sélectionnez une gare
                 </h2>
                 <p class="text-sm text-slate-500 dark:text-slate-400">
-                  Les gares déjà enregistrées sur la carte.
+                  La carte du réseau reste visible avant l'ouverture d'une fiche.
                 </p>
               </div>
               <span class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
@@ -844,6 +1242,121 @@ const handlePrint = () => {
       @close="closeModal"
       @submit="submit"
     />
+
+    <DialogModal :show="showQuickRouteModal" @close="closeQuickRoute" maxWidth="lg">
+      <template #title>Nouveau trajet depuis {{ selectedStation?.name }}</template>
+      <template #content>
+        <div class="space-y-4">
+          <div>
+            <InputLabel for="quick-route-name" value="Nom du trajet" />
+            <TextInput id="quick-route-name" v-model="quickRouteForm.name" class="mt-1 w-full" placeholder="Ex. Abidjan ↔ Gagnoa" />
+            <InputError :message="quickErrors.name" class="mt-1" />
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <InputLabel for="quick-route-origin" value="Ville de départ" />
+              <select id="quick-route-origin" v-model="quickRouteForm.origin_destination_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950">
+                <option value="" disabled>Choisir…</option>
+                <option v-for="destination in destinations" :key="destination.id" :value="destination.id">{{ destination.name }}</option>
+              </select>
+              <InputError :message="quickErrors.origin_destination_id" class="mt-1" />
+            </div>
+            <div>
+              <InputLabel for="quick-route-target" value="Ville d'arrivée" />
+              <select id="quick-route-target" v-model="quickRouteForm.target_destination_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950">
+                <option value="" disabled>Choisir…</option>
+                <option v-for="destination in destinations" :key="destination.id" :value="destination.id" :disabled="destination.id === quickRouteForm.origin_destination_id">{{ destination.name }}</option>
+              </select>
+              <InputError :message="quickErrors.target_destination_id" class="mt-1" />
+            </div>
+          </div>
+          <div>
+            <InputLabel for="quick-route-duration" value="Durée habituelle (minutes)" />
+            <TextInput id="quick-route-duration" v-model.number="quickRouteForm.estimated_duration_minutes" type="number" min="1" max="2880" class="mt-1 w-full" />
+            <InputError :message="quickErrors.estimated_duration_minutes" class="mt-1" />
+          </div>
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <input v-model="quickRouteForm.active" type="checkbox" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /> Trajet actif
+          </label>
+        </div>
+      </template>
+      <template #footer>
+        <SecondaryButton @click="closeQuickRoute">Annuler</SecondaryButton>
+        <PrimaryButton class="ml-3" :disabled="quickProcessing" @click="submitQuickRoute">{{ quickProcessing ? 'Création…' : 'Créer le trajet' }}</PrimaryButton>
+      </template>
+    </DialogModal>
+
+    <DepartureScheduleFormModal
+      :show="showQuickScheduleModal"
+      :title="`Nouveau programme de départ · ${selectedStation?.name || ''}`"
+      submit-label="Créer le programme"
+      :form="quickScheduleForm"
+      :errors="quickErrors"
+      :processing="quickProcessing"
+      :stations="stationOptions"
+      :routes="quickScheduleRouteOptions"
+      :destination-options="quickScheduleDestinationOptions"
+      :vehicle-types="vehicleTypes"
+      lock-station
+      :locked-station-name="selectedStation?.name || ''"
+      @close="closeQuickSchedule"
+      @submit="submitQuickSchedule"
+    />
+
+    <DialogModal :show="showQuickSellerModal" @close="closeQuickSeller" maxWidth="md">
+      <template #title>Affecter un vendeur · {{ selectedStation?.name }}</template>
+      <template #content>
+        <div>
+          <InputLabel for="quick-seller" value="Vendeur" />
+          <select id="quick-seller" v-model="quickSellerForm.user_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950">
+            <option value="" disabled>Sélectionner un vendeur…</option>
+            <option v-for="seller in availableSellerOptions" :key="seller.id" :value="seller.id">{{ seller.name }} · {{ seller.email }}</option>
+          </select>
+          <InputError :message="quickErrors.user_id || quickErrors.station_id" class="mt-1" />
+          <p v-if="availableSellerOptions.length === 0" class="mt-3 text-sm text-slate-500">Tous les vendeurs actifs sont déjà affectés à cette gare.</p>
+        </div>
+      </template>
+      <template #footer>
+        <SecondaryButton @click="closeQuickSeller">Annuler</SecondaryButton>
+        <PrimaryButton class="ml-3" :disabled="quickProcessing || !quickSellerForm.user_id" @click="submitQuickSeller">{{ quickProcessing ? 'Affectation…' : 'Affecter le vendeur' }}</PrimaryButton>
+      </template>
+    </DialogModal>
+
+    <DialogModal :show="showQuickVehicleModal" @close="closeQuickVehicle" maxWidth="lg">
+      <template #title>Affecter un véhicule · {{ selectedStation?.name }}</template>
+      <template #content>
+        <div class="space-y-4">
+          <div v-if="quickErrors.vehicle_id" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300" role="alert">
+            {{ quickErrors.vehicle_id }}
+          </div>
+          <div>
+            <InputLabel for="quick-vehicle" value="Véhicule" />
+            <select id="quick-vehicle" v-model="quickVehicleForm.vehicle_id" class="mt-1 w-full rounded-xl border-slate-200 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950">
+              <option value="" disabled>Sélectionner un véhicule…</option>
+              <option v-for="vehicle in vehicles" :key="vehicle.id" :value="vehicle.id">{{ vehicle.identifier }} · {{ vehicle.vehicle_type?.name }} · {{ vehicle.seat_count }} places</option>
+            </select>
+            <InputError :message="quickErrors.station_id" class="mt-1" />
+          </div>
+          <label class="flex items-start gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+            <input v-model="quickVehicleForm.permanent" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+            <span><strong class="block text-sm text-slate-800 dark:text-slate-100">Affectation permanente</strong><span class="text-xs text-slate-500">Le véhicule reste dans le pool jusqu'à modification.</span></span>
+          </label>
+          <div v-if="!quickVehicleForm.permanent" class="grid grid-cols-2 gap-3">
+            <div><InputLabel value="Du" /><AppDatePicker v-model="quickVehicleForm.valid_from" :max="quickVehicleForm.valid_until || ''" class="mt-1" /><InputError :message="quickErrors.valid_from" /></div>
+            <div><InputLabel value="Au" /><AppDatePicker v-model="quickVehicleForm.valid_until" :min="quickVehicleForm.valid_from || ''" class="mt-1" /><InputError :message="quickErrors.valid_until" /></div>
+          </div>
+          <div>
+            <InputLabel for="quick-vehicle-notes" value="Note facultative" />
+            <textarea id="quick-vehicle-notes" v-model="quickVehicleForm.notes" rows="2" class="mt-1 w-full rounded-xl border-slate-200 text-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"></textarea>
+            <InputError :message="quickErrors.notes" class="mt-1" />
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <SecondaryButton @click="closeQuickVehicle">Annuler</SecondaryButton>
+        <PrimaryButton class="ml-3" :disabled="quickProcessing || !quickVehicleForm.vehicle_id" @click="submitQuickVehicle">{{ quickProcessing ? 'Affectation…' : 'Affecter le véhicule' }}</PrimaryButton>
+      </template>
+    </DialogModal>
 
     <DialogModal :show="showRouteDiagramModal" @close="closeRouteDiagramModal" maxWidth="5xl">
       <template #title>

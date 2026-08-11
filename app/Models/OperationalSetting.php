@@ -44,4 +44,21 @@ class OperationalSetting extends Model
             self::DEFAULT_SCHEDULED_TRIP_LOOKAHEAD_HOURS,
         )));
     }
+
+    /**
+     * Remise globale aller-retour en FCFA (0 = aucune remise). Elle est
+     * soustraite du total normal (aller + retour) quel que soit le trajet.
+     */
+    public function roundTripDiscountAmount(): int
+    {
+        return max(0, (int) data_get($this->settings, 'round_trip_discount_amount', 0));
+    }
+
+    public function setRoundTripDiscountAmount(int $amount): void
+    {
+        $this->settings = array_merge($this->settings ?? [], [
+            'round_trip_discount_amount' => max(0, $amount),
+        ]);
+        $this->save();
+    }
 }

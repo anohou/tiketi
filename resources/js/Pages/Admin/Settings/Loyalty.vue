@@ -6,6 +6,7 @@ import axios from 'axios';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import InputError from '@/Components/InputError.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import GiftOutline from 'vue-material-design-icons/GiftOutline.vue';
 import Loader from 'vue-material-design-icons/Loading.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
@@ -1104,9 +1105,8 @@ const deleteReward = async () => {
 
               <div>
                 <label class="block text-xs font-bold text-gray-600 dark:text-slate-300 mb-1">{{ $t('admin_settings.loyalty.valid_until') }}</label>
-                <input
+                <AppDatePicker
                   v-model="rewardForm.valid_until"
-                  type="date"
                   class="w-full rounded-lg border border-gray-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 text-sm shadow-sm focus:border-green-500 focus:ring-green-500"
                   :class="{ 'border-red-400': formErrors.valid_until }"
                 />

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
 use App\Services\TicketCompensationService;
+use App\Services\TicketRefundService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -46,5 +47,37 @@ class TicketCompensationController extends Controller
         $this->authorize('approve', $compensation);
 
         return response()->json(['message' => 'Compensation approuvée.', 'compensation' => $service->approve($compensation, $request->user())]);
+    }
+
+    /**
+     * Remboursement partiel du retour d'un aller-retour (§11).
+     * Écriture compensatoire : les prix historiques ne sont jamais écrasés.
+     */
+    public function refundReturn(Request $request, Ticket $ticket, TicketRefundService $service)
+    {
+        $this->authorize('view', $ticket);
+
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'max:2000'],
+            'amount' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $result = $service->refundReturn(
+                $ticket,
+                $request->user(),
+                $data['reason'],
+                isset($data['amount']) ? (int) $data['amount'] : null,
+            );
+        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+            return response()->json(['message' => $e->getMessage()], $e->httpStatus);
+        }
+
+        return response()->json([
+            'message' => "Retour remboursé ({$result['refunded_amount']} FCFA).",
+            'refunded_amount' => $result['refunded_amount'],
+            'compensation' => $result['compensation'],
+            'journey' => $result['journey'],
+        ], 201);
     }
 }

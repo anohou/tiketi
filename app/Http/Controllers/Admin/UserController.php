@@ -15,7 +15,10 @@ class UserController extends Controller
 {
     public function index()
     {
-        $query = User::with(['stationAssignments.station']);
+        $query = User::with(['stationAssignments.station'])
+            ->withCount('soldTickets as sales_count')
+            ->withSum('soldTickets as sales_total', 'amount_collected')
+            ->withMax('soldTickets as last_sale_at', 'created_at');
 
         if (auth()->user()->role === 'supervisor') {
             $stationIds = auth()->user()->getActiveStationIds();

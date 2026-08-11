@@ -153,7 +153,7 @@
       "company_label": "Nom de l'entreprise",
       "company_placeholder": "Ex: UTB Transports",
       "email_label": "Email professionnel",
-      "email_placeholder": "vous@entreprise.ci",
+      "email_placeholder": "vous{'@'}entreprise.ci",
       "phone_label": "Numéro de téléphone",
       "phone_placeholder": "+225 00 00 00 00 00",
       "message_label": "Message (facultatif)",

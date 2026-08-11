@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { router, Head, Link } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import FileDocument from 'vue-material-design-icons/FileDocument.vue';
 import Download from 'vue-material-design-icons/Download.vue';
 import Cash from 'vue-material-design-icons/CashMultiple.vue';
@@ -101,17 +102,17 @@ const formatDateTime = (dateString) => {
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{{ $t('accountant.start_date') }}</label>
-                        <input 
-                            type="date" 
+                        <AppDatePicker
                             v-model="filterForm.start_date"
+                            :max="filterForm.end_date || ''"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-300">{{ $t('accountant.end_date') }}</label>
-                        <input 
-                            type="date" 
+                        <AppDatePicker
                             v-model="filterForm.end_date"
+                            :min="filterForm.start_date || ''"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                         />
                     </div>

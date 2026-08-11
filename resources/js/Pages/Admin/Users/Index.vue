@@ -11,6 +11,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import ConfirmationModal from '@/Components/ConfirmationModal.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import EmptyState from '@/Components/EmptyState.vue';
+import AccordionSection from '@/Components/UI/AccordionSection.vue';
 import { toastStore } from '@/Stores/toastStore.js';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
@@ -21,6 +22,9 @@ import Trash2 from 'vue-material-design-icons/Delete.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import Account from 'vue-material-design-icons/Account.vue';
+import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
+import History from 'vue-material-design-icons/History.vue';
+import Ticket from 'vue-material-design-icons/Ticket.vue';
 import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
@@ -70,7 +74,15 @@ const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
 const isEditing = ref(false);
-const activeTab = ref('assignments');
+
+// Accordéons (harmonisation plateforme) : tous pliés par défaut
+const showAssignments = ref(false);
+const showHistory = ref(false);
+
+const resetAccordions = () => {
+  showAssignments.value = false;
+  showHistory.value = false;
+};
 
 // Assignment modal state
 const showAssignmentModal = ref(false);
@@ -148,7 +160,7 @@ const isSelected = (user) => {
 
 const selectUser = (user) => {
   selectedUser.value = user;
-  activeTab.value = 'assignments';
+  resetAccordions();
 };
 
 // Generate a random password
@@ -771,106 +783,108 @@ const handlePrint = () => {
             </div>
             </div>
 
-            <!-- Related Tables - Tabbed Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <!-- Tabs Header -->
-              <div class="flex border-b border-slate-200 bg-gradient-to-r from-slate-50 to-emerald-50/40 dark:from-slate-950 dark:to-emerald-950/20">
-                <button 
-                  @click="activeTab = 'assignments'"
-                  :class="[
-                    'flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                    activeTab === 'assignments' 
-                      ? 'border-emerald-600 text-emerald-700 bg-white dark:bg-slate-900 dark:text-emerald-400 dark:border-emerald-500' 
-                      : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-                  ]"
-                >
-                  <OfficeBuilding class="h-4 w-4" />
-                  Affectations ({{ (selectedUser.station_assignments || []).length }})
-                </button>
-              </div>
+            <!-- Sections liées : 2 accordéons verticaux (harmonisation plateforme) -->
+            <div class="space-y-4">
+              <!-- 1. Gares d'affectation -->
+              <AccordionSection
+                v-model:open="showAssignments"
+                :icon="MapMarkerRadius"
+                title="Gares d'affectation du vendeur"
+                :count="(selectedUser.station_assignments || []).length"
+                :show-add="permissions.canUpdate"
+                add-label="Ajouter une gare"
+                @add="openAssignmentModal"
+              >
+                <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-slate-400">
+                  <OfficeBuilding class="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Aucune gare affectée</p>
+                </div>
 
-              <!-- Tab Content -->
-              <div class="p-4">
-                <!-- Assignments Tab -->
-                <div v-if="activeTab === 'assignments'">
-                  <!-- Add Button -->
-                  <div class="flex justify-between items-center mb-4">
-                    <p class="text-sm text-gray-500 dark:text-slate-400">Gares où cet utilisateur peut vendre des billets</p>
-                    <button 
-                      v-if="permissions.canUpdate"
-                      @click="openAssignmentModal" 
-                      class="p-1.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors text-xs font-bold flex items-center gap-1 shrink-0"
-                    >
-                      <Plus :size="16" /> Ajouter
-                    </button>
-                  </div>
-
-                  <!-- Empty State -->
-                  <div v-if="(selectedUser.station_assignments || []).length === 0" class="text-center py-8 text-slate-400">
-                    <OfficeBuilding class="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Aucune gare affectée</p>
-                  </div>
-
-                  <!-- Assignment List -->
-                  <div v-else class="space-y-2">
-                    <div 
-                      v-for="assignment in selectedUser.station_assignments" 
-                      :key="assignment.id"
-                      :class="[
-                        'flex items-center justify-between p-3 rounded-lg border',
-                        assignment.active !== false 
-                          ? 'bg-slate-50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-800/50' 
-                          : 'bg-slate-100 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800/50 opacity-60'
-                      ]"
-                    >
-                      <div class="flex items-center gap-3">
-                        <div :class="[
-                          'w-8 h-8 flex items-center justify-center rounded-full',
-                          assignment.active !== false 
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                            : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
-                        ]">
-                          <OfficeBuilding :size="16" />
-                        </div>
-                        <div>
-                          <p :class="['font-medium text-sm', assignment.active !== false ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-500']">
-                            {{ assignment.station?.name }}
-                          </p>
-                          <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{{ assignment.station?.city }}</p>
-                        </div>
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="assignment in selectedUser.station_assignments"
+                    :key="assignment.id"
+                    :class="[
+                      'flex items-center justify-between p-3 rounded-lg border',
+                      assignment.active !== false
+                        ? 'bg-slate-50 dark:bg-slate-950/30 border-slate-100 dark:border-slate-800/50'
+                        : 'bg-slate-100 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800/50 opacity-60'
+                    ]"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div :class="[
+                        'w-8 h-8 flex items-center justify-center rounded-full shrink-0',
+                        assignment.active !== false
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          : 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500'
+                      ]">
+                        <OfficeBuilding :size="16" />
                       </div>
-                      <div v-if="permissions.canUpdate" class="flex items-center gap-2">
-                        <!-- Edit Button -->
-                        <button 
-                          @click="openEditAssignmentModal(assignment)" 
-                          class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded transition-colors"
-                          title="Modifier"
-                        >
-                          <Pencil :size="16" />
-                        </button>
-                        <!-- Active Toggle -->
-                        <label class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
-                          <input 
-                            type="checkbox" 
-                            :checked="assignment.active !== false"
-                            @change="toggleAssignmentActive(assignment)"
-                            class="sr-only peer" 
-                          />
-                          <div class="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 dark:peer-checked:bg-emerald-600"></div>
-                        </label>
-                        <!-- Delete Button -->
-                        <button 
-                          @click="confirmRemoveAssignment(assignment.id)" 
-                          class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded transition-colors"
-                          title="Retirer"
-                        >
-                          <Trash2 :size="16" />
-                        </button>
+                      <div class="min-w-0">
+                        <p :class="['font-medium text-sm truncate', assignment.active !== false ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-500']">
+                          {{ assignment.station?.name }}
+                        </p>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{{ assignment.station?.city }}</p>
                       </div>
+                    </div>
+                    <div v-if="permissions.canUpdate" class="flex items-center gap-2 shrink-0">
+                      <!-- Edit Button -->
+                      <button
+                        @click="openEditAssignmentModal(assignment)"
+                        class="p-1.5 text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800 rounded transition-colors"
+                        title="Modifier"
+                      >
+                        <Pencil :size="16" />
+                      </button>
+                      <!-- Active Toggle -->
+                      <label class="relative inline-flex items-center cursor-pointer" title="Activer/Désactiver">
+                        <input
+                          type="checkbox"
+                          :checked="assignment.active !== false"
+                          @change="toggleAssignmentActive(assignment)"
+                          class="sr-only peer"
+                        />
+                        <div class="w-9 h-5 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 dark:peer-checked:bg-emerald-600"></div>
+                      </label>
+                      <!-- Delete Button -->
+                      <button
+                        @click="confirmRemoveAssignment(assignment.id)"
+                        class="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-800 rounded transition-colors"
+                        title="Retirer"
+                      >
+                        <Trash2 :size="16" />
+                      </button>
                     </div>
                   </div>
                 </div>
-              </div>
+              </AccordionSection>
+
+              <!-- 2. Historique d'activité & Ventes -->
+              <AccordionSection
+                v-model:open="showHistory"
+                :icon="History"
+                title="Historique d'activité & Ventes"
+                :count="selectedUser.sales_count || 0"
+              >
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                  <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800/50 text-center">
+                    <p class="text-2xl font-black text-slate-900 dark:text-slate-100">{{ selectedUser.sales_count || 0 }}</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold mt-1">Billets vendus</p>
+                  </div>
+                  <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800/50 text-center">
+                    <p class="text-2xl font-black text-emerald-700 dark:text-emerald-400">{{ (selectedUser.sales_total || 0).toLocaleString() }}</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold mt-1">FCFA encaissés</p>
+                  </div>
+                  <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-100 dark:border-slate-800/50 text-center">
+                    <p class="text-sm font-bold text-slate-900 dark:text-slate-100 break-words">{{ selectedUser.last_sale_at ? new Date(selectedUser.last_sale_at).toLocaleDateString('fr-FR') : '—' }}</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-bold mt-1">Dernière vente</p>
+                  </div>
+                </div>
+                <div v-if="!selectedUser.sales_count" class="text-center py-4 text-slate-400">
+                  <Ticket class="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p>Aucune vente enregistrée pour cet utilisateur</p>
+                </div>
+              </AccordionSection>
             </div>
           </div>
         </div>

@@ -53,6 +53,106 @@ export function useTicketing(props, options = {}) {
   const autoSelectOptimal = ref(true);
   const showPassengerFields = ref(false);
 
+  // =============================================
+  // Aller-retour (Phase 3)
+  // =============================================
+  // Point 4 : le flag serveur gouverne la fonctionnalité côté interface.
+  const roundTripSalesEnabled = computed(() => props.roundTripSalesEnabled !== false);
+  const journeyType = ref('one_way');
+  // Produit : UN SEUL mode de retour — le client fixe une DATE, l'heure du
+  // retour sera déterminée à la gare le jour du départ.
+  const returnMode = ref('date_flexible');
+  // Point 3 : identité Okohi VÉRIFIÉE (numéro canonique retourné par le
+  // serveur après vérification). La saisie brute du vendeur vit dans
+  // BookingModal (okohiCardNumber) et n'est JAMAIS transmise telle quelle.
+  const verifiedOkohiCustomerNumber = ref(null);
+  const returnScheduleId = ref('');
+  const returnDate = ref('');
+  const returnTime = ref('');
+
+  // Point 4 : flag désactivé → jamais d'aller-retour côté interface, même si
+  // un état précédent persistait (changement de tenant en session).
+  watch(roundTripSalesEnabled, (enabled) => {
+    if (!enabled && journeyType.value !== 'one_way') {
+      journeyType.value = 'one_way';
+      returnMode.value = '';
+      returnScheduleId.value = '';
+      returnDate.value = '';
+      returnTime.value = '';
+    }
+  }, { immediate: true });
+
+  const returnSchedules = computed(() => props.returnSchedules || []);
+
+  // Remise globale aller-retour (montant fixe en FCFA) configurée dans les
+  // réglages : soustraite du total normal (aller + retour) quel que soit le
+  // trajet. 0 = aucune remise.
+  const roundTripDiscountAmount = computed(() => Number(props.roundTripDiscountAmount) || 0);
+
+  // Tarif retour inverse (B → A) : tarif direct de la paire inverse, sinon
+  // le tarif bidirectionnel de l'aller (même prix dans les deux sens).
+  const returnFareAmount = computed(() => {
+    if (!selectedFare.value) return 0;
+    const from = selectedFare.value.to_station_id;
+    const to = selectedFare.value.from_station_id;
+
+    const direct = (props.routeFares || []).find(
+      (fare) => fare.from_station_id === from && fare.to_station_id === to
+    );
+    if (direct?.amount != null) return Number(direct.amount) || 0;
+
+    const viaConnections = (props.connectionFares || []).find(
+      (fare) => fare.from_station_id === from && fare.to_station_id === to
+    );
+    if (viaConnections?.amount != null) return Number(viaConnections.amount) || 0;
+
+    // Tarif bidirectionnel de l'aller : valable dans les deux sens.
+    if (selectedFare.value.is_bidirectional) {
+      return Number(selectedFare.value.amount) || 0;
+    }
+
+    return 0;
+  });
+
+  // Prix par passager selon le type de billet (jamais un simple aller × 2
+  // quand un tarif retour inverse existe — point L). En aller-retour, la
+  // remise globale est soustraite du total normal.
+  const perTicketAmount = computed(() => {
+    if (!selectedFare.value) return 0;
+    if (journeyType.value === 'round_trip') {
+      const oneWay = Number(selectedFare.value.amount) || 0;
+      const back = returnFareAmount.value;
+      const normalTotal = oneWay + (back > 0 ? back : oneWay);
+      return Math.max(0, normalTotal - roundTripDiscountAmount.value);
+    }
+    return Number(selectedFare.value.amount) || 0;
+  });
+
+  const roundTripSavings = computed(() => {
+    if (journeyType.value !== 'round_trip' || roundTripDiscountAmount.value <= 0) return 0;
+    return roundTripDiscountAmount.value;
+  });
+
+  // Programmes de retour compatibles (retour : B → A).
+  const compatibleReturnSchedules = computed(() => {
+    if (!selectedFare.value) return [];
+    const from = selectedFare.value.to_station_id;
+    const to = selectedFare.value.from_station_id;
+    return returnSchedules.value.filter(
+      (schedule) =>
+        schedule.origin_station_id === from &&
+        schedule.destination_station_id === to
+    );
+  });
+
+  const resetRoundTripState = () => {
+    journeyType.value = 'one_way';
+    returnMode.value = 'date_flexible';
+    returnScheduleId.value = '';
+    returnDate.value = '';
+    returnTime.value = '';
+  };
+
   // Create trip modal
   const showCreateTripModal = ref(false);
   const editingTripId = ref(null);
@@ -1127,12 +1227,18 @@ export function useTicketing(props, options = {}) {
     return filtered;
   });
 
+  const isAdmin = computed(() => ['admin', 'superadmin', 'super_admin', 'executive'].includes(page.props.auth.user?.role));
+
   const availableFares = computed(() => {
     if (!currentTrip.value) return [];
     const routeObj = currentTrip.value.route;
     const stationIndexMap = buildTripStationIndices(currentTrip.value);
     const totalStations = Object.keys(stationIndexMap).length;
     const allowedStationIds = new Set(Object.keys(stationIndexMap));
+
+    const effectiveOriginStationId = assignedStationIds.value[0]
+      || currentTrip.value.origin_station_id
+      || routeObj?.origin_station_id;
 
     const filtered = props.routeFares.filter(fare => {
       const fromStation = fare.from_station || fare.fromStation;
@@ -1142,18 +1248,16 @@ export function useTicketing(props, options = {}) {
       if (!fareFromId || !fareToId) return false;
       if (!allowedStationIds.has(fareFromId) || !allowedStationIds.has(fareToId)) return false;
 
-      if (assignedStationIds.value.length > 0 && !hasAssignedStation(fareFromId)) {
+      if (!isAdmin.value && assignedStationIds.value.length > 0 && !hasAssignedStation(fareFromId)) {
         return false;
       }
 
-      if (isTripDeparted.value && currentTrip.value.active_sales_station_id
-        && String(fareFromId) !== String(currentTrip.value.active_sales_station_id)) {
+      if (isTripDeparted.value && currentTrip.value.active_sales_station_id) {
+        if (String(fareFromId) !== String(currentTrip.value.active_sales_station_id)) {
+          return false;
+        }
+      } else if (effectiveOriginStationId && String(fareFromId) !== String(effectiveOriginStationId)) {
         return false;
-      }
-
-      if (!props.assignedStation) {
-        const tripOriginId = currentTrip.value.origin_station_id || routeObj.origin_station_id;
-        if (tripOriginId && fareFromId !== tripOriginId) return false;
       }
 
       const fromIdx = stationIndexMap[fareFromId];
@@ -1427,6 +1531,13 @@ export function useTicketing(props, options = {}) {
   // =============================================
   function fetchSeatMap({ silent = false } = {}) {
     if (!selectedTripId.value) return Promise.resolve();
+    if (currentTrip.value && !currentTrip.value.vehicle_id && !currentTrip.value.vehicle) {
+      seatMap.value = null;
+      errors.value.seatmap = null;
+      if (!silent) seatMapLoading.value = false;
+      return Promise.resolve();
+    }
+
     if (!silent) seatMapLoading.value = true;
 
     fetchPendingOkohiRequestsForTrip();
@@ -1440,6 +1551,12 @@ export function useTicketing(props, options = {}) {
     return axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }), { params })
       .then((response) => { seatMap.value = response.data; })
       .catch((error) => {
+        if (error.response?.status === 409 && error.response?.data?.vehicle_required) {
+          seatMap.value = null;
+          errors.value.seatmap = null;
+          return;
+        }
+
         console.error('Erreur lors de la récupération du plan de salle:', error);
         if (!silent) errors.value.seatmap = i18n.global.t('composable.ticketing.seatmap_load_error');
       })
@@ -1541,6 +1658,7 @@ export function useTicketing(props, options = {}) {
     passengerForm.value = { name: '', phone: '' };
     passengerFormErrors.value = {};
     showPassengerFields.value = false;
+    resetRoundTripState();
   };
 
   const openPassengerModal = () => {
@@ -1577,6 +1695,33 @@ export function useTicketing(props, options = {}) {
     selectedSeatNumber.value = seatNumber;
     openPassengerModal();
   };
+
+  // Vente sans car (point D) : voyage sur capacité planifiée, siège différé.
+  // selectedSeatNumber reste null, quantitySale = true, la vente transmet
+  // `quantity` sans tableau `seats`.
+  const quantitySale = ref(false);
+
+  const initiateQuantityBookingFlow = () => {
+    const trip = currentTrip.value;
+    if (!trip) return;
+    quantitySale.value = true;
+    selectedSeatNumber.value = null;
+    if (!selectedFare.value) {
+      openDestinationModalForSeat(null);
+      return;
+    }
+    openPassengerModal();
+  };
+
+  const cancelQuantityBooking = () => {
+    quantitySale.value = false;
+    selectedSeatNumber.value = null;
+  };
+
+  const canSellWithoutVehicle = computed(() => {
+    const trip = currentTrip.value;
+    return !!trip && trip.sell_mode === 'quantity' && trip.sales_ready;
+  });
 
   const handleSeatClick = (seatNumber) => {
     if (!seatMap.value || isTripPassed.value || availableFares.value.length === 0) return;
@@ -1647,8 +1792,9 @@ export function useTicketing(props, options = {}) {
 
   const confirmBooking = async () => {
     // The seat-first flow opens the modal before a destination is selected.
-    if (!selectedFare.value || selectedSeatNumber.value === null) return;
-    if (seatsToBook.value.length !== ticketQuantity.value) {
+    if (!selectedFare.value) return;
+    if (!quantitySale.value && selectedSeatNumber.value === null) return;
+    if (!quantitySale.value && seatsToBook.value.length !== ticketQuantity.value) {
       toastStore.error(i18n.global.t('composable.ticketing.seat_selection_incomplete'));
       return;
     }
@@ -1676,15 +1822,34 @@ export function useTicketing(props, options = {}) {
         || (fare.is_bidirectional && fare.to_station_id === selectedFare.value.from_station_id && fare.from_station_id === finalDestinationStationId.value)
       )
       : null;
-    const totalAmt = (connectionFare?.amount ?? selectedFare.value.amount) * allSeats.length;
+
+    const quantityValue = quantitySale.value ? (ticketQuantity.value || 1) : null;
+    const totalAmt = quantitySale.value
+      ? perTicketAmount.value * quantityValue
+      : journeyType.value === 'round_trip'
+        ? perTicketAmount.value * allSeats.length
+        : (connectionFare?.amount ?? selectedFare.value.amount) * allSeats.length;
 
     const ticketData = {
       trip_id: selectedTripId.value,
       from_station_id: selectedFare.value.from_station_id,
       to_station_id: selectedFare.value.to_station_id,
-      seats: allSeats,
+      seats: quantitySale.value ? undefined : allSeats,
+      quantity: quantityValue,
       amount: totalAmt,
+      journey_type: journeyType.value,
+      // Point 3 : identité Okohi VÉRIFIÉE retournée par le serveur — la
+      // simple saisie du vendeur n'est JAMAIS transmise (voir BookingModal).
+      ...(verifiedOkohiCustomerNumber.value ? { okohi_customer_number: verifiedOkohiCustomerNumber.value } : {}),
     };
+    if (journeyType.value === 'round_trip') {
+      // Mode unique : date fixée à la vente ; l'heure du retour est
+      // déterminée à la gare le jour du départ (jamais transmise ici).
+      ticketData.return_mode = 'date_flexible';
+      if (returnDate.value) {
+        ticketData.return_date = returnDate.value;
+      }
+    }
     if (finalDestinationStationId.value) {
       ticketData.final_destination_station_id = finalDestinationStationId.value;
       ticketData.connection_route_id = connectionRouteId.value;
@@ -1719,12 +1884,15 @@ export function useTicketing(props, options = {}) {
     // Optimistic: close modal + mark seats occupied
     const fareColor = selectedFare.value?.color;
     showPassengerModal.value = false;
-    allSeats.forEach(seat => markSeatOccupied(seat, fareColor));
-    ticketingStore.notifySeatBooked(allSeats, fareColor);
+    if (!quantitySale.value) {
+      allSeats.forEach(seat => markSeatOccupied(seat, fareColor));
+      ticketingStore.notifySeatBooked(allSeats, fareColor);
+    }
     selectedSeatNumber.value = null;
     suggestedSeats.value = [];
     ticketingStore.setSuggestions([]);
     ticketQuantity.value = 1;
+    quantitySale.value = false;
 
     // Optimistic: update trip card seat counts
     const tripIdx = trips.value.findIndex(t => t.id === selectedTripId.value);
@@ -1810,6 +1978,7 @@ export function useTicketing(props, options = {}) {
     finalDestinationStationId.value = null;
     connectionRouteId.value = null;
     selectedSeatNumber.value = null;
+    quantitySale.value = false;
     activeOkohiRequest.value = null;
     ticketingStore.selectSeat?.(null);
     suggestedSeats.value = [];
@@ -2243,6 +2412,22 @@ export function useTicketing(props, options = {}) {
     filteredTrips,
     availableFares,
 
+    // Aller-retour (Phase 3)
+    journeyType,
+    returnMode,
+    verifiedOkohiCustomerNumber,
+    roundTripSalesEnabled,
+    returnScheduleId,
+    returnDate,
+    returnTime,
+    returnSchedules,
+    roundTripDiscountAmount,
+    returnFareAmount,
+    perTicketAmount,
+    roundTripSavings,
+    compatibleReturnSchedules,
+    resetRoundTripState,
+
   availableRouteOptions,
   availableDestinationOptions,
 
@@ -2264,6 +2449,10 @@ export function useTicketing(props, options = {}) {
     openDestinationModalForSeat,
     selectFareForSeat,
     initiateBookingFlow,
+    initiateQuantityBookingFlow,
+    cancelQuantityBooking,
+    canSellWithoutVehicle,
+    quantitySale,
     autoSelectOptimalSeat,
     confirmBooking,
     cancelBooking,

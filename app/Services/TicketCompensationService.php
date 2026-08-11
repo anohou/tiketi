@@ -6,10 +6,13 @@ use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\OperationalSetting;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
+use App\Models\TicketJourney;
+use App\Models\TicketJourneyAssignment;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -109,10 +112,55 @@ class TicketCompensationService
 
         TripSeatOccupancy::query()->where('ticket_id', $ticket->id)->delete();
         $ticket->connection()->update(['status' => 'cancelled']);
+
+        // Point E : un remboursement complet annule TOUS les droits non
+        // consommés dans la même transaction. Un droit déjà embarqué reste
+        // dans son état historique (jamais réécrit silencieusement).
+        $ticket->journeys()->lockForUpdate()->get()->each(function (TicketJourney $journey) {
+            if (in_array($journey->status, [
+                TicketJourney::STATUS_PENDING,
+                TicketJourney::STATUS_AWAITING_TRIP,
+                TicketJourney::STATUS_READY,
+                TicketJourney::STATUS_ASSIGNED,
+            ], true)) {
+                $journey->update([
+                    'status' => TicketJourney::STATUS_CANCELLED,
+                    'settings' => array_merge($journey->settings ?? [], [
+                        'cancelled_by_refund' => true,
+                    ]),
+                ]);
+
+                // Historique d'affectation conservé : on consigne le retrait.
+                \App\Models\TicketJourneyAssignment::create([
+                    'ticket_journey_id' => $journey->id,
+                    'previous_trip_id' => $journey->trip_id,
+                    'new_trip_id' => null,
+                    'previous_seat_number' => $journey->seat_number,
+                    'new_seat_number' => null,
+                    'reason' => 'full_refund',
+                    'mode' => TicketJourneyAssignment::MODE_MANUAL,
+                ]);
+            }
+        });
+
         $ticket->update([
             'status' => 'refunded',
             'settings' => $settings,
         ]);
+
+        // Publication Okohi après commit : les statuts remboursés sont visibles
+        // (jamais bloquante pour le remboursement).
+        DB::afterCommit(function () use ($ticket) {
+            try {
+                app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                    $ticket,
+                    \App\Models\OkohiTicketOutbox::OPERATION_UPDATE,
+                );
+            } catch (\Throwable $e) {
+                // La file Okohi ne doit jamais faire échouer un remboursement.
+                \Illuminate\Support\Facades\Log::warning('Okohi enqueue échoué après remboursement', ['ticket' => $ticket->id]);
+            }
+        });
 
         if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {
             $tenantId = function_exists('tenancy') && tenancy()->initialized ? (string) tenant('id') : null;

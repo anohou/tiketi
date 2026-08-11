@@ -6,6 +6,7 @@ import Router from 'vue-material-design-icons/Router.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Car from 'vue-material-design-icons/Car.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
+import CalendarClock from 'vue-material-design-icons/CalendarClock.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import AccountMultiple from 'vue-material-design-icons/AccountMultiple.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
@@ -27,11 +28,10 @@ const props = defineProps({
 const page = usePage();
 
 const resolvedStats = computed(() => {
-  if (props.stats && Object.keys(props.stats).length > 0) {
-    return props.stats;
-  }
-
-  return page.props.settingsStats || {};
+  return {
+    ...(page.props.settingsStats || {}),
+    ...(props.stats || {}),
+  };
 });
 
 const settingsMenu = computed(() => {
@@ -66,9 +66,10 @@ const settingsMenu = computed(() => {
     { name: 'Gares / Destinations', route: 'admin.stations.index', icon: OfficeBuilding, count: resolvedStats.value.stations },
     { name: 'Tarifs', route: 'admin.route-fares.index', icon: Cash, count: resolvedStats.value.fares },
     { name: 'Trajets', route: 'admin.routes.index', icon: Router, count: resolvedStats.value.routes },
+    { name: 'Programmes de départ', route: 'admin.departure-schedules.index', icon: CalendarClock, count: resolvedStats.value.departureSchedules },
     { name: 'Types de Véhicules', route: 'admin.vehicle-types.index', icon: Car, count: resolvedStats.value.vehicleTypes },
     { name: 'Véhicules', route: 'admin.vehicles.index', icon: Bus, count: resolvedStats.value.vehicles },
-    { name: 'Pools véhicules / gare', route: 'fleet.station-vehicle-assignments.index', icon: MapMarkerRadius },
+    { name: 'Pools véhicules / gare', route: 'fleet.station-vehicle-assignments.index', icon: MapMarkerRadius, count: resolvedStats.value.stationVehicleAssignments },
     { name: 'Voyages', route: 'admin.trips.index', icon: Calendar, count: resolvedStats.value.trips },
     { name: 'Utilisateurs', route: 'admin.users.index', icon: AccountMultiple, count: resolvedStats.value.users },
     { name: 'Affectations', route: 'admin.assignments.index', icon: AccountGroup, count: resolvedStats.value.assignments },

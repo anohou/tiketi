@@ -15,6 +15,10 @@ defineProps({
     type: Object,
     default: null,
   },
+  stats: {
+    type: Object,
+    default: () => ({}),
+  },
 });
 </script>
 
@@ -35,7 +39,7 @@ defineProps({
 
       <div class="grid min-h-0 flex-1 grid-cols-12 gap-4 px-6 pb-6">
         <div class="h-full overflow-y-auto pr-2 md:col-span-2">
-          <SettingsMenu />
+          <SettingsMenu :stats="stats" />
         </div>
         <div class="flex h-full min-h-0 flex-col md:col-span-10">
           <slot />

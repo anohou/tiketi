@@ -38,16 +38,22 @@ Ces règles s’appliquent à l’ensemble du dépôt et à toutes les interface
 
 ## Couleurs et cohérence visuelle
 
-- La couleur d’accent principale de l’interface est l’émeraude : utiliser `emerald-500/600` pour les actions, liens actifs, icônes fonctionnelles et indicateurs sélectionnés.
+- La couleur d'accent principale de l'interface est l'émeraude : utiliser `emerald-500/600` pour les actions, liens actifs, icônes fonctionnelles et indicateurs sélectionnés.
 - Toutes les loupes placées dans un champ de recherche utilisent `text-emerald-500 dark:text-emerald-400`.
 - Les champs utilisent une bordure structurelle neutre (`border-slate-200`, `dark:border-slate-700`) et un focus émeraude (`focus:border-emerald-500`, `focus:ring-emerald-500`).
 - Les cartes, panneaux, séparateurs et zones vides utilisent des couleurs neutres `slate`; ne jamais employer une bordure orange comme décoration générale.
-- Les en-têtes de page et de formulaire utilisent une icône émeraude sur fond émeraude clair, sauf lorsqu’une autre couleur transmet un état métier explicite.
+- Les en-têtes de page et de formulaire utilisent une icône émeraude sur fond émeraude clair, sauf lorsqu'une autre couleur transmet un état métier explicite.
 - Réserver strictement `orange` et `amber` aux avertissements et états métier qui le nécessitent : retard, attention, demande en attente, embarquement ou élément physique codifié comme une porte de véhicule. Une palette multicolore reste permise dans un graphique lorsque plusieurs séries doivent être distinguées.
 - Ne pas utiliser orange/amber pour une recherche, une bordure de carte, un séparateur, un état vide, une navigation, un focus ou un simple compteur.
 - Avant de créer un nouveau style local, réutiliser les composants et conventions visuelles déjà présents dans les écrans de listes professionnels.
-- Ne pas imbriquer une carte d’état vide dans une autre carte : utiliser la variante simple du composant lorsque le panneau parent fournit déjà la bordure, le fond et l’ombre.
-- Ne pas répéter une action principale dans l’état vide d’un espace de travail lorsque cette action est déjà clairement disponible dans l’en-tête de la liste ou de la page.
+- Ne pas imbriquer une carte d'état vide dans une autre carte : utiliser la variante simple du composant lorsque le panneau parent fournit déjà la bordure, le fond et l'ombre.
+- Ne pas répéter une action principale dans l'état vide d'un espace de travail lorsque cette action est déjà clairement disponible dans l'en-tête de la liste ou de la page.
+
+## Sous-menus et sections de données (accordéons verticaux)
+
+- Les sous-menus et données associées des pages de travail (Gares, Trajets, Véhicules, Utilisateurs, Destinations) s'affichent en **accordéons verticaux collapsibles** — jamais en onglets horizontaux (débordement/tronquage sur petits écrans).
+- Utiliser obligatoirement le composant générique `resources/js/Components/UI/AccordionSection.vue` (en-tête cliquable icône + titre + compteur `(count)`, bouton d'ajout rapide `+` optionnel selon permissions, flèche ChevronDown/ChevronRight, animation de transition). Toute nouvelle section de ce type doit passer par ce composant pour un rendu 100 % identique.
+- Par défaut, les accordéons sont **pliés** (vue compacte) ; l'utilisateur déplie la section souhaitée. Reset à plié à la sélection d'un élément (`resetAccordions()` dans Stations/Index.vue et Users/Index.vue ; `showX = false` dans Routes/Index.vue et Vehicles).
 
 ## Formulaires longs
 
@@ -55,3 +61,9 @@ Ces règles s’appliquent à l’ensemble du dépôt et à toutes les interface
 - Le contenu du formulaire défile indépendamment entre l’en-tête et ce pied.
 - Les boutons de validation ne doivent jamais disparaître pendant la saisie.
 - Le composant `FormPanel` de `resources/js/Components/FormPanel.vue` doit être utilisé à cet effet. Il crée un conteneur `<form>` approprié et gère la logique de la zone de défilement centrale et du pied de page.
+
+## Alignement de la documentation et des captures d'écran UI
+
+- Pour toute modification fonctionnelle, visuelle ou ergonomique (nouveaux boutons, modaux modifiés, nouveaux flux de travail ou règles métier), la documentation du projet (`AGENTS.md`, `USER_GUIDE_FR.md`, guides d'utilisation, aide intégrée, etc.) doit être **systématiquement mise à jour** pour rester en parfait alignement avec l'implémentation.
+- Chaque modification ou ajout d'interface utilisateur doit s'accompagner de **captures d'écran et de visuels d'illustration à jour**, garantissant un alignement visuel strict et fidèle entre la documentation et la plateforme en production.
+

@@ -93,6 +93,7 @@ Route::prefix('crew')->group(function () {
         Route::post('/tickets/scan', [CrewTicketController::class, 'scan']);
         Route::get('/trips/{trip}/tickets', [CrewTicketController::class, 'tickets']);
         Route::patch('/trips/{trip}/tickets/{ticket}/board', [CrewTicketController::class, 'board']);
+        Route::patch('/trips/{trip}/journeys/{journey}/board', [CrewTicketController::class, 'boardJourney']);
         Route::post('/trips/{trip}/tickets/sell', [CrewTicketController::class, 'sell']);
         Route::post('/trips/{trip}/tickets/sync', [CrewTicketController::class, 'sync']);
     });

@@ -14,7 +14,7 @@ class FleetDashboardController extends Controller
     public function index()
     {
         $totalVehicles = Vehicle::count();
-        $activeVehicles = Vehicle::where('active', true)->count();
+        $activeVehicles = Vehicle::where('active', true)->where('is_placeholder', false)->count();
         $inactiveVehicles = max(0, $totalVehicles - $activeVehicles);
         $vehicleTypes = VehicleType::count();
         $fleetManagers = User::where('role', 'fleet_manager')->count();

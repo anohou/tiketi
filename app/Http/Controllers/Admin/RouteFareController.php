@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\OperationalSetting;
 use App\Models\RouteFare;
 use App\Models\Station;
 use Illuminate\Http\Request;
@@ -29,7 +30,25 @@ class RouteFareController extends Controller
         return Inertia::render('Admin/RouteFares/Index', [
             'fares' => $fares,
             'stations' => $stations,
+            'roundTripDiscount' => OperationalSetting::current()->roundTripDiscountAmount(),
+            'roundTripSalesEnabled' => tenant()?->roundTripSalesEnabled() ?? true,
         ]);
+    }
+
+    /**
+     * Remise globale aller-retour (montant fixe en FCFA). La grille des
+     * tarifs gère les prix par trajet ; cette remise est appliquée au total
+     * normal (aller + retour) de n'importe quel trajet.
+     */
+    public function updateRoundTripDiscount(Request $request)
+    {
+        $validated = $request->validate([
+            'round_trip_discount_amount' => 'required|integer|min:0|max:1000000',
+        ]);
+
+        OperationalSetting::current()->setRoundTripDiscountAmount($validated['round_trip_discount_amount']);
+
+        return redirect()->back()->with('success', 'Remise aller-retour mise à jour avec succès');
     }
 
     public function store(Request $request)

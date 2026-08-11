@@ -13,6 +13,8 @@
 /.zed
 /auth.json
 /node_modules
+# Bases SQLite de tenants créées par les tests (stancl) — jamais commitées.
+/database/app_tenant_*
 /public/build
 /public/hot
 /public/logos

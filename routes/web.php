@@ -3,6 +3,7 @@
 use App\Http\Controllers\Accountant\ReportsController;
 use App\Http\Controllers\Admin\AuthorizedDeviceController;
 use App\Http\Controllers\Admin\DestinationController;
+use App\Http\Controllers\Admin\DepartureScheduleController;
 use App\Http\Controllers\Admin\LoyaltySettingController;
 use App\Http\Controllers\Admin\OkohiConnectController;
 use App\Http\Controllers\Admin\OkohiRewardController;
@@ -31,7 +32,9 @@ use App\Http\Controllers\Fleet\StationVehicleAssignmentController;
 use App\Http\Controllers\Fleet\VehicleCrewAssignmentController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Seller\DepartureBoardController;
 use App\Http\Controllers\Seller\OkohiRewardRequestController;
+use App\Http\Controllers\Seller\ReturnPoolController;
 use App\Http\Controllers\Seller\SettingsController as SellerSettingsController;
 use App\Http\Controllers\Seller\TicketController;
 use App\Http\Controllers\Seller\TicketingController;
@@ -138,7 +141,15 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::put('routes/{route}/stops/reorder', [RouteStopOrderController::class, 'reorder'])->name('routes.stops.reorder');
 
         Route::resource('trips', TripController::class);
+        Route::put('route-fares/round-trip-discount', [RouteFareController::class, 'updateRoundTripDiscount'])->name('route-fares.round-trip-discount');
         Route::resource('route-fares', RouteFareController::class);
+
+        // Programmes de départ
+        Route::resource('departure-schedules', DepartureScheduleController::class);
+        Route::post('departure-schedules/{schedule}/exceptions', [DepartureScheduleController::class, 'storeException'])->name('departure-schedules.exceptions.store');
+        Route::delete('departure-schedules/{schedule}/exceptions/{exception}', [DepartureScheduleController::class, 'destroyException'])->name('departure-schedules.exceptions.destroy');
+        Route::get('departure-schedules/{schedule}/calendar', [DepartureScheduleController::class, 'calendar'])->name('departure-schedules.calendar');
+        Route::get('departure-schedules-preview', [DepartureScheduleController::class, 'previewNextDay'])->name('departure-schedules.preview');
         Route::resource('users', UserController::class);
         Route::put('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle-active');
         Route::resource('assignments', UserAssignmentController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -193,12 +204,17 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('/ticketing-focus', [TicketingController::class, 'focus'])->name('ticketing.focus');
         Route::get('/tickets', [TicketController::class, 'index'])->name('tickets.index');
 
+        // Point 4 : occurrences de retour exploitables (calendrier vendeur).
+        Route::get('/departure-schedules/{schedule}/return-occurrences', App\Http\Controllers\Seller\ReturnOccurrencesController::class)
+            ->name('departure-schedules.return-occurrences');
+
         // API-like endpoints for ticketing
         Route::post('/tickets', [App\Http\Controllers\Api\TicketController::class, 'store'])->name('tickets.store');
         Route::get('/tickets/export', [App\Http\Controllers\Api\TicketController::class, 'export'])->name('tickets.export');
         Route::get('/tickets/{ticket}/data', [App\Http\Controllers\Api\TicketController::class, 'show'])->name('tickets.show-data');
         Route::delete('/tickets/{ticket}', [App\Http\Controllers\Api\TicketController::class, 'destroy'])->name('tickets.destroy');
         Route::post('/tickets/{ticket}/compensations', [TicketCompensationController::class, 'store'])->name('tickets.compensations.store');
+        Route::post('/tickets/{ticket}/refund-return', [TicketCompensationController::class, 'refundReturn'])->name('tickets.refund-return');
         Route::patch('/compensations/{compensation}/approve', [TicketCompensationController::class, 'approve'])->name('compensations.approve');
         Route::get('/trips/{trip}/seat-map', [App\Http\Controllers\Api\TripController::class, 'seatMap'])->name('trips.seatmap');
         Route::get('/trips/{trip}/available-vehicles', [TicketingController::class, 'availableVehicles'])->name('trips.available-vehicles');
@@ -211,10 +227,20 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::post('/trips', [TripController::class, 'store'])->name('trips.store');
         Route::put('/trips/{trip}', [TicketingController::class, 'updateTrip'])->name('trips.update');
         Route::patch('/trips/{trip}/vehicle', [TicketingController::class, 'assignVehicle'])->name('trips.assign-vehicle');
+        Route::get('/stations/{station}/departure-board', [DepartureBoardController::class, 'index'])->name('departure-board.index');
+        Route::post('/trips/{trip}/assign-vehicle', [DepartureBoardController::class, 'assignVehicle'])->name('departure-board.assign-vehicle');
+        Route::post('/trips/{trip}/defer-vehicle-assignment', [DepartureBoardController::class, 'deferVehicleAssignment'])->name('departure-board.defer-vehicle-assignment');
         Route::get('/transfer-pool', [TransferPoolController::class, 'index'])->name('transfer-pool.index');
         Route::patch('/transfer-pool/{connection}/ready', [TransferPoolController::class, 'markReady'])->name('transfer-pool.ready');
         Route::post('/trips/{trip}/assign-connection', [TransferPoolController::class, 'assign'])->name('transfer-pool.assign');
         Route::post('/trips/{trip}/allocate-connections', [TransferPoolController::class, 'autoAllocate'])->name('transfer-pool.allocate');
+
+        // Pool des retours (Phase 4)
+        Route::get('/return-pool', [ReturnPoolController::class, 'index'])->name('return-pool.index');
+        Route::get('/return-pool/report', [ReturnPoolController::class, 'report'])->name('return-pool.report');
+        Route::post('/return-journeys/{journey}/assign', [ReturnPoolController::class, 'assign'])->name('return-pool.assign');
+        Route::delete('/return-journeys/{journey}/assignment', [ReturnPoolController::class, 'unassign'])->name('return-pool.unassign');
+        Route::patch('/return-journeys/{journey}/preference', [ReturnPoolController::class, 'updatePreference'])->name('return-pool.preference');
         Route::patch('/trips/{trip}/depart', [TransferPoolController::class, 'depart'])->name('trips.depart');
         Route::patch('/trips/{trip}/status', [TicketingController::class, 'updateStatus'])->name('trips.status');
 

@@ -9,11 +9,14 @@ use App\Jobs\CancelOrReverseOkohiClaimJob;
 use App\Models\Route;
 use App\Models\Ticket;
 use App\Models\TicketConnection;
+use App\Models\TicketJourney;
 use App\Models\TicketSetting;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Models\User;
 use App\Services\OptimisationService;
+use App\Services\RoundTripFareCalculator;
+use App\Services\SellRoundTripTicket;
 use App\Services\TicketQueryService;
 use App\Services\TripSegmentService;
 use App\Services\TripStationProgression;
@@ -42,14 +45,80 @@ class TicketController extends Controller
             'trip_id' => 'required|uuid|exists:trips,id',
             'from_station_id' => 'required|uuid|exists:stations,id',
             'to_station_id' => 'required|uuid|exists:stations,id',
-            'seats' => 'required|array|min:1',
+            'seats' => 'required_without:quantity|array|min:1',
             'seats.*' => 'integer|min:1|distinct',
+            // Vente quantity_only : nombre de passagers sans siège (car inconnu).
+            'quantity' => 'nullable|integer|min:1|max:50',
+            'journey_type' => 'nullable|in:one_way,round_trip',
+            'return_mode' => 'nullable|required_if:journey_type,round_trip|in:fixed_schedule,date_flexible,open',
+            'return_schedule_id' => 'nullable|required_if:return_mode,fixed_schedule|uuid|exists:departure_schedules,id',
+            'return_date' => 'nullable|date',
+            'return_time' => 'nullable|date_format:H:i',
             'passenger_name' => 'nullable|string|max:255',
             'passenger_phone' => 'nullable|string|max:20',
+            // Point F/2 : identification Okohi facultative — la validation
+            // accepte une saisie insensible à la casse (okh-123456) ; la
+            // normalisation (trim + strtoupper) est appliquée AVANT toute
+            // vérification, et seul le numéro canonique d'Okohi est stocké.
+            'okohi_customer_number' => 'nullable|string|max:64|regex:/^OKH-[A-Za-z0-9]{4,32}$/i',
             'amount' => 'nullable|integer|min:0',
             'final_destination_station_id' => 'nullable|uuid|exists:stations,id',
             'connection_route_id' => 'nullable|required_with:final_destination_station_id|uuid|exists:routes,id',
         ]);
+
+        // Point 8 : feature flag round_trip_sales — refus SERVEUR (pas un
+        // simple masquage d'interface) quand les ventes aller-retour sont
+        // désactivées pour ce tenant.
+        $isRoundTripRequest = ($validated['journey_type'] ?? Ticket::JOURNEY_TYPE_ONE_WAY) === Ticket::JOURNEY_TYPE_ROUND_TRIP;
+
+        if ($isRoundTripRequest && ! (tenant()?->roundTripSalesEnabled() ?? true)) {
+            return response()->json([
+                'message' => 'Les ventes aller-retour ne sont pas activées pour cette compagnie.',
+                'code' => 'round_trip_disabled',
+            ], 403);
+        }
+
+        // Point 5 : identification Okohi — une regex ne suffit pas. Avant
+        // d'enregistrer okohi_customer_number, on interroge Okohi via le
+        // mécanisme partenaire authentifié et on utilise le numéro CANONIQUE
+        // retourné. En cas de panne Okohi, la vente n'est pas bloquée mais le
+        // billet n'est pas rattaché à un portefeuille non vérifié.
+        $okohiCustomerNumber = null;
+        if (! empty($validated['okohi_customer_number'])) {
+            // Normalisation : trim + strtoupper avant toute vérification.
+            $normalizedCustomerNumber = strtoupper(trim($validated['okohi_customer_number']));
+
+            $verification = app(\App\Services\OkohiCustomerVerifier::class)->verify(
+                $normalizedCustomerNumber,
+                \App\Models\TicketSetting::getSettings(),
+            );
+
+            if ($verification['verified']) {
+                $okohiCustomerNumber = $verification['canonical_number'];
+            } elseif ($verification['error'] === 'not_found') {
+                return response()->json([
+                    'message' => 'Ce numéro client Okohi est introuvable. Vérifiez l’identité du client.',
+                    'code' => 'okohi_customer_not_found',
+                ], 422);
+            }
+            // error = unreachable / not_configured / invalid_format → billet
+            // non rattaché (okohi_customer_number reste null), vente permise.
+        }
+
+        // Vente aller-retour : délégation au service dédié.
+        if ($isRoundTripRequest) {
+            return $this->storeRoundTrip($request, $validated, $okohiCustomerNumber);
+        }
+
+        // Vente aller simple SANS siège (quantity_only) : aucun tableau
+        // `seats` n'est fourni. On délègue au même service métier de vente
+        // différée (storeRoundTrip le gère aussi pour journey_type one_way),
+        // au lieu de dupliquer les règles dans le contrôleur.
+        if (empty($validated['seats']) && ! empty($validated['quantity'])) {
+            return $this->storeRoundTrip($request, $validated, $okohiCustomerNumber);
+        }
+
+        $passengerQuantity = $validated['quantity'] ?? count($validated['seats'] ?? []);
 
         $trip = Trip::with(['route.routeStopOrders', 'tripSeatOccupancies.ticket', 'vehicle.vehicleType'])->findOrFail($validated['trip_id']);
 
@@ -284,6 +353,7 @@ class TicketController extends Controller
                     'qr_code' => 'QR-'.strtoupper(Str::random(12)),
                     'boarding_group' => $boardingGroup,
                     'payment_method' => 'cash',
+                    'okohi_customer_number' => $okohiCustomerNumber,
                     'gross_amount' => $pricePerSeat,
                     'discount_amount' => 0,
                     'amount_collected' => $pricePerSeat,
@@ -293,6 +363,23 @@ class TicketController extends Controller
                 ]);
                 $ticket->load(['fromStation', 'toStation']);
                 $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);
+
+                // Double écriture (§12 Étape C) : le droit aller accompagne
+                // toujours le billet aller simple.
+                TicketJourney::create([
+                    'ticket_id' => $ticket->id,
+                    'direction' => TicketJourney::DIRECTION_OUTBOUND,
+                    'from_station_id' => $fromStationId,
+                    'to_station_id' => $toStationId,
+                    'selection_mode' => TicketJourney::SELECTION_FIXED_TRIP,
+                    'trip_id' => $trip->id,
+                    'vehicle_id' => $trip->vehicle_id,
+                    'seat_number' => $seatNumber,
+                    'seat_assignment_status' => TicketJourney::SEAT_CONFIRMED,
+                    'status' => TicketJourney::STATUS_ASSIGNED,
+                    'valid_from' => now(),
+                    'settings' => ['backfilled' => false, 'legacy_sale' => true],
+                ]);
 
                 TripSeatOccupancy::create([
                     'trip_id' => $trip->id,
@@ -318,6 +405,19 @@ class TicketController extends Controller
             }
 
             DB::commit();
+
+            // Publication du titre vers Okohi (en file, non bloquante) — point F :
+            // un billet avec client identifié est rattaché au portefeuille.
+            foreach ($tickets as $soldTicket) {
+                try {
+                    app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                        $soldTicket->fresh(),
+                        \App\Models\OkohiTicketOutbox::OPERATION_CREATE,
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Échec mise en file Okohi (vente legacy): '.$e->getMessage());
+                }
+            }
 
             // Broadcast seat map update
             try {
@@ -378,6 +478,136 @@ class TicketController extends Controller
 
             return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
         }
+    }
+
+    /**
+     * Vente aller-retour (ou aller simple quantity_only) via SellRoundTripTicket.
+     * Chaque passager reçoit son propre billet, son propre numéro et son propre QR.
+     */
+    protected function storeRoundTrip(Request $request, array $validated, ?string $okohiCustomerNumber = null)
+    {
+        $trip = Trip::with(['route.routeStopOrders', 'vehicle.vehicleType'])->findOrFail($validated['trip_id']);
+
+        $fromStationId = $validated['from_station_id'];
+        $toStationId = $validated['to_station_id'];
+        $quantity = $validated['quantity'] ?? count($validated['seats'] ?? [1]);
+        $seats = $validated['seats'] ?? [];
+        $user = auth()->user();
+
+        // Politique de vente : avec sièges si fournis, sinon quantité pure.
+        $salesDecision = app(TripSalesPolicy::class)->evaluate(
+            $user,
+            $trip,
+            $fromStationId,
+            $toStationId,
+            'counter',
+            $seats !== [] ? $seats : array_fill(0, $quantity, 1),
+        );
+        if (! $salesDecision->allowed) {
+            return $this->errorResponse(
+                $request,
+                $salesDecision->message,
+                in_array($salesDecision->reasonCode, ['unauthenticated'], true) ? 401 : 403,
+            );
+        }
+
+        if ($user->role === 'seller') {
+            $assignedStationIds = $user->getActiveStationIds();
+            if (! in_array($fromStationId, $assignedStationIds)) {
+                return $this->errorResponse($request, 'Vous n’êtes pas autorisé à vendre des tickets au départ de cette station.', 403);
+            }
+        }
+
+        // Le serveur recalcule toujours le prix : un montant client obsolète est refusé.
+        $isRoundTrip = ($validated['journey_type'] ?? Ticket::JOURNEY_TYPE_ONE_WAY) === Ticket::JOURNEY_TYPE_ROUND_TRIP;
+        try {
+            $fare = app(RoundTripFareCalculator::class)->calculate($fromStationId, $toStationId);
+        } catch (\RuntimeException $e) {
+            return $this->errorResponse($request, 'Aucun tarif actif trouvé entre ces deux gares.', 422);
+        }
+        $expectedPerTicket = $isRoundTrip ? $fare['amount_to_collect'] : $fare['outbound_amount'];
+        $expectedAmount = $expectedPerTicket * $quantity;
+        if (isset($validated['amount']) && (int) $validated['amount'] !== $expectedAmount) {
+            return $this->errorResponse($request, 'Montant invalide pour ce trajet. Veuillez rafraîchir les tarifs.', 422);
+        }
+
+        $sellerStationId = $user->role === 'seller'
+            ? $user->stationAssignments()->where('active', true)->first()?->station_id
+            : $fromStationId;
+
+        $tickets = [];
+        $totalAmount = 0;
+
+        try {
+            DB::beginTransaction();
+
+            for ($i = 0; $i < $quantity; $i++) {
+                $seatNumber = $seats[$i] ?? null;
+
+                $result = app(SellRoundTripTicket::class)->sell([
+                    'trip' => $trip,
+                    'from_station_id' => $fromStationId,
+                    'to_station_id' => $toStationId,
+                    'journey_type' => $validated['journey_type'] ?? Ticket::JOURNEY_TYPE_ONE_WAY,
+                    'seat_number' => $seatNumber,
+                    'return_mode' => $validated['return_mode'] ?? null,
+                    'return_schedule_id' => $validated['return_schedule_id'] ?? null,
+                    'return_date' => $validated['return_date'] ?? null,
+                    'return_time' => $validated['return_time'] ?? null,
+                    'passenger_name' => $validated['passenger_name'] ?? 'Passager',
+                    'passenger_phone' => $validated['passenger_phone'] ?? '',
+                    'seller_id' => $user->id,
+                    'station_id' => $sellerStationId,
+                    'final_destination_station_id' => $validated['final_destination_station_id'] ?? null,
+                    'transfer_station_id' => ($validated['final_destination_station_id'] ?? null) ? $toStationId : null,
+                    'fare_calculation' => null,
+                    'okohi_customer_number' => $okohiCustomerNumber,
+                    'okohi_reward_id' => null,
+                    'okohi_transaction_id' => null,
+                ]);
+
+                $ticket = $result['ticket'];
+                $ticket->load(['fromStation', 'toStation']);
+                $ticket->update(['qr_payload' => $ticket->qrPayloadData()]);
+
+                $tickets[] = $ticket;
+                $totalAmount += $ticket->amount_collected ?? $ticket->price;
+            }
+
+            DB::commit();
+        } catch (\App\Domain\Ticketing\TicketingRuleViolation $e) {
+            DB::rollBack();
+
+            return $this->errorResponse($request, $e->getMessage(), $e->httpStatus);
+        } catch (QueryException $e) {
+            DB::rollBack();
+            Log::error('Erreur DB vente aller-retour: '.$e->getMessage());
+
+            return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Erreur vente aller-retour: '.$e->getMessage());
+
+            return $this->errorResponse($request, 'Erreur lors de la création des tickets.', 500);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Billet(s) créé(s) avec succès',
+                'tickets' => $tickets,
+                'total_amount' => $totalAmount,
+                'print_url' => route('tickets.print-multiple'),
+                'ticket_ids' => collect($tickets)->pluck('id')->toArray(),
+            ], 201);
+        }
+
+        return redirect()->back()->with([
+            'flash' => [
+                'ticket_id' => $tickets[0]->id,
+                'ticket_ids' => collect($tickets)->pluck('id')->toArray(),
+                'message' => 'Billet créé avec succès',
+            ],
+        ]);
     }
 
     public function show(Ticket $ticket)
@@ -447,7 +677,28 @@ class TicketController extends Controller
                 'cancellation_reason' => $request->input('reason'),
                 'settings' => $ticketSettings,
             ]);
+
+            // Annulation des droits de voyage (aller et retour).
+            TicketJourney::where('ticket_id', $ticket->id)
+                ->whereIn('status', [
+                    TicketJourney::STATUS_PENDING,
+                    TicketJourney::STATUS_AWAITING_TRIP,
+                    TicketJourney::STATUS_READY,
+                    TicketJourney::STATUS_ASSIGNED,
+                ])
+                ->update(['status' => TicketJourney::STATUS_CANCELLED]);
+
             DB::commit();
+
+            // Publication du changement d'état vers Okohi (en file, non bloquant).
+            try {
+                app(\App\Services\OkohiTicketPublisher::class)->enqueue(
+                    $ticket->fresh(),
+                    \App\Models\OkohiTicketOutbox::OPERATION_UPDATE,
+                );
+            } catch (\Exception $e) {
+                Log::warning('Échec mise en file Okohi (annulation): '.$e->getMessage());
+            }
 
             // Reverse claim on Okohi if paid by reward
             if ($ticket->payment_method === 'okohi_reward' && $ticket->okohi_transaction_id) {

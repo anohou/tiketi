@@ -59,6 +59,7 @@ class VehicleCrewAssignmentController extends Controller
 
         $vehicles = Vehicle::with('vehicleType')
             ->where('active', true)
+            ->where('is_placeholder', false)
             ->orderBy('identifier')
             ->get(['id', 'identifier', 'maker', 'vehicle_type_id']);
 
@@ -97,10 +98,19 @@ class VehicleCrewAssignmentController extends Controller
         }
         if ($crewMember->role !== $data['role']) {
             return back()->withErrors([
-                'crew_member_id' => 'Ce membre d\'équipage est un '
+                'crew_member_id' => "Ce membre d'équipage est un "
                     .($crewMember->role === 'driver' ? 'chauffeur' : 'assistant')
-                    .', pas un '
+                    .", pas un "
                     .($data['role'] === 'driver' ? 'chauffeur' : 'assistant').'.',
+            ]);
+        }
+
+        // Barrière absolue : un véhicule technique de planification ne reçoit
+        // jamais d'affectation opérationnelle d'équipage.
+        $vehicle = Vehicle::findOrFail($data['vehicle_id']);
+        if ($vehicle->isPlanningPlaceholder()) {
+            return back()->withErrors([
+                'vehicle_id' => 'Un véhicule technique de planification ne peut pas recevoir d’équipage. Affectez un car réel avant l’exploitation.',
             ]);
         }
 

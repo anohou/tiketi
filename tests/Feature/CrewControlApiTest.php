@@ -682,7 +682,7 @@ class CrewControlApiTest extends TestCase
         $response = $this->withHeader('Authorization', 'Bearer '.$token)
             ->getJson("/api/crew/trips/{$trip->id}/tickets")
             ->assertOk()
-            ->assertJsonPath('offline_cache.schema_version', 2)
+            ->assertJsonPath('offline_cache.schema_version', 3)
             ->assertJsonPath('offline_cache.signature_algorithm', 'Ed25519')
             ->assertJsonPath('offline_cache.trip_id', $trip->id)
             ->assertJsonMissingPath('offline_cache.tickets.0.passenger_name')
@@ -1242,6 +1242,19 @@ class CrewControlApiTest extends TestCase
                 $table->string('sales_control')->default('closed');
                 $table->boolean('allows_open_connections')->default(false);
                 $table->boolean('automatic_connection_allocation')->nullable();
+                $table->boolean('is_replicable')->default(false);
+                $table->uuid('departure_schedule_id')->nullable()->index();
+                $table->date('service_date')->nullable()->index();
+                $table->timestamp('opened_at')->nullable();
+                $table->uuid('opened_by')->nullable();
+                $table->boolean('sales_ready')->default(false);
+                $table->boolean('operational_ready')->default(false);
+                $table->unsignedInteger('planned_capacity_snapshot')->nullable();
+                $table->string('vehicle_assignment_policy')->default('require_real_vehicle');
+                $table->unsignedInteger('seat_assignment_version')->default(0);
+                $table->timestamp('vehicle_assignment_deferred_at')->nullable();
+                $table->uuid('vehicle_assignment_deferred_by')->nullable();
+                $table->string('vehicle_assignment_deferred_reason')->nullable();
                 $table->json('settings')->nullable();
                 $table->timestamps();
             });
@@ -1274,6 +1287,12 @@ class CrewControlApiTest extends TestCase
                 $table->timestamp('cancelled_at')->nullable();
                 $table->uuid('cancelled_by')->nullable();
                 $table->string('cancellation_reason')->nullable();
+                $table->string('journey_type')->default('one_way')->index();
+                $table->string('public_token')->nullable()->unique();
+                $table->integer('normal_total_amount')->nullable();
+                $table->integer('round_trip_discount_amount')->default(0);
+                $table->timestamp('return_valid_until')->nullable();
+                $table->string('okohi_delivery_status')->default('not_requested')->index();
                 $table->timestamps();
             });
         }
@@ -1386,6 +1405,34 @@ class CrewControlApiTest extends TestCase
                 $table->uuid('changed_by_user_id')->nullable()->index();
                 $table->uuid('changed_by_crew_member_id')->nullable()->index();
                 $table->text('note')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('ticket_journeys')) {
+            Schema::create('ticket_journeys', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('ticket_id')->index();
+                $table->string('direction')->index();
+                $table->uuid('from_station_id')->index();
+                $table->uuid('to_station_id')->index();
+                $table->string('selection_mode')->default('fixed_trip');
+                $table->uuid('departure_schedule_id')->nullable()->index();
+                $table->date('desired_travel_date')->nullable()->index();
+                $table->time('desired_departure_time')->nullable();
+                $table->uuid('trip_id')->nullable()->index();
+                $table->uuid('vehicle_id')->nullable()->index();
+                $table->unsignedInteger('seat_number')->nullable();
+                $table->string('seat_assignment_status')->default('unassigned');
+                $table->string('status')->default('pending')->index();
+                $table->timestamp('valid_from')->nullable();
+                $table->timestamp('valid_until')->nullable();
+                $table->timestamp('assigned_at')->nullable();
+                $table->uuid('assigned_by')->nullable();
+                $table->timestamp('boarded_at')->nullable();
+                $table->uuid('boarded_by')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->json('settings')->nullable();
                 $table->timestamps();
             });
         }

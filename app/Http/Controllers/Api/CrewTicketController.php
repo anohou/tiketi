@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Domain\Ticketing\BoardTicket;
+use App\Domain\Ticketing\BoardTicketJourney;
 use App\Domain\Ticketing\TicketingRuleViolation;
 use App\Domain\Ticketing\TripSalesPolicy;
 use App\Domain\Trips\CrewTripAccessPolicy;
@@ -11,10 +12,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Ticket;
 use App\Models\TicketCompensation;
 use App\Models\TicketConnection;
+use App\Models\TicketJourney;
 use App\Models\Trip;
 use App\Models\TripSeatOccupancy;
 use App\Services\OfflineCacheSigner;
 use App\Services\OptimisationService;
+use App\Services\ResolveScannedJourney;
+use App\Services\TripManifestService;
 use App\Services\TripSegmentService;
 use Closure;
 use Illuminate\Database\QueryException;
@@ -32,7 +36,67 @@ class CrewTicketController extends Controller
             'trip_id' => ['nullable', 'uuid', 'exists:trips,id'],
         ]);
 
-        [$ticketNumber, $ticketId] = $this->parseQrPayload($validated['qr_payload']);
+        $trip = ! empty($validated['trip_id']) ? Trip::find($validated['trip_id']) : null;
+        if ($trip) {
+            $this->assertCrewVehicleAccess($request, $trip);
+        }
+
+        $resolution = app(ResolveScannedJourney::class)->resolve(
+            $validated['qr_payload'],
+            $trip,
+        );
+
+        if ($resolution['code'] === ResolveScannedJourney::TICKET_NOT_FOUND) {
+            // Repli sur l'ancien flux (billets sans droits de voyage).
+            $legacy = $this->legacyScan($validated['qr_payload'], $trip);
+            if ($legacy) {
+                return response()->json($legacy);
+            }
+
+            return response()->json([
+                'code' => ResolveScannedJourney::TICKET_NOT_FOUND,
+                'valid' => false,
+                'message' => $resolution['message'],
+            ], 404);
+        }
+
+        $journey = $resolution['journey'];
+        $ticket = $resolution['ticket'];
+        $valid = in_array($resolution['code'], [
+            ResolveScannedJourney::OUTBOUND_VALID,
+            ResolveScannedJourney::RETURN_VALID,
+        ], true);
+
+        return response()->json([
+            'code' => $resolution['code'],
+            'valid' => $valid,
+            'message' => $resolution['message'],
+            'journey' => $journey ? [
+                'id' => $journey->id,
+                'direction' => $journey->direction,
+                'selection_mode' => $journey->selection_mode,
+                'seat_number' => $journey->seat_number,
+                'seat_assignment_status' => $journey->seat_assignment_status,
+                'status' => $journey->status,
+                'from_station' => $journey->fromStation ? [
+                    'id' => $journey->fromStation->id,
+                    'name' => $journey->fromStation->name,
+                ] : null,
+                'to_station' => $journey->toStation ? [
+                    'id' => $journey->toStation->id,
+                    'name' => $journey->toStation->name,
+                ] : null,
+            ] : null,
+            'ticket' => $this->ticketPayload($ticket, $validated['trip_id'] ?? null),
+        ]);
+    }
+
+    /**
+     * Ancien flux de scan (billets historiques sans droit de voyage).
+     */
+    private function legacyScan(string $qrValue, ?Trip $trip): ?array
+    {
+        [$ticketNumber, $ticketId] = $this->parseQrPayload($qrValue);
 
         $ticket = Ticket::with(['trip.route', 'fromStation', 'toStation', 'finalDestinationStation', 'connection.trip', 'connection.transferStation', 'connection.destinationStation', 'boardedBy', 'compensations.replacementTrip'])
             ->where(function ($query) use ($ticketId, $ticketNumber) {
@@ -47,17 +111,12 @@ class CrewTicketController extends Controller
             ->first();
 
         if (! $ticket) {
-            return response()->json([
-                'valid' => false,
-                'message' => 'Ticket introuvable.',
-            ], 404);
+            return null;
         }
 
         $valid = $ticket->status === 'issued';
         $message = null;
-        if (! empty($validated['trip_id'])) {
-            $trip = Trip::findOrFail($validated['trip_id']);
-            $this->assertCrewVehicleAccess($request, $trip);
+        if ($trip) {
             $connection = $ticket->connection;
             $compensation = $ticket->compensations->where('status', 'executed')->sortByDesc('executed_at')->first();
             $replacementApplies = $compensation?->compensation_type === 'free_rebooking' && $compensation->replacement_trip_id === $trip->id;
@@ -77,11 +136,11 @@ class CrewTicketController extends Controller
             }
         }
 
-        return response()->json([
+        return [
             'valid' => $valid,
             'message' => $message,
-            'ticket' => $this->ticketPayload($ticket, $validated['trip_id'] ?? null),
-        ]);
+            'ticket' => $this->ticketPayload($ticket, $trip?->id),
+        ];
     }
 
     public function tickets(Request $request, Trip $trip)
@@ -90,7 +149,15 @@ class CrewTicketController extends Controller
         $trip->loadMissing(['originStation', 'destinationStation']);
 
         $tickets = Ticket::with(['fromStation', 'toStation', 'finalDestinationStation', 'connection', 'boardedBy', 'seller'])
-            ->where('trip_id', $trip->id)
+            // Billets dont trip_id pointe vers ce voyage (allers + legacy)…
+            ->where(function ($q) use ($trip) {
+                $q->where('trip_id', $trip->id);
+            })
+            // …OU dont un DROIT DE VOYAGE est affecté à ce voyage (retours
+            // dont le billet racine pointe encore vers l'aller — point A/B).
+            ->orWhereHas('journeys', function ($journeys) use ($trip) {
+                $journeys->where('trip_id', $trip->id);
+            })
             ->where('status', 'issued')
             ->orderBy('seat_number')
             ->get();
@@ -138,8 +205,16 @@ class CrewTicketController extends Controller
 
         $offlineCache = $this->offlineTicketCachePayload($trip, $tickets->all());
 
+        // Manifeste aller/retour (§6.2) : droits de voyage du voyage + version
+        // de l'affectation pour détecter un cache mobile obsolète.
+        $manifest = app(TripManifestService::class)->forTrip($trip);
+        $boardingStats = app(TripManifestService::class)->boardingStats($trip);
+
         return response()->json([
             'tickets' => $tickets,
+            'manifest' => $manifest,
+            'boarding_stats' => $boardingStats,
+            'seat_assignment_version' => (int) $trip->seat_assignment_version,
             'offline_cache' => $offlineCache,
         ]);
     }
@@ -169,6 +244,46 @@ class CrewTicketController extends Controller
         return response()->json([
             'message' => 'Passager embarqué.',
             'ticket' => $this->ticketPayload($ticket, $trip->id),
+        ]);
+    }
+
+    /**
+     * Embarquement par droit de voyage (ticket_journey_id), §6.2.
+     * Verrouille le droit et l'occupation du siège ; l'aller et le retour
+     * peuvent être embarqués indépendamment avec le même QR.
+     */
+    public function boardJourney(Request $request, Trip $trip, TicketJourney $journey)
+    {
+        $this->assertCrewVehicleAccess($request, $trip);
+
+        $validated = $request->validate([
+            'boarded_at' => ['nullable', 'date'],
+        ]);
+
+        try {
+            $journey = app(BoardTicketJourney::class)->execute(
+                $request->user(),
+                $trip,
+                $journey,
+                isset($validated['boarded_at']) ? Carbon::parse($validated['boarded_at']) : null,
+            );
+        } catch (TicketingRuleViolation $exception) {
+            return response()->json([
+                'code' => $exception->reasonCode,
+                'message' => $exception->getMessage(),
+            ], $exception->httpStatus);
+        }
+
+        return response()->json([
+            'code' => 'boarded',
+            'message' => 'Passager embarqué.',
+            'journey' => [
+                'id' => $journey->id,
+                'direction' => $journey->direction,
+                'seat_number' => $journey->seat_number,
+                'status' => $journey->status,
+                'boarded_at' => $journey->boarded_at?->toIso8601String(),
+            ],
         ]);
     }
 
@@ -328,7 +443,8 @@ class CrewTicketController extends Controller
         $validated = $request->validate([
             'boardings' => ['sometimes', 'array'],
             'boardings.*.client_action_id' => ['required', 'uuid'],
-            'boardings.*.ticket_id' => ['required', 'uuid', 'exists:tickets,id'],
+            'boardings.*.ticket_journey_id' => ['nullable', 'uuid', 'exists:ticket_journeys,id'],
+            'boardings.*.ticket_id' => ['nullable', 'uuid', 'exists:tickets,id'],
             'boardings.*.boarded_at' => ['nullable', 'date'],
             'sales' => ['sometimes', 'array'],
             'sales.*.client_action_id' => ['required', 'uuid'],
@@ -354,6 +470,44 @@ class CrewTicketController extends Controller
                     'boarding',
                     $boarding,
                     function () use ($request, $trip, $boarding): array {
+                        // Schéma v3 : embarquement par DROIT DE VOYAGE (§6.2),
+                        // repli legacy par ticket_id.
+                        if (! empty($boarding['ticket_journey_id'])) {
+                            $journey = \App\Models\TicketJourney::find($boarding['ticket_journey_id']);
+                            if (! $journey) {
+                                return ['ok' => false, 'result' => [
+                                    'client_action_id' => $boarding['client_action_id'],
+                                    'type' => 'boarding',
+                                    'ticket_journey_id' => $boarding['ticket_journey_id'],
+                                    'code' => 'journey_not_found',
+                                    'message' => 'Droit de voyage introuvable.',
+                                ]];
+                            }
+
+                            try {
+                                app(BoardTicketJourney::class)->execute(
+                                    $request->user(),
+                                    $trip,
+                                    $journey,
+                                    isset($boarding['boarded_at']) ? Carbon::parse($boarding['boarded_at']) : null,
+                                );
+                            } catch (TicketingRuleViolation $exception) {
+                                return ['ok' => false, 'result' => [
+                                    'client_action_id' => $boarding['client_action_id'],
+                                    'type' => 'boarding',
+                                    'ticket_journey_id' => $boarding['ticket_journey_id'],
+                                    'code' => $exception->reasonCode,
+                                    'message' => $exception->getMessage(),
+                                ]];
+                            }
+
+                            return ['ok' => true, 'result' => [
+                                'client_action_id' => $boarding['client_action_id'],
+                                'ticket_journey_id' => $journey->id,
+                                'ticket_id' => $journey->ticket_id,
+                            ]];
+                        }
+
                         $ticket = Ticket::with('connection')->find($boarding['ticket_id']);
                         if (! $ticket) {
                             return ['ok' => false, 'result' => [
@@ -391,10 +545,15 @@ class CrewTicketController extends Controller
                 $results['failed'][] = [
                     'client_action_id' => $boarding['client_action_id'],
                     'type' => 'boarding',
-                    'ticket_id' => $boarding['ticket_id'],
+                    'ticket_id' => $boarding['ticket_id'] ?? null,
+                    'ticket_journey_id' => $boarding['ticket_journey_id'] ?? null,
                     'code' => 'temporary_sync_error',
                     'message' => 'Action non enregistrée, une nouvelle tentative est possible.',
                 ];
+                \Illuminate\Support\Facades\Log::error('offline_sync_boarding_exception', [
+                    'message' => $exception->getMessage(),
+                    'trace' => substr($exception->getTraceAsString(), 0, 500),
+                ]);
             }
         }
 
@@ -635,24 +794,57 @@ class CrewTicketController extends Controller
     private function offlineTicketCachePayload(Trip $trip, array $tickets): array
     {
         $generatedAt = now();
+
+        // Droits de voyage affectés à ce voyage (source canonique §6.3).
+        $journeys = TicketJourney::with('ticket')
+            ->where('trip_id', $trip->id)
+            ->whereIn('status', [
+                TicketJourney::STATUS_ASSIGNED,
+                TicketJourney::STATUS_BOARDED,
+            ])
+            ->get();
+
+        // Un billet n'a qu'un seul droit affecté à CE voyage (l'aller sur le
+        // voyage aller, le retour sur le voyage retour) : la clé ticket_id est
+        // donc sans ambiguïté dans le contexte de ce voyage.
+        $journeyMap = $journeys->keyBy('ticket_id');
+
         $payload = [
-            'schema_version' => 2,
+            'schema_version' => 3,
             'trip_id' => (string) $trip->id,
+            'seat_assignment_version' => (int) $trip->seat_assignment_version,
             'generated_at' => $generatedAt->toIso8601String(),
             'expires_at' => $generatedAt->copy()
                 ->addMinutes((int) config('transport.offline.ticket_cache_ttl_minutes', 360))
                 ->toIso8601String(),
-            'tickets' => collect($tickets)->map(fn (array $ticket) => [
-                'id' => (string) $ticket['id'],
-                'ticket_number' => (string) $ticket['ticket_number'],
-                'trip_id' => (string) $trip->id,
-                'from_station_id' => $ticket['from_station']['id'] ?? null,
-                'to_station_id' => $ticket['to_station']['id'] ?? null,
-                'seat_number' => $ticket['seat_number'] !== null ? (int) $ticket['seat_number'] : null,
-                'status' => (string) $ticket['status'],
-                'boarded_at' => $ticket['boarded_at'],
-                'segment_type' => ! empty($ticket['is_connection_segment']) ? 'connection' : 'primary',
-            ])->values()->all(),
+            'tickets' => collect($tickets)->map(function (array $ticket) use ($journeyMap) {
+                $journey = $journeyMap->get((string) $ticket['id']);
+
+                return [
+                    'id' => (string) $ticket['id'],
+                    'ticket_number' => (string) $ticket['ticket_number'],
+                    'trip_id' => (string) $ticket['trip_id'],
+                    'from_station_id' => $journey?->from_station_id ?? ($ticket['from_station']['id'] ?? null),
+                    'to_station_id' => $journey?->to_station_id ?? ($ticket['to_station']['id'] ?? null),
+                    'seat_number' => $journey?->seat_number ?? ($ticket['seat_number'] !== null ? (int) $ticket['seat_number'] : null),
+                    // Point B : le statut et l'embarquement d'un droit v3 sont
+                    // ceux du JOURNEY (jamais du billet racine). Un aller embarqué
+                    // ne doit pas faire apparaître le retour comme embarqué.
+                    'status' => $journey ? (string) $journey->status : (string) $ticket['status'],
+                    'boarded_at' => $journey
+                        ? ($journey->boarded_at?->toIso8601String() ?? null)
+                        : $ticket['boarded_at'],
+                    'segment_type' => ! empty($ticket['is_connection_segment']) ? 'connection' : 'primary',
+                    // §6.3 : identifiant du droit, direction et jeton QR haché.
+                    'ticket_journey_id' => $journey?->id,
+                    'journey_direction' => $journey?->direction,
+                    'journey_status' => $journey?->status,
+                    'seat_assignment_status' => $journey?->seat_assignment_status,
+                    'qr_token_hash' => $journey?->ticket?->public_token
+                        ? hash('sha256', $journey->ticket->public_token)
+                        : null,
+                ];
+            })->values()->all(),
         ];
         $encodedPayload = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $payloadHash = hash('sha256', $encodedPayload);

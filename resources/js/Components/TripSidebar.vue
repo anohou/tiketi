@@ -50,6 +50,25 @@ let realtimeChannels = [];
 
 const isSameTripId = (a, b) => String(a) === String(b);
 
+const parseRouteName = (trip) => {
+    if (!trip) return { origin: '', destination: '' };
+    const name = trip.display_name || trip.route?.name || '';
+    const separator = name.includes('➔') ? '➔' : (name.includes('->') ? '->' : (name.includes('→') ? '→' : '->'));
+    const parts = name.split(separator);
+    if (parts.length === 2) {
+        return {
+            origin: parts[0].trim(),
+            destination: parts[1].trim()
+        };
+    }
+    const originName = trip.origin_station?.name || trip.originStation?.name || trip.route?.origin_station?.name || trip.route?.originStation?.name || '';
+    const destName = trip.destination_station?.name || trip.destinationStation?.name || trip.route?.destination_station?.name || trip.route?.destinationStation?.name || name;
+    return {
+        origin: originName || '',
+        destination: destName
+    };
+};
+
 // Zoom controls
 const zoomLevel = ref(1);
 const minZoom = 0.5;
@@ -266,11 +285,19 @@ const isEchoConnected = () => {
 
 const syncSelectedTripSilently = async () => {
     if (!selectedTripId.value) return;
+    if (selectedTrip.value && !selectedTrip.value.vehicle_id && !selectedTrip.value.vehicle) {
+        seatMap.value = null;
+        return;
+    }
+
     try {
         const response = await axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }));
         seatMap.value = response.data;
     } catch (error) {
-        console.error('Fallback seat map sync failed:', error);
+        if (error.response?.status !== 409 || !error.response?.data?.vehicle_required) {
+            console.error('Fallback seat map sync failed:', error);
+        }
+        seatMap.value = null;
     }
 };
 
@@ -297,7 +324,7 @@ const selectTrip = (trip) => {
 };
 
 const handleSeatClick = (seatNumber) => {
-    if (isTicketingPage.value && !seatSalesDisabled.value) {
+    if (!isSeatMapDisabled.value) {
         console.log('[Sidebar] Selecting seat:', seatNumber);
         ticketingStore.selectSeat(seatNumber);
         emit('seat-click', seatNumber);
@@ -430,11 +457,19 @@ watch(() => ticketingStore.lastRevertedSeat, (val) => {
 // Silent refresh for WebSocket updates (another seller booked) — no loading spinner
 watch(() => ticketingStore.seatMapVersion, async () => {
     if (!selectedTripId.value) return;
+    if (selectedTrip.value && !selectedTrip.value.vehicle_id && !selectedTrip.value.vehicle) {
+        seatMap.value = null;
+        return;
+    }
+
     try {
         const response = await axios.get(route('seller.trips.seatmap', { trip: selectedTripId.value }));
         seatMap.value = response.data;
     } catch (error) {
-        console.error("Erreur lors du rafraîchissement silencieux:", error);
+        if (error.response?.status !== 409 || !error.response?.data?.vehicle_required) {
+            console.error("Erreur lors du rafraîchissement silencieux:", error);
+        }
+        seatMap.value = null;
     }
 });
 
@@ -485,6 +520,23 @@ const allTrips = computed(() => {
 // The selected trip object (from trips array or page props)
 const selectedTrip = computed(() => {
     return allTrips.value.find(t => isSameTripId(t.id, selectedTripId.value));
+});
+
+const canAssignVehicle = computed(() => {
+    const role = page.props.auth.user?.role;
+    if (role === 'admin' || role === 'supervisor') return true;
+    if (role !== 'seller' || !selectedTrip.value) return false;
+
+    const originStationId = selectedTrip.value.origin_station_id
+        || selectedTrip.value.origin_station?.id
+        || selectedTrip.value.originStation?.id
+        || selectedTrip.value.route?.origin_station_id
+        || selectedTrip.value.route?.origin_station?.id
+        || selectedTrip.value.route?.originStation?.id;
+
+    return originStationId
+        ? getAssignedStationIds().includes(String(originStationId))
+        : false;
 });
 
 watch(selectedTrip, (trip) => {
@@ -680,9 +732,21 @@ const hasPricedDestinationFromAssignedStation = computed(() => {
     });
 });
 
-const seatSalesDisabled = computed(() => isTicketingPage.value
-    && Array.isArray(page.props.routeFares)
-    && !hasPricedDestinationFromAssignedStation.value);
+const isAdmin = computed(() => ['admin', 'superadmin', 'super_admin', 'executive'].includes(page.props.auth.user?.role));
+
+const seatSalesDisabled = computed(() => {
+    if (isAdmin.value) return false;
+    return isTicketingPage.value
+        && Array.isArray(page.props.routeFares)
+        && !hasPricedDestinationFromAssignedStation.value;
+});
+
+const isSeatMapDisabled = computed(() => {
+    if (!isTicketingPage.value) return true;
+    if (selectedTrip.value?.status === 'cancelled' || selectedTrip.value?.status === 'arrived') return true;
+    if (isAdmin.value) return false;
+    return seatSalesDisabled.value;
+});
 
 const currentStationFreedSeatNumbers = computed(() => {
     if (!salesStationId.value) return [];
@@ -828,6 +892,15 @@ const getOccupancyRate = (available, total) => {
                 <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider dark:text-slate-400">{{ $t('trip.plan_occupations') }}</p>
             </div>
             <div class="flex items-center gap-2">
+                <button
+                    v-if="selectedTrip"
+                    type="button"
+                    @click.stop="openRouteSchemaModal(selectedTrip)"
+                    class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-emerald-600 dark:hover:bg-slate-800"
+                    :title="$t('trip.view_schema_title')"
+                >
+                    <Routes :size="18" />
+                </button>
                 <button @click="fetchTrips" :disabled="loading" class="p-2 hover:bg-white rounded-xl shadow-sm border border-transparent hover:border-slate-200 transition-all text-slate-400 hover:text-emerald-600 disabled:opacity-50 dark:hover:bg-slate-800">
                     <Refresh :size="18" :class="{ 'animate-spin': loading }" />
                 </button>
@@ -839,22 +912,21 @@ const getOccupancyRate = (available, total) => {
             <div class="flex-1 flex flex-col overflow-hidden">
                 <!-- Compact selected trip info -->
                 <div v-if="selectedTrip" class="px-3 py-2 bg-emerald-50/60 border-b border-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-900/10">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1.5">
                         <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></div>
-                        <div class="text-xs font-bold text-slate-900 whitespace-normal break-words leading-snug dark:text-slate-100">{{ selectedTrip.display_name || selectedTrip.route?.name }}</div>
+                        <div class="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-normal break-words leading-snug flex items-center gap-1 flex-wrap">
+                            <template v-if="parseRouteName(selectedTrip).origin">
+                                <span>{{ parseRouteName(selectedTrip).origin }}</span>
+                                <span class="text-slate-400 font-normal">➔</span>
+                            </template>
+                            <span class="text-sm font-black text-red-600 dark:text-red-400">
+                                {{ parseRouteName(selectedTrip).destination }}
+                            </span>
+                        </div>
                     </div>
                     <div class="flex items-center gap-2 mt-0.5 pl-3.5 flex-wrap">
                         <span class="text-[10px] font-black text-emerald-700 uppercase tracking-widest dark:text-emerald-300">{{ selectedTrip.vehicle?.identifier }}</span>
                         <span class="text-[10px] font-bold text-slate-400 dark:text-slate-400">{{ formatTime(selectedTrip.departure_at) }}</span>
-                        <button
-                            type="button"
-                            @click.stop="openRouteSchemaModal(selectedTrip)"
-                            class="ml-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-white hover:text-emerald-800 dark:border-emerald-900/60 dark:bg-slate-950/40 dark:text-emerald-300 dark:hover:border-emerald-700"
-                            :title="$t('trip.view_schema_title')"
-                        >
-                            <Routes :size="12" />
-                            {{ $t('trip.schema') }}
-                        </button>
                     </div>
                 </div>
 
@@ -905,10 +977,10 @@ const getOccupancyRate = (available, total) => {
                                 :seat-map="seatMap"
                                 :vehicle-type="resolvedVehicleType"
                                 :suggested-seats="ticketingStore.suggestedSeats"
-                                :selected-seat="ticketingStore.selectedSeat"
+                                :selected-seat="isSeatMapDisabled ? null : ticketingStore.selectedSeat"
                                 :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
-                                :disabled="seatSalesDisabled"
+                                :disabled="isSeatMapDisabled"
                                 :sellable-seat-numbers="currentStationSellableSeatNumbers"
                                 :released-seat-numbers="currentStationFreedSeatNumbers"
                                 :sellable-seat-border-color="currentStationSellableSeatBorderColor"
@@ -929,12 +1001,16 @@ const getOccupancyRate = (available, total) => {
                         {{ $t('trip.vehicle_not_assigned_hint') }}
                     </p>
                     <button
+                        v-if="canAssignVehicle"
                         type="button"
                         @click="openVehicleAssignmentModal"
                         class="mt-5 w-full max-w-[260px] rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-emerald-700"
                     >
                         {{ $t('trip.choose_from_pool') }}
                     </button>
+                    <p v-else class="mt-4 max-w-[260px] text-xs font-semibold leading-relaxed text-slate-500 dark:text-slate-400">
+                        {{ $t('trip.vehicle_assignment_origin_only') }}
+                    </p>
                 </div>
 
                 <!-- No trip selected -->
@@ -989,7 +1065,15 @@ const getOccupancyRate = (available, total) => {
                 >
                     <div class="flex items-center gap-2 mb-1">
                         <Bus :size="16" :class="selectedTripId === trip.id ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'" />
-                        <div class="text-sm font-bold text-slate-900 tracking-tight leading-snug whitespace-normal break-words dark:text-slate-100">{{ trip.display_name || trip.route?.name }}</div>
+                        <div class="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-normal break-words leading-snug flex items-center gap-1 flex-wrap">
+                            <template v-if="parseRouteName(trip).origin">
+                                <span>{{ parseRouteName(trip).origin }}</span>
+                                <span class="text-slate-400 font-normal">➔</span>
+                            </template>
+                            <span class="text-sm font-black text-red-600 dark:text-red-400">
+                                {{ parseRouteName(trip).destination }}
+                            </span>
+                        </div>
                         <span
                             :title="getSalesControlTitle(trip)"
                             :class="['inline-flex shrink-0 items-center', areDownstreamSalesActive(trip) ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400']"
@@ -1067,10 +1151,10 @@ const getOccupancyRate = (available, total) => {
                                 :seat-map="seatMap"
                                 :vehicle-type="resolvedVehicleType"
                                 :suggested-seats="ticketingStore.suggestedSeats"
-                                :selected-seat="ticketingStore.selectedSeat"
+                                :selected-seat="isSeatMapDisabled ? null : ticketingStore.selectedSeat"
                                 :selected-color="selectedSeatColor"
                                 :show-suggestions="ticketingStore.showSuggestions"
-                                :disabled="seatSalesDisabled"
+                                :disabled="isSeatMapDisabled"
                                 :sellable-seat-numbers="currentStationSellableSeatNumbers"
                                 :released-seat-numbers="currentStationFreedSeatNumbers"
                                 :sellable-seat-border-color="currentStationSellableSeatBorderColor"

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import TextInput from '@/Components/TextInput.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
@@ -12,6 +13,7 @@ import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
 import { useExportPrint } from '@/Composables/useExportPrint';
 
 import Checkbox from '@/Components/Checkbox.vue';
+import AccordionSection from '@/Components/UI/AccordionSection.vue';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
@@ -19,8 +21,6 @@ import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import MapMarkerRadius from 'vue-material-design-icons/MapMarkerRadius.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
-import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
-import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Steering from 'vue-material-design-icons/Steering.vue';
 import SeatPassenger from 'vue-material-design-icons/SeatPassenger.vue';
@@ -42,11 +42,51 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  operationalSummary: {
+    type: Object,
+    default: () => ({}),
+  },
 });
+
+const statusConfig = {
+  in_transit: { label: 'En voyage', badge: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', dot: 'bg-purple-500' },
+  scheduled: { label: 'Programmé', badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', dot: 'bg-blue-500' },
+  available: { label: 'Disponible', badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  inactive: { label: 'En panne', badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300', dot: 'bg-rose-500' },
+};
+
+const summaryCards = computed(() => [
+  { key: 'in_transit', title: 'En voyage', accent: 'text-purple-600 dark:text-purple-300', bg: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', count: props.operationalSummary?.in_transit || 0 },
+  { key: 'scheduled', title: 'Programmés', accent: 'text-blue-600 dark:text-blue-300', bg: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', count: props.operationalSummary?.scheduled || 0 },
+  { key: 'available', title: 'Disponibles', accent: 'text-emerald-600 dark:text-emerald-300', bg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', count: props.operationalSummary?.available || 0 },
+  { key: 'inactive', title: 'En panne', accent: 'text-rose-600 dark:text-rose-300', bg: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300', count: props.operationalSummary?.inactive || 0 },
+]);
+
+const operationalOf = vehicle => vehicle.operational || { status: 'available', trip: null, inactive_reason: null };
+
+const tripHref = (vehicle) => {
+  const trip = operationalOf(vehicle).trip;
+  return trip ? route('admin.trips.show', trip.id) : null;
+};
+
+const tripLabel = (vehicle) => {
+  const trip = operationalOf(vehicle).trip;
+  if (!trip) return '';
+  const from = trip.origin || '';
+  const to = trip.destination || '';
+  if (operationalOf(vehicle).status === 'in_transit') {
+    return `${from} → ${to}${trip.departed_at ? ` · Parti à ${trip.departed_at}` : ''}`;
+  }
+  if (operationalOf(vehicle).status === 'scheduled') {
+    return `${from} → ${to}${trip.departure_time ? ` · Départ ${trip.departure_time}` : ''}`;
+  }
+  return `${from} → ${to}`;
+};
 
 // State
 const search = ref('');
 const selectedVehicle = ref(null);
+const selectedOperationalStatus = ref('');
 const processing = ref(false);
 const errors = ref({});
 const showModal = ref(false);
@@ -54,6 +94,10 @@ const isEditing = ref(false);
 const showTrips = ref(false);
 const showCrew = ref(false);
 const showCrewModal = ref(false);
+
+const toggleOperationalFilter = (statusKey) => {
+  selectedOperationalStatus.value = selectedOperationalStatus.value === statusKey ? '' : statusKey;
+};
 
 const form = ref({
   identifier: '',
@@ -74,15 +118,23 @@ const crewForm = ref({
 
 // Computed
 const filteredVehicles = computed(() => {
-  const vehicles = props.vehicles?.data || [];
-  if (!search.value) return vehicles;
+  const vehicles = props.vehicles?.data || (Array.isArray(props.vehicles) ? props.vehicles : []);
+  let result = vehicles;
 
-  const searchTerm = search.value.toLowerCase();
-  return vehicles.filter(vehicle =>
-    vehicle.identifier.toLowerCase().includes(searchTerm) ||
-    vehicle.maker?.toLowerCase().includes(searchTerm) ||
-    vehicle.vehicle_type?.name.toLowerCase().includes(searchTerm)
-  );
+  if (selectedOperationalStatus.value) {
+    result = result.filter(v => operationalOf(v).status === selectedOperationalStatus.value);
+  }
+
+  if (search.value) {
+    const searchTerm = search.value.toLowerCase();
+    result = result.filter(vehicle =>
+      (vehicle.identifier || '').toLowerCase().includes(searchTerm) ||
+      (vehicle.maker || '').toLowerCase().includes(searchTerm) ||
+      (vehicle.vehicle_type?.name || '').toLowerCase().includes(searchTerm)
+    );
+  }
+
+  return result;
 });
 
 // Watchers
@@ -113,8 +165,9 @@ const isSelected = (vehicle) => {
 
 const selectVehicle = (vehicle) => {
   selectedVehicle.value = vehicle;
-  showTrips.value = false;
+  // Accordéons pliés par défaut (Équipage, Voyages)
   showCrew.value = false;
+  showTrips.value = false;
 };
 
 const openAddCrewModal = () => {
@@ -336,6 +389,31 @@ const isInsuranceExpired = (vehicle) => {
         </div>
       </div>
 
+      <!-- Interactive Operational Summary Cards -->
+      <div class="grid gap-3 px-6 pb-4 sm:grid-cols-2 lg:grid-cols-4 shrink-0">
+        <button
+          v-for="card in summaryCards"
+          :key="card.key"
+          type="button"
+          @click="toggleOperationalFilter(card.key)"
+          :class="[
+            'flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 cursor-pointer select-none',
+            selectedOperationalStatus === card.key
+              ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/30 dark:bg-emerald-950/50 dark:border-emerald-500'
+              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800'
+          ]"
+        >
+          <span :class="card.bg" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-black">{{ card.count }}</span>
+          <div class="min-w-0">
+            <p class="truncate text-sm font-black text-gray-800 dark:text-slate-100 flex items-center gap-1.5">
+              {{ card.title }}
+              <span v-if="selectedOperationalStatus === card.key" class="text-xs text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+            </p>
+            <p class="text-xs text-gray-500 dark:text-slate-400">{{ card.key === 'inactive' ? 'véhicules à l’arrêt' : 'véhicules' }}</p>
+          </div>
+        </button>
+      </div>
+
       <!-- Three Column Layout -->
       <div class="grid grid-cols-12 gap-4 flex-1 min-h-0 px-6 pb-6">
         <!-- Left Column - Navigation -->
@@ -380,7 +458,14 @@ const isInsuranceExpired = (vehicle) => {
                   <div class="flex justify-between items-start">
                     <div>
                       <h3 :class="['text-base font-bold', isSelected(vehicle) ? 'text-emerald-800' : 'text-slate-800 dark:text-slate-200 dark:text-slate-200']">{{ vehicle.identifier }}</h3>
-                      <p class="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">{{ vehicle.vehicle_type?.name }}</p>
+                      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ vehicle.vehicle_type?.name }}</p>
+                      <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ vehicle.maker || 'Fabricant non renseigné' }}</p>
+                      <p v-if="vehicle.current_station_assignment?.station" class="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-1 flex items-center gap-1">
+                        <MapMarkerRadius :size="13" /> {{ vehicle.current_station_assignment.station.name }}
+                      </p>
+                      <p v-else class="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+                        <MapMarkerRadius :size="13" /> Pool Général
+                      </p>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">
                       <span :class="[
@@ -389,10 +474,13 @@ const isInsuranceExpired = (vehicle) => {
                       ]">
                         {{ vehicle.active ? 'Actif' : 'Inactif' }}
                       </span>
+                      <span :class="statusConfig[operationalOf(vehicle).status]?.badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold">
+                        <span :class="statusConfig[operationalOf(vehicle).status]?.dot" class="h-1.5 w-1.5 rounded-full"></span>{{ statusConfig[operationalOf(vehicle).status]?.label }}
+                      </span>
                       <span v-if="vehicle.insurance_expiry_date && isInsuranceExpired(vehicle)" class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-800 text-center">
                         Assur. exp.
                       </span>
-                      <span class="text-[10px] text-emerald-600">
+                      <span class="text-[10px] text-slate-400 dark:text-slate-500">
                         {{ vehicle.trips_count || 0 }} voyages
                       </span>
                     </div>
@@ -440,28 +528,48 @@ const isInsuranceExpired = (vehicle) => {
                 </div>
               </div>
 
+              <!-- Operational Status Banner -->
+              <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <span :class="statusConfig[operationalOf(selectedVehicle).status]?.badge" class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-black">
+                    <span :class="statusConfig[operationalOf(selectedVehicle).status]?.dot" class="h-1.5 w-1.5 rounded-full"></span>{{ statusConfig[operationalOf(selectedVehicle).status]?.label }}
+                  </span>
+                  <Link v-if="tripHref(selectedVehicle)" :href="tripHref(selectedVehicle)" class="text-xs font-bold text-emerald-700 hover:underline dark:text-emerald-300">
+                    Ouvrir le détail du voyage →
+                  </Link>
+                </div>
+                <p v-if="operationalOf(selectedVehicle).status === 'inactive'" class="text-sm text-rose-700 dark:text-rose-300">
+                  {{ operationalOf(selectedVehicle).inactive_reason || 'Véhicule non spécifié.' }}
+                </p>
+                <p v-else-if="operationalOf(selectedVehicle).trip" class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {{ tripLabel(selectedVehicle) }}
+                  <span class="ml-1 font-normal text-slate-500 dark:text-slate-400">— {{ operationalOf(selectedVehicle).trip.code }}</span>
+                </p>
+                <p v-else class="text-sm text-slate-500 dark:text-slate-400">Aucun voyage en cours ni programmé. Véhicule disponible.</p>
+              </div>
+
               <!-- Details Row -->
               <div class="grid grid-cols-12 gap-6 mb-6">
                 <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">FABRICANT</span>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-2">FABRICANT</span>
                   <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicle.maker || 'Non spécifié' }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">TYPE</span>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-2">TYPE</span>
                   <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicle.vehicle_type?.name }}
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">CAPACITÉ</span>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-2">CAPACITÉ</span>
                   <div class="text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight">
                     {{ selectedVehicle.seat_count }} places
                   </div>
                 </div>
                 <div class="col-span-6">
-                  <span class="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider font-bold block mb-2">EXPIRATION ASSURANCE</span>
+                  <span class="text-xs text-slate-500 uppercase tracking-wider font-bold block mb-2">EXPIRATION ASSURANCE</span>
                   <div class="text-xl font-bold leading-tight">
                     <span v-if="selectedVehicle.insurance_expiry_date" :class="[
                       isInsuranceExpired(selectedVehicle) ? 'text-rose-600' : 'text-slate-900 dark:text-slate-100'
@@ -470,6 +578,29 @@ const isInsuranceExpired = (vehicle) => {
                       <span v-if="isInsuranceExpired(selectedVehicle)" class="text-xs font-bold text-rose-600 ml-1">(Expirée)</span>
                     </span>
                     <span v-else class="text-slate-400">Non renseignée</span>
+                  </div>
+                </div>
+
+                <div class="col-span-12">
+                  <div class="p-4 rounded-xl border border-emerald-100 bg-emerald-50/50 dark:border-emerald-950/40 dark:bg-emerald-950/20">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <MapMarkerRadius class="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                        <span class="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">AFFECTATION AU POOL DE GARE</span>
+                      </div>
+                      <Link :href="route('fleet.station-vehicle-assignments.index', { vehicle_id: selectedVehicle.id })" class="text-xs font-bold text-emerald-700 hover:underline dark:text-emerald-300">
+                        Gérer les pools →
+                      </Link>
+                    </div>
+                    <div class="mt-2 text-base font-black text-slate-900 dark:text-slate-100">
+                      <template v-if="selectedVehicle.current_station_assignment?.station">
+                        📍 {{ selectedVehicle.current_station_assignment.station.name }}
+                        <span class="text-xs font-normal text-slate-500">({{ selectedVehicle.current_station_assignment.station.city }})</span>
+                      </template>
+                      <template v-else>
+                        📍 Pool Général (Non affecté à une gare spécifique)
+                      </template>
+                    </div>
                   </div>
                 </div>
                 
@@ -483,103 +614,87 @@ const isInsuranceExpired = (vehicle) => {
             </div>
 
             <!-- Crew Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div @click="showCrew = !showCrew" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                <div class="flex items-center gap-2">
-                  <AccountHardHat class="h-5 w-5 text-emerald-600" />
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
-                    Équipage Actif ({{ (selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length }})
-                  </h3>
+            <AccordionSection
+              v-model:open="showCrew"
+              :icon="AccountHardHat"
+              title="Équipage Actif"
+              :count="(selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length"
+              show-add
+              add-label="Assigner un équipage"
+              @add="openAddCrewModal"
+            >
+              <div class="space-y-2">
+                <div v-if="!(selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
+                  Aucun équipage assigné.
                 </div>
-                <div class="flex items-center gap-2">
-                    <button @click.stop="openAddCrewModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Assigner un équipage">
-                        <Plus class="h-4 w-4" />
+                <div v-for="assignment in (selectedVehicle.current_crew || selectedVehicle.currentCrew || [])" :key="assignment.id" 
+                  class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                  <div class="flex items-center gap-3">
+                    <div :class="[
+                      'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
+                      assignment.role === 'driver' ? 'bg-emerald-100' : 'bg-slate-200'
+                    ]">
+                      <component
+                        :is="assignment.role === 'driver' ? Steering : SeatPassenger"
+                        :class="assignment.role === 'driver' ? 'text-emerald-600' : 'text-slate-600 dark:text-slate-350 dark:text-slate-350'"
+                        :size="16"
+                      />
+                    </div>
+                    <div>
+                      <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.crew_member?.name || 'Inconnu' }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button @click="endCrewAssignment(assignment.id)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" title="Clôturer l'affectation">
+                      <Trash2 class="h-4 w-4" />
                     </button>
-                    <component :is="showCrew ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
-                </div>
-              </div>
-              
-              <div v-if="showCrew" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
-                <div class="space-y-2">
-                  <div v-if="!(selectedVehicle.current_crew || selectedVehicle.currentCrew || []).length" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
-                    Aucun équipage assigné.
-                  </div>
-                  <div v-for="assignment in (selectedVehicle.current_crew || selectedVehicle.currentCrew || [])" :key="assignment.id" 
-                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
-                    <div class="flex items-center gap-3">
-                      <div :class="[
-                        'w-8 h-8 rounded-full flex items-center justify-center shrink-0',
-                        assignment.role === 'driver' ? 'bg-emerald-100' : 'bg-slate-200'
-                      ]">
-                        <component
-                          :is="assignment.role === 'driver' ? Steering : SeatPassenger"
-                          :class="assignment.role === 'driver' ? 'text-emerald-600' : 'text-slate-600 dark:text-slate-350 dark:text-slate-350'"
-                          :size="16"
-                        />
-                      </div>
-                      <div>
-                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ assignment.crew_member?.name || 'Inconnu' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ assignment.role === 'driver' ? 'Chauffeur' : 'Assistant' }}</p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <button @click="endCrewAssignment(assignment.id)" class="text-rose-500 hover:text-rose-700 p-1 rounded hover:bg-rose-50" title="Clôturer l'affectation">
-                        <Trash2 class="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </AccordionSection>
 
             <!-- Trips/Voyages Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div @click="showTrips = !showTrips" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                <div class="flex items-center gap-2">
-                  <Bus class="h-5 w-5 text-emerald-600" />
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
-                    Voyages ({{ selectedVehicle.trips_count || (selectedVehicle.trips || []).length }})
-                  </h3>
+            <AccordionSection
+              v-model:open="showTrips"
+              :icon="Bus"
+              title="Voyages"
+              :count="selectedVehicle.trips_count || (selectedVehicle.trips || []).length"
+            >
+              <div class="space-y-2">
+                <div v-if="!selectedVehicle.trips || selectedVehicle.trips.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
+                  Aucun voyage avec ce véhicule.
                 </div>
-                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
-              </div>
-              
-              <div v-if="showTrips" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
-                <div class="space-y-2">
-                  <div v-if="!selectedVehicle.trips || selectedVehicle.trips.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
-                    Aucun voyage avec ce véhicule.
-                  </div>
-                  <div v-for="trip in selectedVehicle.trips" :key="trip.id" 
-                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
-                    <div class="flex items-center gap-3">
-                      <Bus class="h-5 w-5 text-emerald-500" />
-                      <div>
-                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.route?.name || 'Route' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">
-                          {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
-                        </p>
-                      </div>
+                <div v-for="trip in selectedVehicle.trips" :key="trip.id" 
+                  class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                  <div class="flex items-center gap-3">
+                    <Bus class="h-5 w-5 text-emerald-500" />
+                    <div>
+                      <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.route?.name || 'Route' }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">
+                        {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                      </p>
                     </div>
-                    <span :class="[
-                      'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      getTripStatus(trip) === 'scheduled' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
-                      getTripStatus(trip) === 'departed' ? 'bg-emerald-100 text-emerald-800' :
-                      getTripStatus(trip) === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
-                      getTripStatus(trip) === 'cancelled' ? 'bg-rose-100 text-rose-800' :
-                      getTripStatus(trip) === 'expired' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
-                      'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300'
-                    ]">
-                      {{ getTripStatus(trip) === 'scheduled' ? 'Programmé' :
-                         getTripStatus(trip) === 'departed' ? 'Effectué' :
-                         getTripStatus(trip) === 'arrived' ? 'Arrivé' :
-                         getTripStatus(trip) === 'cancelled' ? 'Annulé' :
-                         getTripStatus(trip) === 'expired' ? 'Passé' :
-                         trip.status }}
-                    </span>
                   </div>
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                    getTripStatus(trip) === 'scheduled' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
+                    getTripStatus(trip) === 'departed' ? 'bg-emerald-100 text-emerald-800' :
+                    getTripStatus(trip) === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
+                    getTripStatus(trip) === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                    getTripStatus(trip) === 'expired' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
+                    'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300'
+                  ]">
+                    {{ getTripStatus(trip) === 'scheduled' ? 'Programmé' :
+                       getTripStatus(trip) === 'departed' ? 'Effectué' :
+                       getTripStatus(trip) === 'arrived' ? 'Arrivé' :
+                       getTripStatus(trip) === 'cancelled' ? 'Annulé' :
+                       getTripStatus(trip) === 'expired' ? 'Passé' :
+                       trip.status }}
+                  </span>
                 </div>
               </div>
-            </div>
+            </AccordionSection>
           </div>
         </div>
       </div>
@@ -647,7 +762,7 @@ const isInsuranceExpired = (vehicle) => {
 
           <div>
             <InputLabel for="insurance_expiry_date" value="Date d'expiration de l'assurance" />
-            <TextInput v-model="form.insurance_expiry_date" id="insurance_expiry_date" type="date" class="w-full" />
+            <AppDatePicker v-model="form.insurance_expiry_date" id="insurance_expiry_date" class="w-full" />
             <InputError :message="errors.insurance_expiry_date" />
           </div>
 

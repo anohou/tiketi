@@ -1,7 +1,7 @@
 <script setup>
 import MainNavLayout from '@/Layouts/MainNavLayout.vue'
 import SettingsMenu from '@/Components/SettingsMenu.vue'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import Magnify from 'vue-material-design-icons/Magnify.vue'
 import Trash2 from 'vue-material-design-icons/Delete.vue'
@@ -10,8 +10,6 @@ import OfficeBuilding from 'vue-material-design-icons/OfficeBuilding.vue';
 import Cash from 'vue-material-design-icons/Cash.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Pencil from 'vue-material-design-icons/Pencil.vue'
-import ChevronDown from 'vue-material-design-icons/ChevronDown.vue'
-import ChevronRight from 'vue-material-design-icons/ChevronRight.vue'
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue'
 import ArrowDown from 'vue-material-design-icons/ArrowDown.vue'
 import Bus from 'vue-material-design-icons/Bus.vue'
@@ -23,6 +21,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue'
 import PrimaryButton from '@/Components/PrimaryButton.vue'
 import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue'
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue'
+import AccordionSection from '@/Components/UI/AccordionSection.vue'
 import { useExportPrint } from '@/Composables/useExportPrint'
 import Router from 'vue-material-design-icons/Router.vue'
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue'
@@ -199,6 +198,12 @@ const selectRoute = (route) => {
   showTrips.value = false;
   showRouteDiagramModal.value = false;
 };
+
+onMounted(() => {
+  if (!selectedRoute.value && props.routes?.data?.length > 0) {
+    selectedRoute.value = props.routes.data[0];
+  }
+});
 
 // Methods - Route Actions
 const openCreateRouteModal = () => {
@@ -615,154 +620,129 @@ const handlePrint = () => {
             </div>
 
             <!-- Stops Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div @click="showStops = !showStops" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                <div class="flex items-center gap-2">
-                  <OfficeBuilding class="h-5 w-5 text-emerald-500" />
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
-                    Stations Escale ({{ (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length }})
-                  </h3>
+            <AccordionSection
+              v-model:open="showStops"
+              :icon="OfficeBuilding"
+              title="Stations Escale"
+              :count="(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length"
+              :show-add="permissions.canManageStops"
+              add-label="Ajouter une destination"
+              @add="openAddStopModal"
+            >
+              <div class="space-y-2">
+                <div v-if="(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
+                  Aucune destination configurée.
                 </div>
-                <div class="flex items-center gap-2">
-                    <button v-if="permissions.canManageStops" @click.stop="openAddStopModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter une destination">
-                        <Plus class="h-4 w-4" />
+                <div v-for="(order, idx) in (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || [])" :key="order.id" 
+                  class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                  <div class="flex items-center gap-3">
+                    <span class="w-6 h-6 flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
+                      {{ idx + 1 }}
+                    </span>
+                    <div>
+                      <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ order.station?.name }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1" v-if="permissions.canManageStops">
+                    <!-- Move Up Button -->
+                    <button 
+                      v-if="idx > 0"
+                      @click="moveStopUp(idx)" 
+                      class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                      title="Monter">
+                      <ArrowUp class="h-4 w-4" />
                     </button>
-                    <component :is="showStops ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
-                </div>
-              </div>
-              
-              <div v-if="showStops" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
-                <div class="space-y-2">
-                  <div v-if="(selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
-                    Aucune destination configurée.
-                  </div>
-                  <div v-for="(order, idx) in (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || [])" :key="order.id" 
-                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
-                    <div class="flex items-center gap-3">
-                      <span class="w-6 h-6 flex items-center justify-center bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full">
-                        {{ idx + 1 }}
-                      </span>
-                      <div>
-                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ order.station?.name }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">{{ order.station?.destination?.name || order.station?.city || 'Ville inconnue' }}</p>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-1" v-if="permissions.canManageStops">
-                      <!-- Move Up Button -->
-                      <button 
-                        v-if="idx > 0"
-                        @click="moveStopUp(idx)" 
-                        class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                        title="Monter">
-                        <ArrowUp class="h-4 w-4" />
-                      </button>
-                      <div v-else class="w-6"></div>
-                      <!-- Move Down Button -->
-                      <button 
-                        v-if="idx < (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length - 1"
-                        @click="moveStopDown(idx)" 
-                        class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                        title="Descendre">
-                        <ArrowDown class="h-4 w-4" />
-                      </button>
-                      <div v-else class="w-6"></div>
-                      <!-- Delete Button -->
-                      <button @click="removeStop(order)" class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded ml-1">
-                        <Trash2 class="h-4 w-4" />
-                      </button>
-                    </div>
+                    <div v-else class="w-6"></div>
+                    <!-- Move Down Button -->
+                    <button 
+                      v-if="idx < (selectedRoute.route_stop_orders || selectedRoute.routeStopOrders || []).length - 1"
+                      @click="moveStopDown(idx)" 
+                      class="p-1 text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded"
+                      title="Descendre">
+                      <ArrowDown class="h-4 w-4" />
+                    </button>
+                    <div v-else class="w-6"></div>
+                    <!-- Delete Button -->
+                    <button @click="removeStop(order)" class="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded ml-1">
+                      <Trash2 class="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               </div>
-            </div>
+            </AccordionSection>
 
             <!-- Fares Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div @click="showFares = !showFares" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                <div class="flex items-center gap-2">
-                  <Cash class="h-5 w-5 text-emerald-600" />
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
-                    Tarifs ({{ matchedFares.length }})
-                  </h3>
+            <AccordionSection
+              v-model:open="showFares"
+              :icon="Cash"
+              title="Tarifs"
+              :count="matchedFares.length"
+              :show-add="permissions.canManageFares"
+              add-label="Ajouter un tarif"
+              @add="openAddFareModal"
+            >
+              <div class="space-y-2">
+                <div v-if="matchedFares.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
+                  Aucun tarif correspondant aux destinations de cette route.
                 </div>
-                <div class="flex items-center gap-2">
-                    <button v-if="permissions.canManageFares" @click.stop="openAddFareModal" class="p-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded hover:bg-emerald-200 dark:hover:bg-emerald-900" title="Ajouter un tarif">
-                        <Plus class="h-4 w-4" />
+                <div v-for="fare in matchedFares" :key="fare.id" 
+                  class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                  <div class="text-sm min-w-0">
+                    <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.from_station?.name }}</span>
+                    <span v-if="fare.is_bidirectional" class="text-emerald-500 mx-1">↔</span>
+                    <span v-else class="text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mx-1">→</span>
+                    <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.to_station?.name }}</span>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <span class="font-bold text-emerald-700 whitespace-nowrap">{{ fare.amount?.toLocaleString() }} FCFA</span>
+                    <button v-if="permissions.canManageFares" @click="removeFare(fare.id)" class="text-rose-400 hover:text-rose-600">
+                      <Trash2 class="h-4 w-4" />
                     </button>
-                    <component :is="showFares ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
-                </div>
-              </div>
-              
-              <div v-if="showFares" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
-                <div class="space-y-2">
-                  <div v-if="matchedFares.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
-                    Aucun tarif correspondant aux destinations de cette route.
-                  </div>
-                  <div v-for="fare in matchedFares" :key="fare.id" 
-                    class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
-                    <div class="text-sm min-w-0">
-                      <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.from_station?.name }}</span>
-                      <span v-if="fare.is_bidirectional" class="text-emerald-500 mx-1">↔</span>
-                      <span v-else class="text-slate-400 dark:text-slate-500 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mx-1">→</span>
-                      <span class="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ fare.to_station?.name }}</span>
-                    </div>
-                    <div class="flex items-center gap-3 shrink-0">
-                      <span class="font-bold text-emerald-700 whitespace-nowrap">{{ fare.amount?.toLocaleString() }} FCFA</span>
-                      <button v-if="permissions.canManageFares" @click="removeFare(fare.id)" class="text-rose-400 hover:text-rose-600">
-                        <Trash2 class="h-4 w-4" />
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </AccordionSection>
 
             <!-- Trips/Voyages Section -->
-            <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <div @click="showTrips = !showTrips" class="p-3 bg-slate-50 dark:bg-slate-950/40 flex items-center justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900/60">
-                <div class="flex items-center gap-2">
-                  <Bus class="h-5 w-5 text-emerald-600" />
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-300">
-                    Voyages ({{ selectedRoute.trips_count || (selectedRoute.trips || []).length }})
-                  </h3>
+            <AccordionSection
+              v-model:open="showTrips"
+              :icon="Bus"
+              title="Voyages"
+              :count="selectedRoute.trips_count || (selectedRoute.trips || []).length"
+            >
+              <div class="space-y-2">
+                <div v-if="!selectedRoute.trips || selectedRoute.trips.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
+                  Aucun voyage programmé sur cette route.
                 </div>
-                <component :is="showTrips ? ChevronDown : ChevronRight" class="h-5 w-5 text-emerald-600" />
-              </div>
-              
-              <div v-if="showTrips" class="p-4 border-t border-slate-100 dark:border-slate-800/50">
-                <div class="space-y-2">
-                  <div v-if="!selectedRoute.trips || selectedRoute.trips.length === 0" class="text-sm text-slate-500 dark:text-slate-400 text-center py-2">
-                    Aucun voyage programmé sur cette route.
-                  </div>
-                  <div v-for="trip in selectedRoute.trips" :key="trip.id" 
-                    class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
-                    <div class="flex items-center gap-3">
-                      <Bus class="h-5 w-5 text-emerald-500" />
-                      <div>
-                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.vehicle?.identifier || 'Véhicule' }}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">
-                          {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
-                        </p>
-                      </div>
+                <div v-for="trip in selectedRoute.trips" :key="trip.id" 
+                  class="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-950/20 rounded-md border border-slate-100 dark:border-slate-800/40">
+                  <div class="flex items-center gap-3">
+                    <Bus class="h-5 w-5 text-emerald-500" />
+                    <div>
+                      <p class="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-200">{{ trip.vehicle?.identifier || 'Véhicule' }}</p>
+                      <p class="text-xs text-slate-500 dark:text-slate-400">
+                        {{ new Date(trip.departure_at).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                      </p>
                     </div>
-                    <span :class="[
-                      'px-2 py-0.5 rounded-full text-[10px] font-medium',
-                      trip.status === 'scheduled' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
-                      trip.status === 'departed' ? 'bg-emerald-100 text-emerald-800' :
-                      trip.status === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
-                      trip.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
-                      'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300'
-                    ]">
-                      {{ trip.status === 'scheduled' ? 'Programmé' :
-                         trip.status === 'departed' ? 'Effectué' :
-                         trip.status === 'arrived' ? 'Arrivé' :
-                         trip.status === 'cancelled' ? 'Annulé' :
-                         trip.status }}
-                    </span>
                   </div>
+                  <span :class="[
+                    'px-2 py-0.5 rounded-full text-[10px] font-medium',
+                    trip.status === 'scheduled' ? 'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300' :
+                    trip.status === 'departed' ? 'bg-emerald-100 text-emerald-800' :
+                    trip.status === 'arrived' ? 'bg-emerald-100 text-emerald-800' :
+                    trip.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                    'bg-slate-100 text-slate-700 dark:text-slate-300 dark:text-slate-300'
+                  ]">
+                    {{ trip.status === 'scheduled' ? 'Programmé' :
+                       trip.status === 'departed' ? 'Effectué' :
+                       trip.status === 'arrived' ? 'Arrivé' :
+                       trip.status === 'cancelled' ? 'Annulé' :
+                       trip.status }}
+                  </span>
                 </div>
               </div>
-            </div>
+            </AccordionSection>
           </div>
         </div>
       </div>

@@ -41,10 +41,29 @@ final class TripStateMachine
                 return $locked;
             }
 
+            // Barrière absolue : embarquement et départ exigent un car réel
+            // affecté et un voyage validé opérationnellement.
+            if (in_array($target, ['boarding', 'departed'], true)) {
+                if ($locked->isAwaitingRealVehicle() || $locked->hasPlaceholderVehicle()) {
+                    throw new InvalidTripTransition(
+                        'Un car réel doit être affecté avant l’embarquement et le départ. Le véhicule actuel est un véhicule technique de planification.'
+                    );
+                }
+                if (! $locked->isOperationalReady()) {
+                    throw new InvalidTripTransition(
+                        'Ce voyage n’est pas encore validé pour l’exploitation (car réel et prérequis manquants).'
+                    );
+                }
+            }
+
             $updated = match ($target) {
                 'departed' => $this->timing->markDeparted($locked),
                 'arrived' => $this->timing->markArrived($locked),
-                'cancelled' => $this->timing->markCancelled($locked),
+                'cancelled' => tap($this->timing->markCancelled($locked), function (Trip $trip) {
+                    // §11 : les retours affectés à ce voyage reviennent dans le pool
+                    // avec priorité (libération des places, historique, Okohi).
+                    app(\App\Services\ReleaseTripReturns::class)->release($trip);
+                }),
                 default => tap($locked, function (Trip $model) use ($target) {
                     $model->status = $target;
                     $model->save();

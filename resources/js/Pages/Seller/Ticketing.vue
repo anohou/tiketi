@@ -30,6 +30,9 @@ import FileExcel from 'vue-material-design-icons/FileExcel.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import DeleteOutline from 'vue-material-design-icons/DeleteOutline.vue';
+import DialogModal from '@/Components/DialogModal.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import RouteSchemaDiagram from '@/Components/RouteSchemaDiagram.vue';
 import TripDetailsModal from '@/Components/Seller/TripDetailsModal.vue';
 import TripConnectionSummary from '@/Components/Seller/TripConnectionSummary.vue';
 import Dropdown from '@/Components/Dropdown.vue';
@@ -43,6 +46,10 @@ const { t } = useI18n();
 const props = defineProps({
   trips: [Array, Object],
   routeFares: Array,
+  roundTripDiscountAmount: { type: Number, default: 0 },
+  returnSchedules: { type: Array, default: () => [] },
+  // Point 1 : le flag serveur gouverne la fonctionnalité aller-retour.
+  roundTripSalesEnabled: { type: Boolean, default: true },
   connectionFares: { type: Array, default: () => [] },
   connectionRoutes: { type: Array, default: () => [] },
   routes: Array,
@@ -85,6 +92,19 @@ const {
   errors,
   autoSelectOptimal,
   showPassengerFields,
+  journeyType,
+  returnMode,
+  verifiedOkohiCustomerNumber,
+  roundTripSalesEnabled,
+  returnScheduleId,
+  returnDate,
+  returnTime,
+  returnSchedules,
+  roundTripDiscountAmount,
+  perTicketAmount,
+  returnFareAmount,
+  roundTripSavings,
+  compatibleReturnSchedules,
   showCreateTripModal,
   createTripForm,
   createTripErrors,
@@ -143,6 +163,9 @@ const {
   openDestinationModalForSeat,
   selectFareForSeat,
   initiateBookingFlow,
+  initiateQuantityBookingFlow,
+  canSellWithoutVehicle,
+  quantitySale,
   autoSelectOptimalSeat,
   confirmBooking,
   cancelBooking,
@@ -337,6 +360,177 @@ const handleFareClick = (fare) => {
 };
 
 const tripDetailsModalTab = ref('overview');
+
+
+const showRouteSchemaModal = ref(false);
+const selectedRouteSchemaTrip = ref(null);
+
+const getOrderedRouteStationIds = (routeObj) => {
+    if (!routeObj) return [];
+    const stops = [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+
+    return [
+        routeObj.origin_station_id || routeObj.originStation?.id || routeObj.origin_station?.id,
+        ...stops.map(stop => stop.station_id || stop.station?.id),
+        routeObj.destination_station_id || routeObj.destinationStation?.id || routeObj.destination_station?.id,
+    ].filter((stationId, index, stationIds) => stationId && stationIds.indexOf(stationId) === index);
+};
+
+const getTripConnectionDestinations = (trip) => {
+    if (!trip?.allows_open_connections) return {};
+
+    const stationIds = getOrderedRouteStationIds(trip.route);
+    const originId = trip.origin_station_id || stationIds[0];
+    const tripDestinationId = trip.destination_station_id || stationIds.at(-1);
+    const tripDestinationIndex = stationIds.indexOf(tripDestinationId);
+    const routeFares = page.props.routeFares || [];
+    const connectionFares = page.props.connectionFares || [];
+    const connectionRoutes = page.props.connectionRoutes || [];
+    const destinationsByTransfer = {};
+
+    const orientFareFromOrigin = (fare) => {
+        if (fare.from_station_id === originId) {
+            return {
+                destinationId: fare.to_station_id,
+                destination: fare.to_station || fare.toStation,
+            };
+        }
+
+        if (fare.is_bidirectional && fare.to_station_id === originId) {
+            return {
+                destinationId: fare.from_station_id,
+                destination: fare.from_station || fare.fromStation,
+            };
+        }
+
+        return null;
+    };
+
+    const transferIds = new Set(routeFares
+        .map(orientFareFromOrigin)
+        .filter(Boolean)
+        .map(option => option.destinationId)
+        .filter(stationId => stationIds.indexOf(stationId) > stationIds.indexOf(originId)));
+
+    transferIds.forEach((transferId) => {
+        const transferIndex = stationIds.indexOf(transferId);
+
+        connectionFares.forEach((fare) => {
+            const option = orientFareFromOrigin(fare);
+            if (!option || !option.destinationId || option.destinationId === transferId) return;
+
+            const destinationIndex = stationIds.indexOf(option.destinationId);
+            const isAlreadyServedAfterTransfer = destinationIndex > transferIndex
+                && destinationIndex <= tripDestinationIndex;
+            if (isAlreadyServedAfterTransfer) return;
+
+            const compatibleRoute = connectionRoutes.find((routeItem) => {
+                const connectionStationIds = getOrderedRouteStationIds(routeItem);
+                const routeTransferIndex = connectionStationIds.indexOf(transferId);
+                const routeDestinationIndex = connectionStationIds.indexOf(option.destinationId);
+
+                return routeTransferIndex !== -1
+                    && routeDestinationIndex !== -1
+                    && routeTransferIndex < routeDestinationIndex;
+            });
+            if (!compatibleRoute) return;
+
+            destinationsByTransfer[transferId] ||= [];
+            if (!destinationsByTransfer[transferId].some(destination => String(destination.id) === String(option.destinationId))) {
+                destinationsByTransfer[transferId].push({
+                    id: option.destinationId,
+                    name: option.destination?.name || 'Destination',
+                });
+            }
+        });
+    });
+
+    return destinationsByTransfer;
+};
+
+const getContrastingTextColor = (backgroundColor) => {
+    if (typeof backgroundColor !== 'string') return '#FFFFFF';
+    const color = backgroundColor.trim().toLowerCase();
+    const hexMatch = color.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hexMatch) {
+        const hex = hexMatch[1].length === 3
+            ? hexMatch[1].split('').map((char) => char + char).join('')
+            : hexMatch[1];
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance > 0.62 ? '#0F172A' : '#FFFFFF';
+    }
+    return '#FFFFFF';
+};
+
+const routeHuePalette = [220, 270, 25, 165, 330, 195, 140, 350];
+const getRouteStationColor = (stationIndex) => {
+    const safeIndex = Number.isFinite(stationIndex) && stationIndex >= 0 ? stationIndex : 0;
+    const hue = routeHuePalette[safeIndex % routeHuePalette.length];
+    const lightness = safeIndex === 0 ? 44 : Math.max(40, 52 - (safeIndex * 2));
+    return {
+        bg: `hsl(${hue}, 80%, ${lightness}%)`,
+        fg: '#FFFFFF',
+    };
+};
+
+const getTripRouteSchema = (trip) => {
+    const routeObj = trip?.route;
+    if (!routeObj) return [];
+
+    const orderedStationIds = [];
+    const orderedStations = [];
+    const addStation = (station) => {
+        const stationId = station?.id || station?.station_id || station;
+        if (!stationId || orderedStationIds.includes(stationId)) return;
+        orderedStationIds.push(stationId);
+        orderedStations.push(station);
+    };
+
+    addStation(routeObj.origin_station || { id: routeObj.origin_station_id, name: routeObj.origin_station?.name });
+    const stops = [...(routeObj.route_stop_orders || routeObj.routeStopOrders || [])]
+        .sort((a, b) => (a.stop_index ?? 0) - (b.stop_index ?? 0));
+    stops.forEach((stop) => addStation(stop.station || { id: stop.station_id, name: stop.station?.name }));
+    addStation(routeObj.destination_station || { id: routeObj.destination_station_id, name: routeObj.destination_station?.name });
+
+    const stationIndexMap = buildTripStationIndices(trip);
+    const connectionDestinations = getTripConnectionDestinations(trip);
+    return orderedStations.map((station, index) => {
+        const stationId = station?.id || station?.station_id;
+        const palette = getRouteStationColor(stationIndexMap[stationId] ?? index);
+        return {
+            id: stationId,
+            name: station?.name || 'Station',
+            color: palette.bg,
+            textColor: getContrastingTextColor(palette.bg),
+            connections: connectionDestinations[stationId] || [],
+        };
+    });
+};
+
+const selectedRouteSchemaStops = computed(() => {
+    if (!selectedRouteSchemaTrip.value) return [];
+    return getTripRouteSchema(selectedRouteSchemaTrip.value);
+});
+
+const openRouteSchemaModal = (trip) => {
+    if (!trip) return;
+    selectedRouteSchemaTrip.value = trip;
+    showRouteSchemaModal.value = true;
+};
+
+const closeRouteSchemaModal = () => {
+    showRouteSchemaModal.value = false;
+};
+
+
+const handleTicketOrConnectionUpdated = () => {
+  fetchSeatMap({ silent: true });
+  router.reload({ only: ['trips', 'routeFares'], preserveScroll: true, preserveState: true });
+};
 
 const openTripDetailsWithOverview = (tripId) => {
   tripDetailsModalTab.value = 'overview';
@@ -1021,6 +1215,15 @@ onBeforeUnmount(() => {
                                  {{ printPoolAttentionCount > 9 ? '9+' : printPoolAttentionCount }}
                                </span>
                              </button>
+                             <button
+                               type="button"
+                               @click.stop="openRouteSchemaModal(currentTrip)"
+                               class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors"
+                               title="Schéma"
+                               aria-label="Voir le schéma"
+                             >
+                               <Routes :size="20" />
+                             </button>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
                                  <template #trigger>
@@ -1260,6 +1463,15 @@ onBeforeUnmount(() => {
                                >
                                  {{ printPoolAttentionCount > 9 ? '9+' : printPoolAttentionCount }}
                                </span>
+                             </button>
+                             <button
+                               type="button"
+                               @click.stop="openRouteSchemaModal(trip)"
+                               class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors"
+                               title="Schéma"
+                               aria-label="Voir le schéma"
+                             >
+                               <Routes :size="20" />
                              </button>
                              <div @click.stop class="relative">
                                <Dropdown align="right" width="48">
@@ -1584,7 +1796,28 @@ onBeforeUnmount(() => {
                      <div class="w-full bg-slate-250 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                        <div class="bg-emerald-500 h-full rounded-full transition-all duration-300" :style="{ width: `${getOccupancyRate(seatStats.available, seatStats.total)}%` }"></div>
                      </div>
-                     <div class="flex gap-2 w-full">
+
+                     <!-- Vente sans car (point D) : voyage sur capacité planifiée -->
+                     <div v-if="canSellWithoutVehicle" class="rounded-2xl border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/30 p-3">
+                       <div class="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                         Car réel à affecter — vente sur capacité prévue
+                       </div>
+                       <p class="mt-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                         Les sièges seront attribués automatiquement après affectation du car.
+                       </p>
+                       <button
+                         type="button"
+                         @click="initiateQuantityBookingFlow"
+                         class="mt-2 w-full flex items-center justify-center gap-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm"
+                       >
+                         <Bus :size="16" />
+                         Vendre sans car (quantité)
+                       </button>
+                     </div>
+                     <div v-else-if="currentTrip?.awaiting_real_vehicle" class="rounded-2xl border border-amber-200 bg-amber-50/70 dark:border-amber-900/40 dark:bg-amber-950/30 p-3 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                       Car réel à affecter — ventes fermées
+                     </div>
+                    <div class="flex gap-2 w-full">
                                <button 
                          @click="openTripDetailsWithOverview(currentTrip.id)"
                          class="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm"
@@ -1643,7 +1876,7 @@ onBeforeUnmount(() => {
                   </div>
                   
                   <!-- Mobile Seat Map inline -->
-                 <div id="mobile-seat-map" v-if="seatMap && currentTrip?.vehicle?.vehicle_type" class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center overflow-x-hidden md:hidden">
+                 <div id="mobile-seat-map" v-if="seatMap && currentTrip?.vehicle?.vehicle_type && currentTrip.sell_mode !== 'quantity'" class="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 flex flex-col items-center overflow-x-hidden md:hidden">
                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-250 mb-8 w-full flex items-center justify-center gap-2">
                       <Bus class="w-5 h-5 text-emerald-600 bg-white dark:bg-slate-900 border border-emerald-200 dark:border-slate-800 rounded p-0.5 shadow-sm" />
                       {{ $t('ticketing.dashboard.front_of_bus') }}
@@ -1696,10 +1929,24 @@ onBeforeUnmount(() => {
       :passenger-form-errors="passengerFormErrors"
       :processing="processing"
       :okohi-integration-active="okohiIntegrationActive"
+      v-model:verifiedOkohiCustomerNumber="verifiedOkohiCustomerNumber"
       v-model:ticketQuantity="ticketQuantity"
       v-model:showPassengerFields="showPassengerFields"
       v-model:finalDestinationStationId="finalDestinationStationId"
       v-model:connectionRouteId="connectionRouteId"
+      v-model:journeyType="journeyType"
+      v-model:returnMode="returnMode"
+      v-model:returnScheduleId="returnScheduleId"
+      v-model:returnDate="returnDate"
+      v-model:returnTime="returnTime"
+      :quantity-sale="quantitySale"
+      :round-trip-sales-enabled="roundTripSalesEnabled"
+      :round-trip-discount-amount="roundTripDiscountAmount"
+      :return-schedules="returnSchedules"
+      :per-ticket-amount="perTicketAmount"
+      :return-fare-amount="returnFareAmount"
+      :round-trip-savings="roundTripSavings"
+      :compatible-return-schedules="compatibleReturnSchedules"
       @close="cancelBooking"
       @continue-sales="continueSalesAfterOkohiRequest"
       @select-fare="selectFareForSeat"
@@ -2217,8 +2464,46 @@ onBeforeUnmount(() => {
       :current-user-id="page.props.auth.user.id"
       :initial-tab="tripDetailsModalTab"
       @close="showTripDetailsModal = false"
-      @ticket-cancelled="fetchSeatMap({ silent: true })"
+      @ticket-cancelled="handleTicketOrConnectionUpdated"
     />
+
+    <!-- Route Schema Modal -->
+    <DialogModal :show="showRouteSchemaModal" @close="closeRouteSchemaModal" maxWidth="5xl">
+        <template #title>
+            <div class="flex flex-col gap-1">
+                <span class="text-2xl font-bold text-slate-900 dark:text-slate-100">Schéma du trajet</span>
+                <span v-if="selectedRouteSchemaTrip" class="text-sm text-slate-500 dark:text-slate-400">
+                    {{ parseRouteName(selectedRouteSchemaTrip).origin }} ➔ {{ parseRouteName(selectedRouteSchemaTrip).destination }}
+                </span>
+            </div>
+        </template>
+        <template #content>
+            <div v-if="!selectedRouteSchemaTrip" class="py-8 text-center text-slate-500 dark:text-slate-400">
+                Aucun voyage sélectionné.
+            </div>
+            <div v-else-if="selectedRouteSchemaStops.length === 0" class="py-8 text-center text-slate-500 dark:text-slate-400">
+                Aucun arrêt n’est encore configuré pour ce trajet.
+            </div>
+            <div v-else class="space-y-4">
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700">
+                        Trajet: {{ selectedRouteSchemaTrip.route?.name || (parseRouteName(selectedRouteSchemaTrip).origin + ' ➔ ' + parseRouteName(selectedRouteSchemaTrip).destination) }}
+                    </span>
+                    <span class="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900">
+                        {{ selectedRouteSchemaStops.length }} gare(s)
+                    </span>
+                </div>
+                <RouteSchemaDiagram
+                    :stops="selectedRouteSchemaStops"
+                    variant="colored"
+                    class="shadow-sm"
+                />
+            </div>
+        </template>
+        <template #footer>
+            <SecondaryButton @click="closeRouteSchemaModal">Fermer</SecondaryButton>
+        </template>
+    </DialogModal>
   </MainNavLayout>
 </template>
 

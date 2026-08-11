@@ -37,6 +37,15 @@ class ReplicateTrips extends Command
             $tenants = Tenant::all();
 
             foreach ($tenants as $tenant) {
+                // Point 8 : les tenants ayant activé les programmes de départ
+                // sont gérés par trips:materialize-schedules — l'ancien mécanisme
+                // récurrent ne doit pas interférer.
+                if ($tenant->departureProgramsEnabled()) {
+                    $this->info("Tenant {$tenant->id} : programmes de départ actifs — réplication ancienne ignorée.");
+
+                    continue;
+                }
+
                 $this->info("Replicating trips for tenant: {$tenant->id}");
 
                 tenancy()->initialize($tenant);

@@ -17,6 +17,10 @@ defineProps({
         type: Boolean,
         default: true,
     },
+    contentScrollable: {
+        type: Boolean,
+        default: true,
+    },
 });
 
 const close = () => {
@@ -31,7 +35,10 @@ const close = () => {
         :closeable="closeable"
         @close="close"
     >
-        <div class="relative flex-1 overflow-y-auto px-6 py-5">
+        <div
+            class="relative flex-1 px-6 py-5"
+            :class="contentScrollable ? 'overflow-y-auto' : 'overflow-visible'"
+        >
             <div class="pr-10 text-lg font-semibold text-slate-900 dark:text-slate-100">
                 <slot name="title" />
             </div>

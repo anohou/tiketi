@@ -22,6 +22,23 @@ final class BoardTicket
             if (in_array($lockedTrip->status, ['arrived', 'cancelled'], true)) {
                 throw new TicketingRuleViolation('trip_terminal', 'Ce voyage ne permet plus d’embarquement.', 409);
             }
+
+            // Barrière absolue : un voyage portant encore un véhicule technique
+            // (ou non validé opérationnellement) ne permet jamais l'embarquement.
+            if ($lockedTrip->isAwaitingRealVehicle() || $lockedTrip->hasPlaceholderVehicle()) {
+                throw new TicketingRuleViolation(
+                    'placeholder_vehicle_forbidden',
+                    'L’embarquement est impossible tant qu’un car réel n’est pas affecté à ce voyage.',
+                    409
+                );
+            }
+            if (! $lockedTrip->isOperationalReady()) {
+                throw new TicketingRuleViolation(
+                    'trip_not_operational',
+                    'Ce voyage n’est pas encore validé pour l’exploitation (car réel et prérequis manquants).',
+                    409
+                );
+            }
             if ($lockedTicket->status !== 'issued') {
                 throw new TicketingRuleViolation('ticket_invalid_status', 'Ce ticket est annulé, remboursé ou invalide.', 409);
             }

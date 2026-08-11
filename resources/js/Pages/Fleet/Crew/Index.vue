@@ -9,6 +9,7 @@ import DialogModal from '@/Components/DialogModal.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
@@ -717,7 +718,7 @@ const isLicenseExpired = (member) => {
             </div>
             <div>
               <InputLabel for="license_expiry_date" :value="$t('fleet.crew.license_expiry_date')" />
-              <TextInput v-model="form.license_expiry_date" id="license_expiry_date" type="date" class="w-full" />
+              <AppDatePicker v-model="form.license_expiry_date" id="license_expiry_date" class="w-full" />
               <InputError :message="errors.license_expiry_date" />
             </div>
           </div>

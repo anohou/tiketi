@@ -40,6 +40,7 @@ const cards = computed(() => [
     :title="$t('seller_settings.title')"
     :subtitle="$t('seller_settings.subtitle')"
     :icon="Cog"
+    :stats="props.stats"
   >
     <div class="grid flex-1 content-start gap-4 md:grid-cols-2 xl:grid-cols-3">
       <Link

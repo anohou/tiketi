@@ -120,6 +120,12 @@ class SellerDashboardController extends Controller
         $assignedStation = $assignedStation
             ?? ($assignedStationIds ? Station::find($assignedStationIds[0])?->name : null);
 
+        // Gares affectées (pour le tableau des départs du jour).
+        $assignedStations = Station::whereIn('id', $assignedStationIds)
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'city']);
+
         $todaySales = Ticket::where('seller_id', $user->id)
             ->whereDate('created_at', now()->today())
             ->where('status', 'issued')
@@ -134,6 +140,7 @@ class SellerDashboardController extends Controller
             'assignedStation' => $assignedStation ?? null,
             'canSelectTripOrigin' => $canSelectTripOrigin,
             'originStations' => $originStations,
+            'assignedStations' => $assignedStations,
         ]);
     }
 }

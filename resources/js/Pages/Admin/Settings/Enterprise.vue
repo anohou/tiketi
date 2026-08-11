@@ -25,6 +25,13 @@ const props = defineProps({
     default: () => ({}),
   },
   operationalSettings: Object,
+  featureFlags: {
+    type: Object,
+    default: () => ({
+      departure_programs: false,
+      round_trip_sales: false,
+    }),
+  },
   permissions: {
     type: Object,
     default: () => ({ ...FULL_PERMISSIONS }),
@@ -50,6 +57,8 @@ const form = useForm({
   scheduled_trip_lookahead_hours: props.operationalSettings?.settings?.scheduled_trip_lookahead_hours ?? 72,
   seller_compensation_enabled: props.operationalSettings?.settings?.seller_compensation_enabled || false,
   seller_compensation_max_amount: props.operationalSettings?.settings?.seller_compensation_max_amount ?? 0,
+  departure_programs: props.featureFlags?.departure_programs === true,
+  round_trip_sales: props.featureFlags?.round_trip_sales === true,
 });
 
 const logoPreview = ref(companyInfo.value.logo_url || null);
@@ -322,6 +331,32 @@ const submit = () => {
                   </div>
                 </div>
                 <p class="mt-3 text-xs font-medium text-blue-800 dark:text-blue-300">Exemple : avec un début à {{ form.operational_day_start_hour }} h et une fenêtre de {{ form.scheduled_trip_lookahead_hours }} h, la liste couvre {{ form.scheduled_trip_lookahead_hours }} heures à partir du début de chaque journée opérationnelle.</p>
+              </div>
+              <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                <div>
+                  <span class="block text-sm font-bold text-amber-950 dark:text-amber-100">{{ $t('admin_settings.enterprise.operational_features') }}</span>
+                  <span class="block text-xs text-amber-800 dark:text-amber-300">{{ $t('admin_settings.enterprise.operational_features_hint') }}</span>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                  <label class="flex items-start justify-between gap-4 rounded-lg border border-amber-200 bg-white/70 px-3 py-3 dark:border-amber-900/50 dark:bg-slate-950/40" :class="isReadOnly ? '' : 'cursor-pointer'">
+                    <span>
+                      <span class="block text-sm font-bold text-slate-900 dark:text-slate-100">{{ $t('admin_settings.enterprise.departure_programs') }}</span>
+                      <span class="block text-xs text-slate-600 dark:text-slate-400">{{ $t('admin_settings.enterprise.departure_programs_hint') }}</span>
+                    </span>
+                    <input v-model="form.departure_programs" type="checkbox" :disabled="isReadOnly" class="mt-1 rounded border-amber-400 text-amber-600 disabled:cursor-not-allowed disabled:opacity-60" />
+                  </label>
+
+                  <label class="flex items-start justify-between gap-4 rounded-lg border border-amber-200 bg-white/70 px-3 py-3 dark:border-amber-900/50 dark:bg-slate-950/40" :class="isReadOnly ? '' : 'cursor-pointer'">
+                    <span>
+                      <span class="block text-sm font-bold text-slate-900 dark:text-slate-100">{{ $t('admin_settings.enterprise.round_trip_sales') }}</span>
+                      <span class="block text-xs text-slate-600 dark:text-slate-400">{{ $t('admin_settings.enterprise.round_trip_sales_hint') }}</span>
+                    </span>
+                    <input v-model="form.round_trip_sales" type="checkbox" :disabled="isReadOnly" class="mt-1 rounded border-amber-400 text-amber-600 disabled:cursor-not-allowed disabled:opacity-60" />
+                  </label>
+                </div>
+
+                <InputError class="mt-2" :message="form.errors.departure_programs || form.errors.round_trip_sales" />
               </div>
               <div v-if="!isReadOnly" class="rounded-xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-950/20">
                 <label class="flex items-start gap-3 cursor-pointer">

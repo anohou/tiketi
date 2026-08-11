@@ -107,6 +107,8 @@ class TripTimingService
 
         app(AutomaticConnectionAllocator::class)->allocateAllUpcoming();
 
+        app(VehiclePoolRelocationService::class)->relocateToDestinationStation($trip);
+
         return $trip->fresh();
     }
 

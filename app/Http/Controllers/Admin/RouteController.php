@@ -75,7 +75,7 @@ class RouteController extends Controller
 
         BusRoute::create($data);
 
-        return redirect()->route('admin.routes.index');
+        return back()->with('success', 'Trajet créé avec succès.');
     }
 
     public function show(BusRoute $route)

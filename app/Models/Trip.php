@@ -33,6 +33,18 @@ class Trip extends Model
         'origin_station_id',
         'destination_station_id',
         'settings',
+        'departure_schedule_id',
+        'service_date',
+        'opened_at',
+        'opened_by',
+        'sales_ready',
+        'operational_ready',
+        'planned_capacity_snapshot',
+        'vehicle_assignment_policy',
+        'seat_assignment_version',
+        'vehicle_assignment_deferred_at',
+        'vehicle_assignment_deferred_by',
+        'vehicle_assignment_deferred_reason',
     ];
 
     protected $casts = [
@@ -44,6 +56,13 @@ class Trip extends Model
         'allows_open_connections' => 'boolean',
         'automatic_connection_allocation' => 'boolean',
         'is_replicable' => 'boolean',
+        'service_date' => 'date',
+        'opened_at' => 'datetime',
+        'sales_ready' => 'boolean',
+        'operational_ready' => 'boolean',
+        'planned_capacity_snapshot' => 'integer',
+        'seat_assignment_version' => 'integer',
+        'vehicle_assignment_deferred_at' => 'datetime',
     ];
 
     protected $appends = [
@@ -224,6 +243,14 @@ class Trip extends Model
                     }
                 }
             }
+
+            // Dérivation automatique de l'état opérationnel : un car réel affecté
+            // rend le voyage exploitable ; un véhicule technique ou l'absence de
+            // véhicule le rend non exploitable. Un pilotage explicite de
+            // operational_ready (AssignRealVehicleToTrip, tests) est respecté.
+            if ($model->isDirty('vehicle_id') && ! $model->isDirty('operational_ready')) {
+                $model->operational_ready = $model->vehicle && ! $model->vehicle->is_placeholder;
+            }
         });
     }
 
@@ -300,6 +327,16 @@ class Trip extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
+    public function departureSchedule()
+    {
+        return $this->belongsTo(DepartureSchedule::class);
+    }
+
+    public function openedByUser()
+    {
+        return $this->belongsTo(User::class, 'opened_by');
+    }
+
     public function tickets()
     {
         return $this->hasMany(Ticket::class);
@@ -318,6 +355,70 @@ class Trip extends Model
     public function statusLogs()
     {
         return $this->hasMany(TripStatusLog::class);
+    }
+
+    /**
+     * Le voyage porte-t-il encore un véhicule technique de planification ?
+     */
+    public function hasPlaceholderVehicle(): bool
+    {
+        return $this->vehicle?->is_placeholder === true;
+    }
+
+    /**
+     * Capacité prévisionnelle du voyage : celle du car réel si connu,
+     * sinon l'instantané de capacité planifiée, sinon le véhicule.
+     */
+    public function capacity(): int
+    {
+        if ($this->vehicle && ! $this->vehicle->is_placeholder) {
+            return $this->vehicle->seat_count ?? $this->vehicle->vehicleType?->seat_count ?? 0;
+        }
+
+        return $this->planned_capacity_snapshot
+            ?? $this->vehicle?->seat_count
+            ?? $this->vehicle?->vehicleType?->seat_count
+            ?? 0;
+    }
+
+    /**
+     * Politique de vente effective (require_real_vehicle par défaut).
+     */
+    public function vehiclePolicy(): string
+    {
+        return $this->vehicle_assignment_policy ?: DepartureSchedule::POLICY_REQUIRE_REAL_VEHICLE;
+    }
+
+    /**
+     * La compagnie autorise la prévente sur capacité planifiée pour ce voyage.
+     */
+    public function allowsPlannedCapacitySales(): bool
+    {
+        return $this->vehiclePolicy() === DepartureSchedule::POLICY_ALLOW_PLANNED_CAPACITY;
+    }
+
+    /**
+     * Les ventes sont ouvertes sur ce voyage (car réel affecté, ou report explicite enregistré).
+     */
+    public function isSalesReady(): bool
+    {
+        return (bool) $this->sales_ready;
+    }
+
+    /**
+     * Le voyage est exploitable (car réel + prérequis opérationnels validés).
+     */
+    public function isOperationalReady(): bool
+    {
+        return (bool) $this->operational_ready;
+    }
+
+    /**
+     * Vrai tant que le car réel n'est pas affecté (véhicule technique ou aucun véhicule).
+     */
+    public function isAwaitingRealVehicle(): bool
+    {
+        return ! $this->vehicle || $this->vehicle->is_placeholder === true;
     }
 
     /**

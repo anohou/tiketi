@@ -11,6 +11,15 @@ class Ticket extends Model
 {
     use HasUuids;
 
+    public const JOURNEY_TYPE_ONE_WAY = 'one_way';
+
+    public const JOURNEY_TYPE_ROUND_TRIP = 'round_trip';
+
+    public const JOURNEY_TYPES = [
+        self::JOURNEY_TYPE_ONE_WAY,
+        self::JOURNEY_TYPE_ROUND_TRIP,
+    ];
+
     public $incrementing = false;
 
     protected $keyType = 'string';
@@ -19,6 +28,7 @@ class Ticket extends Model
         'ticket_number', 'trip_id', 'vehicle_id', 'seat_number', 'from_station_id', 'to_station_id', 'final_destination_station_id', 'transfer_station_id', 'price', 'seller_id', 'crew_member_id', 'station_id', 'status', 'boarding_group', 'qr_payload', 'passenger_name', 'passenger_phone', 'qr_code', 'cancelled_at', 'cancelled_by', 'cancellation_reason', 'settings',
         'boarded_at', 'boarded_by',
         'payment_method', 'okohi_customer_number', 'okohi_reward_id', 'okohi_transaction_id', 'gross_amount', 'discount_amount', 'amount_collected',
+        'journey_type', 'public_token', 'normal_total_amount', 'round_trip_discount_amount', 'return_valid_until', 'okohi_delivery_status',
     ];
 
     protected $casts = [
@@ -26,6 +36,9 @@ class Ticket extends Model
         'cancelled_at' => 'datetime',
         'boarded_at' => 'datetime',
         'settings' => 'array',
+        'round_trip_discount_amount' => 'integer',
+        'normal_total_amount' => 'integer',
+        'return_valid_until' => 'datetime',
     ];
 
     protected static function booted(): void
@@ -34,7 +47,19 @@ class Ticket extends Model
             if (empty($model->id)) {
                 $model->id = (string) Str::uuid();
             }
+            if (empty($model->public_token)) {
+                $model->public_token = self::generatePublicToken();
+            }
         });
+    }
+
+    /**
+     * Jeton public opaque du billet, utilisé comme référence stable du QR
+     * (format TIKETI2|{public_token}). Les anciens QR TIKETI|n°|id restent lisibles.
+     */
+    public static function generatePublicToken(): string
+    {
+        return strtoupper(bin2hex(random_bytes(16)));
     }
 
     public function scopeIssued(Builder $query): Builder
@@ -80,6 +105,21 @@ class Ticket extends Model
     public function connection()
     {
         return $this->hasOne(TicketConnection::class);
+    }
+
+    public function journeys()
+    {
+        return $this->hasMany(TicketJourney::class);
+    }
+
+    public function outboundJourney()
+    {
+        return $this->hasOne(TicketJourney::class)->where('direction', TicketJourney::DIRECTION_OUTBOUND);
+    }
+
+    public function returnJourney()
+    {
+        return $this->hasOne(TicketJourney::class)->where('direction', TicketJourney::DIRECTION_RETURN);
     }
 
     public function compensations()
@@ -134,19 +174,48 @@ class Ticket extends Model
 
     public function qrPayloadString(): string
     {
-        return implode('|', array_filter([
-            'TIKETI',
-            $this->ticket_number,
-            $this->id,
-        ]));
-    }
-
-    public function printableQrValue(?TicketSetting $settings = null): string
-    {
-        if ($settings?->hasOkohiIntegration()) {
-            return $settings->okohiScanUrl($this) ?? $this->qrPayloadString();
+        // Référence stable du billet : TIKETI2|{public_token}.
+        // Les anciens QR TIKETI|ticket_number|id restent lisibles (voir ResolveScannedJourney).
+        if (! empty($this->public_token)) {
+            return 'TIKETI2|'.$this->public_token;
         }
 
+        return 'TIKETI|'.$this->ticket_number.'|'.$this->id;
+    }
+
+    /**
+     * Retrouve un billet à partir d'une valeur QR, ancienne ou nouvelle.
+     */
+    public static function resolveFromQrValue(string $qrValue): ?self
+    {
+        $qrValue = trim($qrValue);
+
+        if (str_starts_with($qrValue, 'TIKETI2|')) {
+            $token = substr($qrValue, strlen('TIKETI2|'));
+
+            return self::where('public_token', $token)->first();
+        }
+
+        if (str_starts_with($qrValue, 'TIKETI|')) {
+            $parts = explode('|', $qrValue);
+            $ticketNumber = $parts[1] ?? null;
+
+            return $ticketNumber ? self::where('ticket_number', $ticketNumber)->first() : null;
+        }
+
+        // Un QR peut contenir l'ID brut (compatibilité maximale).
+        return self::find($qrValue);
+    }
+
+    /**
+     * Valeur QR imprimée : TOUJOURS la référence stable TIKETI2|{public_token}.
+     *
+     * L'URL de scan Okohi n'est jamais encodée dans le QR physique : Tiketi
+     * est l'unique générateur du QR et Okohi réaffiche exactement la valeur
+     * reçue (point G). Les anciens QR TIKETI|n°|id restent lisibles au scan.
+     */
+    public function printableQrValue(?TicketSetting $settings = null): string
+    {
         return $this->qrPayloadString();
     }
 }

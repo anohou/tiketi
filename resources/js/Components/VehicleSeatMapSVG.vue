@@ -340,10 +340,11 @@ const getSuggestionRank = (seatNumber) => {
   return index >= 0 ? index + 1 : 0;
 };
 
-const isSelected = (seatNumber) => props.selectedSeat === seatNumber;
+const isSelected = (seatNumber) => !props.disabled && props.selectedSeat === seatNumber;
 
 const isSeatClickable = (seat) => {
-  return !props.disabled && (!seat.isOccupied
+  if (props.disabled) return false;
+  return (!seat.isOccupied
     || seat.isOkohiPending
     || sellableSeatSet.value.has(Number(seat.number))
     || props.allowOccupiedClick);

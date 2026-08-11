@@ -17,16 +17,42 @@ class VehicleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $statusFilter = $request->query('operational_status');
+
         $vehicles = Vehicle::with([
             'vehicleType',
             'trips.route',
             'currentCrew.crewMember',
+            'currentStationAssignment.station',
         ])
             ->withCount('trips')
             ->orderBy('identifier')
             ->paginate(50);
+
+        $service = app(\App\Services\VehicleOperationalStatusService::class);
+        $operationalMap = $service->mapForVehicles($vehicles->getCollection());
+
+        $vehicles->through(function (Vehicle $vehicle) use ($operationalMap, $service) {
+            $vehicle->setAttribute('operational', $operationalMap[$vehicle->id] ?? $service->forVehicle($vehicle));
+
+            return $vehicle;
+        });
+
+        if ($statusFilter) {
+            $vehicles->setCollection(
+                $vehicles->getCollection()->filter(function (Vehicle $vehicle) use ($statusFilter) {
+                    $op = $vehicle->getAttribute('operational');
+                    return ($op['status'] ?? 'available') === $statusFilter;
+                })->values()
+            );
+        }
+
+        $operationalSummary = $service->summaryForVehicles(
+            Vehicle::query()->where('is_placeholder', false)->get(['id', 'active', 'inactive_reason'])
+        );
+
         $vehicleTypes = VehicleType::orderBy('name')->get(['id', 'name', 'seat_count']);
 
         $crewMembers = CrewMember::where('active', true)
@@ -37,6 +63,7 @@ class VehicleController extends Controller
             'vehicles' => $vehicles,
             'vehicleTypes' => $vehicleTypes,
             'crewMembers' => $crewMembers,
+            'operationalSummary' => $operationalSummary,
         ]);
     }
 

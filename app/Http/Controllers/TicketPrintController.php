@@ -25,6 +25,7 @@ class TicketPrintController extends Controller
             'transferStation',
             'connection.destinationStation',
             'seller',
+            'returnJourney',
         ])->findOrFail($ticketId);
 
         $this->authorize('print', $ticket);
@@ -58,6 +59,7 @@ class TicketPrintController extends Controller
             'transferStation',
             'connection.destinationStation',
             'seller',
+            'returnJourney',
         ])->whereIn('id', $ticketIds)->get();
 
         foreach ($tickets as $ticket) {

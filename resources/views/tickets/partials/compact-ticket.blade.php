@@ -65,12 +65,54 @@
         <div class="summary-row">
             <div class="summary-cell center seat-block">
                 <span class="seat-label">Siege</span>
-                <span class="seat-pill">{{ $ticket->seat_number }}</span>
+                @if($ticket->seat_number)
+                    <span class="seat-pill">{{ $ticket->seat_number }}</span>
+                @else
+                    <span class="seat-pill seat-pill-pending">A attribuer</span>
+                @endif
             </div>
             @if(! empty($qrCode))
                 <div class="summary-cell qr-summary"><div class="qr-code">{!! $qrCode !!}</div></div>
             @endif
         </div>
+
+        @if($ticket->journey_type === 'round_trip')
+            @php
+                $returnJourney = $ticket->returnJourney;
+                $returnModeLabel = match ($returnJourney?->selection_mode) {
+                    'fixed_schedule' => 'Retour programmé',
+                    'date_flexible' => 'Retour à date choisie',
+                    'open' => 'Retour ouvert',
+                    default => null,
+                };
+            @endphp
+            <div class="round-trip-box">
+                <div class="round-trip-title">BILLET ALLER-RETOUR — CONSERVER CE TICKET ET CE QR</div>
+                @if($returnModeLabel)
+                    <div><strong>Retour:</strong> {{ $returnModeLabel }}</div>
+                    @if($returnJourney->desired_travel_date)
+                        <div><strong>Date:</strong> {{ \Carbon\Carbon::parse($returnJourney->desired_travel_date)->format('d/m/Y') }}</div>
+                    @endif
+                    @if($returnJourney->desired_departure_time)
+                        <div><strong>Heure:</strong> {{ \Carbon\Carbon::parse($returnJourney->desired_departure_time)->format('H:i') }}</div>
+                    @endif
+                @endif
+                @if($ticket->return_valid_until)
+                    <div><strong>Valable jusqu'au:</strong> {{ $ticket->return_valid_until->format('d/m/Y') }}</div>
+                @endif
+                @if($ticket->normal_total_amount && $ticket->round_trip_discount_amount)
+                    <div><strong>Prix normal:</strong> {{ number_format($ticket->normal_total_amount, 0, ',', ' ') }} FCFA
+                        — <strong>Économie:</strong> {{ number_format($ticket->round_trip_discount_amount, 0, ',', ' ') }} FCFA</div>
+                @endif
+                @if(! $ticket->seat_number)
+                    <div class="seat-pending-note">Place attribuée avant l'embarquement</div>
+                @endif
+            </div>
+        @elseif(! $ticket->seat_number)
+            <div class="round-trip-box">
+                <div class="seat-pending-note">Place attribuée avant l'embarquement</div>
+            </div>
+        @endif
     </div>
 
     <div class="footer">

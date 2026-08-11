@@ -486,6 +486,33 @@ class TicketingFlowTest extends TestCase
             ->assertSessionHasErrors('from_station_id');
     }
 
+    public function test_admin_can_update_global_round_trip_discount_from_fare_matrix(): void
+    {
+        [$admin, , $stations] = $this->ticketingFixture();
+
+        $this->actingAs($admin)
+            ->get(route('admin.route-fares.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Admin/RouteFares/Index')
+                ->has('roundTripDiscount'));
+
+        $this->actingAs($admin)
+            ->put(route('admin.route-fares.round-trip-discount'), [
+                'round_trip_discount_amount' => 500,
+            ])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(500, OperationalSetting::current()->roundTripDiscountAmount());
+
+        $this->actingAs($admin)
+            ->put(route('admin.route-fares.round-trip-discount'), [
+                'round_trip_discount_amount' => -5,
+            ])
+            ->assertSessionHasErrors('round_trip_discount_amount');
+    }
+
     public function test_city_gps_is_copied_to_its_only_station(): void
     {
         $admin = User::factory()->create([
@@ -560,6 +587,55 @@ class TicketingFlowTest extends TestCase
         $this->assertSame(5.8374, (float) $station->latitude);
         $this->assertSame(-5.3572, (float) $station->longitude);
         $this->assertSame('Divo', $station->city);
+    }
+
+    public function test_station_workspace_quick_route_creation_returns_to_the_station_page(): void
+    {
+        if (! Schema::hasColumn('routes', 'origin_destination_id')) {
+            Schema::table('routes', function (Blueprint $table) {
+                $table->uuid('origin_destination_id')->nullable();
+                $table->uuid('target_destination_id')->nullable();
+            });
+        }
+        if (! Schema::hasColumn('routes', 'estimated_duration_minutes')) {
+            Schema::table('routes', fn (Blueprint $table) => $table->unsignedInteger('estimated_duration_minutes')->default(120));
+        }
+        if (! Schema::hasColumn('routes', 'automatic_connection_allocation')) {
+            Schema::table('routes', fn (Blueprint $table) => $table->boolean('automatic_connection_allocation')->nullable());
+        }
+
+        $admin = User::factory()->create([
+            'role' => 'admin',
+            'active' => true,
+        ]);
+        $origin = Destination::create(['name' => 'Abidjan', 'is_active' => true]);
+        $target = Destination::create(['name' => 'Gagnoa', 'is_active' => true]);
+        Station::create([
+            'name' => 'Gare Nord',
+            'code' => 'ABJ-NORD',
+            'city' => 'Abidjan',
+            'destination_id' => $origin->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.stations.index'))
+            ->post(route('admin.routes.store'), [
+                'name' => 'Abidjan - Gagnoa',
+                'origin_destination_id' => $origin->id,
+                'target_destination_id' => $target->id,
+                'estimated_duration_minutes' => 240,
+                'automatic_connection_allocation' => null,
+                'active' => true,
+            ])
+            ->assertRedirect(route('admin.stations.index'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('routes', [
+            'name' => 'Abidjan - Gagnoa',
+            'origin_destination_id' => $origin->id,
+            'target_destination_id' => $target->id,
+        ]);
     }
 
     public function test_only_station_inherits_its_city_gps_when_updated_without_coordinates(): void
@@ -2253,7 +2329,7 @@ class TicketingFlowTest extends TestCase
         });
     }
 
-    public function test_printable_qr_uses_okohi_scan_url_when_enabled(): void
+    public function test_printable_qr_always_encodes_tiketi2_token_even_when_okohi_enabled(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
 
@@ -2274,9 +2350,10 @@ class TicketingFlowTest extends TestCase
         ]);
         $settings->refresh();
 
-        $expected = 'https://okohi.test/api/v1/scan/'.$ticket->ticket_number.'/'.$ticket->price.'/'.$ticket->created_at->timestamp;
-
-        $this->assertSame($expected, $ticket->printableQrValue($settings));
+        // Point G : le QR imprimé est TOUJOURS la référence stable Tiketi,
+        // jamais l'URL de scan Okohi (Okohi réaffiche exactement la valeur reçue).
+        $this->assertSame('TIKETI2|'.$ticket->public_token, $ticket->printableQrValue($settings));
+        $this->assertSame($ticket->qrPayloadString(), $ticket->printableQrValue($settings));
     }
 
     public function test_printable_qr_is_still_printed_when_okohi_is_enabled_even_if_print_qr_code_is_false(): void
@@ -2945,6 +3022,52 @@ class TicketingFlowTest extends TestCase
             ->assertOk();
     }
 
+    public function test_only_departure_station_seller_supervisor_or_admin_can_assign_from_the_vehicle_pool(): void
+    {
+        [, $trip, $stations] = $this->ticketingFixture();
+        $pooledVehicle = $trip->vehicle;
+        $trip->update(['vehicle_id' => null]);
+        StationVehicleAssignment::create([
+            'station_id' => $stations['a']->id,
+            'vehicle_id' => $pooledVehicle->id,
+            'valid_from' => today(),
+            'valid_until' => today()->addDay(),
+            'active' => true,
+        ]);
+
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+        UserStationAssignment::create([
+            'user_id' => $seller->id,
+            'station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($seller)
+            ->getJson("/seller/trips/{$trip->id}/available-vehicles")
+            ->assertForbidden();
+
+        $this->actingAs($seller)
+            ->patchJson("/seller/trips/{$trip->id}/vehicle", ['vehicle_id' => $pooledVehicle->id])
+            ->assertForbidden();
+
+        $supervisor = User::factory()->create(['role' => 'supervisor', 'active' => true]);
+        UserStationAssignment::create([
+            'user_id' => $supervisor->id,
+            'station_id' => $stations['b']->id,
+            'active' => true,
+        ]);
+
+        $this->actingAs($supervisor)
+            ->getJson("/seller/trips/{$trip->id}/available-vehicles")
+            ->assertOk()
+            ->assertJsonPath('station.id', $stations['a']->id)
+            ->assertJsonPath('vehicles.0.id', $pooledVehicle->id);
+
+        $this->actingAs($supervisor)
+            ->patchJson("/seller/trips/{$trip->id}/vehicle", ['vehicle_id' => $pooledVehicle->id])
+            ->assertOk();
+    }
+
     public function test_vehicle_cannot_belong_to_overlapping_station_pools(): void
     {
         [$admin, $trip, $stations] = $this->ticketingFixture();
@@ -2968,6 +3091,7 @@ class TicketingFlowTest extends TestCase
         ]);
 
         $this->actingAs($admin)
+            ->withHeader('X-Inertia-Error-Bag', 'vehicleAssignment')
             ->from('/fleet/station-vehicle-assignments')
             ->post('/fleet/station-vehicle-assignments', [
                 'station_id' => $stations['b']->id,
@@ -2978,7 +3102,9 @@ class TicketingFlowTest extends TestCase
                 'active' => true,
             ])
             ->assertRedirect('/fleet/station-vehicle-assignments')
-            ->assertSessionHasErrors('vehicle_id');
+            ->assertSessionHasErrors([
+                'vehicle_id' => "Ce véhicule appartient déjà au pool de {$stations['a']->name} sur cette période.",
+            ]);
     }
 
     public function test_station_vehicle_pool_list_can_be_filtered_by_station_vehicle_and_keyword(): void
@@ -3014,6 +3140,7 @@ class TicketingFlowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Fleet/StationVehicleAssignments/Index')
                 ->has('assignments.data', 1)
+                ->where('stats.stationVehicleAssignments', 2)
                 ->where('assignments.data.0.vehicle_id', $otherVehicle->id)
                 ->where('filters.station_id', $stations['b']->id)
                 ->where('filters.vehicle_id', $otherVehicle->id)
@@ -3667,8 +3794,21 @@ class TicketingFlowTest extends TestCase
                 $table->boolean('allows_open_connections')->default(false);
                 $table->boolean('automatic_connection_allocation')->nullable();
                 $table->boolean('is_replicable')->default(false);
+                $table->uuid('departure_schedule_id')->nullable()->index();
+                $table->date('service_date')->nullable()->index();
+                $table->timestamp('opened_at')->nullable();
+                $table->uuid('opened_by')->nullable();
+                $table->boolean('sales_ready')->default(false);
+                $table->boolean('operational_ready')->default(false);
+                $table->unsignedInteger('planned_capacity_snapshot')->nullable();
+                $table->string('vehicle_assignment_policy')->default('require_real_vehicle');
+                $table->unsignedInteger('seat_assignment_version')->default(0);
+                $table->timestamp('vehicle_assignment_deferred_at')->nullable();
+                $table->uuid('vehicle_assignment_deferred_by')->nullable();
+                $table->string('vehicle_assignment_deferred_reason')->nullable();
                 $table->json('settings')->nullable();
                 $table->timestamps();
+                $table->unique(['departure_schedule_id', 'service_date'], 'uniq_schedule_service_date');
             });
         }
 
@@ -3703,6 +3843,12 @@ class TicketingFlowTest extends TestCase
                 $table->integer('gross_amount')->nullable();
                 $table->integer('discount_amount')->nullable();
                 $table->integer('amount_collected')->nullable();
+                $table->string('journey_type')->default('one_way')->index();
+                $table->string('public_token')->nullable()->unique();
+                $table->integer('normal_total_amount')->nullable();
+                $table->integer('round_trip_discount_amount')->default(0);
+                $table->timestamp('return_valid_until')->nullable();
+                $table->string('okohi_delivery_status')->default('not_requested')->index();
                 $table->timestamps();
             });
         }
@@ -3819,6 +3965,61 @@ class TicketingFlowTest extends TestCase
                 $table->uuid('changed_by_user_id')->nullable()->index();
                 $table->uuid('changed_by_crew_member_id')->nullable()->index();
                 $table->text('note')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('ticket_journeys')) {
+            Schema::create('ticket_journeys', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('ticket_id')->index();
+                $table->string('direction')->index();
+                $table->uuid('from_station_id')->index();
+                $table->uuid('to_station_id')->index();
+                $table->string('selection_mode')->default('fixed_trip');
+                $table->uuid('departure_schedule_id')->nullable()->index();
+                $table->date('desired_travel_date')->nullable()->index();
+                $table->time('desired_departure_time')->nullable();
+                $table->uuid('trip_id')->nullable()->index();
+                $table->uuid('vehicle_id')->nullable()->index();
+                $table->unsignedInteger('seat_number')->nullable();
+                $table->string('seat_assignment_status')->default('unassigned');
+                $table->string('status')->default('pending')->index();
+                $table->timestamp('valid_from')->nullable();
+                $table->timestamp('valid_until')->nullable();
+                $table->timestamp('assigned_at')->nullable();
+                $table->uuid('assigned_by')->nullable();
+                $table->timestamp('boarded_at')->nullable();
+                $table->uuid('boarded_by')->nullable();
+                $table->timestamp('completed_at')->nullable();
+                $table->json('settings')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('departure_schedules')) {
+            Schema::create('departure_schedules', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->uuid('station_id')->index();
+                $table->uuid('route_id')->index();
+                $table->uuid('origin_station_id')->index();
+                $table->uuid('destination_station_id')->index();
+                $table->time('departure_time');
+                $table->json('days_of_week');
+                $table->date('valid_from');
+                $table->date('valid_until')->nullable();
+                $table->string('timezone')->default('UTC');
+                $table->unsignedInteger('planned_capacity')->nullable();
+                $table->unsignedInteger('confirmed_return_quota')->nullable();
+                $table->uuid('default_vehicle_type_id')->index();
+                $table->string('vehicle_assignment_policy')->nullable();
+                $table->string('booking_type')->default('seat_assignment');
+                $table->string('sales_control')->default('open');
+                $table->boolean('allows_open_connections')->default(false);
+                $table->boolean('automatic_connection_allocation')->default(false);
+                $table->boolean('active')->default(true);
+                $table->json('settings')->nullable();
+                $table->uuid('created_by')->nullable();
                 $table->timestamps();
             });
         }

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import TextInput from '@/Components/TextInput.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import DialogModal from '@/Components/DialogModal.vue';
@@ -36,6 +37,10 @@ const props = defineProps({
   trips: {
     type: Object,
     default: () => ({ data: [] })
+  },
+  departureProgramsEnabled: {
+    type: Boolean,
+    default: false
   },
   routes: {
     type: Array,
@@ -633,8 +638,7 @@ const handlePrint = () => {
               
               <!-- Filters -->
               <div class="grid grid-cols-3 gap-2">
-                <input 
-                  type="date" 
+                <AppDatePicker
                   v-model="dateFilter"
                   class="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] focus:outline-none focus:border-emerald-400 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                   title="Filtrer par date"
@@ -1048,18 +1052,21 @@ const handlePrint = () => {
           <label class="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
             <input v-model="form.allows_open_connections" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
             <span>
-              <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Correspondances ouvertes</span>
+              <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Autoriser les correspondances</span>
               <span class="block text-xs text-slate-500 dark:text-slate-400">Permet de vendre un billet vers une autre destination via une gare commune où le passager change de voyage.</span>
             </span>
           </label>
 
-          <label class="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
+          <label v-if="!departureProgramsEnabled" class="flex items-start gap-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3 cursor-pointer">
             <input v-model="form.is_replicable" type="checkbox" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
             <span>
               <span class="block text-sm font-medium text-slate-900 dark:text-slate-100">Voyage réplicable (récurrent)</span>
               <span class="block text-xs text-slate-500 dark:text-slate-400">Ce voyage sera automatiquement recréé chaque jour à minuit (sans bus ni équipage affectés).</span>
             </span>
           </label>
+          <div v-else class="rounded-xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/60 dark:bg-emerald-950/30 p-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            Les récurrences passent désormais par les programmes de départ (cron nocturne). L’ancienne case « voyage récurrent » est désactivée pour ce tenant.
+          </div>
 
           <div>
             <InputLabel for="admin_trip_auto_allocation" value="Allocation automatique" />

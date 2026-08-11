@@ -24,6 +24,7 @@ class Vehicle extends Model
         'active',
         'inactive_reason',
         'insurance_expiry_date',
+        'is_placeholder',
         'settings',
     ];
 
@@ -31,6 +32,7 @@ class Vehicle extends Model
         'door_positions' => 'array',
         'active' => 'boolean',
         'insurance_expiry_date' => 'date',
+        'is_placeholder' => 'boolean',
         'settings' => 'array',
     ];
 
@@ -41,11 +43,32 @@ class Vehicle extends Model
                 $model->id = (string) Str::uuid();
             }
         });
+
+        static::updated(function (self $model): void {
+            if ($model->wasChanged('active') && ! $model->active) {
+                app(\App\Services\VehiclePoolRelocationService::class)->returnToGeneralPool($model);
+            }
+        });
     }
 
     public function trips()
     {
         return $this->hasMany(Trip::class);
+    }
+
+    public function currentDepartedTrip()
+    {
+        return $this->hasOne(Trip::class)
+            ->where('status', 'departed')
+            ->latest('departure_at');
+    }
+
+    public function upcomingScheduledTrip()
+    {
+        return $this->hasOne(Trip::class)
+            ->whereIn('status', ['scheduled', 'boarding'])
+            ->where('departure_at', '>=', now()->subHours(2))
+            ->oldest('departure_at');
     }
 
     public function vehicleType()
@@ -65,6 +88,13 @@ class Vehicle extends Model
         return $this->hasMany(StationVehicleAssignment::class);
     }
 
+    public function currentStationAssignment()
+    {
+        return $this->hasOne(StationVehicleAssignment::class)
+            ->where('active', true)
+            ->latest('updated_at');
+    }
+
     public function crewAssignments()
     {
         return $this->hasMany(VehicleCrewAssignment::class);
@@ -76,6 +106,14 @@ class Vehicle extends Model
     public function currentCrew()
     {
         return $this->hasMany(VehicleCrewAssignment::class)->atDate(now());
+    }
+
+    /**
+     * Véhicule technique de planification (jamais un car exploitable).
+     */
+    public function isPlanningPlaceholder(): bool
+    {
+        return (bool) $this->is_placeholder;
     }
 
     /**

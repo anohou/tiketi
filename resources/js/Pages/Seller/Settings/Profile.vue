@@ -25,6 +25,7 @@ const props = defineProps({
     :title="$t('seller_settings.cards.profile.title')"
     :subtitle="$t('seller_settings.cards.profile.description') + ' (' + $t('common.read_only', 'lecture seule') + ')'"
     :icon="AccountHardHat"
+    :stats="props.stats"
   >
     <div class="grid max-w-4xl content-start gap-4 lg:grid-cols-3">
       <div class="lg:col-span-2">

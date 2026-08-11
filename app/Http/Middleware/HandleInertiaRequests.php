@@ -3,10 +3,12 @@
 namespace App\Http\Middleware;
 
 use App\Models\CrewMember;
+use App\Models\DepartureSchedule;
 use App\Models\Destination;
 use App\Models\Route;
 use App\Models\RouteFare;
 use App\Models\Station;
+use App\Models\StationVehicleAssignment;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\UserStationAssignment;
@@ -70,6 +72,8 @@ class HandleInertiaRequests extends Middleware
                     'vehicleTypes' => 0,
                     'trips' => 0,
                     'fares' => 0,
+                    'departureSchedules' => 0,
+                    'stationVehicleAssignments' => 0,
                     'users' => User::where('role', 'seller')
                         ->where(function ($q) use ($stationIds) {
                             $q->whereHas('stationAssignments', function ($sq) use ($stationIds) {
@@ -87,6 +91,43 @@ class HandleInertiaRequests extends Middleware
                     'crewMembers' => 0,
                     'crewAssignments' => 0,
                 ];
+            } elseif ($user->role === 'seller') {
+                $stationIds = $user->getActiveStationIds();
+                $routeIds = $user->accessibleRoutesQuery()->pluck('id');
+
+                $settingsStats = [
+                    'stations' => count($stationIds),
+                    'destinations' => $user->accessibleRoutesQuery()
+                        ->with('destinationStation:id')
+                        ->get()
+                        ->pluck('destinationStation.id')
+                        ->filter()
+                        ->unique()
+                        ->count(),
+                    'routes' => $routeIds->count(),
+                    'vehicles' => StationVehicleAssignment::query()
+                        ->whereIn('station_id', $stationIds)
+                        ->activeOn()
+                        ->count(),
+                    'vehicleTypes' => 0,
+                    'trips' => Trip::whereIn('route_id', $routeIds)
+                        ->where('departure_at', '>=', now()->subHours(2))
+                        ->count(),
+                    'fares' => 0,
+                    'departureSchedules' => DepartureSchedule::whereIn('station_id', $stationIds)->count(),
+                    'stationVehicleAssignments' => StationVehicleAssignment::whereIn('station_id', $stationIds)->activeOn()->count(),
+                    'users' => 0,
+                    'assignments' => UserStationAssignment::whereIn('station_id', $stationIds)
+                        ->where('active', true)
+                        ->count(),
+                    'crewMembers' => 0,
+                    'crewAssignments' => 0,
+                    'team' => User::whereIn('role', ['seller', 'supervisor'])
+                        ->whereHas('stationAssignments', fn ($query) => $query
+                            ->whereIn('station_id', $stationIds)
+                            ->where('active', true))
+                        ->count(),
+                ];
             } else {
                 $settingsStats = [
                     'stations' => Station::count(),
@@ -96,6 +137,8 @@ class HandleInertiaRequests extends Middleware
                     'vehicleTypes' => VehicleType::count(),
                     'trips' => Trip::count(),
                     'fares' => RouteFare::count(),
+                    'departureSchedules' => DepartureSchedule::count(),
+                    'stationVehicleAssignments' => StationVehicleAssignment::activeOn()->count(),
                     'users' => User::count(),
                     'assignments' => UserStationAssignment::count(),
                     'crewMembers' => CrewMember::count(),

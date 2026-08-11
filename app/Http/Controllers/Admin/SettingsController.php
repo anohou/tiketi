@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CrewMember;
+use App\Models\DepartureSchedule;
 use App\Models\Destination;
 use App\Models\OperationalSetting;
 use App\Models\Route;
@@ -60,8 +61,14 @@ class SettingsController extends Controller
 
     public function enterprise()
     {
+        $tenant = tenant();
+
         return Inertia::render('Admin/Settings/Enterprise', [
-            'tenant' => tenant(),
+            'tenant' => $tenant,
+            'featureFlags' => [
+                'departure_programs' => $tenant->departureProgramsEnabled(),
+                'round_trip_sales' => $tenant->roundTripSalesEnabled(),
+            ],
             'stats' => $this->settingsStats(),
             'operationalSettings' => OperationalSetting::current(),
         ]);
@@ -82,6 +89,9 @@ class SettingsController extends Controller
             'scheduled_trip_lookahead_hours' => 'required|integer|min:1|max:168',
             'seller_compensation_enabled' => 'required|boolean',
             'seller_compensation_max_amount' => 'required|integer|min:0',
+            'default_vehicle_assignment_policy' => 'nullable|in:require_real_vehicle,allow_planned_capacity',
+            'departure_programs' => 'required|boolean',
+            'round_trip_sales' => 'required|boolean',
         ]);
 
         if ($request->hasFile('logo')) {
@@ -108,6 +118,10 @@ class SettingsController extends Controller
         $tenant->name = $request->name;
         $tenant->email = $request->email;
         $tenant->phone = $request->phone;
+        $tenant->mergeFeatureFlags([
+            'departure_programs' => $request->boolean('departure_programs'),
+            'round_trip_sales' => $request->boolean('round_trip_sales'),
+        ]);
 
         $tenant->save();
 
@@ -120,6 +134,7 @@ class SettingsController extends Controller
                 'seller_compensation_max_amount' => (int) $request->input('seller_compensation_max_amount', 0),
                 'operational_day_start_hour' => (int) $request->input('operational_day_start_hour'),
                 'scheduled_trip_lookahead_hours' => (int) $request->input('scheduled_trip_lookahead_hours'),
+                'default_vehicle_assignment_policy' => $request->input('default_vehicle_assignment_policy', 'require_real_vehicle'),
             ]),
         ]);
 
@@ -670,6 +685,7 @@ class SettingsController extends Controller
             'vehicleTypes' => 0,
             'trips' => 0,
             'fares' => 0,
+            'departureSchedules' => 0,
             'users' => 0,
             'assignments' => 0,
             'crewMembers' => 0,
@@ -753,6 +769,7 @@ class SettingsController extends Controller
             'vehicleTypes' => VehicleType::count(),
             'trips' => Trip::count(),
             'fares' => RouteFare::count(),
+            'departureSchedules' => DepartureSchedule::count(),
             'users' => User::count(),
             'assignments' => UserStationAssignment::count(),
             'crewMembers' => CrewMember::count(),

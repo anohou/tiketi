@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Station;
 use App\Models\StationVehicleAssignment;
 use App\Models\Vehicle;
+use App\Services\VehicleOperationalStatusService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -21,9 +23,10 @@ class StationVehicleAssignmentController extends Controller
             'search' => ['nullable', 'string', 'max:100'],
             'station_id' => ['nullable', 'uuid'],
             'vehicle_id' => ['nullable', 'uuid'],
+            'operational_status' => ['nullable', 'string'],
         ]);
 
-        $assignments = StationVehicleAssignment::query()
+        $query = StationVehicleAssignment::query()
             ->with(['station', 'vehicle.vehicleType'])
             ->when($filters['station_id'] ?? null, fn (Builder $query, string $stationId) => $query->where('station_id', $stationId))
             ->when($filters['vehicle_id'] ?? null, fn (Builder $query, string $vehicleId) => $query->where('vehicle_id', $vehicleId))
@@ -44,19 +47,96 @@ class StationVehicleAssignmentController extends Controller
             })
             ->orderByDesc('active')
             ->orderBy('station_id')
-            ->orderBy('vehicle_id')
-            ->paginate(40)
-            ->withQueryString();
+            ->orderBy('vehicle_id');
+
+        $assignments = $query->paginate(40)->withQueryString();
+
+        // Si aucune gare spécifique n'est sélectionnée, inclure les véhicules actifs non affectés
+        if (empty($filters['station_id'])) {
+            $assignedVehicleIds = StationVehicleAssignment::query()
+                ->where('active', true)
+                ->pluck('vehicle_id')
+                ->all();
+
+            $unassignedVehicles = Vehicle::with('vehicleType')
+                ->where('active', true)
+                ->where('is_placeholder', false)
+                ->whereNotIn('id', $assignedVehicleIds)
+                ->when($filters['vehicle_id'] ?? null, fn ($q, $vId) => $q->where('id', $vId))
+                ->when($filters['search'] ?? null, function ($q, $search) {
+                    $term = '%'.trim($search).'%';
+                    $q->where(function ($sub) use ($term) {
+                        $sub->whereLike('identifier', $term, caseSensitive: false)
+                            ->orWhereLike('maker', $term, caseSensitive: false)
+                            ->orWhereHas('vehicleType', fn ($type) => $type->whereLike('name', $term, caseSensitive: false));
+                    });
+                })
+                ->get();
+
+            $collection = $assignments->getCollection();
+            foreach ($unassignedVehicles as $vehicle) {
+                $virtual = new StationVehicleAssignment([
+                    'id' => 'unassigned-'.$vehicle->id,
+                    'station_id' => null,
+                    'vehicle_id' => $vehicle->id,
+                    'valid_from' => null,
+                    'valid_until' => null,
+                    'active' => false,
+                    'notes' => 'Non affecté à une gare',
+                ]);
+                $virtual->setRelation('station', null);
+                $virtual->setRelation('vehicle', $vehicle);
+                $virtual->setAttribute('is_unassigned', true);
+
+                $collection->push($virtual);
+            }
+            $assignments->setCollection($collection);
+        }
+
+        $service = app(VehicleOperationalStatusService::class);
+
+        $allVehicles = $assignments->getCollection()->pluck('vehicle')->filter();
+        $operationalMap = $service->mapForVehicles($allVehicles);
+
+        $assignments->through(function (StationVehicleAssignment $assignment) use ($operationalMap, $service) {
+            $op = $operationalMap[$assignment->vehicle_id]
+                ?? ($assignment->vehicle ? $service->forVehicle($assignment->vehicle) : null);
+
+            $assignment->setAttribute('operational', $op);
+            if ($assignment->vehicle) {
+                $assignment->vehicle->setAttribute('operational', $op);
+            }
+
+            return $assignment;
+        });
+
+        if (! empty($filters['operational_status'])) {
+            $targetStatus = $filters['operational_status'];
+            $assignments->setCollection(
+                $assignments->getCollection()->filter(function (StationVehicleAssignment $assignment) use ($targetStatus) {
+                    $op = $assignment->getAttribute('operational');
+
+                    return ($op['status'] ?? 'available') === $targetStatus;
+                })->values()
+            );
+        }
+
+        $operationalSummary = $service->summaryForVehicles($this->fleetVehiclesQuery());
 
         return Inertia::render('Fleet/StationVehicleAssignments/Index', [
             'assignments' => $assignments,
             'stations' => Station::where('active', true)->orderBy('name')->get(['id', 'name', 'city', 'code']),
-            'vehicles' => Vehicle::with('vehicleType')->where('active', true)->orderBy('identifier')
+            'vehicles' => Vehicle::with('vehicleType')->where('active', true)->where('is_placeholder', false)->orderBy('identifier')
                 ->get(['id', 'identifier', 'maker', 'seat_count', 'vehicle_type_id']),
+            'operationalSummary' => $operationalSummary,
+            'stats' => [
+                'stationVehicleAssignments' => StationVehicleAssignment::activeOn()->count(),
+            ],
             'filters' => [
                 'search' => $filters['search'] ?? '',
                 'station_id' => $filters['station_id'] ?? '',
                 'vehicle_id' => $filters['vehicle_id'] ?? '',
+                'operational_status' => $filters['operational_status'] ?? '',
             ],
         ]);
     }
@@ -131,5 +211,26 @@ class StationVehicleAssignmentController extends Controller
                 'vehicle_id' => "Ce véhicule appartient déjà au pool de {$conflict->station->name} sur cette période.",
             ]);
         }
+    }
+
+    /**
+     * Flotte concernée par l'écran, limitée aux véhicules du gestionnaire
+     * pour le rôle fleet_manager (les placeholders techniques sont exclus).
+     */
+    private function fleetVehiclesQuery(): Collection
+    {
+        $query = Vehicle::query()
+            ->where('is_placeholder', false)
+            ->get(['id', 'active', 'inactive_reason']);
+
+        $user = auth()->user();
+        if ($user && $user->role === 'fleet_manager') {
+            $query = Vehicle::query()
+                ->where('is_placeholder', false)
+                ->whereHas('managers', fn (Builder $query) => $query->where('users.id', $user->id))
+                ->get(['id', 'active', 'inactive_reason']);
+        }
+
+        return $query;
     }
 }

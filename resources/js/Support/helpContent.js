@@ -786,8 +786,8 @@ const helpTopics = [
         body: 'Les tarifs déterminent le montant du ticket au moment de la vente. Si aucun tarif actif n’existe entre deux gares, la vente est bloquée.',
       },
       {
-        title: 'Tarif bidirectionnel',
-        body: 'Un tarif bidirectionnel peut être utilisé dans les deux sens. Désactivez cette option si le prix doit être différent selon le sens du voyage.',
+        title: 'Tarif valable dans les deux sens',
+        body: 'Un tarif valable dans les deux sens peut être utilisé pour les deux directions. Désactivez cette option si le prix doit être différent selon le sens du voyage.',
       },
     ],
   },

@@ -18,6 +18,7 @@ class TripSeatOccupancy extends Model
         'trip_id',
         'seat_number',
         'ticket_id',
+        'ticket_journey_id',
         'from_station_id',
         'to_station_id',
         'okohi_reward_request_id',

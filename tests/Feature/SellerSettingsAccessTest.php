@@ -113,6 +113,38 @@ class SellerSettingsAccessTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
+    public function test_seller_menu_counts_match_the_scoped_landing_page_counts(): void
+    {
+        $seller = $this->makeUser('seller');
+        [$stationA, $stationB] = $this->makeStations();
+        UserStationAssignment::create(['user_id' => $seller->id, 'station_id' => $stationA->id, 'active' => true]);
+
+        $colleague = $this->makeUser('seller');
+        UserStationAssignment::create(['user_id' => $colleague->id, 'station_id' => $stationA->id, 'active' => true]);
+
+        $distantSeller = $this->makeUser('seller');
+        UserStationAssignment::create(['user_id' => $distantSeller->id, 'station_id' => $stationB->id, 'active' => true]);
+
+        $accessibleRoute = Route::create(['name' => 'Trajet accessible', 'origin_station_id' => $stationA->id, 'destination_station_id' => $stationB->id, 'active' => true]);
+        Route::create(['name' => 'Trajet distant', 'origin_station_id' => $stationB->id, 'destination_station_id' => $stationB->id, 'active' => true]);
+
+        Trip::create(['code' => 'V1', 'route_id' => $accessibleRoute->id, 'origin_station_id' => $stationA->id, 'destination_station_id' => $stationB->id, 'departure_at' => now()->addHour(), 'status' => 'scheduled', 'total_seats' => 50]);
+
+        $vehicle = $this->makeVehicle('BUS-A');
+        StationVehicleAssignment::create(['station_id' => $stationA->id, 'vehicle_id' => $vehicle->id, 'active' => true, 'valid_from' => now()->toDateString()]);
+
+        $this->actingAs($seller)
+            ->get(route('seller.settings.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('stats.stations', 1)
+                ->where('stats.routes', 1)
+                ->where('stats.vehicles', 1)
+                ->where('stats.team', 2)
+                ->where('stats.assignments', 2)
+                ->where('stats.trips', 1));
+    }
+
     public function test_stations_page_is_limited_to_assigned_stations(): void
     {
         $seller = $this->makeUser('seller');

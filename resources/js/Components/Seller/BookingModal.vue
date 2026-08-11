@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput.vue';
+import AppDatePicker from '@/Components/AppDatePicker.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
@@ -79,11 +80,29 @@ const props = defineProps({
   connectionOptions: { type: Array, default: () => [] },
   finalDestinationStationId: { type: String, default: null },
   connectionRouteId: { type: String, default: null },
+  // Aller-retour (Phase 3)
+  journeyType: { type: String, default: 'one_way' },
+  returnMode: { type: String, default: 'date_flexible' },
+  returnScheduleId: { type: String, default: '' },
+  returnDate: { type: String, default: '' },
+  returnTime: { type: String, default: '' },
+  // Point 4 : flag serveur — masque l'aller-retour quand désactivé.
+  roundTripSalesEnabled: { type: Boolean, default: true },
+  // Vente sans car (point D) : quantité sans siège.
+  quantitySale: { type: Boolean, default: false },
+  roundTripDiscountAmount: { type: Number, default: 0 },
+  returnSchedules: { type: Array, default: () => [] },
+  perTicketAmount: { type: Number, default: 0 },
+  returnFareAmount: { type: Number, default: 0 },
+  roundTripSavings: { type: Number, default: 0 },
+  compatibleReturnSchedules: { type: Array, default: () => [] },
   // Okohi reward claim waiting state
   okohiClaimId: { type: String, default: null },
   okohiRewardTitle: { type: String, default: null },
   okohiClaimExpiresAt: { type: String, default: null },
   initialOkohiRequest: { type: Object, default: null },
+  // Point 3 : identité Okohi VÉRIFIÉE (numéro canonique) — v-model.
+  verifiedOkohiCustomerNumber: { type: String, default: null },
 });
 
 const emit = defineEmits([
@@ -94,6 +113,12 @@ const emit = defineEmits([
   'update:showPassengerFields',
   'update:finalDestinationStationId',
   'update:connectionRouteId',
+  'update:journeyType',
+  'update:returnMode',
+  'update:returnScheduleId',
+  'update:returnDate',
+  'update:returnTime',
+  'update:verifiedOkohiCustomerNumber',
   'okohi-claim-approved',
   'okohi-claim-rejected',
   'okohi-claim-expired',
@@ -102,6 +127,21 @@ const emit = defineEmits([
 ]);
 
 const { t } = useI18n();
+
+// Produit simplifié : UN SEUL mode de retour (date_flexible — date fixée à la
+// vente, heure déterminée à la gare le jour du départ). Avec la remise
+// globale, ce mode est toujours autorisé.
+const returnDateAllowed = computed(() => true);
+
+// Si l'offre choisie interdit la date flexible, on revient à un aller simple.
+watch(returnDateAllowed, (allowed) => {
+  if (!allowed && props.journeyType === 'round_trip') {
+    emit('update:journeyType', 'one_way');
+    emit('update:returnScheduleId', '');
+    emit('update:returnDate', '');
+    emit('update:returnTime', '');
+  }
+}, { immediate: true });
 
 const okohiRequest = ref(props.initialOkohiRequest);
 const isDestinationMode = computed(() => props.mode === 'destination' && !okohiRequest.value);
@@ -117,11 +157,24 @@ const quantityLimit = computed(() => {
 
   return stationLimit;
 });
-const canConfirmBooking = computed(() => !!props.selectedFare
-  && props.selectedSeatNumber !== null
-  && quantityLimit.value > 0
-  && props.ticketQuantity <= quantityLimit.value
-  && (props.ticketQuantity === 1 || props.seatsToBook.length === props.ticketQuantity));
+const canConfirmBooking = computed(() => {
+  if (!props.selectedFare) return false;
+
+  if (props.journeyType === 'round_trip') {
+    // Mode unique : le retour exige une date fixée à la vente.
+    if (!props.roundTripSalesEnabled || !props.returnDate) {
+      return false;
+    }
+  }
+
+  if (props.quantitySale) {
+    return props.ticketQuantity >= 1 && props.ticketQuantity <= quantityLimit.value;
+  }
+  return props.selectedSeatNumber !== null
+    && quantityLimit.value > 0
+    && props.ticketQuantity <= quantityLimit.value
+    && (props.ticketQuantity === 1 || props.seatsToBook.length === props.ticketQuantity);
+});
 const modalRef = ref(null);
 const dragHandleRef = ref(null);
 const isDragging = ref(false);
@@ -455,6 +508,9 @@ watch(() => props.visible, (visible) => {
   if (visible) {
     showConnections.value = !!finalDestinationModel.value;
     connectionSearch.value = '';
+  } else {
+    // Point 3 : fermeture du modal → aucune identité vérifiée ne persiste.
+    emit('update:verifiedOkohiCustomerNumber', null);
   }
 });
 
@@ -484,6 +540,9 @@ const routeLabel = computed(() => {
 });
 
 const amountLabel = computed(() => {
+  if (props.journeyType === 'round_trip') {
+    return `${Number(props.perTicketAmount || 0).toLocaleString('fr-FR')} FCFA`;
+  }
   if (useOkohi.value && okohiAmounts.value) {
     return `${okohiAmounts.value.net.toLocaleString('fr-FR')} FCFA`;
   }
@@ -492,6 +551,9 @@ const amountLabel = computed(() => {
 });
 
 const totalLabel = computed(() => {
+  if (props.journeyType === 'round_trip') {
+    return `${(Number(props.perTicketAmount || 0) * props.ticketQuantity).toLocaleString('fr-FR')} FCFA`;
+  }
   if (useOkohi.value && okohiAmounts.value) {
     return `${okohiAmounts.value.net.toLocaleString('fr-FR')} FCFA`;
   }
@@ -614,6 +676,8 @@ const searchOkohiCustomer = async () => {
   okohiSearchError.value = null;
   okohiCustomer.value = null;
   selectedReward.value = null;
+  // La vérification précédente n'est plus valable pendant la recherche.
+  emit('update:verifiedOkohiCustomerNumber', null);
 
   try {
     const response = await axios.get(route('seller.okohi.customer', { customerNumber: okohiCardNumber.value.trim().toUpperCase() }));
@@ -621,13 +685,37 @@ const searchOkohiCustomer = async () => {
     if (okohiCustomer.value && props.passengerForm && !props.passengerForm.name) {
       props.passengerForm.name = okohiCustomerName.value;
     }
+    // Point 3 : seuls les numéros VÉRIFIÉS (retournés par le serveur) sont
+    // rattachés à la vente — jamais la simple saisie du vendeur. Le contrat
+    // réel est { customer: { customer_number } } ; des fallbacks couvrent les
+    // anciens contrats.
+    const rawCanonical = okohiCustomer.value?.customer?.customer_number
+      ?? okohiCustomer.value?.customer_number
+      ?? okohiCustomer.value?.okohi_customer_number
+      ?? null;
+
+    const canonical = rawCanonical ? String(rawCanonical).trim().toUpperCase() : null;
+
+    if (canonical && /^OKH-[A-Za-z0-9]{4,32}$/.test(canonical)) {
+      emit('update:verifiedOkohiCustomerNumber', canonical);
+    } else {
+      // Pas de numéro canonique exploitable : aucun rattachement.
+      emit('update:verifiedOkohiCustomerNumber', null);
+    }
   } catch (error) {
     console.error(error);
     okohiSearchError.value = error.response?.data?.error || 'Client introuvable ou erreur de connexion.';
+    // Recherche échouée : aucune identité vérifiée ne doit rester rattachée.
+    emit('update:verifiedOkohiCustomerNumber', null);
   } finally {
     isOkohiSearching.value = false;
   }
 };
+
+// Point 3 : toute modification de la saisie invalide la vérification précédente.
+watch(okohiCardNumber, () => {
+  emit('update:verifiedOkohiCustomerNumber', null);
+});
 
 const initiateOkohiRequest = async () => {
   if (!selectedReward.value) return;
@@ -661,6 +749,13 @@ const initiateOkohiRequest = async () => {
   } finally {
     processingOkohi.value = false;
   }
+};
+
+const confirmStandardSale = () => {
+  // L'identification Okohi reste attachée au billet, mais une récompense
+  // éventuellement sélectionnée ne doit jamais modifier une vente normale.
+  selectedReward.value = null;
+  emit('confirm');
 };
 
 const startCountdown = () => {
@@ -1212,6 +1307,32 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
 
+                <!-- Point 3 : client Okohi VÉRIFIÉ rattaché à la vente (vente
+                     normale, sans récompense) — numéro canonique du serveur. -->
+                <div
+                  v-if="useOkohi && props.verifiedOkohiCustomerNumber"
+                  class="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-2.5 dark:border-emerald-800 dark:bg-emerald-950/40"
+                  :class="isOkohiExpanded ? 'md:col-start-2' : ''"
+                >
+                  <div class="flex items-center gap-2 min-w-0">
+                    <CheckCircle :size="16" class="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                        {{ $t('ticketing.booking_modal.verified_customer') }}
+                      </p>
+                      <p class="truncate font-mono text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                        {{ props.verifiedOkohiCustomerNumber }}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    @click="emit('update:verifiedOkohiCustomerNumber', null)"
+                    class="shrink-0 px-2 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/50 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-300 text-[11px] font-bold transition-colors cursor-pointer"
+                  >
+                    {{ $t('ticketing.booking_modal.remove') }}
+                  </button>
+                </div>
                 <!-- QUANTITY SELECTOR -->
                 <div v-if="!useOkohi" class="mt-3 md:mt-4 flex items-center justify-center gap-2 md:gap-3 bg-white/35 dark:bg-slate-900/35 rounded-2xl p-2.5 md:p-3 border border-white/60 dark:border-slate-800/80">
                   <span class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ $t('ticketing.booking_modal.quantity') }}</span>
@@ -1240,6 +1361,9 @@ onBeforeUnmount(() => {
                   {{ $t('ticketing.booking_modal.sellable_seats', { count: maxSellableQuantity }) }}
                   <span v-if="maxSellableQuantity > 10"> {{ $t('ticketing.booking_modal.max_per_sale') }}</span>
                 </p>
+                <p v-else-if="!useOkohi && quantitySale" class="mt-1 text-center text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  {{ $t('ticketing.booking_modal.quantity_sale_hint') }}
+                </p>
                 <p v-else-if="!useOkohi" class="mt-1 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
                   {{ $t('ticketing.booking_modal.seats_selected', { count: seatsToBook.length }) }}
                 </p>
@@ -1248,6 +1372,51 @@ onBeforeUnmount(() => {
                 </div>
                 <div v-if="!useOkohi && ticketQuantityModel > 1" class="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-300 mt-2">
                   {{ $t('ticketing.booking_modal.total') }} {{ totalLabel }}
+                </div>
+              </div>
+
+              <!-- ALLER SIMPLE / ALLER-RETOUR (Phase 3) -->
+              <div v-if="!useOkohi || props.verifiedOkohiCustomerNumber" class="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/55 dark:bg-slate-950/40 p-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{{ $t('ticketing.booking_modal.ticket_type') }}</span>
+                  <div class="flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white p-0.5 dark:bg-slate-900">
+                    <button
+                      type="button"
+                      class="rounded-md px-2.5 py-1 text-[11px] font-bold transition"
+                      :class="journeyType === 'one_way' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                      @click="$emit('update:journeyType', 'one_way')"
+                    >{{ $t('ticketing.booking_modal.one_way') }}</button>
+                    <button
+                      v-if="roundTripSalesEnabled"
+                      type="button"
+                      class="rounded-md px-2.5 py-1 text-[11px] font-bold transition"
+                      :class="journeyType === 'round_trip' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                      @click="$emit('update:journeyType', 'round_trip')"
+                    >{{ $t('ticketing.booking_modal.round_trip') }}</button>
+                  </div>
+                </div>
+
+                <div v-if="journeyType === 'round_trip'" class="mt-3 space-y-3 text-left">
+                  <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                    {{ $t('ticketing.booking_modal.round_trip_standard_total', {
+                      outbound: Number(selectedFare?.amount || 0).toLocaleString('fr-FR'),
+                      return: Number(returnFareAmount || selectedFare?.amount || 0).toLocaleString('fr-FR'),
+                      total: Number(perTicketAmount || 0).toLocaleString('fr-FR'),
+                    }) }}
+                  </div>
+                  <!-- Économie grâce à la remise globale -->
+                  <div v-if="roundTripDiscountAmount > 0" class="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/40 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                    {{ $t('ticketing.booking_modal.round_trip_savings', { amount: roundTripSavings.toLocaleString('fr-FR') }) }}
+                  </div>
+
+                  <!-- Retour : date unique (produit simplifié) -->
+                  <div>
+                    <span class="mb-1 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ $t('ticketing.booking_modal.return_date') }}</span>
+                    <AppDatePicker :model-value="returnDate" class="w-full text-xs" @update:model-value="$emit('update:returnDate', $event)" />
+                    <p class="mt-1 text-[10px] italic text-slate-500 dark:text-slate-400">
+                      {{ $t('ticketing.booking_modal.return_time_at_station_hint') }}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1302,7 +1471,7 @@ onBeforeUnmount(() => {
                   <button
                     v-if="useOkohi"
                     type="button"
-                    :disabled="processingOkohi || !selectedReward || !canConfirmBooking"
+                    :disabled="processingOkohi || !selectedReward || !canConfirmBooking || journeyType === 'round_trip'"
                     @click="initiateOkohiRequest"
                     class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold shadow-sm transition-colors cursor-pointer"
                   >
@@ -1311,11 +1480,12 @@ onBeforeUnmount(() => {
                     <span>{{ processingOkohi ? $t('ticketing.booking_modal.sending') : $t('ticketing.booking_modal.use_privilege') }}</span>
                   </button>
 
-                  <!-- BUTTON FOR CASH VALIDATION (STANDARD) -->
+                  <!-- Vente normale : reste disponible après identification
+                       Okohi, sans imposer l'utilisation d'un privilège. -->
                   <button
-                    v-else
+                    v-if="!useOkohi || props.verifiedOkohiCustomerNumber"
                     type="button"
-                    @click="$emit('confirm')"
+                    @click="confirmStandardSale"
                     :disabled="processing || !canConfirmBooking"
                     class="px-5 py-2 bg-slate-900 dark:bg-slate-800 text-white hover:bg-slate-850 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center text-sm font-bold cursor-pointer"
                   >

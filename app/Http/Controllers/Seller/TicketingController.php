@@ -82,9 +82,31 @@ class TicketingController extends Controller
 
         $destinations = $this->collectDestinations($trips);
 
+        $roundTripEnabled = tenant()?->roundTripSalesEnabled() ?? true;
+
         return [
             'trips' => $trips,
             'routeFares' => $routeFares,
+            // Point 4 : le flag est exposé et gouverne l'exposition des
+            // données aller-retour (remise globale, programmes de retour).
+            'roundTripSalesEnabled' => $roundTripEnabled,
+            'roundTripDiscountAmount' => $roundTripEnabled
+                ? \App\Models\OperationalSetting::current()->roundTripDiscountAmount()
+                : 0,
+            'returnSchedules' => $roundTripEnabled
+                ? \App\Models\DepartureSchedule::with(['originStation', 'destinationStation'])
+                    ->where('active', true)
+                    ->orderBy('departure_time')
+                    ->get()
+                    ->map(fn ($schedule) => [
+                        'id' => $schedule->id,
+                        'origin_station_id' => $schedule->origin_station_id,
+                        'destination_station_id' => $schedule->destination_station_id,
+                        'departure_time' => $schedule->departure_time?->format('H:i'),
+                        'days_label' => $schedule->daysLabel(),
+                        'display_label' => $schedule->display_label,
+                    ])
+                : collect(),
             'connectionFares' => RouteFare::with(['fromStation.destination', 'toStation.destination'])
                 ->where('active', true)->get(),
             'connectionRoutes' => Route::with(['originStation', 'destinationStation', 'routeStopOrders.station'])
@@ -385,10 +407,16 @@ class TicketingController extends Controller
         $segments = app(TripSegmentService::class);
 
         foreach ($items as $trip) {
+            // Métadonnées du mode de vente (point D) : avec car réel (sièges)
+            // ou sur capacité planifiée (quantité, siège différé).
             $vehicleType = $trip->vehicle?->vehicleType;
+
             if (! $vehicleType) {
                 $trip->total_seats = 0;
                 $trip->available_seats = 0;
+                $trip->sell_mode = 'quantity';
+                $trip->planned_capacity = (int) ($trip->planned_capacity_snapshot ?? 0);
+                $trip->sales_ready = (bool) $trip->sales_ready;
 
                 continue;
             }
@@ -403,6 +431,17 @@ class TicketingController extends Controller
             $totalSeats = $this->countSeatsInMap($seatMap);
             $trip->total_seats = $totalSeats;
             $trip->available_seats = $segments->availableSeatCount($trip);
+
+            // Mode de vente : car réel → sélection de sièges ; véhicule
+            // technique (placeholder) → vente en quantité sur capacité prévue
+            // (uniquement si la politique le permet et que le report a été
+            // explicite, sales_ready = true).
+            $trip->sell_mode = $trip->hasPlaceholderVehicle() && $trip->isSalesReady()
+                ? 'quantity'
+                : 'seat';
+            $trip->planned_capacity = (int) ($trip->planned_capacity_snapshot ?? $totalSeats);
+            $trip->sales_ready = (bool) $trip->sales_ready;
+            $trip->awaiting_real_vehicle = $trip->isAwaitingRealVehicle();
             // Fetch compatible pending/ready connections waiting at the trip's origin station
             $compatiblePool = TicketConnection::with(['ticket.fromStation', 'destinationStation'])
                 ->where('transfer_station_id', $trip->origin_station_id)
@@ -685,13 +724,15 @@ class TicketingController extends Controller
     public function assignVehicle(Request $request, Trip $trip)
     {
         $user = $request->user();
-        $routeStationIds = array_keys(app(TripSegmentService::class)->stationIndices($trip));
+        $trip->loadMissing('route');
+        $poolStationId = $trip->origin_station_id ?: $trip->route?->origin_station_id;
+        abort_unless($poolStationId, 422, 'La gare de départ de ce voyage est introuvable.');
 
-        if (in_array($user?->role, ['seller', 'supervisor'], true)) {
+        if ($user?->role === 'seller') {
             abort_unless(
-                array_intersect($user->getActiveStationIds(), $routeStationIds) !== [],
+                in_array($poolStationId, $user->getActiveStationIds(), true),
                 403,
-                'Ce voyage ne dessert aucune de vos gares affectées.',
+                'Seul un vendeur de la gare de départ peut assigner un véhicule à ce voyage.',
             );
         }
 
@@ -714,9 +755,6 @@ class TicketingController extends Controller
                 Rule::exists('vehicles', 'id')->where('active', true),
             ],
         ]);
-
-        $poolStationId = $trip->origin_station_id ?: $trip->route?->origin_station_id;
-        abort_unless($poolStationId, 422, 'La gare de départ de ce voyage est introuvable.');
 
         if (! $user->isAdmin()) {
             $belongsToStationPool = StationVehicleAssignment::query()
@@ -772,11 +810,11 @@ class TicketingController extends Controller
         $poolStationId = $trip->origin_station_id ?: $trip->route?->origin_station_id;
         abort_unless($poolStationId, 422, 'La gare de départ de ce voyage est introuvable.');
 
-        if (in_array($user?->role, ['seller', 'supervisor'], true)) {
+        if ($user?->role === 'seller') {
             abort_unless(
                 in_array($poolStationId, $user->getActiveStationIds(), true),
                 403,
-                'Vous ne pouvez utiliser que le pool de votre gare.',
+                'Seul un vendeur de la gare de départ peut consulter ce pool de véhicules.',
             );
         }
 

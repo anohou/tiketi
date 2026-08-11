@@ -272,4 +272,35 @@
         font-size: 10px;
         margin-top: 5mm;
     }
+
+    .seat-pill-pending {
+        background: #fef3c7 !important;
+        color: #92400e !important;
+        font-size: 9px !important;
+    }
+
+    .round-trip-box {
+        margin-top: 3mm;
+        padding: 2.5mm;
+        border: 1.5px solid #000;
+        border-radius: 2mm;
+        font-size: 9.5px;
+    }
+
+    .round-trip-title {
+        font-weight: 800;
+        text-align: center;
+        letter-spacing: 0.2px;
+        margin-bottom: 1.5mm;
+        text-transform: uppercase;
+    }
+
+    .seat-pending-note {
+        margin-top: 1.5mm;
+        font-weight: 700;
+        text-align: center;
+        background: #fef3c7;
+        padding: 1mm;
+        border-radius: 1.5mm;
+    }
 </style>

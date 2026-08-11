@@ -3,6 +3,7 @@ import MainNavLayout from '@/Layouts/MainNavLayout.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { router, Link, useForm, usePage } from '@inertiajs/vue3'
 import Bus from 'vue-material-design-icons/Bus.vue'
+import BusClock from 'vue-material-design-icons/BusClock.vue'
 import Plus from 'vue-material-design-icons/Plus.vue'
 import Cash from 'vue-material-design-icons/Cash.vue'
 import MenuOpen from 'vue-material-design-icons/MenuOpen.vue'
@@ -32,6 +33,7 @@ const props = defineProps({
     assignedStation: String,
     canSelectTripOrigin: { type: Boolean, default: false },
     originStations: { type: Array, default: () => [] },
+    assignedStations: { type: Array, default: () => [] },
 })
 
 const { t, locale } = useI18n()
@@ -46,6 +48,15 @@ const createTripForm = useForm({
   vehicle_id: '',
   departure_at: '',
 })
+const departureBoardStationId = ref('')
+
+const goToDepartureBoard = (stationId) => {
+  if (!stationId) return
+  router.visit(route('seller.departure-board.index', stationId), {
+    preserveState: false,
+    preserveScroll: true,
+  })
+}
 
 const availableRouteOptions = computed(() => buildTripCreationRouteOptions(
   props.routes,
@@ -324,6 +335,27 @@ const createTrip = () => {
                 <div class="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none">{{ currentTime }}</div>
                 <div class="text-[10px] font-bold text-slate-400 tracking-widest mt-1 dark:text-slate-500">{{ currentDate }}</div>
               </div>
+              <!-- Tableau des départs du jour -->
+              <button
+                v-if="assignedStations.length === 1"
+                @click="goToDepartureBoard(assignedStations[0].id)"
+                class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white px-4 md:px-5 py-2 md:py-3 rounded-xl font-bold transition-all active:scale-95 flex-shrink-0"
+              >
+                <BusClock :size="20" />
+                <span>{{ $t('dashboards.seller.departure_board_page') }}</span>
+              </button>
+              <select
+                v-else-if="assignedStations.length > 1"
+                v-model="departureBoardStationId"
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                :title="$t('dashboards.seller.departure_board_page')"
+                @change="goToDepartureBoard(departureBoardStationId)"
+              >
+                <option value="" disabled>{{ $t('dashboards.seller.departure_board_page') }}</option>
+                <option v-for="station in assignedStations" :key="station.id" :value="station.id">
+                  {{ station.name }}
+                </option>
+              </select>
               <button 
                  @click="openCreateTripModal()"
                  class="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-95 flex-shrink-0"

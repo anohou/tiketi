@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { Link, router } from '@inertiajs/vue3';
 import MainNavLayout from '@/Layouts/MainNavLayout.vue';
 import SettingsMenu from '@/Components/SettingsMenu.vue';
 import ExportPrintButtons from '@/Components/ExportPrintButtons.vue';
@@ -13,11 +13,15 @@ import Fullscreen from 'vue-material-design-icons/Fullscreen.vue';
 import FullscreenExit from 'vue-material-design-icons/FullscreenExit.vue';
 import Refresh from 'vue-material-design-icons/Refresh.vue';
 import Trash2 from 'vue-material-design-icons/Delete.vue';
+import SwapHorizontal from 'vue-material-design-icons/SwapHorizontal.vue';
+import ContentSave from 'vue-material-design-icons/ContentSave.vue';
 import { confirmationStore } from '@/Stores/confirmationStore.js';
 
 const props = defineProps({
   fares: { type: Array, default: () => [] },
   stations: { type: Array, default: () => [] },
+  roundTripDiscount: { type: Number, default: 0 },
+  roundTripSalesEnabled: { type: Boolean, default: true },
 });
 
 const { exportToExcel, printList } = useExportPrint();
@@ -307,7 +311,7 @@ const fareColumns = {
   'from_station.name': 'Départ',
   'to_station.name': 'Arrivée',
   amount: 'Montant',
-  is_bidirectional: 'Aller-retour',
+  is_bidirectional: 'Valable dans les deux sens',
   active: 'Statut',
 };
 
@@ -319,6 +323,45 @@ const exportData = computed(() => filteredFares.value.map((fare) => ({
 
 const handleExport = () => exportToExcel(exportData.value, fareColumns, 'matrice-tarifs');
 const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des tarifs');
+
+// Remise globale aller-retour (montant fixe en FCFA).
+const roundTripDiscountDraft = ref(props.roundTripDiscount || 0);
+const roundTripDiscountSaving = ref(false);
+const roundTripDiscountSaved = ref(false);
+const roundTripDiscountError = ref('');
+
+watch(
+  () => props.roundTripDiscount,
+  (value) => { roundTripDiscountDraft.value = value || 0; }
+);
+
+const saveRoundTripDiscount = () => {
+  const amount = Number(roundTripDiscountDraft.value);
+  if (!Number.isInteger(amount) || amount < 0) {
+    roundTripDiscountError.value = 'Saisissez un montant entier positif.';
+    return;
+  }
+  if (amount === props.roundTripDiscount) return;
+
+  roundTripDiscountSaving.value = true;
+  roundTripDiscountError.value = '';
+  router.put(
+    route('admin.route-fares.round-trip-discount'),
+    { round_trip_discount_amount: amount },
+    {
+      preserveScroll: true,
+      only: ['roundTripDiscount'],
+      onSuccess: () => {
+        roundTripDiscountSaved.value = true;
+        window.setTimeout(() => { roundTripDiscountSaved.value = false; }, 1600);
+      },
+      onError: (errors) => {
+        roundTripDiscountError.value = errors.round_trip_discount_amount || 'Enregistrement impossible.';
+      },
+      onFinish: () => { roundTripDiscountSaving.value = false; },
+    }
+  );
+};
 </script>
 
 <template>
@@ -404,7 +447,7 @@ const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des 
                     :aria-pressed="newFareBidirectional"
                     @click="newFareBidirectional = true"
                   >
-                    ↔ Bidirectionnel
+                    ↔ Valable dans les deux sens
                   </button>
                   <button
                     type="button"
@@ -427,10 +470,55 @@ const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des 
               </div>
             </div>
 
-            <div class="flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-500 dark:text-slate-400">
-              <span class="flex items-center gap-1.5"><i class="h-2 w-2 rounded-full bg-emerald-500"></i> Actif</span>
-              <span class="flex items-center gap-1.5"><i class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></i> À définir</span>
-              <span>Entrée / Tab pour enregistrer</span>
+            <div
+              v-if="roundTripSalesEnabled"
+              class="flex min-w-56 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+            >
+              <span class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <SwapHorizontal class="text-emerald-600 dark:text-emerald-400" :size="13" />
+                Remise aller-retour (FCFA)
+              </span>
+              <div class="flex items-center gap-1.5">
+                <input
+                  v-model="roundTripDiscountDraft"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  max="1000000"
+                  class="w-full min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-xs font-black text-slate-800 focus:border-emerald-500 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                  :class="roundTripDiscountError ? 'border-rose-500' : ''"
+                  @keydown.enter.prevent="saveRoundTripDiscount"
+                  @focus="$event.target.select()"
+                />
+                <button
+                  type="button"
+                  class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:opacity-40"
+                  title="Enregistrer la remise aller-retour"
+                  :disabled="roundTripDiscountSaving || Number(roundTripDiscountDraft) === props.roundTripDiscount"
+                  @click="saveRoundTripDiscount"
+                >
+                  <Refresh v-if="roundTripDiscountSaving" :size="13" class="animate-spin" />
+                  <Check v-else-if="roundTripDiscountSaved" :size="13" />
+                  <ContentSave v-else :size="13" />
+                </button>
+              </div>
+              <span v-if="roundTripDiscountError" class="text-[10px] font-bold text-rose-600">{{ roundTripDiscountError }}</span>
+              <span v-else-if="roundTripDiscount > 0" class="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+                − {{ Number(roundTripDiscount).toLocaleString('fr-FR') }} FCFA sur chaque aller-retour
+              </span>
+            </div>
+
+            <div
+              v-if="!roundTripSalesEnabled"
+              class="flex flex-col gap-1.5 rounded-xl border border-amber-300 bg-amber-50 p-2.5 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              <span class="text-[10px] font-black uppercase tracking-wider">{{ $t('admin_settings.enterprise.round_trip_banner_title') }}</span>
+              <Link
+                :href="route('admin.settings.enterprise')"
+                class="flex items-center gap-1.5 text-[10px] font-bold text-amber-800 underline underline-offset-2 hover:text-amber-950 dark:text-amber-300 dark:hover:text-amber-100"
+              >
+                {{ $t('admin_settings.enterprise.round_trip_banner_link') }}
+              </Link>
             </div>
           </div>
 
@@ -497,7 +585,8 @@ const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des 
                         type="button"
                         class="flex h-6 w-5 shrink-0 items-center justify-center rounded text-[11px] font-black transition"
                         :class="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400'"
-                        :title="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'Tarif bidirectionnel (↔) - Cliquer pour rendre sens unique' : 'Tarif sens unique (→) - Cliquer pour rendre bidirectionnel'"
+                        :title="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'Tarif valable dans les deux sens (↔) - Cliquer pour rendre sens unique' : 'Tarif sens unique (→) - Cliquer pour rendre valable dans les deux sens'"
+                        :aria-label="getCellFare(origin.id, destination.id).fare.is_bidirectional ? 'Tarif valable dans les deux sens' : 'Tarif sens unique'"
                         @click="toggleDirection(origin, destination)"
                       >
                         {{ getCellFare(origin.id, destination.id).fare.is_bidirectional ? '↔' : '→' }}
@@ -505,7 +594,7 @@ const handlePrint = () => printList(exportData.value, fareColumns, 'Matrice des 
                       <span
                         v-else
                         class="flex h-6 w-5 shrink-0 items-center justify-center text-[11px] font-black text-slate-300 dark:text-slate-600 select-none"
-                        :title="newFareBidirectional ? 'Sera créé en tarif bidirectionnel (↔)' : 'Sera créé en tarif sens unique (→)'"
+                        :title="newFareBidirectional ? 'Sera créé en tarif valable dans les deux sens (↔)' : 'Sera créé en tarif sens unique (→)'"
                       >
                         {{ newFareBidirectional ? '↔' : '→' }}
                       </span>

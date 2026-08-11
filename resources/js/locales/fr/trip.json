@@ -15,6 +15,7 @@
     "vehicle_not_assigned": "Véhicule non assigné",
     "vehicle_not_assigned_hint": "Assignez un véhicule pour afficher le plan de sièges et ouvrir les ventes.",
     "choose_from_pool": "Choisir dans le pool de la gare",
+    "vehicle_assignment_origin_only": "Seul un vendeur de la gare de départ, un superviseur ou un administrateur peut assigner le véhicule.",
     "select_trip_hint": "Sélectionnez un voyage pour voir le plan",
     "no_trips_title": "Aucun voyage disponible",
     "no_trips_message": "Aucun voyage n'est programmé pour le moment.",

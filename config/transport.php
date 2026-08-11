@@ -23,6 +23,10 @@ return [
         'ticket_cache_ttl_minutes' => env('OFFLINE_TICKET_CACHE_TTL_MINUTES', 360),
         'signing_private_key' => env('OFFLINE_CACHE_SIGNING_PRIVATE_KEY'),
     ],
+    'okohi' => [
+        'max_attempts' => (int) env('OKOHI_MAX_ATTEMPTS', 8),
+        'outbox_chunk_size' => (int) env('OKOHI_OUTBOX_CHUNK_SIZE', 25),
+    ],
     /*
     |--------------------------------------------------------------------------
     | Default Data for Seeders

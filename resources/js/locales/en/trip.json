@@ -15,6 +15,7 @@
     "vehicle_not_assigned": "Vehicle not assigned",
     "vehicle_not_assigned_hint": "Assign a vehicle to display the seat map and open sales.",
     "choose_from_pool": "Choose from the station pool",
+    "vehicle_assignment_origin_only": "Only a seller at the departure station, a supervisor, or an administrator can assign the vehicle.",
     "select_trip_hint": "Select a trip to view the seat map",
     "no_trips_title": "No trips available",
     "no_trips_message": "No trip is scheduled at the moment.",
