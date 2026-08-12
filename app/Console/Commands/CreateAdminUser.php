@@ -74,7 +74,7 @@ class CreateAdminUser extends Command
         ], [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email:rfc', 'max:255'],
-            'role' => ['required', 'in:super_admin'],
+            'role' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9_.:-]+$/'],
             'password' => ['required', 'string', Password::min(12)->mixedCase()->numbers()->symbols()],
         ]);
 

@@ -9,7 +9,7 @@ managed_files:
   - path: environments/production/config/Dockerfile
     sha256: b3132aad897c56073793f926673c14896f8f8058ccf0a6c2f4ebadc16db87eae
   - path: environments/production/config/config.yml
-    sha256: 282f951df3989cfadc74395e060c644594dae9f94d0e970d18db8fcbaea7e755
+    sha256: 22df66e3c2e35e86ae7e0ce27047cbf14336b7b3411a807b6ee19d618eb01cf0
   - path: environments/production/config/php.ini
     sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
   - path: environments/production/config/www.conf
@@ -19,7 +19,7 @@ managed_files:
   - path: environments/staging/config/Dockerfile
     sha256: cbecc6f515c1716309491c842b7d3a72f69d368c35989290e47bf05fe3788b65
   - path: environments/staging/config/config.yml
-    sha256: 2f2d20c8abaafc3c91733bad09d752089958ef721d4e82c7b968df674b4b4569
+    sha256: aad8be2f17de6d4bafdf65ed001dc00009b0dd1491a843d9fb18e87740ea822f
   - path: environments/staging/config/php.ini
     sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
   - path: environments/staging/config/www.conf

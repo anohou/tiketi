@@ -72,7 +72,6 @@ deploy:
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
 zero_downtime:
-  enabled: true
   keep_previous_color: true
   deploy_drain_seconds: 30
   queue_drain_seconds: 60
@@ -83,7 +82,7 @@ zero_downtime:
   traefik_file_reload_max_seconds: 15
   allow_unsafe_migrations: false
   direct_origin_ip: "62.84.186.8"
-  tenant_smoke_hosts: "at.tiketi.ci,alpha.tiketi.ci"
+  tenant_smoke_hosts: ""
   cloudflare_cache_purge_paths: ""
 
 # ── Server-side secret file paths ────────────────────────────────────────────
@@ -121,6 +120,9 @@ networks:
 traefik:
   cert_resolver: cloudflare
   dynamic_dir: /srv/platform/platform/current/config/traefik/dynamic
+
+internal_bff:
+  enabled: false
 
 # ── Services (third-party images) ───────────────────────────────────────────
 services:
