@@ -226,14 +226,18 @@ class TripSegmentService
 
     /**
      * Returns the seats that can be sold at a station.
-     * Before departure, this is limited to seats freed at that station.
-     * After departure, it also includes seats still empty on the vehicle.
+     * Before departure, empty seats remain sellable from the trip origin and
+     * from intermediate stations when simultaneous sales are enabled. When
+     * simultaneous sales are closed, an intermediate station is limited to
+     * seats freed there. After departure, station progression determines who
+     * may sell, and the active station can use all physically empty seats.
      */
     public function sellableSeatsForStation(Trip $trip, string $stationId): array
     {
         $freedSeats = $this->freedSeatsForStation($trip, $stationId);
 
-        if ($trip->status !== 'departed') {
+        $isIntermediateStation = $stationId !== $trip->origin_station_id;
+        if ($trip->status !== 'departed' && $trip->isSalesClosed() && $isIntermediateStation) {
             return $freedSeats;
         }
 

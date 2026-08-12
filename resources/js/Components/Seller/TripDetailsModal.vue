@@ -8,6 +8,7 @@ import Close from 'vue-material-design-icons/Close.vue';
 import Bus from 'vue-material-design-icons/Bus.vue';
 import Account from 'vue-material-design-icons/Account.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
+import Eye from 'vue-material-design-icons/Eye.vue';
 import Printer from 'vue-material-design-icons/Printer.vue';
 import TrashCan from 'vue-material-design-icons/TrashCan.vue';
 import Magnify from 'vue-material-design-icons/Magnify.vue';
@@ -149,6 +150,14 @@ const loadTripData = async () => {
     toastStore.error('Erreur lors de la récupération des informations du voyage.');
   } finally {
     loading.value = false;
+  }
+};
+
+const viewTicket = (ticketId) => {
+  const viewUrl = route('tickets.view', { ticket: ticketId });
+  const viewWindow = window.open(viewUrl, '_blank', 'width=480,height=760');
+  if (!viewWindow) {
+    toastStore.warning(t('ticketing.trip_details.view_popup_warning'));
   }
 };
 
@@ -815,10 +824,19 @@ watch(() => props.visible, (val) => {
                       </td>
                       <td class="py-3 px-4 text-center">
                         <div class="flex items-center justify-center gap-1.5">
+                          <button
+                            @click="viewTicket(ticket.id)"
+                            class="p-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg transition-all active:scale-90"
+                            :title="$t('ticketing.trip_details.view_ticket')"
+                            :aria-label="$t('ticketing.trip_details.view_ticket')"
+                          >
+                            <Eye :size="16" />
+                          </button>
                           <button 
                             @click="printTicket(ticket.id)" 
                             class="p-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all active:scale-90"
                             :title="$t('ticketing.trip_details.print_ticket')"
+                            :aria-label="$t('ticketing.trip_details.print_ticket')"
                           >
                             <Printer :size="16" />
                           </button>

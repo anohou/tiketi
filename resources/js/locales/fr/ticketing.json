@@ -147,6 +147,8 @@
       "transit": "Transit :",
       "next_leg": "Suite :",
       "pending_assignment": "en attente d’affectation",
+      "view_ticket": "Afficher le ticket",
+      "view_popup_warning": "Veuillez autoriser les popups pour afficher le ticket.",
       "print_ticket": "Imprimer le ticket",
       "compensate_ticket": "Compenser ce ticket",
       "cancel_ticket": "Annuler le ticket",

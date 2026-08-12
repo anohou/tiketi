@@ -318,7 +318,8 @@ Route::middleware(['auth', 'tenant.initialized', 'authorized.web.device'])->grou
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     });
 
-    // Printing routes
+    // Ticket display and printing routes
+    Route::get('/tickets/{ticket}/view', [TicketPrintController::class, 'show'])->name('tickets.view');
     Route::get('/tickets/{ticket}/print', [TicketPrintController::class, 'print'])->name('tickets.print');
     Route::post('/tickets/print-multiple', [TicketPrintController::class, 'printMultiple'])->name('tickets.print-multiple');
 

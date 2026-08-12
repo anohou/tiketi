@@ -18,14 +18,11 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => 'Integration not configured'], 400);
         }
 
-        $integrationUrl = rtrim($settings->okohi_integration_url ?: config('services.okohi.base_url', 'http://127.0.0.1:8001'), '/');
-        if (! str_contains($integrationUrl, '/api/v1/partner')) {
-            $integrationUrl .= '/api/v1/partner';
-        }
+        $partnerBaseUrl = $this->partnerBaseUrl();
 
         $response = Http::timeout(15)
             ->withHeader('X-Okohi-Integration-Key', $settings->okohi_integration_key)
-            ->get("{$integrationUrl}/customers/{$customerNumber}");
+            ->get("{$partnerBaseUrl}/customers/".urlencode(strtoupper($customerNumber)));
 
         $body = $response->json();
 
@@ -79,14 +76,11 @@ class OkohiRewardController extends Controller
             return response()->json(['error' => 'Integration not configured'], 400);
         }
 
-        $integrationUrl = rtrim($settings->okohi_integration_url ?: config('services.okohi.base_url', 'http://127.0.0.1:8001'), '/');
-        if (! str_contains($integrationUrl, '/api/v1/partner')) {
-            $integrationUrl .= '/api/v1/partner';
-        }
+        $partnerBaseUrl = $this->partnerBaseUrl();
 
         $response = Http::timeout(15)
             ->withHeader('X-Okohi-Integration-Key', $settings->okohi_integration_key)
-            ->post("{$integrationUrl}/customers/{$customerNumber}/grant-reward", [
+            ->post("{$partnerBaseUrl}/customers/".urlencode(strtoupper($customerNumber)).'/grant-reward', [
                 'reward_id' => $request->reward_id,
             ]);
 
@@ -102,5 +96,16 @@ class OkohiRewardController extends Controller
         $claimId = $body['data']['claim']['id'] ?? null;
 
         return response()->json(array_merge($body, ['claim_id' => $claimId]));
+    }
+
+    private function partnerBaseUrl(): string
+    {
+        $baseUrl = rtrim((string) config('services.okohi.base_url'), '/');
+
+        if (! str_contains($baseUrl, '/api/v1/partner')) {
+            $baseUrl .= '/api/v1/partner';
+        }
+
+        return $baseUrl;
     }
 }

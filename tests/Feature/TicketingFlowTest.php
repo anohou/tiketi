@@ -1555,7 +1555,10 @@ class TicketingFlowTest extends TestCase
         $settings = TicketSetting::getSettings();
         $settings->update([
             'okohi_integration_key' => 'secret-key',
-            'okohi_integration_url' => 'https://okohi.test',
+            // The real connection flow stores a ticket scan URL here, not the
+            // Okohi API base URL. Customer lookup must never append partner
+            // API paths to this scan URL.
+            'okohi_integration_url' => 'https://okohi.test/api/v1/scan/company-1/okohi/secret-key/{ticket_id}/{amount}/{timestamp}',
         ]);
         config(['services.okohi.base_url' => 'https://okohi.test']);
 
@@ -1579,6 +1582,37 @@ class TicketingFlowTest extends TestCase
             ->assertJsonPath('balance.points_balance', 150)
             ->assertJsonPath('recent_trips.0.ticket_id', 'TKT-RECENT-001')
             ->assertJsonPath('recent_trips.0.route_label', 'Gare A → Gare B');
+
+        Http::assertSent(fn ($request) => $request->method() === 'GET'
+            && $request->url() === 'https://okohi.test/api/v1/partner/customers/OKH-123456'
+            && $request->hasHeader('X-Okohi-Integration-Key', 'secret-key'));
+    }
+
+    public function test_okohi_reward_grant_uses_api_base_instead_of_ticket_scan_url(): void
+    {
+        [$admin] = $this->ticketingFixture();
+        TicketSetting::getSettings()->update([
+            'okohi_integration_key' => 'secret-key',
+            'okohi_integration_url' => 'https://okohi.test/api/v1/scan/company-1/okohi/secret-key/{ticket_id}/{amount}/{timestamp}',
+        ]);
+        config(['services.okohi.base_url' => 'https://okohi.test']);
+
+        Http::fake([
+            'https://okohi.test/api/v1/partner/customers/OKH-123456/grant-reward' => Http::response([
+                'data' => ['claim' => ['id' => 'claim-1']],
+            ], 201),
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson('/admin/settings/loyalty/customers/OKH-123456/grant-reward', [
+                'reward_id' => 'reward-1',
+            ])
+            ->assertOk()
+            ->assertJsonPath('claim_id', 'claim-1');
+
+        Http::assertSent(fn ($request) => $request->method() === 'POST'
+            && $request->url() === 'https://okohi.test/api/v1/partner/customers/OKH-123456/grant-reward'
+            && $request->hasHeader('X-Okohi-Integration-Key', 'secret-key'));
     }
 
     public function test_okohi_integration_requires_both_url_and_key(): void
@@ -2569,6 +2603,30 @@ class TicketingFlowTest extends TestCase
         ]))->assertOk();
 
         $this->assertSame(1, $response->json('suggested_seats.0.seat_number'));
+    }
+
+    public function test_pre_departure_sellable_seats_follow_simultaneous_sales_policy(): void
+    {
+        [$admin, $trip, $stations] = $this->ticketingFixture();
+        $trip->update(['status' => 'boarding', 'sales_control' => 'closed']);
+
+        $segments = app(TripSegmentService::class);
+
+        // The origin keeps access to all empty seats even when simultaneous
+        // sales are closed.
+        $originSeats = $segments->sellableSeatsForStation($trip->fresh(), $stations['a']->id);
+        $this->assertContains(1, $originSeats);
+        $this->assertContains(2, $originSeats);
+
+        // A closed intermediate station can only reuse seats freed there.
+        $this->assertSame([], $segments->sellableSeatsForStation($trip->fresh(), $stations['b']->id));
+
+        // Opening simultaneous sales gives the intermediate station access
+        // to the physically empty seats as well.
+        $trip->update(['sales_control' => 'open']);
+        $intermediateSeats = $segments->sellableSeatsForStation($trip->fresh(), $stations['b']->id);
+        $this->assertContains(1, $intermediateSeats);
+        $this->assertContains(2, $intermediateSeats);
     }
 
     public function test_closed_trip_restricts_intermediate_station_until_departure_then_allows_available_seats(): void

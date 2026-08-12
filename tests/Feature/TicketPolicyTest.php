@@ -32,6 +32,32 @@ class TicketPolicyTest extends TestCase
             ->assertOk();
     }
 
+    public function test_seller_can_display_their_own_ticket_without_triggering_print(): void
+    {
+        [$seller, $ticket] = $this->createSellerAndTicket();
+
+        $this->actingAs($seller)
+            ->get(route('tickets.view', ['ticket' => $ticket->id]))
+            ->assertOk()
+            ->assertViewIs('tickets.show')
+            ->assertSee($ticket->ticket_number)
+            ->assertDontSee('window.onload', false);
+    }
+
+    public function test_seller_cannot_display_ticket_from_unassigned_station(): void
+    {
+        $seller = User::factory()->create(['role' => 'seller', 'active' => true]);
+        $otherStation = Station::create(['name' => 'Gare Autre', 'code' => 'AUT', 'city' => 'Autre', 'active' => true]);
+        $ticket = $this->createTicket([
+            'from_station_id' => $otherStation->id,
+            'seller_id' => User::factory()->create(['role' => 'seller'])->id,
+        ]);
+
+        $this->actingAs($seller)
+            ->get(route('tickets.view', ['ticket' => $ticket->id]))
+            ->assertForbidden();
+    }
+
     public function test_seller_cannot_print_ticket_from_unassigned_station(): void
     {
         $seller = User::factory()->create(['role' => 'seller', 'active' => true]);

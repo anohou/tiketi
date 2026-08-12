@@ -13,7 +13,25 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class TicketPrintController extends Controller
 {
+    public function show($ticketId)
+    {
+        $data = $this->ticketViewData($ticketId);
+
+        $this->authorize('view', $data['ticket']);
+
+        return view('tickets.show', $data);
+    }
+
     public function print($ticketId)
+    {
+        $data = $this->ticketViewData($ticketId);
+
+        $this->authorize('print', $data['ticket']);
+
+        return view('tickets.print', $data);
+    }
+
+    private function ticketViewData($ticketId): array
     {
         $settings = TicketSetting::getSettings();
         $ticket = Ticket::with([
@@ -28,18 +46,15 @@ class TicketPrintController extends Controller
             'returnJourney',
         ])->findOrFail($ticketId);
 
-        $this->authorize('print', $ticket);
-
         $qrCode = ($settings->print_qr_code || $settings->hasOkohiIntegration())
             ? QrCode::size(96)->margin(0)->generate($ticket->printableQrValue($settings))
             : null;
 
-        // Retourner la vue directement pour impression HTML
-        return view('tickets.print', [
+        return [
             'ticket' => $ticket,
             'qrCode' => $qrCode,
             'settings' => $settings,
-        ]);
+        ];
     }
 
     public function printMultiple(Request $request)

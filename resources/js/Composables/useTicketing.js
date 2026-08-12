@@ -836,9 +836,11 @@ export function useTicketing(props, options = {}) {
       || seatMap.value?.freed_seats_by_station?.[fare.from_station_id]
       || [];
 
-    const seats = isTripDeparted.value
-      ? [...stationSeats, ...emptySeatNumbers.value]
-      : stationSeats;
+    // At the origin, and at intermediate stations when simultaneous sales
+    // are open, every seat empty on the requested segment is sellable. The
+    // closed/intermediate case returned above remains restricted to freed
+    // seats only.
+    const seats = [...stationSeats, ...emptySeatNumbers.value];
 
     return [...new Set(seats.map(sn => Number(sn)).filter(Number.isFinite))];
   };
