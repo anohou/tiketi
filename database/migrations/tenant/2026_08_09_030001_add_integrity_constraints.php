@@ -43,6 +43,16 @@ return new class extends Migration
 
     private function safeForeign(string $table, string $column, string $references, string $referencedColumn, string $name): void
     {
+        // `migrate --pretend` evaluates every pending migration against the
+        // unchanged database. Tables/columns created by an earlier pending
+        // migration therefore cannot be observed here, even though its SQL is
+        // correctly ordered before this migration's SQL.
+        if (DB::connection()->pretending()) {
+            $this->addForeign($table, $column, $references, $referencedColumn, $name);
+
+            return;
+        }
+
         if (! Schema::hasTable($table) || ! Schema::hasTable($references)) {
             throw new RuntimeException(
                 "add_integrity_constraints: table manquante pour la clé étrangère {$name} ({$table}.{$column} → {$references}.{$referencedColumn})."
@@ -57,6 +67,11 @@ return new class extends Migration
 
         // Toute autre erreur (type incompatible, données orphelines…) fait
         // ÉCHOUER la migration : jamais de capture silencieuse.
+        $this->addForeign($table, $column, $references, $referencedColumn, $name);
+    }
+
+    private function addForeign(string $table, string $column, string $references, string $referencedColumn, string $name): void
+    {
         Schema::table($table, function (Blueprint $blueprint) use ($column, $references, $referencedColumn, $name) {
             $blueprint->foreign($column, $name)
                 ->references($referencedColumn)

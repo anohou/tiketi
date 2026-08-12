@@ -252,6 +252,13 @@ return new class extends Migration
 
     private function assertColumn(string $table, string $column, string $references, string $name): void
     {
+        // Pretend mode does not execute earlier pending migrations, so schema
+        // introspection cannot see the tables and columns their SQL creates.
+        // The real migration path below remains strict.
+        if (DB::connection()->pretending()) {
+            return;
+        }
+
         if (! Schema::hasTable($table) || ! Schema::hasTable($references)) {
             throw new RuntimeException(
                 "030003 : table manquante pour la clé étrangère {$name} ({$table}.{$column} → {$references})."
