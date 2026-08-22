@@ -1,0 +1,109 @@
+services:
+
+  # ─── Application (Apache + PHP) ───────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: tiketi_app
+    restart: unless-stopped
+    ports:
+      - "8006:80"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    env_file:
+      - .env
+    networks:
+      - tiketi
+
+  # ─── Reverb WebSocket ─────────────────────────────────────────────────────────
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: tiketi_reverb
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=6001
+    ports:
+      - "6001:6001"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    env_file:
+      - .env
+    networks:
+      - tiketi
+
+  # ─── Queue Worker ─────────────────────────────────────────────────────────────
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: tiketi_queue
+    restart: unless-stopped
+    command: php artisan queue:work database --sleep=3 --tries=3 --timeout=300
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - .:/var/www/html
+      - vendor_data:/var/www/html/vendor
+    env_file:
+      - .env
+    networks:
+      - tiketi
+
+  # ─── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: tiketi_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-transport}
+      POSTGRES_USER: ${DB_USERNAME:-tiketi}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-tiketi} -d ${DB_DATABASE:-transport}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tiketi
+
+  # ─── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tiketi_redis
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - tiketi
+
+volumes:
+  postgres_data:
+  redis_data:
+  vendor_data:
+
+networks:
+  tiketi:
+    driver: bridge
