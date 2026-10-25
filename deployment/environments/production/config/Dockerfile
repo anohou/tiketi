@@ -4,7 +4,8 @@
 # ║  PostgreSQL + Filament + Livewire variant                                   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
-ARG LARAVEL_RUNTIME_IMAGE=ghcr.io/anohou/laravel-runtime:8.4-alpine-v1
+ARG LARAVEL_RUNTIME_IMAGE
+ARG PHP_RUNTIME_BASE_IMAGE=php:8.4.27-fpm-alpine@sha256:6b83fd767e1902ae4c89fe11f929f02e78bf769215c703060ac8a7c4be672c8c
 
 # ─── Stage 1: Composer dependencies ─────────────────────────────────────────
 FROM composer:2.8 AS composer
@@ -26,6 +27,7 @@ RUN composer install \
 FROM node:22-alpine AS assets
 
 ARG ASSET_BUILD_ENABLED=true
+ARG BROWSER_RENDERER_ENABLED=false
 ARG VITE_APP_NAME
 ARG VITE_APP_ENV
 ARG PUBLIC_REVERB_APP_KEY
@@ -63,6 +65,13 @@ RUN if [ "${ASSET_BUILD_ENABLED}" = "true" ]; then \
         fi; \
     fi
 
+RUN mkdir -p /runtime-node-modules \
+    && if [ "${BROWSER_RENDERER_ENABLED}" = "true" ]; then \
+        test -d node_modules/playwright && test -d node_modules/playwright-core \
+            || { echo "BROWSER_RENDERER_ENABLED=true requires playwright in package dependencies." >&2; exit 1; }; \
+        cp -R node_modules/playwright node_modules/playwright-core /runtime-node-modules/; \
+    fi
+
 COPY --from=composer /app/vendor/ /app/vendor/
 COPY . .
 
@@ -77,7 +86,7 @@ RUN mkdir -p public/build \
 FROM ${LARAVEL_RUNTIME_IMAGE} AS runtime-shared-base
 
 # ─── Stage 4: Local runtime base ─────────────────────────────────────────────
-FROM php:8.4-fpm-alpine AS runtime-local-base
+FROM ${PHP_RUNTIME_BASE_IMAGE} AS runtime-local-base
 
 ARG IMAGE_TITLE="laravel-app"
 ARG IMAGE_SOURCE=""
@@ -136,6 +145,8 @@ RUN apk add --no-cache \
 # ─── Stage 5: Shared-runtime production image ───────────────────────────────
 FROM runtime-shared-base AS production-shared
 
+ARG BROWSER_RENDERER_ENABLED=false
+
 ARG IMAGE_TITLE="laravel-app"
 ARG IMAGE_SOURCE=""
 ARG IMAGE_REVISION=""
@@ -157,8 +168,15 @@ RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \
 # ── Application files ─────────────────────────────────────────────────────────
 WORKDIR /var/www/html
 
+USER root
+RUN if [ "${BROWSER_RENDERER_ENABLED}" = "true" ]; then \
+        apk add --no-cache nodejs chromium nss freetype harfbuzz ca-certificates ttf-freefont; \
+    fi
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 COPY --from=composer --chown=appuser:appgroup /app/vendor ./vendor
 COPY --from=assets   --chown=appuser:appgroup /app/public/build ./public/build
+COPY --from=assets   --chown=appuser:appgroup /runtime-node-modules ./node_modules
 COPY                 --chown=appuser:appgroup . .
 
 # ── Writable directories ───────────────────────────────────────────────────────
@@ -194,6 +212,8 @@ CMD ["php-fpm", "--nodaemonize"]
 # ─── Stage 6: Local-runtime production image ────────────────────────────────
 FROM runtime-local-base AS production-local
 
+ARG BROWSER_RENDERER_ENABLED=false
+
 ARG IMAGE_TITLE="laravel-app"
 ARG IMAGE_SOURCE=""
 ARG IMAGE_REVISION=""
@@ -215,8 +235,14 @@ RUN addgroup -g 1000 -S appgroup 2>/dev/null || true \
 # ── Application files ─────────────────────────────────────────────────────────
 WORKDIR /var/www/html
 
+RUN if [ "${BROWSER_RENDERER_ENABLED}" = "true" ]; then \
+        apk add --no-cache nodejs chromium nss freetype harfbuzz ca-certificates ttf-freefont; \
+    fi
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 COPY --from=composer --chown=appuser:appgroup /app/vendor ./vendor
 COPY --from=assets   --chown=appuser:appgroup /app/public/build ./public/build
+COPY --from=assets   --chown=appuser:appgroup /runtime-node-modules ./node_modules
 COPY                 --chown=appuser:appgroup . .
 
 # ── Writable directories ───────────────────────────────────────────────────────

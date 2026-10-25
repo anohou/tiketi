@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "application_php_version": "8.4.27",
+  "minimum_secure_php_version": "8.4.27",
+  "runtime_image": "ghcr.io/anohou/laravel-runtime:8.4-alpine-v2@sha256:615df2e8626ab82e27179fecf49699969ccb434fe384220e9111fe52ba091796",
+  "session_upload_progress_enabled": false
+}
