@@ -23,8 +23,8 @@ app:
   migration:
     command: "php artisan migrate --force --no-interaction"
     use_migrator_credentials: true
-    tenant_command: "php artisan tenants:migrate --force --no-interaction"
-    tenant_preflight_command: "php artisan tenants:migrate --pretend --force --no-ansi --no-interaction"
+    tenant_command: "php artisan tenants:baseline:adopt --force --no-interaction && php artisan tenants:migrate --force --no-interaction"
+    tenant_preflight_command: "php artisan tenants:baseline:check --no-interaction"
     tenant_use_migrator_credentials: false
   tenant_wildcard_domain: "*.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
