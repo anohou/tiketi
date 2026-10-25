@@ -28,6 +28,7 @@ app:
     tenant_use_migrator_credentials: false
   tenant_wildcard_domain: "*.stg.tiketi.ci"
   tenant_db_prefix: "tiketi_tenant_"
+  same_origin_frame_path_regexp: ''
 
 # ── Image source policy ──────────────────────────────────────────────────────
 build:
@@ -37,7 +38,7 @@ build:
   # - local: build image on the server
   default_source: local
   runtime_mode: shared
-  runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v1"
+  runtime_image: "ghcr.io/anohou/laravel-runtime:8.4-alpine-v2@sha256:615df2e8626ab82e27179fecf49699969ccb434fe384220e9111fe52ba091796"
   allow_full_local_runtime: true
   cache_mode: registry
   cache_ref: "ghcr.io/anohou/tiketi:buildcache-laravel-php84-node22-v1"
@@ -48,6 +49,7 @@ build:
   local_build_require_explicit_flag: true
   # Explicit asset-build toggle used by the deployment tooling.
   asset_build_enabled: true
+  browser_renderer_enabled: false
 
 # ── Registry / release policy ────────────────────────────────────────────────
 registry:
@@ -72,7 +74,7 @@ deploy:
 
 # ── Zero-downtime blue/green policy ─────────────────────────────────────────
 zero_downtime:
-  keep_previous_color: true
+  keep_previous_color: false
   deploy_drain_seconds: 30
   queue_drain_seconds: 60
   queue_drain_timeout_action: abort

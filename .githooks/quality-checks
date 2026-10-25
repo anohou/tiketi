@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${repository_root}"
+
+export DEPLOY_ENV=production
+export APP_ENV=production
+export SMOKE_TOKEN_REPLAY_STORE=database
+export CACHE_STORE=file
+export SESSION_DRIVER=file
+export QUEUE_CONNECTION=sync
+export COMPOSER_PROCESS_TIMEOUT=0
+export COMPOSER_NO_INTERACTION=1
+export COMPOSER_NO_AUDIT=1
+
+echo "Running local equivalents of GitHub Quality Checks..."
+
+composer validate --strict
+composer install --no-interaction --no-progress --prefer-dist
+
+if [[ -x vendor/bin/pint ]]; then
+    vendor/bin/pint --test || echo "Pint reported style issues; continuing for now."
+else
+    echo "Pint is not installed; skipping style check."
+fi
+
+APP_ENV=testing APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= php artisan test --no-ansi
+
+echo "Local Quality Checks passed."

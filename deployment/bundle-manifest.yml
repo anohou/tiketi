@@ -7,22 +7,24 @@ environments:
   production: prod
 managed_files:
   - path: environments/production/config/Dockerfile
-    sha256: b3132aad897c56073793f926673c14896f8f8058ccf0a6c2f4ebadc16db87eae
+    sha256: 0c3ac0667d6b40791cff5ed22ed01a4cb1fa7b784c8d7e45123ca22a2a50e6a1
   - path: environments/production/config/config.yml
-    sha256: 22df66e3c2e35e86ae7e0ce27047cbf14336b7b3411a807b6ee19d618eb01cf0
+    sha256: d2dd9945be43afbb77c8b99ec5412c3cd2126e8a43560647fdf95a7b3e43a086
   - path: environments/production/config/php.ini
-    sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
+    sha256: 9710fecf9ace5e51b0d6beee64cf7c4e31d15aa02ce864c2f43b34d0aff38340
   - path: environments/production/config/www.conf
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   - path: environments/production/release-policy.yml
     sha256: 50cd332e39c35f79c7d967660fdd960fece3782865f94853285c013d78ff29a3
   - path: environments/staging/config/Dockerfile
-    sha256: cbecc6f515c1716309491c842b7d3a72f69d368c35989290e47bf05fe3788b65
+    sha256: 0cd36b24c8a0324335b43a3ab9a212ff28ccce5c2d651c396866111d43550c36
   - path: environments/staging/config/config.yml
-    sha256: aad8be2f17de6d4bafdf65ed001dc00009b0dd1491a843d9fb18e87740ea822f
+    sha256: beae882a5e0dfafa7412925e15c39422c9231a314723acb54587e6e73b6676d1
   - path: environments/staging/config/php.ini
-    sha256: 45305224fe9eb663f894b4f1e198303df82b2e95a020d0c0fc014f6247580d78
+    sha256: 9710fecf9ace5e51b0d6beee64cf7c4e31d15aa02ce864c2f43b34d0aff38340
   - path: environments/staging/config/www.conf
     sha256: b9c2775cf06432f1a9b3d17f3218a02571a737049648130e21f4bc198e0c9008
   - path: environments/staging/release-policy.yml
     sha256: c30765176ce1bd900920fec6a16b684e35b7ab6b407f9a7583f2e18032e5d9f6
+  - path: php-runtime-policy.json
+    sha256: ff78ce041c0b11ca648aab9aee49c32a42cf4ba27f9864e68f1e7af7d7ddbdff
