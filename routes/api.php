@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CrewStatusController;
 use App\Http\Controllers\Api\CrewTicketController;
 use App\Http\Controllers\Api\CrewTripController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DepartureBoardPublicController;
 use App\Http\Controllers\Api\OkohiClaimStatusController;
 use App\Http\Controllers\Api\OkohiDeleteController;
 use App\Http\Controllers\Api\OkohiVerificationController;
@@ -41,6 +42,11 @@ Route::middleware('throttle:public-catalog')->group(function () {
         ->whereUuid('route_id')
         ->where('date', '\\d{4}-\\d{2}-\\d{2}')
         ->name('api.catalog.trips.by-date');
+
+    Route::prefix('departures')->group(function () {
+        Route::get('/today', [DepartureBoardPublicController::class, 'today'])->name('api.catalog.departures.today');
+        Route::get('/', [DepartureBoardPublicController::class, 'byDate'])->name('api.catalog.departures.by-date');
+    });
 });
 
 // Routes protégées (nécessitent authentification)
