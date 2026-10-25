@@ -57,7 +57,7 @@ jobs:
           test -s "${policy}"
           exact="$(jq -er '.application_php_version' "${policy}")"
           minimum="$(jq -er '.minimum_secure_php_version' "${policy}")"
-          upload_progress="$(jq -er '.session_upload_progress_enabled' "${policy}")"
+          upload_progress="$(jq -r '.session_upload_progress_enabled' "${policy}")"
           [[ "${exact}" == "${minimum}" ]] || { echo "PHP policy must pin the approved secure version exactly" >&2; exit 1; }
           [[ "${upload_progress}" == "false" ]] || { echo "session.upload_progress must be disabled" >&2; exit 1; }
           echo "exact=${exact}" >> "${GITHUB_OUTPUT}"
@@ -133,7 +133,7 @@ jobs:
           exact="$(jq -er '.application_php_version' "${policy}")"
           minimum="$(jq -er '.minimum_secure_php_version' "${policy}")"
           runtime_image="$(jq -er '.runtime_image' "${policy}")"
-          upload_progress="$(jq -er '.session_upload_progress_enabled' "${policy}")"
+          upload_progress="$(jq -r '.session_upload_progress_enabled' "${policy}")"
           [[ "${exact}" == "${minimum}" ]] || { echo "PHP policy must pin the approved secure version exactly" >&2; exit 1; }
           [[ "${runtime_image}" =~ ^ghcr\.io/[^@]+@sha256:[a-f0-9]{64}$ ]] || { echo "Laravel runtime must be pinned by digest" >&2; exit 1; }
           [[ "${upload_progress}" == "false" ]] || { echo "session.upload_progress must be disabled" >&2; exit 1; }
